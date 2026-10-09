@@ -1,5 +1,6 @@
 #include "bambuddy_api.h"
 #include "services/backend_http.h"
+#include "services/bambu_status.h"
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -1242,17 +1243,18 @@ static void fillTray(JsonObjectConst t, AmsSlotTray& out, uint8_t tray_id) {
   // interface reads it too.
   JsonVariantConst ex = t["exists"];
   out.exists = ex.isNull() ? (out.name[0] != '\0') : (ex.as<bool>());
+
+  // Only an AMS source names the spool and its grams per bay; BamBuddy sends
+  // neither key and finds its spools through the assignment list instead.
+  out.spool_id = t["spool_id"] | 0;
+  JsonVariantConst grams = t["remain_g"];
+  if (!grams.isNull()) {
+    const int g = grams.as<int>();
+    out.remain_g = (g < 0 || g > INT16_MAX) ? (int16_t)AMS_REMAIN_NA : (int16_t)g;
+  }
 }
 
-int bbGetAmsState(const char* base_url, const char* api_key, int printer_id,
-                  AmsSlotState& out, uint32_t timeout_ms) {
-  out = AmsSlotState{};
-  if (!hasBaseUrl(base_url) || printer_id <= 0) return -1;
-
-  char url[192];
-  snprintf(url, sizeof(url), "%s/api/v1/printers/%d/status", base_url, printer_id);
-
-  JsonDocument filter;
+void bambuStatusFilter(JsonDocument& filter) {
   filter["name"]       = true;
   filter["connected"]  = true;
   filter["ams_exists"] = true;
@@ -1277,10 +1279,18 @@ int bbGetAmsState(const char* base_url, const char* api_key, int printer_id,
   ft["tray_sub_brands"] = true;
   ft["remain"]          = true;
   ft["exists"]          = true;
+  ft["spool_id"]        = true;
+  ft["remain_g"]        = true;
 
   // Which bay the printer feeds from. Bambu numbers it globally as
   // ams_id * 4 + slot, so it is resolved back to a pair below.
   filter["tray_now"] = true;
+
+  // The printer's own state word and job percentage. BamBuddy names these
+  // state and progress and is not asked for them here; an AMS source passes
+  // the printer's keys through.
+  filter["gcode_state"] = true;
+  filter["mc_percent"]  = true;
 
   // vt_tray is an AMSTray array of its own at the top level, not a child of
   // ams, so the same field set has to be named a second time.
@@ -1291,13 +1301,13 @@ int bbGetAmsState(const char* base_url, const char* api_key, int printer_id,
   fv["tray_sub_brands"] = true;
   fv["remain"]          = true;
   fv["exists"]          = true;
+  fv["spool_id"]        = true;
+  fv["remain_g"]        = true;
+}
 
-  // No PSRAM allocator: what survives the filter is a couple of kilobytes
-  // and is copied into the fixed struct right away.
-  JsonDocument doc;
-  int code = getJson(url, api_key, doc, timeout_ms, nullptr, &filter);
-  if (code != 200) return code;
-
+void bambuStatusToAmsState(JsonObjectConst doc, int printer_id, AmsSlotState& out,
+                           const char* who) {
+  out = AmsSlotState{};
   out.printer_id = printer_id;
   strncpy(out.printer, doc["name"] | "", sizeof(out.printer) - 1);
   // Same distinction as on the FilaMan side, so both branches mean the same
@@ -1306,9 +1316,16 @@ int bbGetAmsState(const char* base_url, const char* api_key, int printer_id,
   out.conn_known = !conn.isNull();
   out.connected  = conn | false;
   out.ams_exists = doc["ams_exists"] | false;
-  // The status payload carries no job progress. Left at the zero the struct
-  // starts with, the view reads it as "printing 0 %" on every idle printer.
+  // BamBuddy's status payload carries no job progress; an AMS source sends the
+  // printer's mc_percent. Left at the zero the struct starts with, the view
+  // reads it as "printing 0 %" on every idle printer.
   out.job_percent = AMS_JOB_NA;
+  strncpy(out.state, doc["gcode_state"] | "", sizeof(out.state) - 1);
+  JsonVariantConst pct = doc["mc_percent"];
+  if (!pct.isNull()) {
+    const int p = pct.as<int>();
+    if (p >= 0 && p <= 100) out.job_percent = (int8_t)p;
+  }
 
   // 255 is Bambu's "nothing loaded", and so is a missing field.
   const int tray_now = doc["tray_now"] | 255;
@@ -1316,8 +1333,8 @@ int bbGetAmsState(const char* base_url, const char* api_key, int printer_id,
   for (JsonVariantConst uv : doc["ams"].as<JsonArrayConst>()) {
     JsonObjectConst u = uv.as<JsonObjectConst>();
     if (out.unit_count >= AMS_MAX_UNITS) {
-      logSDf("BamBuddy: printer %d reports more than %d AMS units, rest ignored",
-             printer_id, AMS_MAX_UNITS);
+      logSDf("%s: printer %d reports more than %d AMS units, rest ignored",
+             who, printer_id, AMS_MAX_UNITS);
       break;
     }
     AmsSlotUnit& dst = out.unit[out.unit_count];
@@ -1341,8 +1358,8 @@ int bbGetAmsState(const char* base_url, const char* api_key, int printer_id,
                                          : (int8_t)lroundf(dry_temp.as<float>());
 
     if (sd_verbose) {
-      logSDf("[verbose] BamBuddy: unit %d module_type=%s model=%d drying=%d %d min %d C",
-             (int)dst.ams_id, module_type[0] ? module_type : "-", (int)dst.model,
+      logSDf("[verbose] %s: unit %d module_type=%s model=%d drying=%d %d min %d C",
+             who, (int)dst.ams_id, module_type[0] ? module_type : "-", (int)dst.model,
              (int)dst.drying, (int)dst.dry_minutes, (int)dst.dry_target_c);
     }
 
@@ -1402,6 +1419,26 @@ int bbGetAmsState(const char* base_url, const char* api_key, int printer_id,
   }
 
   out.valid = true;
+}
+
+int bbGetAmsState(const char* base_url, const char* api_key, int printer_id,
+                  AmsSlotState& out, uint32_t timeout_ms) {
+  out = AmsSlotState{};
+  if (!hasBaseUrl(base_url) || printer_id <= 0) return -1;
+
+  char url[192];
+  snprintf(url, sizeof(url), "%s/api/v1/printers/%d/status", base_url, printer_id);
+
+  JsonDocument filter;
+  bambuStatusFilter(filter);
+
+  // No PSRAM allocator: what survives the filter is a couple of kilobytes
+  // and is copied into the fixed struct right away.
+  JsonDocument doc;
+  int code = getJson(url, api_key, doc, timeout_ms, nullptr, &filter);
+  if (code != 200) return code;
+
+  bambuStatusToAmsState(doc.as<JsonObjectConst>(), printer_id, out, "BamBuddy");
   logSDf("BamBuddy: AMS of printer %d, %d unit(s), connected=%d ams_exists=%d",
          printer_id, (int)out.unit_count, (int)out.connected, (int)out.ams_exists);
   return 200;

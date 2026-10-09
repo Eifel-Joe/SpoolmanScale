@@ -7,6 +7,7 @@
 #include "app/app_state.h"
 #include "app_config.h"
 #include "hardware/sd_logger.h"
+#include "services/ams_source.h"
 #include "services/backend.h"
 #include "services/bambuddy_api.h"
 #include "services/bambuddy_device.h"
@@ -1434,16 +1435,27 @@ bool backendCanPatchLastDried() {
 //  AMS SLOTS
 // ------------------------------------------------------------
 
+// Spoolman itself knows no printers. With an AMS source set up beside it,
+// that server answers for them instead, against the same spool ids.
+static bool spoolmanHasAmsSource() {
+  return backendMode() == BACKEND_SPOOLMAN && amsSourceConfigured();
+}
+
 bool backendHasAmsView() {
   switch (backendMode()) {
     case BACKEND_FILAMAN:
     case BACKEND_BAMBUDDY: return backendIsConfigured();
-    default:               return false;
+    default:               return spoolmanHasAmsSource();
   }
 }
 
 bool backendCanAssignAmsSlot() {
-  return backendMode() == BACKEND_BAMBUDDY && backendIsConfigured();
+  return (backendMode() == BACKEND_BAMBUDDY && backendIsConfigured()) ||
+         (spoolmanHasAmsSource() && amsSourceCanAssign());
+}
+
+bool backendCanTakeOutOfAms() {
+  return spoolmanHasAmsSource() && amsSourceCanUnassign();
 }
 
 int backendListPrinters(AmsPrinterList& out, uint32_t timeout_ms) {
@@ -1455,7 +1467,9 @@ int backendListPrinters(AmsPrinterList& out, uint32_t timeout_ms) {
       return bbListPrinters(backendBaseUrl(), bambuddyApiKey(), out, timeout_ms);
     default:
       // Spoolman keeps filament, not printers. location is free text about
-      // shelves and nothing an AMS bay may be mapped onto.
+      // shelves and nothing an AMS bay may be mapped onto; the printers come
+      // from an AMS source, where one is set up.
+      if (spoolmanHasAmsSource()) return amsSourceListPrinters(out, timeout_ms);
       out = AmsPrinterList{};
       return notSupported("ListPrinters");
   }
@@ -1471,6 +1485,7 @@ int backendGetAmsState(int printer_id, AmsSlotState& out, uint32_t timeout_ms) {
       return bbGetAmsState(backendBaseUrl(), bambuddyApiKey(), printer_id,
                            out, timeout_ms);
     default:
+      if (spoolmanHasAmsSource()) return amsSourceGetState(printer_id, out, timeout_ms);
       out = AmsSlotState{};
       return notSupported("GetAmsState");
   }
@@ -1479,6 +1494,9 @@ int backendGetAmsState(int printer_id, AmsSlotState& out, uint32_t timeout_ms) {
 int backendAssignAmsSlot(int spool_id, int printer_id, int ams_id, int tray_id,
                          uint32_t timeout_ms) {
   HttpStallTime stall(__func__);   // the loop stands still for this call
+  if (spoolmanHasAmsSource()) {
+    return amsSourceAssign(spool_id, printer_id, ams_id, tray_id, timeout_ms);
+  }
   if (backendMode() != BACKEND_BAMBUDDY) {
     // FilaMan is the interesting no here. It does have an AMS assignment,
     // but no model in which the scale names a bay and the database takes it:
@@ -1494,6 +1512,9 @@ int backendAssignAmsSlot(int spool_id, int printer_id, int ams_id, int tray_id,
 int backendUnassignAmsSlot(int spool_id, int printer_id, int ams_id, int tray_id,
                            uint32_t timeout_ms) {
   HttpStallTime stall(__func__);   // the loop stands still for this call
+  if (spoolmanHasAmsSource()) {
+    return amsSourceUnassign(printer_id, ams_id, tray_id, timeout_ms);
+  }
   if (backendMode() != BACKEND_BAMBUDDY) return notSupported("UnassignAmsSlot");
   return bbUnassignSlot(backendBaseUrl(), bambuddyApiKey(), spool_id, printer_id,
                         ams_id, tray_id, timeout_ms);

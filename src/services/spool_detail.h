@@ -92,6 +92,11 @@ struct AmsSpoolDetail {
   // still shows the spool the database names - that is what the backend
   // believes and what a write would go to - and says that the two disagree.
   bool     type_conflict;
+  // The bay itself, as the backend numbers it, so a write from the card can
+  // address it - the bay name above is display text. Last, beside the other
+  // single bytes, where it fills padding instead of growing the struct.
+  uint8_t  ams_id;
+  uint8_t  tray_id;
 };
 
 // Kept in BSS by its one holder, never on the stack: the loop task has 16 kB

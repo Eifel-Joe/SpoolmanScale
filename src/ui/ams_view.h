@@ -57,6 +57,10 @@ bool isAmsViewOpen();
 // is only half an address, and the view is what resolved the other half.
 int amsViewPrinterId();
 
+// The name of that printer as the backend reported it, empty when the page
+// has not read one. The bay picker builds a storage location from it.
+const char* amsViewPrinterName();
+
 // Hides the page without freeing it, for hideAllOverlays(). Every other
 // overlay is treated the same way there: hidden on the way past, freed in
 // showMainScreen(). An overlay in neither list stays on screen while the

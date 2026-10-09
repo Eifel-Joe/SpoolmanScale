@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "hardware/sd_logger.h"
+#include "services/backend.h"
 #include "services/backend_api.h"
 #include "services/dried_batch.h"
 #include "services/spool_detail.h"
@@ -92,7 +93,9 @@ bool amsWeightsStart(int printer_id, const AmsSlotState& st) {
   // One HTTP worker at a time: a second task is another 16 kB of stack, and
   // the drying batch is the one the user is waiting for.
   if (driedBatchBusy()) return false;
-  if (!backendCanAssignAmsSlot()) return false;   // BamBuddy names bays, others do not
+  // BamBuddy's assignment list is where the grams live. An AMS source sends
+  // them in its own answer, and FilaMan has no list to read.
+  if (!backendIsBamBuddy() || !backendCanAssignAmsSlot()) return false;
 
   s_bay_count = 0;
   for (uint8_t u = 0; u < st.unit_count && s_bay_count < AMS_WEIGHTS_MAX; u++) {

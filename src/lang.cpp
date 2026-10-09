@@ -3921,6 +3921,37 @@ const char* const STRINGS[][3] = {
   { "Per ID geladen - kein Tag",
     "Loaded by ID - no tag",
     "Chargée par ID - sans tag" },  // STR_ID_SPOOL_STATUS
+  { "An: nach dem Wiegen einer bekannten Spule fragt die Waage beim Abheben, in welches AMS-Fach sie geht, und meldet das der AMS-Quelle. Die trägt die Spule in Spoolman bei diesem Fach ein.\n\nDie AMS-Quelle konfiguriert das Fach dabei über MQTT am Drucker mit - Material, Farbe und Temperaturen. Das ist gewollt, aber es wirkt auf den Drucker, nicht nur auf die Datenbank.",
+    "On: after a known spool has been weighed, the scale asks on removal which AMS bay it goes into and reports that to the AMS source, which records the spool in Spoolman for that bay.\n\nThe AMS source also configures the bay on the printer over MQTT while doing so - material, colour and temperatures. That is intended, but it acts on the printer, not only on the database.",
+    "Activé : après la pesée d'une bobine connue, la balance demande au retrait dans quel bac AMS elle va, et le transmet à la source AMS, qui l'enregistre dans Spoolman pour ce bac.\n\nLa source AMS configure aussi ce bac sur l'imprimante par MQTT : matériau, couleur, températures. C'est voulu, mais cela agit sur l'imprimante, pas seulement sur la base." },  // STR_SMAMS_ASK_INFO
+  { "AMS-Quelle", "AMS source", "Source AMS" },  // STR_W_C_AMS_SOURCE
+  { "Spoolman kennt keine Drucker. Die AMS-Ansicht braucht deshalb einen zweiten Server, der den Drucker mithört und in dieselbe Spoolman-Datenbank bucht, zum Beispiel OpenSpoolman. Leer lassen schaltet die AMS-Ansicht ab.",
+    "Spoolman knows no printers. The AMS view therefore needs a second server that listens to the printer and books into the same Spoolman database, OpenSpoolman for example. Leave it empty to switch the AMS view off.",
+    "Spoolman ne connaît aucune imprimante. La vue AMS a donc besoin d'un second serveur qui écoute l'imprimante et enregistre dans la même base Spoolman, par exemple OpenSpoolman. Laissez vide pour désactiver la vue AMS." },  // STR_W_AMS_SOURCE_HINT
+  { "Adresse",                    "Address",                   "Adresse" },  // STR_W_AMS_SOURCE_ADDR
+  { "Lagerort beim Zuweisen",     "Location on assignment",    "Emplacement AMS" },  // STR_SMAMS_LOC
+  { "Zum Beispiel \"X1C AMS 1\"", "For example \"X1C AMS 1\"", "Par exemple « X1C AMS 1 »" },  // STR_SMAMS_LOC_SUB
+  { "An: wer eine Spule einem AMS-Fach zuweist, setzt damit auch ihren Lagerort in Spoolman auf die Einheit, etwa \"X1C AMS 1\". So sieht man auch in Spoolman, wo sie steckt.\n\nWird die Spule auf der Fachkarte wieder entnommen, fragt die Waage nach dem neuen Lagerort.",
+    "On: assigning a spool to an AMS bay also sets its Spoolman location to the unit, for example \"X1C AMS 1\". That way Spoolman shows where it is too.\n\nWhen the spool is taken out again on the bay card, the scale asks for the new location.",
+    "Activé : affecter une bobine à un bac AMS règle aussi son emplacement dans Spoolman sur l'unité, par exemple « X1C AMS 1 ». Spoolman montre ainsi où elle se trouve.\n\nSi la bobine est retirée depuis la fiche du bac, la balance demande le nouvel emplacement." },  // STR_SMAMS_LOC_INFO
+  { "Server nimmt keine Zuweisung an", "The server accepts no assignment",
+    "Le serveur refuse l'affectation" },  // STR_AMSV_ERR_READONLY
+  { "Drucker, Spule oder Fach unbekannt", "Printer, spool or bay unknown",
+    "Imprimante, bobine ou bac inconnu" },  // STR_AMSV_ERR_UNKNOWN
+  { "Spoolman antwortet dem Server nicht", "Spoolman is not answering the server",
+    "Spoolman ne répond pas au serveur" },  // STR_AMSV_ERR_INVENTORY
+  { "Drucker nicht verbunden", "Printer not connected",
+    "Imprimante hors ligne" },  // STR_AMSV_ERR_OFFLINE
+  { "Spule aus dem AMS nehmen?", "Take the spool out of the AMS?",
+    "Retirer la bobine de l'AMS ?" },  // STR_AMSD_TAKEOUT_Q
+  { "Entnehmen", "Take out",
+    "Retirer" },  // STR_AMSD_TAKEOUT_BTN
+  { "Erkannt: %s %s", "Found: %s %s",
+    "Détecté : %s %s" },  // STR_W_AMS_SOURCE_SEEN
+  { "nur lesend, kann nicht zuweisen", "read only, cannot assign",
+    "lecture seule, pas d'affectation" },  // STR_W_AMS_SOURCE_RO
+  { "Noch nicht erreicht. Die Waage fragt etwa 20 s nach dem Start und beim Öffnen der AMS-Ansicht.", "Not reached yet. The scale asks about 20 s after starting and when the AMS view opens.",
+    "Pas encore joint. La balance interroge environ 20 s après le démarrage et à l'ouverture de la vue AMS." },  // STR_W_AMS_SOURCE_UNSEEN
 };
 
 StringID tagWriteResultString(uint8_t code) {

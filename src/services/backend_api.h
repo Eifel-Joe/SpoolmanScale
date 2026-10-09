@@ -438,16 +438,24 @@ int  backendMigrateLastDried(int spool_id, uint32_t timeout_ms);
 // --- ams slots -----------------------------------------------
 
 // Whether the active backend can show the AMS at all. BamBuddy reads it from
-// the printer status, FilaMan from its display endpoint, Spoolman knows
-// nothing about printers. Asked before a button is drawn, so the way in is
+// the printer status, FilaMan from its display endpoint. Spoolman knows
+// nothing about printers, and has the view only through an AMS source
+// (ams_source.h). Asked before a button is drawn, so the way in is
 // simply absent rather than present and answering with an error.
 bool backendHasAmsView();
 
-// Whether a spool can be pinned to a bay from here. Only BamBuddy: FilaMan
-// does have an AMS assignment, but no model in which the scale names the bay
-// and the database takes it - there the scale opens a time window and the
-// server decides, which is what amsCommitWithWindow() does.
+// Whether a spool can be pinned to a bay from here. BamBuddy, and Spoolman
+// through an AMS source. Not FilaMan: it does have an AMS assignment, but no
+// model in which the scale names the bay and the database takes it - there
+// the scale opens a time window and the server decides, which is what
+// amsCommitWithWindow() does.
 bool backendCanAssignAmsSlot();
+
+// Whether the bay card may offer to take a spool out of the AMS: release the
+// bay, then ask for a shelf. Spoolman through an AMS source that says it can
+// unassign. BamBuddy could release a bay as well, but its card has no such
+// path yet and nobody has asked for one.
+bool backendCanTakeOutOfAms();
 
 // The printers worth offering. Both backends answer with the active ones.
 int  backendListPrinters(AmsPrinterList& out, uint32_t timeout_ms = 8000);
@@ -457,8 +465,9 @@ int  backendListPrinters(AmsPrinterList& out, uint32_t timeout_ms = 8000);
 int  backendGetAmsState(int printer_id, AmsSlotState& out,
        uint32_t timeout_ms = 8000);
 
-// Pins a spool to a bay. BamBuddy only - see backendCanAssignAmsSlot() for
-// why FilaMan says no despite having an AMS assignment of its own.
+// Pins a spool to a bay. BamBuddy, or Spoolman through an AMS source - see
+// backendCanAssignAmsSlot() for why FilaMan says no despite having an AMS
+// assignment of its own.
 int  backendAssignAmsSlot(int spool_id, int printer_id, int ams_id, int tray_id,
        uint32_t timeout_ms = 8000);
 

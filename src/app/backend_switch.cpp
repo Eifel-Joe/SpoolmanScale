@@ -8,6 +8,7 @@
 // Nothing here needs lang.h, so the plain includes are safe.
 #include "services/backend_http.h"
 #include "services/ams_presence.h"
+#include "services/ams_source.h"
 #include "services/backend_api.h"
 #include "services/bambuddy_device.h"
 #include "services/dried_batch.h"
@@ -46,6 +47,13 @@ void backendApplyHost(const char *host) {
   labelSpoolForget();            // the label editor's spool is the old server's
   labelServerForget();           // and so are its presets and preview
   sm_reachable = false;          // unknown until the new address answers
+}
+
+bool backendApplyAmsSource(const char *host, const char *key) {
+  if (!amsSourceSet(host, key)) return false;
+  s_generation++;
+  amsPresenceForget();
+  return true;
 }
 
 void backendApplyMode(BackendMode mode) {

@@ -75,6 +75,17 @@ static bool unlink_erase_now = false;   // the erase was agreed to with the unli
 static char unlink_erase_uid[26] = "";  // ... and for this tag, as the question saw it
 static bool loc_patch_pending  = false;
 static char loc_patch_name[LOCATION_NAME_MAX] = "";   // empty: clear the location
+
+// The spool the picker writes to when it is not the one on the pad, 0 while
+// the picker serves the pad as it always has. Set by
+// requestLocationPickerFor(), cleared whenever the picker closes.
+static int  s_loc_target_id = 0;
+static char s_loc_target_loc[LOCATION_NAME_MAX] = "";
+
+static int locTargetId() { return s_loc_target_id > 0 ? s_loc_target_id : sm_id; }
+static const char* locTargetCurrent() {
+  return s_loc_target_id > 0 ? s_loc_target_loc : sm_location_name;
+}
 // The picker row is 370 px wide; its label keeps 10 px off each edge.
 #define LOC_ROW_LABEL_W  350
 // Most rows the picker shows, the upper bound of location_list_limit.
@@ -242,6 +253,15 @@ void tapLocationButton(bool from_popup) {
   g_loc_picker_by_tap = true;
 }
 
+void requestLocationPickerFor(int spool_id, const char* current) {
+  if (spool_id <= 0) return;
+  s_loc_target_id = spool_id;
+  snprintf(s_loc_target_loc, sizeof(s_loc_target_loc), "%s", current ? current : "");
+  requestLocationPicker(true);
+  // Asked for, like a tap: the spool is named and need not be on the pad.
+  g_loc_picker_by_tap = true;
+}
+
 void handleMoreInfoDeferredActions() {
   locCountTick();
   if (unlink_pending) {
@@ -250,6 +270,7 @@ void handleMoreInfoDeferredActions() {
   }
   if (loc_cancel_pending) {
     loc_cancel_pending = false;
+    s_loc_target_id = 0;
     closeLocationPicker();
     if (g_loc_picker_from_popup) showMainScreen();
     else                         showMoreInfoScreen();
@@ -257,11 +278,17 @@ void handleMoreInfoDeferredActions() {
   if (loc_patch_pending) {
     loc_patch_pending = false;
     closeLocationPicker();
-    if (sm_id > 0) {
+    const int target = locTargetId();
+    // The pad's own fields only follow when the pad's spool was written.
+    const bool on_pad = (target == sm_id);
+    s_loc_target_id = 0;
+    if (target > 0) {
       const bool clear = (loc_patch_name[0] == '\0');
-      const int code = serverReachNote(backendPatchSpoolLocation(cfg_spoolman_base, sm_id,
+      const int code = serverReachNote(backendPatchSpoolLocation(cfg_spoolman_base, target,
                                                  clear ? nullptr : loc_patch_name, 8000), true);
-      if (backendWriteOk(code)) {
+      logSDf("LOC: spool %d -> '%s', HTTP %d%s", target, loc_patch_name, code,
+             on_pad ? "" : " (not on the pad)");
+      if (backendWriteOk(code) && on_pad) {
         if (clear) {
           sm_location_id = 0;
           sm_location_name[0] = '\0';
@@ -318,6 +345,7 @@ void handleMoreInfoDeferredActions() {
 // Both pickers, from the one list hideAllOverlays() already is. Neither used
 // to be in it, so navigating away from the location picker left it standing.
 void hideMoreInfoOverlays() {
+  s_loc_target_id = 0;   // a picker left by navigating away wrote nothing
   releaseScreen(&scr_location_picker);
   closeStatusPicker();
   loc_status_obj  = nullptr;
@@ -374,7 +402,9 @@ void showLocationPicker() {
   // prompt was scheduled, the next spool's lookup may already have moved
   // sm_id - and then the question simply never appeared, with nothing on the
   // card to say why.
-  if (!sm_found || (sm_archived && !g_loc_picker_by_tap) || sm_id <= 0) {
+  if (s_loc_target_id > 0) {
+    // Named by the caller; the pad's state says nothing about it.
+  } else if (!sm_found || (sm_archived && !g_loc_picker_by_tap) || sm_id <= 0) {
     logSDf("LOC: picker not shown, sm_found=%d archived=%d sm_id=%d",
            (int)sm_found, (int)sm_archived, sm_id);
     return;
@@ -593,7 +623,7 @@ void fetchAndFillLocationList() {
   lv_obj_set_style_text_font(lbl_none, &lv_font_montserrat_ext_16, 0);
   lv_obj_center(lbl_none);
   lv_obj_add_event_cb(btn_none, [](lv_event_t *e) {
-    if (!wifiManagerIsConnected() || sm_id <= 0) return;
+    if (!wifiManagerIsConnected() || locTargetId() <= 0) return;
     loc_patch_name[0] = '\0';      // clear
     loc_patch_pending = true;
   }, LV_EVENT_CLICKED, NULL);
@@ -619,7 +649,8 @@ void fetchAndFillLocationList() {
     lv_obj_t *row = lv_btn_create(list);
     if (!row) { logSDf("LOC: no room for a row, list cut at %d", loc_shown); break; }
     lv_obj_set_size(row, 370, 44);
-    bool is_current = (strlen(sm_location_name) > 0 && strcmp(loc_name, sm_location_name) == 0);
+    const char* current = locTargetCurrent();
+    bool is_current = (current[0] && strcmp(loc_name, current) == 0);
     lv_obj_set_style_bg_color(row, is_current ? lv_color_hex(UI_COL_GO_BG) : lv_color_hex(UI_COL_CHIP), 0);
     lv_obj_set_style_bg_color(row, lv_color_hex(UI_COL_PRESS_FILL), LV_STATE_PRESSED);
     lv_obj_set_style_border_color(row, is_current ? lv_color_hex(UI_COL_ACCENT) : lv_color_hex(UI_COL_DIVIDER), 0);
@@ -640,7 +671,7 @@ void fetchAndFillLocationList() {
     lv_obj_set_user_data(row, (void*)(intptr_t)loc_shown);
 
     lv_obj_add_event_cb(row, [](lv_event_t *e) {
-      if (!s_loc_names || !wifiManagerIsConnected() || sm_id <= 0) return;
+      if (!s_loc_names || !wifiManagerIsConnected() || locTargetId() <= 0) return;
       const intptr_t idx = (intptr_t)lv_obj_get_user_data(lv_event_get_target(e));
       if (idx < 0 || idx >= LOC_ROWS_MAX) return;
       // Copied now: the picker is gone by the time the PATCH runs from the

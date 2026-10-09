@@ -21,6 +21,7 @@
 #include "app/app_state.h"
 #include "app/deferred_actions.h"
 #include "hardware/sd_logger.h"
+#include "services/ams_source.h"
 #include "services/backend_http.h"
 #include "services/backend.h"
 #include "services/backend_api.h"
@@ -197,6 +198,51 @@ static String body() {
       h += F("</p>");
     }
     h += F("</div>");
+
+    // ---- AMS source, Spoolman only --------------------------------------
+    // Spoolman has no printers. A service beside it that listens to the
+    // printer answers for them, and the AMS view and the bay picker appear
+    // once its address is set. The prose says first that it is a server of
+    // its own.
+    h += F("<div class='card wide'><h2>");
+    h += T(STR_W_C_AMS_SOURCE);
+    h += F("</h2><p class='hint'>");
+    h += T(STR_W_AMS_SOURCE_HINT);
+    h += F("</p>");
+    // What the source said about itself, so a wrong address or a source that
+    // only reads shows here rather than as a missing button on the device.
+    if (amsSourceConfigured()) {
+      h += F("<p class='note'>");
+      if (amsSourceKnown()) {
+        char line[96];
+        snprintf(line, sizeof(line), T(STR_W_AMS_SOURCE_SEEN),
+                 amsSourceServerName()[0] ? amsSourceServerName() : "?",
+                 amsSourceServerVersion());
+        h += htmlEsc(line);
+        if (!amsSourceCanAssign()) {
+          h += F(" - ");
+          h += T(STR_W_AMS_SOURCE_RO);
+        }
+      } else {
+        h += T(STR_W_AMS_SOURCE_UNSEEN);
+      }
+      h += F("</p>");
+    }
+    h += F("<div class='field'><label>");
+    h += T(STR_W_AMS_SOURCE_ADDR);
+    h += F("</label><div class='inrow'><input id='as' type='text' maxlength='95' "
+           "spellcheck='false' placeholder='openspoolman.local:8001' value='");
+    h += htmlEsc(amsSourceHost());
+    h += F("'></div></div><div class='field'><label>");
+    h += T(STR_W_APIKEY);
+    h += F(" &middot; ");
+    h += T(amsSourceHasKey() ? STR_W_SET : STR_W_UNSET);
+    h += F("</label><div class='inrow'><input id='ak' type='password' "
+           "autocomplete='new-password' value='");
+    h += amsSourceHasKey() ? F("________________") : F("");
+    h += F("'></div></div><div class='inrow'><button id='as-b'>");
+    h += T(STR_W_SAVE);
+    h += F("</button><span class='msg' id='as-s'></span></div></div>");
   } else if (backendIsBamBuddy()) {
     // One key rather than two, and it may legitimately stay empty: an
     // instance with authentication switched off answers without it.
@@ -312,6 +358,10 @@ static String body() {
          // A secret typed in now belongs to this address: the line asking
          // for it goes.
          "if(guard(k)&&$('sa-r'))$('sa-r').style.display='none';});});}"
+         // The AMS source: address, then the key the same way as above.
+         "if($('as-b'))$('as-b').addEventListener('click',function(){"
+         "const k=$('ak').value;"
+         "postFlash('/api/ams-source',$('as').value+'\\n'+(guard(k)?'1'+k:'0'),'as-s');});"
          "function setKey(){const v=$('fk').value;"
          "if(!guard(v))return;postFlash('/api/filaman/key',v,'fk-s');}"
          "function reg(){flash('fc-s',M.test,false);"
@@ -672,6 +722,28 @@ static void routes(WebServer &srv) {
     if (strlen(backendBaseUrl()) > 7) {   // longer than "http://"
       if (webJobState() == WJS_DONE) webJobTake();
       webJobStart(WJ_HOST_TEST, nullptr, false);
+    }
+    srv.send(200, "text/plain", T(STR_W_SAVED));
+  });
+
+  // Body: the address, then the key on a second line - "1" and a new one, or
+  // "0" to keep the stored one. An empty address switches the source off.
+  srv.on("/api/ams-source", HTTP_POST, [&srv]() {
+    if (!webRequire(srv, GATE_CONFIG, T(STR_W_NAV_BACKEND))) return;
+    const String body = srv.arg("plain");
+    const int nl = body.indexOf('\n');
+    if (nl < 0 || nl + 1 >= (int)body.length()) {
+      srv.send(400, "text/plain", T(STR_W_ERROR));
+      return;
+    }
+    String host = body.substring(0, nl);
+    host.trim();
+    const bool new_key = body[nl + 1] == '1';
+    String key = body.substring(nl + 2);
+    key.trim();
+    if (!backendApplyAmsSource(host.c_str(), new_key ? key.c_str() : nullptr)) {
+      srv.send(400, "text/plain", T(STR_W_ERROR));
+      return;
     }
     srv.send(200, "text/plain", T(STR_W_SAVED));
   });

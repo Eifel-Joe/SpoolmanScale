@@ -6,6 +6,7 @@
 #include "app/app_state.h"
 #include "hardware/sd_logger.h"
 #include "services/auto_weight_state.h"
+#include "services/backend.h"
 #include "services/backend_api.h"
 #include "services/server_reach.h"
 #include "services/location_state.h"
@@ -30,7 +31,10 @@ Pending s_pending;
 }  // namespace
 
 bool amsPickActive() {
-  return g_ams_pick_ask && backendCanAssignAmsSlot();
+  // One switch per backend: on Spoolman the question goes to an AMS source,
+  // which is a different server with its own side effects on the printer.
+  const bool ask = backendIsBamBuddy() ? g_ams_pick_ask : g_sm_ams_pick_ask;
+  return ask && backendCanAssignAmsSlot();
 }
 
 void amsPickNote(int spool_id, const char* spool_name) {
@@ -74,6 +78,50 @@ static void offerLocationAfterPick(int spool_id) {
   g_loc_popup_shown_for_id = spool_id;
   logSDf("LOC: offered after the picker was closed, id=%d", spool_id);
   requestLocationPicker(true);
+}
+
+// The Spoolman location for a bay's unit: "X1C AMS 1", "X1C AMS HT", "X1C Ext".
+// Language neutral on purpose - it lands in the database, where a German and
+// an English scale would otherwise name one shelf twice. One location per
+// unit, not per bay: the bay is what the AMS view is for.
+#define AMS_HT_FIRST_ID 128
+static void amsLocationName(char* out, size_t n, const char* printer, int ams_id) {
+  char unit[16];
+  if (ams_id == AMS_EXT_AMS_ID)        snprintf(unit, sizeof(unit), "Ext");
+  else if (ams_id == AMS_HT_FIRST_ID)  snprintf(unit, sizeof(unit), "AMS HT");
+  else if (ams_id > AMS_HT_FIRST_ID)   snprintf(unit, sizeof(unit), "AMS HT %d", ams_id - AMS_HT_FIRST_ID + 1);
+  else                                 snprintf(unit, sizeof(unit), "AMS %d", ams_id + 1);
+  if (printer && printer[0]) snprintf(out, n, "%s %s", printer, unit);
+  else                       snprintf(out, n, "%s", unit);
+}
+
+// After an assignment through the AMS source: the unit becomes the spool's
+// location, so Spoolman's own interface knows where it is. A failure here
+// costs only that - the bay is assigned either way - and is logged.
+static void setAmsLocation(int spool_id, int ams_id) {
+  if (backendMode() != BACKEND_SPOOLMAN || !g_sm_ams_loc) return;
+  char loc[64];
+  amsLocationName(loc, sizeof(loc), amsViewPrinterName(), ams_id);
+  const int code = backendPatchSpoolLocation(cfg_spoolman_base, spool_id, loc, 8000);
+  logSDf("AMSPICK: location of spool %d -> '%s', HTTP %d", spool_id, loc, code);
+  if (!backendWriteOk(code)) return;
+  if (sm_found && sm_id == spool_id) {
+    snprintf(sm_location_name, sizeof(sm_location_name), "%s", loc);
+    sm_location_id = 0;
+  }
+}
+
+// What an AMS source's answer means to the user. The contract names these
+// codes; BamBuddy's own answers keep the one message they always had.
+static int assignFailText(int code) {
+  if (backendMode() != BACKEND_SPOOLMAN) return STR_AMSV_ASSIGN_FAIL;
+  switch (code) {
+    case 403: return STR_AMSV_ERR_READONLY;
+    case 404: return STR_AMSV_ERR_UNKNOWN;
+    case 502: return STR_AMSV_ERR_INVENTORY;
+    case 503: return STR_AMSV_ERR_OFFLINE;
+    default:  return STR_AMSV_ASSIGN_FAIL;
+  }
 }
 
 // Runs one pass after the picker closed, never from the tap itself.
@@ -124,6 +172,7 @@ static void onPicked(int ams_id, int tray_id) {
     const bool moved = (was_ams >= 0 && (was_ams != ams_id || was_tray != tray_id));
     logSDf("AMSPICK: spool %d -> printer %d bay %d/%d (%s)",
            spool_id, printer_id, ams_id, tray_id, moved ? "moved" : "new");
+    setAmsLocation(spool_id, ams_id);
     showInfoPopup(STR_AMSV_TITLE, moved ? STR_AMSV_MOVED : STR_AMSV_ASSIGNED,
                   INFO_DONE);
     // A spool going into the printer does not also need the storage location
@@ -134,7 +183,7 @@ static void onPicked(int ams_id, int tray_id) {
     // string ids so the handler can still read them after the caller's
     // buffers are gone, and a number cannot ride along in one.
     logSDf("AMSPICK: assignment of spool %d failed, HTTP %d", spool_id, code);
-    showInfoPopup(STR_AMSV_TITLE, STR_AMSV_ASSIGN_FAIL, INFO_WARN);
+    showInfoPopup(STR_AMSV_TITLE, assignFailText(code), INFO_WARN);
   }
 }
 
