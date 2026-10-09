@@ -26,6 +26,12 @@ void backendApplyMode(BackendMode mode);
 // instance just left - HTTP 200, wrong shelf.
 void backendApplyHost(const char *host);
 
+// Changing the AMS source beside Spoolman (ams_source.h): a new address, and a
+// new key unless key is nullptr. The presence answer belonged to the old one,
+// so the way into the AMS view is settled again on the next tick. False when a
+// value does not fit; nothing is changed then.
+bool backendApplyAmsSource(const char *host, const char *key);
+
 // Counts every switch of mode or host. Work that runs on another task takes
 // it at the start, and a result that comes back under a different number is
 // about a server the scale no longer talks to: it is dropped, never shown and

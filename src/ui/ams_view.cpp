@@ -204,6 +204,7 @@ void requestAmsViewFromScaleMenu() {
 bool isAmsViewOpen() { return s_scr != nullptr; }
 
 int  amsViewPrinterId() { return s_printer_id; }
+const char* amsViewPrinterName() { return s_state.valid ? s_state.printer : ""; }
 
 // One place that lets go of the page. The fetch pumps LVGL, so the pointers
 // have to be cleared together with the screen: a stale s_body outliving its
@@ -1140,6 +1141,8 @@ static void detailFromTray(const AmsSlotUnit& unit, const AmsSlotTray& tray,
   bayName(unit, tray, out.bay, sizeof(out.bay));
   out.color      = tray.color;
   out.spool_id   = tray.spool_id;
+  out.ams_id     = unit.ams_id;
+  out.tray_id    = tray.tray_id;
   out.remain_pct = tray.remain;
   out.nozzle_min = tray.nozzle_min;
   out.nozzle_max = tray.nozzle_max;

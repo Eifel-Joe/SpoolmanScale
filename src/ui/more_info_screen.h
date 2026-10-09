@@ -6,6 +6,10 @@ void requestLocationPicker(bool from_popup);
 // picker for an archived spool too: tapped, the location is asked for. The
 // automatic offers call requestLocationPicker() and leave archived spools out.
 void tapLocationButton(bool from_popup);
+// The picker for a spool that is not on the pad: one just taken out of an AMS
+// bay. Writes to spool_id instead of the spool on the pad, marks `current` as
+// the location it has now, and returns to the main screen when done.
+void requestLocationPickerFor(int spool_id, const char* current);
 void handleMoreInfoDeferredActions();
 
 // Both More Info pickers, released from hideAllOverlays(). Without this a

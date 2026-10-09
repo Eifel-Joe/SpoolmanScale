@@ -18,6 +18,7 @@
 #include "services/nfc_reset.h"
 #include "hardware/scale.h"
 #include "hardware/sd_logger.h"
+#include "services/ams_source.h"
 #include "services/app_settings.h"
 #include "services/backend.h"
 #include "services/board_image.h"
@@ -171,6 +172,7 @@ void appSetup() {
   // so the line lands in the log, and well before the first backend_api call
   // in wifiConnect(). Logs only whether tokens are present, never their values.
   backendLoadSettings();
+  amsSourceLoadSettings();
 
   displayHardwareBegin(resetActivityTimer);
   // The palette, before anything is drawn: every UI_COL_* is read when an
