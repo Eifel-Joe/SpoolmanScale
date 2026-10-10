@@ -2,6 +2,7 @@
 #include "navigation.h"
 #include "app/app_state.h"
 #include "app/deferred_actions.h"
+#include "app/label_server.h"
 #include "app/label_spool.h"
 
 #include <Arduino.h>
@@ -48,26 +49,48 @@ int printerLastTestResult() { return s_last_test; }
 static int s_last_label = -1;
 int printerLastLabelResult() { return s_last_label; }
 
-// A spool's label with the saved template, under the print card; the dates
-// are asked of the backend first, a slow one only costs the label its date.
-// The card comes first, so the wait for them has something on screen.
-static void printSpoolLabel(SpoolLabelData spool) {
+// The spool whose server label failed, for the card's "own layout" answer.
+static SpoolLabelData s_own_layout_spool{};
+
+// The raster of a spool's label: the FilaMan preset the editor chose, or the
+// saved template. The scale's own needs the dates first; a slow backend only
+// costs the label its date. The server draws its label with what it holds.
+static LabelPrintResult spoolRaster(const LabelPrinterConfig& c, SpoolLabelData& spool,
+                                    bool server, LabelRaster* raster) {
+  if (server)
+    return labelServerPrintRaster(c, spool.id, raster, printCardTick) == 200 ? LP_OK
+                                                                             : LP_SERVER_LABEL;
+  labelSpoolFetchDates(&spool);
+  return labelRenderSpool(c, labelLayoutLoad(), spool, raster) ? LP_OK : LP_BAD_RASTER;
+}
+
+// A spool's label under the print card. The card comes first, so the wait
+// for the dates or the server has something on screen. own_layout: the
+// scale's template even where a FilaMan preset is chosen.
+static void printSpoolLabel(SpoolLabelData spool, bool own_layout = false) {
   const LabelPrinterConfig c = labelPrinterLoadConfig();
+  const bool server = !own_layout && labelServerInUse();
   LabelPrintResult result = LP_NO_PRINTER;
   if (labelPrinterConfigured(c)) {
     if (!bleEnabled()) result = LP_BLE_OFF;
     else {
       printCardShow();
-      labelSpoolFetchDates(&spool);
       LabelRaster raster{};
-      if (!labelRenderSpool(c, labelLayoutLoad(), spool, &raster)) result = LP_BAD_RASTER;
-      else result = labelPrinterPrint(c, raster, printCardTick);
+      result = spoolRaster(c, spool, server, &raster);
+      if (result == LP_OK) result = labelPrinterPrint(c, raster, printCardTick);
       labelRasterFree(&raster);
     }
   }
-  logSDf("Printer: spool #%d label result=%d", spool.id, (int)result);
+  logSDf("Printer: spool #%d label (%s) result=%d", spool.id,
+         server ? "FilaMan preset" : "own layout", (int)result);
   s_last_label = labelPrintResultString(result);
-  printCardResult(result);
+  // Never switched over unasked: the card offers the scale's own layout.
+  if (result == LP_SERVER_LABEL) {
+    s_own_layout_spool = spool;
+    printCardResult(result, labelServerLastReason(), true);
+  } else {
+    printCardResult(result);
+  }
 }
 
 void closePrinterScreen() {
@@ -274,5 +297,10 @@ void handlePrinterDeferredActions() {
     }
     printSpoolLabel(spool);
   }
+  if (print_own_layout_pending) {
+    print_own_layout_pending = false;
+    printSpoolLabel(s_own_layout_spool, true);
+  }
   labelSpoolTick();
+  labelServerTick();
 }

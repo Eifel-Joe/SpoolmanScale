@@ -19,6 +19,12 @@
 //  write paths follow in later stages.
 // ============================================================
 
+class HTTPClient;
+
+// The Authorization header for the API key, for the FilaMan calls that live
+// in files of their own (services/filaman_labels.cpp).
+void filamanAddApiKey(HTTPClient& http, const char* api_key);
+
 // Exchanges the 6 character code from the FilaMan admin for a device
 // token. Returns the HTTP status code, 200 on success, and copies the
 // token into out_token. The token is never logged.

@@ -158,3 +158,6 @@ extern bool print_spool_label_pending;
 // saved template, and fetch that spool's dates for the preview (HTTP).
 extern bool print_last_label_pending;
 extern bool label_dates_pending;
+// The print card's answer to a label the server would not draw: print the
+// same spool with the scale's own layout.
+extern bool print_own_layout_pending;

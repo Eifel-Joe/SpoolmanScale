@@ -9,6 +9,7 @@ bool backendLastListPartial();
 #include <stddef.h>
 #include <stdint.h>
 #include "services/ams_slots.h"
+#include "services/filaman_labels.h"
 #include "services/spool_detail.h"
 #include "services/tag_create.h"
 
@@ -479,3 +480,13 @@ int  backendFindUnitSpools(int printer_id, int ams_id, int* out_by_tray,
 // from an LVGL event callback.
 int  backendGetSpoolDetail(int spool_id, AmsSpoolDetail& out,
        uint32_t timeout_ms = 8000);
+
+// --- labels laid out on the server ---------------------------
+// FilaMan's label presets and the label drawn from one of them, as the
+// printer's raster (services/filaman_labels.h). Spoolman and BamBuddy have
+// no such thing and answer BACKEND_NOT_SUPPORTED. The base URL and the key
+// are the active backend's; `req` brings the rest. HTTP: from the loop or a
+// worker, never from a handler.
+int  backendLabelPresets(FilamanLabelPresetList* list, uint32_t timeout_ms);
+int  backendLabelRender(FilamanLabelRequest req, LabelRaster* out,
+       char* reason, size_t reason_size);

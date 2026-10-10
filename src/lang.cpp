@@ -3532,6 +3532,36 @@ const char* const STRINGS[][3] = {
   { "(nicht mehr auf der Waage)",
     "(no longer on the scale)",
     "(plus sur la balance)" },  // STR_W_L_OFF_PAD
+  { "FilaMan hat das Etikett nicht gezeichnet.",
+    "FilaMan did not draw the label.",
+    "FilaMan n'a pas généré l'étiquette." },  // STR_PRN_ERR_SERVER_LABEL
+  { "Waagen-Layout",
+    "Scale layout",
+    "Modèle balance" },  // STR_PRN_OWN_LAYOUT
+  { "Quelle",
+    "Source",
+    "Source" },  // STR_W_L_SOURCE
+  { "Waage",
+    "Scale",
+    "Balance" },  // STR_W_L_SRC_SCALE
+  { "Vorlagen aus dem Etiketten-Designer von FilaMan. Wählbar sind die in der Größe der eingelegten Rolle.",
+    "Presets from FilaMan's label designer. The ones the size of the loaded roll can be chosen.",
+    "Modèles du concepteur d'étiquettes de FilaMan. Seuls ceux à la taille du rouleau chargé peuvent être choisis." },  // STR_W_L_SRC_HINT
+  { "Vorlagen werden geladen ...",
+    "Loading presets ...",
+    "Chargement des modèles ..." },  // STR_W_L_SRC_LOADING
+  { "FilaMan hat die Vorlagen nicht geliefert, gleich ein neuer Versuch.",
+    "FilaMan did not send the presets, trying again shortly.",
+    "FilaMan n'a pas envoyé les modèles, nouvel essai sous peu." },  // STR_W_L_SRC_FAILED
+  { "Dieses Etikett zeichnet FilaMan. Anordnung und Felder stehen im Etiketten-Designer von FilaMan.",
+    "FilaMan draws this label. Arrangement and fields are set in FilaMan's label designer.",
+    "FilaMan génère cette étiquette. Disposition et champs se règlent dans le concepteur d'étiquettes de FilaMan." },  // STR_W_L_SRC_SERVER
+  { "Etikett wird von FilaMan geladen ...",
+    "Loading the label from FilaMan ...",
+    "Chargement de l'étiquette depuis FilaMan ..." },  // STR_W_L_PREVIEW_LOADING
+  { "Für die Vorschau eine Spule auf die Waage legen.",
+    "Put a spool on the scale for the preview.",
+    "Posez une bobine sur la balance pour l'aperçu." },  // STR_W_L_SRC_NO_SPOOL
 };
 
 StringID tagWriteResultString(uint8_t code) {

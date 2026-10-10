@@ -100,6 +100,7 @@ enum LabelPrintResult : uint8_t {
   LP_PRN_ERROR,         // another error code; it is in the log
   LP_MODEL_MISMATCH,    // a known printer, but not of the picked class
   LP_MODEL_UNKNOWN,     // an id the table does not have; it is in the log
+  LP_SERVER_LABEL,      // the server did not draw the chosen preset; why is in the log
 };
 
 const LabelPrinterProfile& labelPrinterProfile(LabelPrinterModel model);

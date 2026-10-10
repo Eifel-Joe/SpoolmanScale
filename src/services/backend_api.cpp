@@ -14,6 +14,7 @@
 #include "services/filaman_api.h"
 #include "services/filaman_filament.h"
 #include "services/filaman_filament_db.h"
+#include "services/filaman_labels.h"
 #include "services/http_progress.h"
 #include "services/last_dried.h"
 #include "services/list_limits.h"
@@ -1590,4 +1591,19 @@ int backendGetSpoolDetail(int spool_id, AmsSpoolDetail& out, uint32_t timeout_ms
 
   out.found = true;
   return 200;
+}
+
+int backendLabelPresets(FilamanLabelPresetList* list, uint32_t timeout_ms) {
+  HttpStallTime stall(__func__);
+  if (backendMode() != BACKEND_FILAMAN) return notSupported(__func__);
+  return filamanLabelPresets(backendBaseUrl(), filamanApiKey(), list, timeout_ms);
+}
+
+int backendLabelRender(FilamanLabelRequest req, LabelRaster* out,
+                       char* reason, size_t reason_size) {
+  HttpStallTime stall(__func__);
+  if (backendMode() != BACKEND_FILAMAN) return notSupported(__func__);
+  req.base_url = backendBaseUrl();
+  req.api_key = filamanApiKey();
+  return filamanLabelRender(req, out, reason, reason_size);
 }

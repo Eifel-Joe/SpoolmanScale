@@ -356,6 +356,7 @@ int labelPrintResultString(LabelPrintResult r) {
     case LP_PRN_ERROR:          return STR_PRN_ERR_PRINTER;
     case LP_MODEL_MISMATCH:     return STR_PRN_ERR_MODEL_MISMATCH;
     case LP_MODEL_UNKNOWN:      return STR_PRN_ERR_MODEL_UNKNOWN;
+    case LP_SERVER_LABEL:       return STR_PRN_ERR_SERVER_LABEL;
     default:                    return STR_PRN_ERR_WRITE;
   }
 }

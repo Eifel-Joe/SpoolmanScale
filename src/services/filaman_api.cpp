@@ -391,6 +391,8 @@ static void addApiKey(HTTPClient& http, const char* api_key) {
   }
 }
 
+void filamanAddApiKey(HTTPClient& http, const char* api_key) { addApiKey(http, api_key); }
+
 int filamanRegisterDevice(const char* base_url, const char* device_code,
                           char* out_token, size_t out_size,
                           char* out_error, size_t err_size,

@@ -314,3 +314,4 @@ STR_TAGNEW_TAG_PLUS_DB	16	360	NEVER	src/ui/tag_create_popup.cpp status line of t
 STR_BB_DRIED_NATIVE	16	320	NEVER	src/ui/bambuddy_options_screen.cpp makeListBtn title, text_w 320
 STR_BB_DRIED_NATIVE_SUB	12	320	NEVER	src/ui/bambuddy_options_screen.cpp makeListBtn sub, text_w 320
 STR_BB_DRIED_OLDER_ONLY	12	320	NEVER	src/ui/bambuddy_options_screen.cpp makeListBtn sub, text_w 320
+STR_PRN_OWN_LAYOUT	18	154	NEVER	src/ui/print_card.cpp:171 170 px button, -16 air
