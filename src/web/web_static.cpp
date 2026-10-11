@@ -112,6 +112,10 @@ static const char APP_CSS[] PROGMEM =
       "padding:28px 20px 40px;display:flex;flex-direction:column;align-items:center;"
       "gap:20px;min-height:100vh}"
       ".wrap{width:100%;max-width:var(--w);display:flex;flex-direction:column;gap:18px}"
+      // Inside a backend's frame the host already draws its own margin and
+      // its content area is wide: 860 px left a quarter of a 1300 px frame
+      // empty on each side. app.js sets the class before the body is drawn.
+      "html.framed{--w:1180px}html.framed body{padding:16px 16px 28px}"
       // header
       ".head{display:grid;grid-template-columns:52px 1fr auto;align-items:center;gap:16px}"
       ".mark{width:52px;height:52px;border-radius:13px;overflow:hidden;"
@@ -452,7 +456,7 @@ static const char APP_JS[] PROGMEM =
   "mq=window.matchMedia?window.matchMedia('(prefers-color-scheme: light)'):null,"
   "framed=window.parent!==window,host=null;\n"
   "function mode(m){return m==='light'||m==='dark'?m:null;}\n"
-  "if(framed){try{host=mode(sessionStorage.getItem('host_mode'));}catch(x){}}\n"
+  "if(framed){d.classList.add('framed');try{host=mode(sessionStorage.getItem('host_mode'));}catch(x){}}\n"
   "function want(){var k=d.getAttribute('data-tdark'),l=d.getAttribute('data-tlight');if(!k||!l)return own;"
   "if(host)return host==='light'?l:k;"
   "return d.getAttribute('data-tsys')&&mq?(mq.matches?l:k):own;}\n"
