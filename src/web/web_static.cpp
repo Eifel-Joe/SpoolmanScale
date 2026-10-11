@@ -439,9 +439,11 @@ static const char APP_JS[] PROGMEM =
   "if(c.accent){d.style.setProperty('--accent','#'+readable(c.accent,get('--ground')));WEB_ACC.forEach(function(v){var x=get(v);if(x)d.style.setProperty(v,'#'+toward(x,c.accent));});}}\n"
   "return{apply:apply,contrast:contrast,page:page};})();\n"
   // Light or dark: data-tdark and data-tlight name the family's two palettes,
-  // data-theme the scale's own. Inside a BamBuddy frame BamBuddy's mode wins,
-  // posted to the frame as bambuddy:theme and kept in sessionStorage so the
-  // next page of the scale starts in it instead of flashing; otherwise the
+  // data-theme the scale's own. Inside a backend's frame the backend's mode
+  // wins, posted to the frame as bambuddy:theme by BamBuddy itself or as
+  // spoolmanscale:theme by anyone else (the FilaMan plugin page), and kept in
+  // sessionStorage so the next page of the scale starts in it instead of
+  // flashing; otherwise the
   // browser's, when data-tsys says so. Only the parent may set it, and that
   // is the backend: the page's frame-ancestors lets nobody else frame it.
   // Set before the body is drawn, and again on every change, with the own
@@ -460,7 +462,7 @@ static const char APP_JS[] PROGMEM =
   "if(on)d.setAttribute('data-tsys','1');else d.removeAttribute('data-tsys');apply();}\n"
   "if(mq){if(mq.addEventListener)mq.addEventListener('change',apply);else if(mq.addListener)mq.addListener(apply);}\n"
   "if(framed)window.addEventListener('message',function(e){var m=e.data;"
-  "if(e.source!==window.parent||!m||m.type!=='bambuddy:theme'||!mode(m.mode))return;"
+  "if(e.source!==window.parent||!m||(m.type!=='bambuddy:theme'&&m.type!=='spoolmanscale:theme')||!mode(m.mode))return;"
   "host=m.mode;try{sessionStorage.setItem('host_mode',host);}catch(x){}apply();});\n"
   "d.setAttribute('data-theme',want());\n"
   "return{set:set};})();\n"
