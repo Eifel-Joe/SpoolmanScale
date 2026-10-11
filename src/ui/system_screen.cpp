@@ -251,7 +251,7 @@ void buildSystemScreen() {
   // computed until the layout runs, so without this the dot would sit at the
   // list's origin instead of on the firmware row.
   lv_obj_update_layout(list);
-  lbl_fw_badge = createUpdateBadge(list, row_fw);
+  lbl_fw_badge = createUpdateBadge(row_fw);
 
   if (sd_verbose) logSD("[verbose] buildSystemScreen: done");
 }

@@ -23,10 +23,16 @@ static void setBadgeVisible(lv_obj_t *badge, bool show) {
   else      lv_obj_add_flag(badge, LV_OBJ_FLAG_HIDDEN);
 }
 
-lv_obj_t* createUpdateBadge(lv_obj_t* parent, lv_obj_t* anchor) {
-  if (!parent || !anchor) return nullptr;
+lv_obj_t* createUpdateBadge(lv_obj_t* anchor) {
+  if (!anchor) return nullptr;
 
-  lv_obj_t *badge = lv_obj_create(parent);
+  // Half of the dot lies outside the anchor. As the anchor's child it may do
+  // so once the anchor stops clipping, and FLOATING keeps it out of every
+  // scroll calculation: a dot hanging past the edge used to give the system
+  // list a sideways scrollbar, and a badge on the screen did the same there.
+  lv_obj_add_flag(anchor, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+  lv_obj_t *badge = lv_obj_create(anchor);
+  lv_obj_add_flag(badge, LV_OBJ_FLAG_FLOATING);
   lv_obj_set_size(badge, BADGE_SIZE, BADGE_SIZE);
   lv_obj_set_style_radius(badge, BADGE_SIZE / 2, 0);
   // Amber, not red: red is this UI's colour for something being wrong, and a
@@ -58,9 +64,11 @@ lv_obj_t* createUpdateBadge(lv_obj_t* parent, lv_obj_t* anchor) {
   if (r < 0)     r = 0;
   const int inset = (r * 293 + 500) / 1000;
 
-  // lv_obj_align_to() resolves across parents, which the burger dot relies on.
-  lv_obj_align_to(badge, anchor, LV_ALIGN_TOP_RIGHT,
-                  BADGE_SIZE / 2 - inset, -BADGE_SIZE / 2 + inset);
+  // OUT_TOP_RIGHT measures from the anchor's outer corner. The plain TOP_RIGHT
+  // measures from the content box, which put every dot a padding's width
+  // inside the corner it was meant to sit on.
+  lv_obj_align_to(badge, anchor, LV_ALIGN_OUT_TOP_RIGHT,
+                  BADGE_SIZE / 2 - inset, BADGE_SIZE / 2 + inset);
 
   setBadgeVisible(badge, update_available);
   return badge;

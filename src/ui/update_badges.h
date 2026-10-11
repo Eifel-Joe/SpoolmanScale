@@ -10,9 +10,9 @@
 // corner entirely. Anchoring removes the arithmetic and keeps the dot in place
 // when a layout changes.
 //
-// parent carries the dot, anchor is the button it belongs to. The two may
-// differ: the burger dot hangs on the screen so the button bar cannot clip it.
-// Call this after the anchor has its final position.
-lv_obj_t* createUpdateBadge(lv_obj_t* parent, lv_obj_t* anchor);
+// The dot is a child of the anchor, so it scrolls and hides with it, and the
+// anchor is allowed to draw past its own edge for the half of the dot that
+// hangs outside. Call this after the anchor has its final position.
+lv_obj_t* createUpdateBadge(lv_obj_t* anchor);
 
 void showUpdateBadges(bool show);

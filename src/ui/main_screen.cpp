@@ -985,7 +985,7 @@ void buildUI() {
   // Notification dot on the burger button. It hangs on the screen rather than
   // on the button bar, because a child of the bar would be clipped at the bar's
   // edge and half of this dot sits outside it.
-  lbl_burger_badge = createUpdateBadge(lv_scr_act(), btn_menu);
+  lbl_burger_badge = createUpdateBadge(btn_menu);
 
   // Header chips and the status bar address are packed from their real
   // widths, so this has to run after every label above exists.

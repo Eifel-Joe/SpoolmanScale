@@ -132,7 +132,7 @@ void buildSettingsScreen() {
     }, LV_EVENT_CLICKED, (void*)(intptr_t)i);
   }
 
-  lbl_system_badge = createUpdateBadge(scr_settings, tile_system);
+  lbl_system_badge = createUpdateBadge(tile_system);
 
   if (sd_verbose) logSD("[verbose] buildSettingsScreen: done");
 }
