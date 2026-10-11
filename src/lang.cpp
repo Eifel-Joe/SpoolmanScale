@@ -121,9 +121,9 @@ const char* const STRINGS[][3] = {
   { LV_SYMBOL_OK "  Berechnen", LV_SYMBOL_OK "  Calculate", LV_SYMBOL_OK "  Calculer" },  // STR_BTN_CALCULATE
 
   // Bag weight
-  { "Vakuumbeutel inkl. Silikagelpack (in Gramm)",
-    "Vacuum bag incl. silica gel pack (in grams)",
-    "Sachet sous vide, gel de silice compris (en grammes)" },  // STR_BAG_DESC
+  { "Vakuumbeutel inkl. Silikagelpack in Gramm, 0 = kein Beutel",
+    "Vacuum bag incl. silica gel pack in grams, 0 = no bag",
+    "Sachet sous vide, gel de silice en g, 0 = sans sachet" },  // STR_BAG_DESC
   { "%.1fg gespeichert", "%.1fg saved",   "%.1fg enregistré" },  // STR_BAG_SAVED
   { "Ungültiger Wert",   "Invalid value", "Valeur invalide" },  // STR_BAG_INVALID
 
@@ -3570,6 +3570,20 @@ const char* const STRINGS[][3] = {
     "Corrige la dérive lente du zéro tant que le plateau est vide.\n\nSi le poids reste stable entre 0,5 et 5 g (positif ou négatif) pendant 3 secondes, cette valeur devient le nouveau zéro. Rien ne se passe tant qu'un tag est détecté ou qu'une bobine est posée. Plus de 5 g n'est jamais corrigé, et il s'écoule au moins une minute entre deux corrections.\n\nLe bouton TARE fonctionne toujours comme avant." },  // STR_BTN_AUTO_TARE_INFO
   // The mark on the TARE button while auto-tare is on
   { "A", "A", "A" },  // STR_TARE_AUTO_MARK
+  // The bag weight at 0: the menu row says so, and the weight popup has one
+  // button instead of two
+  { "Aus - kein Beutel", "Off - no bag", "Sans sachet" },  // STR_BAG_OFF_SUB
+  { LV_SYMBOL_OK " Übernehmen\n%.0fg",
+    LV_SYMBOL_OK " Apply\n%.0fg",
+    LV_SYMBOL_OK " Valider\n%.0fg" },  // STR_BTN_WEIGHT_VAL
+  // The empty spool weight the netto subtracts, shown in the live zone
+  // without a bag
+  { "Spule", "Spool", "Bobine" },  // STR_LBL_SPOOL_TARE_CAP
+  // Behind the help circle on the bag screen: what the value does to the
+  // main screen and the weight popup, and that crossing 0 needs a restart
+  { "Für Spulen, die im Vakuumbeutel auf der Waage liegen. Der Wert ist das Gewicht des leeren Beutels samt Silikagelpack und wird von jeder Messung abgezogen.\n\nMit Beutel (Wert über 0 g): Der Hauptschirm zeigt vier Zeilen: Waage minus Spule, Diff, Gesamt und das Gewicht ohne Beutel mit eigener Diff. Beim Übertragen fragt die Waage, ob die Spule mit oder ohne Beutel aufliegt.\n\nOhne Beutel (0 g): Der Hauptschirm zeigt Waage minus Spule, Diff, Gesamt und das Spulengewicht, größer und mit mehr Platz. Übertragen geht mit einem Knopf, ohne Rückfrage.\n\nAb Werk steht hier 0 g. Ein neuer Wert wirkt sofort. Nur der Wechsel zwischen 0 g und einem Wert braucht einen Neustart, weil der Hauptschirm dafür neu aufgebaut wird.",
+    "For spools that sit on the scale in a vacuum bag. The value is the weight of the empty bag with its silica gel pack, and it is subtracted from every reading.\n\nWith a bag (value above 0 g): the main screen shows four lines: scale minus spool, diff, total and the weight without the bag with a diff of its own. When sending the weight, the scale asks whether the spool is on the pad with or without its bag.\n\nWithout a bag (0 g): the main screen shows scale minus spool, diff, total and the spool weight, larger and with more room. Sending takes one button, no question asked.\n\nThe factory setting is 0 g. A new value takes effect at once. Only the change between 0 g and a value needs a restart, because the main screen is rebuilt for it.",
+    "Pour les bobines pesées dans un sachet sous vide. La valeur est le poids du sachet vide avec son gel de silice, soustrait de chaque mesure.\n\nAvec sachet (plus de 0 g) : l'écran principal affiche quatre lignes : balance moins bobine, écart, total et le poids sans sachet avec son propre écart. À l'envoi du poids, la balance demande si la bobine est posée avec ou sans sachet.\n\nSans sachet (0 g) : l'écran principal affiche balance moins bobine, écart, total et le poids de la bobine, en plus grand. L'envoi se fait d'un seul bouton, sans question.\n\nRéglage d'usine : 0 g. Une nouvelle valeur agit aussitôt. Seul le passage entre 0 g et une valeur demande un redémarrage, car l'écran principal est reconstruit." },  // STR_BAG_HELP_TEXT
 };
 
 StringID tagWriteResultString(uint8_t code) {

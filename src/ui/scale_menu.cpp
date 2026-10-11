@@ -86,18 +86,6 @@ void buildScaleSubScreen() {
     }, LV_EVENT_CLICKED, NULL);
   }
 
-  // The bag weight is subtracted from a reading, so it only means something
-  // while there are readings. Same for the calibration further down; the four
-  // rows between them are about tags and drying and survive a device with no
-  // load cell untouched.
-  if (g_scale_fitted) {
-    char bag_sub[32]; snprintf(bag_sub, sizeof(bag_sub), T(STR_BAG_CURRENT), bag_weight_g);
-    lv_obj_t *btn = makeListBtn(list, LV_SYMBOL_DRIVE, T(STR_BTN_BAGWEIGHT), bag_sub);
-    lv_obj_add_event_cb(btn, [](lv_event_t *e){
-      logSD("BTN: Scale-Sub -> Bag Weight");
-      show_bag_pending = true;
-    }, LV_EVENT_CLICKED, NULL);
-  }
 
   { char buf_t[40]; copyT(buf_t, sizeof(buf_t), STR_BTN_DRYING_REMINDER);
     char buf_s[24];
@@ -168,15 +156,20 @@ void buildScaleSubScreen() {
       show_lastused_pending = true;
     }, LV_EVENT_CLICKED, NULL); }
 
+  // From here down the hardware block, only with a load cell. The bag weight
+  // opens it: the one row that says how the user weighs, not what the device
+  // has. 0 g is how a user says there is no bag.
   if (g_scale_fitted)
-  { char cal_sub[32]; snprintf(cal_sub, sizeof(cal_sub), T(STR_CAL_FACTOR_SHORT), cal_factor);
-    lv_obj_t *btn = makeListBtn(list, LV_SYMBOL_EDIT, T(STR_BTN_CALIBRATE), cal_sub);
+  { char bag_sub[32];
+    if (bagInUse()) snprintf(bag_sub, sizeof(bag_sub), T(STR_BAG_CURRENT), bag_weight_g);
+    else            copyT(bag_sub, sizeof(bag_sub), STR_BAG_OFF_SUB);
+    lv_obj_t *btn = makeListBtn(list, LV_SYMBOL_DRIVE, T(STR_BTN_BAGWEIGHT), bag_sub);
     lv_obj_add_event_cb(btn, [](lv_event_t *e){
-      logSD("BTN: Scale-Sub -> Calibration");
-      show_factor_pending = true;
+      logSD("BTN: Scale-Sub -> Bag Weight");
+      show_bag_pending = true;
     }, LV_EVENT_CLICKED, NULL); }
 
-  // Only with a load cell, like the calibration above it.
+  // Only with a load cell, like the bag weight above it.
   if (g_scale_fitted)
   { char buf_t[40]; copyT(buf_t, sizeof(buf_t), STR_BTN_AUTO_TARE);
     char buf_s[8]; copyT(buf_s, sizeof(buf_s), g_auto_tare ? STR_ON : STR_OFF);
@@ -197,6 +190,16 @@ void buildScaleSubScreen() {
       tareMarkShow(g_auto_tare);
       logSDf("Auto-tare switched %s", g_auto_tare ? "on" : "off");
       scale_sub_rebuild_pending = true;
+    }, LV_EVENT_CLICKED, NULL); }
+
+  // Right above the switch that says whether there is a scale at all:
+  // calibration is set up once, with the hardware.
+  if (g_scale_fitted)
+  { char cal_sub[32]; snprintf(cal_sub, sizeof(cal_sub), T(STR_CAL_FACTOR_SHORT), cal_factor);
+    lv_obj_t *btn = makeListBtn(list, LV_SYMBOL_EDIT, T(STR_BTN_CALIBRATE), cal_sub);
+    lv_obj_add_event_cb(btn, [](lv_event_t *e){
+      logSD("BTN: Scale-Sub -> Calibration");
+      show_factor_pending = true;
     }, LV_EVENT_CLICKED, NULL); }
 
   // Last, because it is the row that decides what the rest of this screen even

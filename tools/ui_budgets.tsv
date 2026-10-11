@@ -315,3 +315,4 @@ STR_BB_DRIED_NATIVE	16	320	NEVER	src/ui/bambuddy_options_screen.cpp makeListBtn 
 STR_BB_DRIED_NATIVE_SUB	12	320	NEVER	src/ui/bambuddy_options_screen.cpp makeListBtn sub, text_w 320
 STR_BB_DRIED_OLDER_ONLY	12	320	NEVER	src/ui/bambuddy_options_screen.cpp makeListBtn sub, text_w 320
 STR_PRN_OWN_LAYOUT	18	154	NEVER	src/ui/print_card.cpp:171 170 px button, -16 air
+STR_LBL_SPOOL_TARE_CAP	12	60	NEVER	src/ui/live_zone.cpp:55 caption at x=344, the column ends at 404

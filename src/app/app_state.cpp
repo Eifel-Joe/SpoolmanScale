@@ -150,7 +150,7 @@ bool  scale_filter_full = false;
 
 lv_obj_t *lbl_weight_main_lbl = nullptr;
 
-float bag_weight_g = 50.0f;
+float bag_weight_g = 0.0f;
 
 char spoolman_queried_uid[24] = "";
 char ntag_handled_uid[24] = "";
@@ -215,6 +215,7 @@ lv_obj_t *lbl_hdr_sm = nullptr;
 lv_obj_t *lbl_hdr_sd = nullptr;
 lv_obj_t *lbl_sm_cap = nullptr;
 lv_obj_t *lbl_bag_sm_diff = nullptr;
+lv_obj_t *lbl_spool_tare = nullptr;
 
 lv_obj_t *btn_dried  = nullptr;
 lv_obj_t *btn_link   = nullptr;

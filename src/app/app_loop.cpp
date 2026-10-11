@@ -1420,6 +1420,13 @@ void appLoop() {
         lv_label_set_text(lbl_spoolman_dried, lt_str);
         lv_obj_set_style_text_color(lbl_spoolman_dried, lv_color_hex(UI_COL_VALUE_BLUE), 0);
       }
+      // The spool weight behind the netto, so the sum is on the screen.
+      // Only the bag-free layout has a row for it.
+      if (lbl_spool_tare) {
+        char st_str[16];
+        fmtG(st_str, sizeof(st_str), sm_spool_weight);
+        lv_label_set_text(lbl_spool_tare, st_str);
+      }
 
       // Fix 4: ohne Beutel = live - spool - bag; fixed color like scale netto; diff green/red
       if (lbl_keys) {
@@ -1449,11 +1456,14 @@ void appLoop() {
         lv_label_set_text(lbl_spoolman_dried, lt_str);
       }
       if (lbl_keys) lv_label_set_text(lbl_keys, "");
+      // No spool weight on record: the dash says why netto equals total.
+      if (lbl_spool_tare) lv_label_set_text(lbl_spool_tare, "-");
     } else {
       if (lbl_raw_info) lv_label_set_text(lbl_raw_info, "");
       if (lbl_bag_sm_diff) lv_label_set_text(lbl_bag_sm_diff, "");
       if (lbl_spoolman_dried) lv_label_set_text(lbl_spoolman_dried, "");
       if (lbl_keys) lv_label_set_text(lbl_keys, "");
+      if (lbl_spool_tare) lv_label_set_text(lbl_spool_tare, "");
     }
   }
 

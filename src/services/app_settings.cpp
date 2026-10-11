@@ -49,7 +49,9 @@ void loadPrefs() {
     prefsPutFloat("cal_factor", cal_factor);
   }
   zero_offset = prefsGetInt("zero_offset", 0);
-  bag_weight_g = prefsGetFloat("bag_weight", 50.0f);
+  // No bag until one is entered. A value saved before this default changed
+  // is still in NVS and wins.
+  bag_weight_g = prefsGetFloat("bag_weight", 0.0f);
 
   spool_list_limit = (int)prefsGetUChar("list_limit", 30);
   if (spool_list_limit < 5) spool_list_limit = 5;

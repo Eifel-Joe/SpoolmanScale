@@ -203,6 +203,9 @@ extern bool scale_filter_full;
 
 extern lv_obj_t *lbl_weight_main_lbl;
 extern float bag_weight_g;
+// 0 g means there is no bag: the main screen drops its bag line, the weight
+// popup its "with bag" button, and the menu row says so.
+inline bool bagInUse() { return bag_weight_g > 0.0f; }
 extern char spoolman_queried_uid[24];
 // Which NTAG the poll has already dealt with. Distinct from the one above,
 // which means "asked the backend about this one" and is written only when the
@@ -279,6 +282,7 @@ extern lv_obj_t *lbl_hdr_sm;
 extern lv_obj_t *lbl_hdr_sd;   // header SD indicator, leftmost chip
 extern lv_obj_t *lbl_sm_cap;   // "Spoolman:" / "FilaMan:" above the database weight
 extern lv_obj_t *lbl_bag_sm_diff;
+extern lv_obj_t *lbl_spool_tare;   // the spool weight the netto subtracts, bag-free layout only
 
 extern lv_obj_t *btn_dried;
 extern lv_obj_t *btn_link;

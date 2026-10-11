@@ -1640,6 +1640,13 @@ enum StringID {
   // The mark on the TARE button while auto-tare is on
   STR_TARE_AUTO_MARK,
 
+  // The bag weight at 0: the menu row says so, and the weight popup has one
+  // button instead of two
+  STR_BAG_OFF_SUB,
+  STR_BTN_WEIGHT_VAL,
+  STR_LBL_SPOOL_TARE_CAP,
+  STR_BAG_HELP_TEXT,
+
   STR_COUNT
 };
 

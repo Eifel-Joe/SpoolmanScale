@@ -1,6 +1,7 @@
 #include "bag_screen.h"
 #include "navigation.h"
 #include "app/app_state.h"
+#include "app/deferred_actions.h"
 
 #include <Arduino.h>
 #include <lvgl.h>
@@ -45,6 +46,7 @@ void buildBagScreen() {
       buildScaleSubScreen();
       lv_obj_clear_flag(scr_scale_sub, LV_OBJ_FLAG_HIDDEN);
     });
+  addHeaderHelp(scr_bag, STR_BTN_BAGWEIGHT, STR_BAG_HELP_TEXT);
 
   lv_obj_t *lbl_desc = lv_label_create(scr_bag);
   lv_label_set_text(lbl_desc, T(STR_BAG_DESC));
@@ -147,10 +149,15 @@ void buildBagScreen() {
     if (!lbl_bag_result_global) return;
     float w = atof(bag_input);
     if (w >= 0 && w < 1000) {
+      // The main screen is built once, with or without the bag lines, so a
+      // value that crosses 0 needs the same restart as the scale switch. A
+      // value that stays on its side of 0 is live at once.
+      const bool had_bag = bagInUse();
       saveBagWeight(w);
       char buf[32];
       snprintf(buf, sizeof(buf), T(STR_BAG_SAVED), w);
       lv_label_set_text(lbl_bag_result_global, buf);
+      if (had_bag != bagInUse()) show_reboot_pending = true;
     } else {
       lv_label_set_text(lbl_bag_result_global, T(STR_BAG_INVALID));
     }

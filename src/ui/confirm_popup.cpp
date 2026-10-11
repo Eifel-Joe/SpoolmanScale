@@ -406,7 +406,8 @@ void showConfirmPopup(const char* msg, int action) {
 
     // ── Zeile 1 Links: Ohne Beutel ──
     lv_obj_t *btn1 = lv_btn_create(box);
-    lv_obj_set_size(btn1, BW2, H_ROW1);
+    // Without a bag this is the only weight button and takes the whole row.
+    lv_obj_set_size(btn1, bagInUse() ? BW2 : BOX_W - 2*EDGE, H_ROW1);
     lv_obj_set_pos(btn1, XL, Y1);
     lv_obj_set_style_bg_color(btn1, lv_color_hex(UI_COL_OK_BG), 0);
     lv_obj_set_style_bg_color(btn1, lv_color_hex(UI_COL_OK_BG_PRESSED), LV_STATE_PRESSED);
@@ -421,37 +422,39 @@ void showConfirmPopup(const char* msg, int action) {
     }, LV_EVENT_CLICKED, NULL);
     lv_obj_t *l1 = lv_label_create(btn1);
     char buf1[48];
-    snprintf(buf1, sizeof(buf1), T(STR_BTN_NO_BAG_VAL), netto_plain);
+    snprintf(buf1, sizeof(buf1), T(bagInUse() ? STR_BTN_NO_BAG_VAL : STR_BTN_WEIGHT_VAL), netto_plain);
     lv_label_set_text(l1, buf1);
     lv_obj_set_style_text_color(l1, lv_color_hex(UI_COL_OK_TEXT), 0);
     lv_obj_set_style_text_font(l1, &lv_font_montserrat_ext_16, 0);
     lv_obj_set_style_text_align(l1, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_center(l1);
 
-    // ── Zeile 1 Rechts: Mit Beutel ──
-    lv_obj_t *btn2 = lv_btn_create(box);
-    lv_obj_set_size(btn2, BW2, H_ROW1);
-    lv_obj_set_pos(btn2, XR, Y1);
-    lv_obj_set_style_bg_color(btn2, lv_color_hex(UI_COL_OK_BG), 0);
-    lv_obj_set_style_bg_color(btn2, lv_color_hex(UI_COL_BAG_BG_PRESSED), LV_STATE_PRESSED);
-    lv_obj_set_style_radius(btn2, 8, 0);
-    lv_obj_set_style_shadow_width(btn2, 0, 0);
-    lv_obj_add_event_cb(btn2, [](lv_event_t *e) {
-      closeConfirmPopup();
-      float r = scale_weight_g - (float)sm_spool_weight - bag_weight_g;
-      if (r < 0) r = 0;
-      // Gross without the bag: that is what the scale would have shown had
-      // the spool been weighed bare, and it is what FilaMan has to be told.
-      s_job = CJ_WEIGHT; s_job_value = r; s_job_gross = scale_weight_g - bag_weight_g;
-    }, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *l2 = lv_label_create(btn2);
-    char buf2[56];
-    snprintf(buf2, sizeof(buf2), T(STR_BTN_WITH_BAG_VAL), netto_plain, bag_weight_g);
-    lv_label_set_text(l2, buf2);
-    lv_obj_set_style_text_color(l2, lv_color_hex(UI_COL_OK_TEXT), 0);
-    lv_obj_set_style_text_font(l2, &lv_font_montserrat_ext_16, 0);
-    lv_obj_set_style_text_align(l2, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_center(l2);
+    if (bagInUse()) {
+      // ── Zeile 1 Rechts: Mit Beutel ──
+      lv_obj_t *btn2 = lv_btn_create(box);
+      lv_obj_set_size(btn2, BW2, H_ROW1);
+      lv_obj_set_pos(btn2, XR, Y1);
+      lv_obj_set_style_bg_color(btn2, lv_color_hex(UI_COL_OK_BG), 0);
+      lv_obj_set_style_bg_color(btn2, lv_color_hex(UI_COL_BAG_BG_PRESSED), LV_STATE_PRESSED);
+      lv_obj_set_style_radius(btn2, 8, 0);
+      lv_obj_set_style_shadow_width(btn2, 0, 0);
+      lv_obj_add_event_cb(btn2, [](lv_event_t *e) {
+        closeConfirmPopup();
+        float r = scale_weight_g - (float)sm_spool_weight - bag_weight_g;
+        if (r < 0) r = 0;
+        // Gross without the bag: that is what the scale would have shown had
+        // the spool been weighed bare, and it is what FilaMan has to be told.
+        s_job = CJ_WEIGHT; s_job_value = r; s_job_gross = scale_weight_g - bag_weight_g;
+      }, LV_EVENT_CLICKED, NULL);
+      lv_obj_t *l2 = lv_label_create(btn2);
+      char buf2[56];
+      snprintf(buf2, sizeof(buf2), T(STR_BTN_WITH_BAG_VAL), netto_plain, bag_weight_g);
+      lv_label_set_text(l2, buf2);
+      lv_obj_set_style_text_color(l2, lv_color_hex(UI_COL_OK_TEXT), 0);
+      lv_obj_set_style_text_font(l2, &lv_font_montserrat_ext_16, 0);
+      lv_obj_set_style_text_align(l2, LV_TEXT_ALIGN_CENTER, 0);
+      lv_obj_center(l2);
+    }
 
     // ── Zeile 2 Links: Neue Spule ──
     lv_obj_t *btn3 = lv_btn_create(box);
