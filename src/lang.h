@@ -1637,6 +1637,9 @@ enum StringID {
   STR_BTN_AUTO_TARE,
   STR_BTN_AUTO_TARE_INFO,
 
+  // The mark on the TARE button while auto-tare is on
+  STR_TARE_AUTO_MARK,
+
   STR_COUNT
 };
 

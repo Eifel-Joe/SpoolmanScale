@@ -26,6 +26,7 @@
 #include "ui/diag_banner.h"
 #include "ui/dried_action.h"
 #include "ui/update_badges.h"
+#include "ui/tare_mark.h"
 #include "ui/header_status.h"
 #include "ui/main_screen_helpers.h"
 #include "ui/more_info_screen.h"
@@ -719,6 +720,7 @@ void buildUI() {
     lv_obj_set_style_text_color(lbl_tare_txt, lv_color_hex(UI_COL_WARN), 0);
     lv_obj_set_style_text_font(lbl_tare_txt, &lv_font_montserrat_ext_10, 0);
     lv_obj_align(lbl_tare_txt, LV_ALIGN_CENTER, 0, 12);
+    tareMarkCreate(btn_tare);   // the "A" while auto-tare is on
   } else {
     // The right half of the zone. Left half untouched: remaining, percent and
     // the bar come out of the database and are just as true without a load

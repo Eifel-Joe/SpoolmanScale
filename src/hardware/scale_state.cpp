@@ -39,6 +39,8 @@ void resetScaleFilter() {
 void scaleAutoTareTick(bool allowed) {
   static unsigned long band_since_ms = 0;
   static unsigned long last_tare_ms  = 0;
+  static uint16_t      tare_count    = 0;
+  static float         tare_sum_g    = 0.0f;
 
   const float w = scale_weight_g;
   bool candidate = g_auto_tare && allowed && scale_ready && scale_filter_full &&
@@ -68,8 +70,16 @@ void scaleAutoTareTick(bool allowed) {
   resetScaleFilter();
   last_tare_ms  = now;
   band_since_ms = 0;
-  Serial.printf("Auto-tare: removed %.2f g of drift\n", w);
-  logSDf("Auto-tare: removed %.2f g of drift", w);
+  // The log is the only place that shows how much a cell drifts and how often
+  // this has to step in: each move with its sign, the sum since boot and the
+  // uptime it took. A sum that grows by grams an hour points at the hardware.
+  tare_count++;
+  tare_sum_g += w;
+  const unsigned long up_min = now / 60000UL;
+  Serial.printf("Auto-tare #%u: zero moved by %+.2f g (%+.2f g in %lu min since boot)\n",
+                tare_count, w, tare_sum_g, up_min);
+  logSDf("Auto-tare #%u: zero moved by %+.2f g (%+.2f g in %lu min since boot)",
+         tare_count, w, tare_sum_g, up_min);
 }
 
 

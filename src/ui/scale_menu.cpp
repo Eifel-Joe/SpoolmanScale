@@ -23,6 +23,7 @@
 #include "services/user_options.h"
 #include "info_popup.h"
 #include "ui_common.h"
+#include "tare_mark.h"
 #include "theme.h"
 
 
@@ -193,6 +194,8 @@ void buildScaleSubScreen() {
       logSD("BTN: Scale-Sub -> Auto-tare Toggle");
       g_auto_tare = !g_auto_tare;
       prefsPutBool("auto_tare", g_auto_tare);
+      tareMarkShow(g_auto_tare);
+      logSDf("Auto-tare switched %s", g_auto_tare ? "on" : "off");
       scale_sub_rebuild_pending = true;
     }, LV_EVENT_CLICKED, NULL); }
 

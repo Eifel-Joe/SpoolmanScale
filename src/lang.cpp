@@ -3568,6 +3568,8 @@ const char* const STRINGS[][3] = {
   { "Korrigiert langsames Wegdriften des Nullpunkts, solange die Waage leer ist.\n\nLiegt das Gewicht 3 Sekunden lang ruhig zwischen 0,5 und 5 g (positiv oder negativ), wird dieser Wert als neuer Nullpunkt gespeichert. Sobald ein Tag erkannt wird oder eine Spule aufliegt, passiert nichts. Mehr als 5 g werden nie ausgeglichen, und zwischen zwei Korrekturen vergeht mindestens eine Minute.\n\nDie TARE-Taste funktioniert weiterhin wie gewohnt.",
     "Corrects slow drift of the zero point while the pad is empty.\n\nIf the weight sits steady between 0.5 and 5 g (positive or negative) for 3 seconds, that value is stored as the new zero. Nothing happens while a tag is detected or a spool is on the pad. More than 5 g is never corrected, and at least a minute passes between two corrections.\n\nThe TARE button still works as before.",
     "Corrige la dérive lente du zéro tant que le plateau est vide.\n\nSi le poids reste stable entre 0,5 et 5 g (positif ou négatif) pendant 3 secondes, cette valeur devient le nouveau zéro. Rien ne se passe tant qu'un tag est détecté ou qu'une bobine est posée. Plus de 5 g n'est jamais corrigé, et il s'écoule au moins une minute entre deux corrections.\n\nLe bouton TARE fonctionne toujours comme avant." },  // STR_BTN_AUTO_TARE_INFO
+  // The mark on the TARE button while auto-tare is on
+  { "A", "A", "A" },  // STR_TARE_AUTO_MARK
 };
 
 StringID tagWriteResultString(uint8_t code) {
