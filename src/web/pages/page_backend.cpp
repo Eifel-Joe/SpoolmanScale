@@ -28,6 +28,7 @@
 #include "services/settings_registry.h"
 #include "web/web_access.h"
 #include "web/web_jobs.h"
+#include "web/pages/page_backend_embed.h"
 #include "web/web_shell.h"
 #include "ui/theme.h"
 // Last on purpose: T() is a macro and ArduinoJson uses T as a template
@@ -251,6 +252,9 @@ static String body() {
   h += F("</h2><div id='os'><p class='hint'>");
   h += T(STR_W_LOADING);
   h += F("</p></div></div>");
+
+  // Last, because it is needed once while setting things up.
+  h += backendEmbedCard();
 
   h += F("</div>");
   if (can_restart) h += webShellRestartUi();

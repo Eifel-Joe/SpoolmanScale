@@ -3584,6 +3584,45 @@ const char* const STRINGS[][3] = {
   { "Für Spulen, die im Vakuumbeutel auf der Waage liegen. Der Wert ist das Gewicht des leeren Beutels samt Silikagelpack und wird von jeder Messung abgezogen.\n\nMit Beutel (Wert über 0 g): Der Hauptschirm zeigt vier Zeilen: Waage minus Spule, Diff, Gesamt und das Gewicht ohne Beutel mit eigener Diff. Beim Übertragen fragt die Waage, ob die Spule mit oder ohne Beutel aufliegt.\n\nOhne Beutel (0 g): Der Hauptschirm zeigt Waage minus Spule, Diff, Gesamt und das Spulengewicht, größer und mit mehr Platz. Übertragen geht mit einem Knopf, ohne Rückfrage.\n\nAb Werk steht hier 0 g. Ein neuer Wert wirkt sofort. Nur der Wechsel zwischen 0 g und einem Wert braucht einen Neustart, weil der Hauptschirm dafür neu aufgebaut wird.",
     "For spools that sit on the scale in a vacuum bag. The value is the weight of the empty bag with its silica gel pack, and it is subtracted from every reading.\n\nWith a bag (value above 0 g): the main screen shows four lines: scale minus spool, diff, total and the weight without the bag with a diff of its own. When sending the weight, the scale asks whether the spool is on the pad with or without its bag.\n\nWithout a bag (0 g): the main screen shows scale minus spool, diff, total and the spool weight, larger and with more room. Sending takes one button, no question asked.\n\nThe factory setting is 0 g. A new value takes effect at once. Only the change between 0 g and a value needs a restart, because the main screen is rebuilt for it.",
     "Pour les bobines pesées dans un sachet sous vide. La valeur est le poids du sachet vide avec son gel de silice, soustrait de chaque mesure.\n\nAvec sachet (plus de 0 g) : l'écran principal affiche quatre lignes : balance moins bobine, écart, total et le poids sans sachet avec son propre écart. À l'envoi du poids, la balance demande si la bobine est posée avec ou sans sachet.\n\nSans sachet (0 g) : l'écran principal affiche balance moins bobine, écart, total et le poids de la bobine, en plus grand. L'envoi se fait d'un seul bouton, sans question.\n\nRéglage d'usine : 0 g. Une nouvelle valeur agit aussitôt. Seul le passage entre 0 g et une valeur demande un redémarrage, car l'écran principal est reconstruit." },  // STR_BAG_HELP_TEXT
+  { "In %s anzeigen",
+    "Show in %s",
+    "Afficher dans %s" },  // STR_W_C_EMBED
+  { "Mit dem Plugin „SpoolmanScale“ erscheint diese Weboberfläche in der Navigation von FilaMan und folgt dessen Hell- oder Dunkel-Modus.",
+    "With the “SpoolmanScale” plugin, this web interface appears in FilaMan's navigation and follows its light or dark mode.",
+    "Avec le plugin « SpoolmanScale », cette interface web apparaît dans la navigation de FilaMan et suit son mode clair ou sombre." },  // STR_W_EMBED_FM_INTRO
+  { "Plugin herunterladen",
+    "Download the plugin",
+    "Télécharger le plugin" },  // STR_W_EMBED_FM_DOWNLOAD
+  { "In FilaMan unter <b>Admin-Bereich › Plugins</b> hochladen",
+    "Upload it in FilaMan under <b>Admin Panel › Plugins</b>",
+    "Le téléverser dans FilaMan sous <b>Espace admin › Plugins</b>" },  // STR_W_EMBED_FM_UPLOAD
+  { "%s im Browser mit genau dieser Adresse öffnen",
+    "Open %s in the browser with exactly this address",
+    "Ouvrez %s dans le navigateur avec exactement cette adresse" },  // STR_W_EMBED_OPEN_AS
+  { "BamBuddy zeigt diese Weboberfläche ohne Plugin in seiner Seitenleiste und gibt seinen Hell- oder Dunkel-Modus weiter.",
+    "BamBuddy shows this web interface in its sidebar without a plugin and passes on its light or dark mode.",
+    "BamBuddy affiche cette interface web dans sa barre latérale, sans plugin, et lui transmet son mode clair ou sombre." },  // STR_W_EMBED_BB_INTRO
+  { "In BamBuddy unter <b>Einstellungen › Allgemein › Seitenleiste</b> einen Link anlegen",
+    "In BamBuddy, add a link under <b>Settings › General › Sidebar</b>",
+    "Dans BamBuddy, ajoutez un lien sous <b>Paramètres › Général › Barre latérale</b>" },  // STR_W_EMBED_BB_STEP1
+  { "Als URL die Adresse der Waage eintragen, „In neuem Tab öffnen“ aus lassen",
+    "Enter the scale's address as the URL and leave “Open in new tab” off",
+    "Saisissez l'adresse de la balance comme URL et laissez « Ouvrir dans un nouvel onglet » désactivé" },  // STR_W_EMBED_BB_STEP2
+  { "Der Name bleibt gültig, wenn der Router der Waage eine neue IP gibt, manche Android-Geräte lösen ihn aber nicht auf. Die IP geht überall, dann im Router fest vergeben.",
+    "The name keeps working when the router gives the scale a new IP, but some Android devices do not resolve it. The IP works everywhere; then give it a fixed lease in the router.",
+    "Le nom reste valable si le routeur attribue une nouvelle IP à la balance, mais certains appareils Android ne le résolvent pas. L'IP fonctionne partout : réservez-la alors dans le routeur." },  // STR_W_EMBED_BB_IP
+  { "Im Router eine feste IP für die Waage vergeben, sonst führt der Link nach einer neuen IP ins Leere.",
+    "Give the scale a fixed IP in the router, otherwise the link leads nowhere once it gets a new one.",
+    "Attribuez une IP fixe à la balance dans le routeur, sinon le lien ne mène nulle part après un changement d'IP." },  // STR_W_EMBED_BB_FIXIP
+  { "Unter einer anderen Adresse (Name statt IP, Proxy) zeigt der Browser die Waage dort nicht an.",
+    "Under any other address (a name instead of the IP, a proxy) the browser does not show the scale there.",
+    "Sous une autre adresse (un nom au lieu de l'IP, un proxy), le navigateur n'y affiche pas la balance." },  // STR_W_EMBED_NOTE
+  { "Oben steht eine https-Adresse. Eine https-Seite darf die Waage, die nur http spricht, nicht einbetten. Zum Einbetten das Backend oben mit http eintragen und so öffnen.",
+    "The address above is https. An https page may not embed the scale, which only speaks http. To embed it, enter the backend above with http and open it that way.",
+    "L'adresse ci-dessus est en https. Une page https ne peut pas intégrer la balance, qui ne parle que http. Pour l'intégrer, saisissez le backend ci-dessus en http et ouvrez-le ainsi." },  // STR_W_EMBED_HTTPS
+  { "Öffnen",
+    "Open",
+    "Ouvrir" },  // STR_W_OPEN
 };
 
 StringID tagWriteResultString(uint8_t code) {

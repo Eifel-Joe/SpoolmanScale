@@ -147,6 +147,24 @@ static const char APP_CSS[] PROGMEM =
       ".card h2{font-size:11px;font-weight:650;letter-spacing:.1em;text-transform:uppercase;"
       "color:var(--ink-3);margin-bottom:14px}"
       ".note{font-size:12.5px;color:var(--ink-soft);line-height:1.55;margin-top:12px}"
+      // A card that folds away: the whole heading is the handle, a chevron
+      // on the right says which way it goes.
+      "details.card>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between}"
+      "details.card>summary::-webkit-details-marker{display:none}"
+      "details.card>summary h2{margin-bottom:0}"
+      "details.card[open]>summary{margin-bottom:14px}"
+      "details.card>summary::after{content:'';width:7px;height:7px;margin:-4px 4px 0 0;"
+      "border-right:2px solid var(--ink-3);border-bottom:2px solid var(--ink-3);transform:rotate(45deg)}"
+      "details.card[open]>summary::after{transform:rotate(-135deg);margin-top:4px}"
+      // Numbered steps, the number in a round badge instead of a list marker.
+      ".steps{list-style:none;counter-reset:s;display:flex;flex-direction:column;gap:12px;margin-top:14px}"
+      ".steps>li{counter-increment:s;display:grid;grid-template-columns:26px 1fr;gap:10px;align-items:start}"
+      ".steps>li::before{content:counter(s);width:26px;height:26px;border-radius:50%;display:grid;place-items:center;"
+      "background:var(--accent-dim);color:var(--accent);font-size:13px;font-weight:600}"
+      ".steps>li>div{padding-top:3px}.steps a{color:var(--accent)}.steps p.hint{margin-top:6px}"
+      ".addrline{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px}"
+      ".addrline .mono{background:var(--quiet);border:1px solid var(--line);border-radius:8px;padding:5px 10px;color:var(--ink)}"
+      ".addrline button{padding:5px 12px;font-size:13px}"
       ".note b{color:var(--ink-2);font-weight:500}"
       // data rows: mono only for machine strings
       ".rows{display:flex;flex-direction:column}"
