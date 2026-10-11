@@ -438,19 +438,30 @@ static const char APP_JS[] PROGMEM =
   "if(tinting(c))WEB_TINT.forEach(function(r){var v=get(r[0]);if(v)d.style.setProperty(r[0],'#'+tint(v,c.tone,c.strength/50,r[1]));});\n"
   "if(c.accent){d.style.setProperty('--accent','#'+readable(c.accent,get('--ground')));WEB_ACC.forEach(function(v){var x=get(v);if(x)d.style.setProperty(v,'#'+toward(x,c.accent));});}}\n"
   "return{apply:apply,contrast:contrast,page:page};})();\n"
-  // Light or dark from the browser, when the scale says so: data-tdark and
-  // data-tlight name the family's two palettes, data-theme the scale's own.
-  // Set before the body is drawn, and again when the system switches, with
-  // the own colours laid over the new palette.
+  // Light or dark: data-tdark and data-tlight name the family's two palettes,
+  // data-theme the scale's own. Inside a BamBuddy frame BamBuddy's mode wins,
+  // posted to the frame as bambuddy:theme and kept in sessionStorage so the
+  // next page of the scale starts in it instead of flashing; otherwise the
+  // browser's, when data-tsys says so. Only the parent may set it, and that
+  // is the backend: the page's frame-ancestors lets nobody else frame it.
+  // Set before the body is drawn, and again on every change, with the own
+  // colours laid over the new palette.
   "var SCH=(function(){var d=document.documentElement,own=d.getAttribute('data-theme'),"
-  "mq=window.matchMedia?window.matchMedia('(prefers-color-scheme: light)'):null;\n"
-  "function want(){var k=d.getAttribute('data-tdark'),l=d.getAttribute('data-tlight');"
-  "return k&&l&&mq?(mq.matches?l:k):own;}\n"
+  "mq=window.matchMedia?window.matchMedia('(prefers-color-scheme: light)'):null,"
+  "framed=window.parent!==window,host=null;\n"
+  "function mode(m){return m==='light'||m==='dark'?m:null;}\n"
+  "if(framed){try{host=mode(sessionStorage.getItem('host_mode'));}catch(x){}}\n"
+  "function want(){var k=d.getAttribute('data-tdark'),l=d.getAttribute('data-tlight');if(!k||!l)return own;"
+  "if(host)return host==='light'?l:k;"
+  "return d.getAttribute('data-tsys')&&mq?(mq.matches?l:k):own;}\n"
   "function apply(){var t=want();if(d.getAttribute('data-theme')===t)return;"
   "d.setAttribute('data-theme',t);d.removeAttribute('style');TC.page();}\n"
-  "function set(on,k,l){if(on){d.setAttribute('data-tdark',k);d.setAttribute('data-tlight',l);}"
-  "else{d.removeAttribute('data-tdark');d.removeAttribute('data-tlight');}apply();}\n"
+  "function set(on,k,l){d.setAttribute('data-tdark',k);d.setAttribute('data-tlight',l);"
+  "if(on)d.setAttribute('data-tsys','1');else d.removeAttribute('data-tsys');apply();}\n"
   "if(mq){if(mq.addEventListener)mq.addEventListener('change',apply);else if(mq.addListener)mq.addListener(apply);}\n"
+  "if(framed)window.addEventListener('message',function(e){var m=e.data;"
+  "if(e.source!==window.parent||!m||m.type!=='bambuddy:theme'||!mode(m.mode))return;"
+  "host=m.mode;try{sessionStorage.setItem('host_mode',host);}catch(x){}apply();});\n"
   "d.setAttribute('data-theme',want());\n"
   "return{set:set};})();\n"
   "TC.page();\n"
