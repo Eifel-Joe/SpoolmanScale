@@ -142,6 +142,26 @@ static bool serverShouldRun() {
 
 static void registerRoutes();
 
+// The origin the configured backend is served from: scheme, host and port,
+// no path, the only form frame-ancestors accepts. Empty without a backend,
+// and empty when the host holds anything a host and port are not made of:
+// the value goes into a response header, where a space or a semicolon would
+// change the policy.
+static String backendFrameOrigin() {
+  String base = backendBaseUrl();
+  base.toLowerCase();
+  if (!base.startsWith("http://") && !base.startsWith("https://")) return "";
+  const int host_start = base.indexOf("://") + 3;   // past "://"
+  const int path_start = base.indexOf('/', host_start);
+  String origin = (path_start < 0) ? base : base.substring(0, path_start);
+  if ((int)origin.length() == host_start) return "";
+  for (size_t i = host_start; i < origin.length(); i++) {
+    const char c = origin[i];
+    if (!isalnum((unsigned char)c) && c != '.' && c != ':' && c != '-') return "";
+  }
+  return origin;
+}
+
 static void serverEnsureRunning() {
   if (ota_server_running) return;
   registerRoutes();
@@ -237,6 +257,14 @@ static void registerRoutes() {
       // same network could otherwise lay its own buttons over Flash, Erase or
       // Restart and have a visitor click them.
       ota_server.sendHeader("X-Frame-Options", "DENY");
+      // The one exception is the backend set on the scale, so a BamBuddy
+      // sidebar link or a FilaMan plugin page can show it. A browser that
+      // knows frame-ancestors follows it and skips the DENY above; an older
+      // one keeps refusing every frame.
+      const String frame_origin = backendFrameOrigin();
+      if (frame_origin.length()) {
+        ota_server.sendHeader("Content-Security-Policy", "frame-ancestors " + frame_origin);
+      }
       ota_server.send(200, "text/html", html);
     });
     if (pg->routes) pg->routes(ota_server);
