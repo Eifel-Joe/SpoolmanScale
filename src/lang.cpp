@@ -3623,6 +3623,9 @@ const char* const STRINGS[][3] = {
   { "Öffnen",
     "Open",
     "Ouvrir" },  // STR_W_OPEN
+  { "Kopieren fehlgeschlagen",
+    "Copy failed",
+    "Copie impossible" },  // STR_W_COPY_FAILED
 };
 
 StringID tagWriteResultString(uint8_t code) {
