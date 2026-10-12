@@ -3629,6 +3629,9 @@ const char* const STRINGS[][3] = {
   { "Kopieren fehlgeschlagen",
     "Copy failed",
     "Copie impossible" },  // STR_W_COPY_FAILED
+  { "Spoolman hinter BamBuddy ist von der Waage aus nicht erreichbar:\n%s",
+    "Spoolman behind BamBuddy cannot be reached from the scale:\n%s",
+    "Spoolman derrière BamBuddy est injoignable depuis la balance :\n%s" },  // STR_DBPICK_SM_UNREACHABLE
 };
 
 StringID tagWriteResultString(uint8_t code) {
