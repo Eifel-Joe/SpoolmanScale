@@ -316,3 +316,6 @@ STR_BB_DRIED_NATIVE_SUB	12	320	NEVER	src/ui/bambuddy_options_screen.cpp makeList
 STR_BB_DRIED_OLDER_ONLY	12	320	NEVER	src/ui/bambuddy_options_screen.cpp makeListBtn sub, text_w 320
 STR_PRN_OWN_LAYOUT	18	154	NEVER	src/ui/print_card.cpp:171 170 px button, -16 air
 STR_LBL_SPOOL_TARE_CAP	12	60	NEVER	src/ui/live_zone.cpp:55 caption at x=344, the column ends at 404
+STR_TILE_SYSTEM_SUB	12	206	NEVER	src/ui/settings_screen.cpp:95 tile subtitle, 226 px tile
+STR_TILE_DISPLAY_SUB	12	206	NEVER	src/ui/settings_screen.cpp:95 tile subtitle, 226 px tile
+STR_SCALE_TITLE	18	376	NEVER	src/ui/ui_common.cpp:259 sub header title, 480 - 2 * (44 + 2 * 4)
