@@ -1895,6 +1895,17 @@ enum StringID {
   STR_W_AMS_SOURCE_SEEN,
   STR_W_AMS_SOURCE_RO,
   STR_W_AMS_SOURCE_UNSEEN,
+  // Creality CFS tags
+  STR_W_CREALITY,
+  STR_W_CREALITY_HINT,
+  STR_TW_ERR_NOT_BLANK,
+  STR_TW_CFS_ASK_TITLE,
+  STR_TW_CFS_ASK_HINT,
+  STR_TW_CFS_REPLACE,
+  STR_TW_CFS_UPD_TITLE,
+  STR_TW_CFS_UPD_HINT,
+  STR_TW_CFS_OVR_TITLE,
+  STR_TW_CFS_OVR_HINT,
 
   // A copy behind Bambuddy on Spoolman: what it takes over (design note J)
   STR_COPY_CARD_PROFILE,    // copy card: %s the template's profile, "-" without one
