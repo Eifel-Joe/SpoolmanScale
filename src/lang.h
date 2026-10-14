@@ -1906,6 +1906,8 @@ enum StringID {
   STR_TW_CFS_UPD_HINT,
   STR_TW_CFS_OVR_TITLE,
   STR_TW_CFS_OVR_HINT,
+  STR_TW_CFS_SID_TITLE,
+  STR_TW_CFS_SID_HINT,
 
   // A copy behind Bambuddy on Spoolman: what it takes over (design note J)
   STR_COPY_CARD_PROFILE,    // copy card: %s the template's profile, "-" without one
