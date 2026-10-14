@@ -4863,6 +4863,7 @@ const char* const STRINGS[][3] = {
   { "Der Server hat das Gewicht nicht angenommen. Bitte noch einmal senden.",
     "The server did not accept the weight. Please send it again.",
     "Le serveur n'a pas accepté le poids. Veuillez l'envoyer à nouveau." },  // STR_WEIGHT_NOT_SAVED_TEXT
+  { "Nicht ins AMS", "Not into the AMS", "Pas dans l'AMS" },  // STR_AMSV_NOT_AMS
 };
 
 StringID tagWriteResultString(uint8_t code) {

@@ -2206,6 +2206,8 @@ enum StringID {
   STR_WEIGHT_NOT_SAVED,
   STR_WEIGHT_NOT_SAVED_TEXT,
 
+  STR_AMSV_NOT_AMS,            // the bay question's way out, named for what it means
+
   STR_COUNT
 };
 
