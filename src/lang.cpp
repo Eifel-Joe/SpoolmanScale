@@ -3976,6 +3976,11 @@ const char* const STRINGS[][3] = {
   { "Der Tag trägt die Daten eines anderen Filaments. Nur überschreiben, wenn die Spule neu bespult wurde.",
     "The tag carries another filament's data. Only overwrite it if the spool has been refilled.",
     "The tag carries another filament's data. Only overwrite it if the spool has been refilled." },  // STR_TW_CFS_OVR_HINT
+  { "Spool-ID auf den Tag schreiben?", "Write the spool ID to the tag?",
+    "Write the spool ID to the tag?" },  // STR_TW_CFS_SID_TITLE
+  { "Der Original-Tag trägt Crealitys Seriennummer statt der Spool-ID. Damit verknüpft CFSync die falsche Spule. Material und Farbe bleiben gleich.",
+    "The original tag carries Creality's serial instead of the spool ID, so CFSync links the wrong spool. Material and colour stay the same.",
+    "The original tag carries Creality's serial instead of the spool ID, so CFSync links the wrong spool. Material and colour stay the same." },  // STR_TW_CFS_SID_HINT
 };
 
 StringID tagWriteResultString(uint8_t code) {
