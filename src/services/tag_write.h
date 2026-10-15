@@ -62,13 +62,17 @@ enum TagWriteResult : uint8_t {
 typedef void (*TagWriteProgressFn)(uint16_t done, uint16_t total);
 void tagWriteSetProgress(TagWriteProgressFn fn);
 
-// For the next Creality CFS write only: the UID it is meant for ("6E:C6:DB:4F",
-// empty for any), and a callback while it waits for a tag that does not
-// answer to be put back - phase 0 once, then 1 about every 150 ms. Both are
-// used by one write and then forgotten.
-// overwrite: the tag may already be a Creality tag (an own tag whose spool
+// For the next MIFARE write only (Creality CFS and whatever follows it in
+// services/mifare_formats.cpp): the UID it is meant for ("6E:C6:DB:4F", empty
+// for any), and a callback while it waits for a tag that does not answer to
+// be put back - phase 0 once, then 1 about every 150 ms. Both are used by one
+// write and then forgotten.
+// overwrite: the tag may already carry the format (an own tag whose spool
 // changed, or an original on a refilled spool); only on an explicit answer.
-void tagWriteCfsTarget(const char* uid_str, void (*wait)(int phase), bool overwrite = false);
+void tagWriteMifareTarget(const char* uid_str, void (*wait)(int phase), bool overwrite = false);
+
+// True for the formats written to a 4 byte MIFARE Classic tag.
+bool tagFormatIsMifare(uint8_t fmt);
 
 // Compares the Creality tag on the reader (as last read) with what the spool
 // in Spoolman would put on it now. own: the UID is in the spool's nfc_uid,
@@ -80,10 +84,6 @@ void tagWriteCfsTarget(const char* uid_str, void (*wait)(int phase), bool overwr
 // now in Spoolman. CFSync needs the id there to link the CFS slot.
 bool tagCrealityCheck(int spool_id, const char* uid_str, bool* own, bool* differs,
                       bool* serial_only = nullptr);
-
-// Takes uid out of the spool's nfc_uid list, or empties the list (all).
-// Part of an unlink. Fetches the spool: loop task only.
-void tagNfcUidForget(int spool_id, const char* uid, bool all);
 
 // Parks a request. The write itself runs in tagWriteTick(), because the NFC
 // bus belongs to the loop task and the HTTP handler is not on it.

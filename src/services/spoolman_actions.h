@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>
+
 // Returns the HTTP status, 200 on success. PATCH_WEIGHT_NO_TARGET when it
 // never got as far as a request, and PATCH_WEIGHT_ASKING when the cap check
 // below deferred to the popup and nothing was written at all. Most callers
@@ -60,6 +62,19 @@ bool patchSpoolTag(int spool_id, const char* uuid,
 // only `uid` is taken out of the list field that holds it, leaving the other
 // UIDs of that spool alone.
 void unlinkCardUid(int spool_id, const char* uid, bool all);
+
+// nfc_uid: the tags a scale wrote itself. FilaStation's convention, shared:
+// a UID in the spool's extra field nfc_uid is a MIFARE tag one of the scales
+// wrote, and either may write it again when the spool changes. Original tags
+// are not in it and are left alone unless the user explicitly asks.
+// Spoolman only; on the other backends these do nothing.
+// `value` is the field as the spool record holds it (sp["extra"]["nfc_uid"]).
+bool spoolNfcUidListed(const char* value, const uint8_t uid[4]);
+// After a verified write. Creates the field when the server lacks it.
+void spoolNfcUidAdd(int spool_id, const char* value, const uint8_t uid[4]);
+// Part of an unlink: takes `uid` out of the list, or empties it (`all`).
+// Fetches the spool: loop task only.
+void spoolNfcUidForget(int spool_id, const char* uid, bool all);
 
 // Appends the hardware uid of the tag on the reader to extra.rfid_tag, beside
 // whatever binds the spool. `scanned` is the value this lookup was started

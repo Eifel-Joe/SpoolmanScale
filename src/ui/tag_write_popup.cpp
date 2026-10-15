@@ -57,8 +57,8 @@ static void cfsWaitNotice(int phase) {
 }
 
 static void armCfsTarget() {
-  if (s_write_fmt == TAG_FMT_CREALITY)
-    tagWriteCfsTarget(s_cfs_asked_uid, cfsWaitNotice, s_cfs_variant != 0);
+  if (tagFormatIsMifare(s_write_fmt))
+    tagWriteMifareTarget(s_cfs_asked_uid, cfsWaitNotice, s_cfs_variant != 0);
 }
 
 bool tagCfsAskedFor(const char *uid) {

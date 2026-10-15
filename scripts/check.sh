@@ -207,6 +207,13 @@ else
   ok "web palettes: ${sum#palettes: }"
 fi
 
+# 14. A MIFARE Classic block is written in one place: services/mifare_write.cpp
+#     holds the rules that keep sector 0, the trailers and other people's
+#     tags (Bambu's above all) whole. A write anywhere else would go around
+#     them. The reader layer that defines the call is the only other mention.
+hits=$(grep -rn 'nfcWriteMifareBlock' src | grep -vE '^src/(services/mifare_write\.cpp|hardware/nfc\.(cpp|h)):' || true)
+if [ -n "$hits" ]; then bad "nfcWriteMifareBlock outside services/mifare_write.cpp:"; echo "$hits" | sed 's/^/        /'; else ok "MIFARE blocks written only through services/mifare_write.cpp"; fi
+
 echo
 if [ "$fail" -ne 0 ]; then echo "check.sh: FAILED"; exit 1; fi
 if [ "$warn" -ne 0 ]; then echo "check.sh: passed with warnings"; else echo "check.sh: all checks passed"; fi
