@@ -27,6 +27,8 @@ jobs:
           node-version: '22'
       - name: Run scripts/check.sh
         run: scripts/check.sh
+      - name: Test Bluetooth discovery
+        run: python3 test/test_ble_discovery.py
 
   build:
     name: Build ${{ matrix.env }}
