@@ -2140,6 +2140,8 @@ void appLoop() {
           } else if (g_snapmaker_tags && countBambuDataBlocksRead(g_tag) == 0 &&
               scanSnapmakerTag(uid, uidLen) != SNAPMAKER_SCAN_NO_AUTH) {
             snapmaker_decoded = true;
+            // Never tried with the Creality key again (both switches on).
+            tagFamilySet(uid, TAG_FAMILY_SNAPMAKER);
             nfc_retry_count = NFC_MAX_RETRIES;
             last_nfc_check_ms = 0;
           }
