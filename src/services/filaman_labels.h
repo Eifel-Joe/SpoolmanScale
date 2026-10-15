@@ -49,6 +49,7 @@ struct FilamanLabelRequest {
   const char* api_key;
   int         spool_id, preset_id;
   uint16_t    dpi, row_width;
+  bool        landscape;
   uint32_t    timeout_ms;
 };
 

@@ -1633,6 +1633,7 @@ enum StringID {
   STR_W_L_SRC_SERVER,
   STR_W_L_PREVIEW_LOADING,
   STR_W_L_SRC_NO_SPOOL,
+  STR_W_L_SRC_ROTATED,
 
   // Auto-tare while the pad is empty
   STR_BTN_AUTO_TARE,
