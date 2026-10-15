@@ -1,11 +1,11 @@
 #include "spoolman_actions.h"
-#include "services/tag_write.h"
 #include "services/tag_field.h"
 #include "services/tag_uid.h"
 #include "services/user_options.h"
 #include "app/app_state.h"
 
 #include <Arduino.h>
+#include <ctype.h>
 #include <lvgl.h>
 #include <string.h>
 #include <time.h>
@@ -685,9 +685,9 @@ void unlinkCardUid(int spool_id, const char* uid, bool all) {
   // of the tag fields below, so the loop over them would never reach it.
   unlinkHwUidField(spool_id, uid, all);
 
-  // The list of tags a scale wrote (Creality CFS). The lookup searches every
-  // extra field, so a UID left there links the spool again at once.
-  tagNfcUidForget(spool_id, uid, all);
+  // The list of MIFARE tags a scale wrote (Creality CFS). The lookup searches
+  // every extra field, so a UID left there links the spool again at once.
+  spoolNfcUidForget(spool_id, uid, all);
 
   if (all) {
     // Every field that holds something has to go. Leaving one behind would
@@ -799,4 +799,105 @@ bool patchVendorSpoolWeight(float spool_w) {
     return true;
   }
   return false;
+}
+
+// ============================================================
+//  nfc_uid: the tags a scale wrote itself
+// ============================================================
+// Separators as FilaStation reads them: comma, semicolon, slash, bar,
+// newline; colons, dashes and spaces inside a UID are ignored.
+#define NFC_UID_FIELD       "nfc_uid"
+#define NFC_UID_LIST_BYTES  160
+
+static bool nfcUidSeparator(char c) {
+  return c == '\0' || c == ',' || c == ';' || c == '/' || c == '|' || c == '\n';
+}
+
+// The field's text without the quotes a text extra field is stored in.
+static void nfcUidText(const char* value, char* out, size_t n) {
+  out[0] = '\0';
+  if (!value) return;
+  size_t len = strlen(value);
+  if (len >= 2 && value[0] == '"' && value[len - 1] == '"') { value++; len -= 2; }
+  if (len >= n) len = n - 1;
+  memcpy(out, value, len);
+  out[len] = '\0';
+}
+
+// The list without `hex`, comma separated, into rest. False when the list
+// does not hold it. `hex` empty: every entry is kept.
+static bool nfcUidWithout(const char* list, const char* hex, char* rest, size_t n) {
+  bool found = false;
+  char tok[24];
+  size_t t = 0;
+  rest[0] = '\0';
+  for (const char* p = list; ; p++) {
+    const char c = *p;
+    if (nfcUidSeparator(c)) {
+      tok[t] = '\0';
+      if (t && strcmp(tok, hex) == 0) {
+        found = true;
+      } else if (t) {
+        const size_t r = strlen(rest);
+        snprintf(rest + r, n - r, "%s%s", r ? ", " : "", tok);
+      }
+      t = 0;
+      if (c == '\0') return found;
+    } else if (isxdigit((unsigned char)c) && t < sizeof(tok) - 1) {
+      tok[t++] = (char)toupper((unsigned char)c);
+    }
+  }
+}
+
+static void nfcUidHex(const uint8_t uid[4], char out[9]) {
+  snprintf(out, 9, "%02X%02X%02X%02X", uid[0], uid[1], uid[2], uid[3]);
+}
+
+bool spoolNfcUidListed(const char* value, const uint8_t uid[4]) {
+  char list[NFC_UID_LIST_BYTES], rest[NFC_UID_LIST_BYTES], hex[9];
+  nfcUidText(value, list, sizeof(list));
+  nfcUidHex(uid, hex);
+  return nfcUidWithout(list, hex, rest, sizeof(rest));
+}
+
+void spoolNfcUidAdd(int spool_id, const char* value, const uint8_t uid[4]) {
+  if (backendMode() != BACKEND_SPOOLMAN) return;
+  if (spoolNfcUidListed(value, uid)) return;
+  char list[NFC_UID_LIST_BYTES], hex[9], next[NFC_UID_LIST_BYTES + 12];
+  nfcUidText(value, list, sizeof(list));
+  nfcUidHex(uid, hex);
+  if (list[0]) snprintf(next, sizeof(next), "%s, %s", list, hex);
+  else         snprintf(next, sizeof(next), "%s", hex);
+  int code = backendPatchExtraField(backendBaseUrl(), spool_id, NFC_UID_FIELD, next);
+  if (code < 200 || code >= 300) {
+    // FilaStation creates the field too when a server does not have it yet.
+    backendCreateSpoolField(backendBaseUrl(), NFC_UID_FIELD);
+    code = backendPatchExtraField(backendBaseUrl(), spool_id, NFC_UID_FIELD, next);
+  }
+  logSDf("Tag write: %s %s nfc_uid of spool %d (HTTP %d)", hex,
+         (code >= 200 && code < 300) ? "added to" : "could not be added to", spool_id, code);
+}
+
+// An unlink has to: the lookup also searches every extra field, so a UID left
+// in nfc_uid brought spool 9 straight back on 14.10.2026 ("Auto-link") a
+// second after "Alle lösen".
+void spoolNfcUidForget(int spool_id, const char* uid, bool all) {
+  if (backendMode() != BACKEND_SPOOLMAN || spool_id <= 0) return;
+  JsonDocument doc;
+  if (backendGetSpoolJson(backendBaseUrl(), spool_id, doc) != 200 || doc.isNull()) return;
+  char list[NFC_UID_LIST_BYTES];
+  nfcUidText(doc["extra"][NFC_UID_FIELD] | (const char*)nullptr, list, sizeof(list));
+  if (!list[0]) return;
+
+  // The UID as the list holds it: hex digits only, upper case.
+  char hex[24];
+  size_t h = 0;
+  for (const char* p = uid ? uid : ""; *p && h < sizeof(hex) - 1; p++)
+    if (isxdigit((unsigned char)*p)) hex[h++] = (char)toupper((unsigned char)*p);
+  hex[h] = '\0';
+
+  char rest[NFC_UID_LIST_BYTES] = "";
+  if (!all && (!h || !nfcUidWithout(list, hex, rest, sizeof(rest)))) return;
+  const int code = backendPatchExtraField(backendBaseUrl(), spool_id, NFC_UID_FIELD, all ? "" : rest);
+  logSDf("UNLINK ID=%d nfc_uid '%s' -> '%s' HTTP %d", spool_id, list, all ? "" : rest, code);
 }

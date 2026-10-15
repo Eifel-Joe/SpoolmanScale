@@ -1404,7 +1404,7 @@ static void armLinkFollowUps(int spool_id, bool is_bambu) {
     // Creality tags are on: most likely a blank sticker on a third party
     // spool, which the CFS can read once it carries Creality's record. Asked
     // whatever the write setting says, since that setting is about NTAG
-    // records; crealityWriteTag() checks for itself that the tag is blank
+    // records; mifareWrite() checks for itself that the tag is blank
     // and leaves anything else alone.
     logSDf("Tag write: %s may be a blank MIFARE tag, offering Creality CFS",
            g_tag.uid_str);

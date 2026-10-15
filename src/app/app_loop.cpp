@@ -27,6 +27,7 @@
 #include "bambu/bambu_tag.h"
 #include "snapmaker/snapmaker_scan.h"
 #include "creality/creality_scan.h"
+#include "services/mifare_write.h"
 #include "services/tag_family.h"
 #include "hardware/display_power.h"
 #include "hardware/nfc.h"
@@ -2040,7 +2041,7 @@ void appLoop() {
           // the card the poll has just selected, so it never sees a refusal.
           // One that has been written since (FilaStation, CFTag) refuses it
           // and goes through the family choice as an unknown tag.
-          int factory = CREALITY_FACTORY_REFUSED;
+          int factory = MIFARE_FACTORY_REFUSED;
           // Refused the Creality key last time: the factory key goes first now,
           // on the freshly selected card, ahead of the Bambu probe. A blank
           // sticker that sits weakly on the reader may not come back from the
@@ -2049,16 +2050,16 @@ void appLoop() {
           // pays one refusal on its first placement; after that its family is
           // stored and it goes straight to the Bambu scan.
           if (g_creality_tags && family == TAG_FAMILY_NOT_CREALITY) {
-            factory = crealityProbeFactory(uid, uid_str);
+            factory = mifareProbeFactory(uid, uid_str);
           }
           if (g_creality_tags && family == TAG_FAMILY_BLANK) {
-            factory = crealityProbeFactory(uid, uid_str);
-            if (factory != CREALITY_FACTORY_BLANK) {
+            factory = mifareProbeFactory(uid, uid_str);
+            if (factory != MIFARE_FACTORY_BLANK) {
               tagFamilySet(uid, TAG_FAMILY_UNKNOWN);
               family = TAG_FAMILY_UNKNOWN;
             }
           }
-          bool blank_now = (factory != CREALITY_FACTORY_REFUSED);
+          bool blank_now = (factory != MIFARE_FACTORY_REFUSED);
           const bool creality_first = g_creality_tags &&
               (family == TAG_FAMILY_UNKNOWN || family == TAG_FAMILY_CREALITY);
           // An unknown tag alternates between placements: Creality first, then
@@ -2078,7 +2079,7 @@ void appLoop() {
             nfc_retry_count = NFC_MAX_RETRIES;
             last_nfc_check_ms = 0;
           } else if (g_creality_tags && family == TAG_FAMILY_CREALITY &&
-                     (factory = crealityProbeFactory(uid, uid_str)) != CREALITY_FACTORY_REFUSED) {
+                     (factory = mifareProbeFactory(uid, uid_str)) != MIFARE_FACTORY_REFUSED) {
             // Remembered as Creality, but now on the factory key: erased
             // since (CFtag, FilaStation). On 14.10.2026 both tags of spool 9
             // were erased with CFtag and the scale kept trying the Creality
@@ -2097,7 +2098,7 @@ void appLoop() {
             memcpy(g_tag.uid, uid, 4);
             snprintf(g_tag.uid_str, sizeof(g_tag.uid_str), "%s", uid_str);
           } else if (creality_first && family == TAG_FAMILY_UNKNOWN &&
-                     (factory = crealityProbeFactory(uid, uid_str)) != CREALITY_FACTORY_REFUSED) {
+                     (factory = mifareProbeFactory(uid, uid_str)) != MIFARE_FACTORY_REFUSED) {
             // Refused the Creality key, opens with the factory key: a plain
             // sticker, blank ones most likely waiting to be linked and written
             // as a CFS tag. The Bambu probe would refuse it too and knock it
@@ -2124,7 +2125,7 @@ void appLoop() {
             // tag either way; only an empty one is remembered as blank and
             // offered the CFS write.
             blank_mifare = true;
-            if (factory == CREALITY_FACTORY_BLANK) tagFamilySet(uid, TAG_FAMILY_BLANK);
+            if (factory == MIFARE_FACTORY_BLANK) tagFamilySet(uid, TAG_FAMILY_BLANK);
             // A clean record for this UID: looked up by its UID like any
             // plain 4 byte card, once the retries count as spent.
             memset(&g_tag, 0, sizeof(g_tag));
