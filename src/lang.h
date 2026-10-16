@@ -13,7 +13,8 @@
 enum Lang { LANG_DE = 0, LANG_EN = 1, LANG_FR = 2, LANG_COUNT };
 extern Lang g_lang;
 
-// Date format: 0 = DD.MM.YYYY  |  1 = YYYY-MM-DD
+// Date format, the NVS byte "date_fmt". Unknown values read as DD.MM.YYYY.
+enum DateFormat : uint8_t { DATE_FMT_DMY = 0, DATE_FMT_ISO = 1, DATE_FMT_US = 2 };
 extern uint8_t g_date_fmt;
 
 enum StringID {
@@ -1661,6 +1662,9 @@ enum StringID {
   STR_W_OPEN,
   STR_W_COPY_FAILED,
   STR_DBPICK_SM_UNREACHABLE,
+  STR_DATE_FMT_DMY,
+  STR_DATE_FMT_ISO,
+  STR_DATE_FMT_US,
 
   STR_COUNT
 };

@@ -7,7 +7,7 @@
 #include "lang.h"
 
 Lang   g_lang     = LANG_EN;
-uint8_t g_date_fmt = 0;  // 0=DD.MM.YYYY  1=YYYY-MM-DD
+uint8_t g_date_fmt = DATE_FMT_DMY;
 
 // Order MUST exactly match the StringID enum in lang.h!
 // Format: { "Deutsch", "English", "Francais" }
@@ -3632,6 +3632,15 @@ const char* const STRINGS[][3] = {
   { "Spoolman hinter BamBuddy ist von der Waage aus nicht erreichbar:\n%s",
     "Spoolman behind BamBuddy cannot be reached from the scale:\n%s",
     "Spoolman derrière BamBuddy est injoignable depuis la balance :\n%s" },  // STR_DBPICK_SM_UNREACHABLE
+  { "DD.MM.YYYY",
+    "DD.MM.YYYY",
+    "DD.MM.YYYY" },  // STR_DATE_FMT_DMY
+  { "YYYY-MM-DD",
+    "YYYY-MM-DD",
+    "YYYY-MM-DD" },  // STR_DATE_FMT_ISO
+  { "MM/DD/YYYY",
+    "MM/DD/YYYY",
+    "MM/DD/YYYY" },  // STR_DATE_FMT_US
 };
 
 StringID tagWriteResultString(uint8_t code) {
