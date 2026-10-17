@@ -37,7 +37,7 @@ struct SpiRamAllocator : ArduinoJson::Allocator {
 // The raster's shape travels in headers, the body is the bare pixels.
 static const char* RASTER_HEADERS[] = {
   "X-Image-Width", "X-Image-Height", "X-Row-Bytes", "X-Content-Width",
-  "X-Renderer", "X-Preset-Id",
+  "X-Rotated", "X-Preset-Id",
 };
 static const size_t RASTER_HEADER_COUNT = sizeof(RASTER_HEADERS) / sizeof(RASTER_HEADERS[0]);
 
@@ -172,7 +172,8 @@ int filamanLabelRender(const FilamanLabelRequest& req, LabelRaster* out,
     return code;
   }
   const bool ok = rasterShape(http, out) && readPixels(http, out);
-  const String renderer = http.header("X-Renderer"), preset = http.header("X-Preset-Id");
+  // "1" when FilaMan turned a portrait preset for the roll (orientation=).
+  const String rotated = http.header("X-Rotated"), preset = http.header("X-Preset-Id");
   http.end();
   if (!ok) {
     logSDf("FilaMan: label of spool #%d, preset %d not a raster for this printer (%ux%u)",
@@ -181,8 +182,8 @@ int filamanLabelRender(const FilamanLabelRequest& req, LabelRaster* out,
     *out = LabelRaster{};
     return FM_LABEL_BAD_RASTER;
   }
-  logSDf("FilaMan: label of spool #%d, preset %s, renderer %s, %ux%u in %lu ms",
-         req.spool_id, preset.c_str(), renderer.c_str(),
+  logSDf("FilaMan: label of spool #%d, preset %s, rotated %s, %ux%u in %lu ms",
+         req.spool_id, preset.c_str(), rotated == "1" ? "yes" : "no",
          (unsigned)out->width, (unsigned)out->height, millis() - started);
   return 200;
 }

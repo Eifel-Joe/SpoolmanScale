@@ -156,6 +156,8 @@ static const char APP_CSS[] PROGMEM =
       "details.card>summary::after{content:'';width:7px;height:7px;margin:-4px 4px 0 0;"
       "border-right:2px solid var(--ink-3);border-bottom:2px solid var(--ink-3);transform:rotate(45deg)}"
       "details.card[open]>summary::after{transform:rotate(-135deg);margin-top:4px}"
+      // A list's tail that folds away under one quiet line.
+      "details.more>summary{cursor:pointer;color:var(--ink-soft);padding:8px 0}"
       // Numbered steps, the number in a round badge instead of a list marker.
       ".steps{list-style:none;counter-reset:s;display:flex;flex-direction:column;gap:12px;margin-top:14px}"
       ".steps>li{counter-increment:s;display:grid;grid-template-columns:26px 1fr;gap:10px;align-items:start}"
