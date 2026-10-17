@@ -29,6 +29,7 @@
 #include "hardware/sd_logger.h"
 #include "services/ble_service.h"
 #include "services/label_bmp.h"
+#include "services/label_fit.h"
 #include "services/label_layout.h"
 #include "services/label_printer.h"
 #include "services/label_render.h"
@@ -96,18 +97,16 @@ static void serverJson(String& j, const LabelPrinterConfig& c, int spool_id) {
   j += F("\",\"presets\":[");
   for (int i = 0; st == LS_READY && i < list->count; i++) {
     const FilamanLabelPreset& p = list->items[i];
-    const bool sized = p.width_mm > 0 && p.height_mm > 0;
-    const bool direct = sized && p.width_mm == c.media_width_mm && p.height_mm == c.media_length_mm;
-    const bool rotated = sized && !direct && p.width_mm == c.media_length_mm && p.height_mm == c.media_width_mm;
+    const LabelFit fit = labelPresetFit(p.width_mm, p.height_mm, c.media_width_mm, c.media_length_mm);
     if (i) j += ',';
     j += F("{\"id\":");      j += String(p.id);
     j += F(",\"name\":\"");  j += jsonEsc(p.name);
     j += F("\",\"size\":\""); j += String(p.width_mm); j += F(" x ");
     j += String(p.height_mm);
     j += F(" mm\",\"fit\":");
-    j += (direct || rotated) ? F("true") : F("false");
+    j += fit != LABEL_FIT_NONE ? F("true") : F("false");
     j += F(",\"rotated\":");
-    j += rotated ? F("true") : F("false");
+    j += fit == LABEL_FIT_ROTATED ? F("true") : F("false");
     j += '}';
   }
   j += ']';

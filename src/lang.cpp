@@ -3565,7 +3565,6 @@ const char* const STRINGS[][3] = {
   { "Für die Vorschau eine Spule auf die Waage legen.",
     "Put a spool on the scale for the preview.",
     "Posez une bobine sur la balance pour l'aperçu." },  // STR_W_L_SRC_NO_SPOOL
-  { "passt gedreht", "fits rotated", "compatible après rotation" },  // STR_W_L_SRC_ROTATED
 
   // Auto-tare while the pad is empty
   { "Auto-Tara (leere Waage)", "Auto-tare (empty pad)", "Auto-tare (plateau vide)" },  // STR_BTN_AUTO_TARE
@@ -3642,6 +3641,7 @@ const char* const STRINGS[][3] = {
   { "MM/DD/YYYY",
     "MM/DD/YYYY",
     "MM/DD/YYYY" },  // STR_DATE_FMT_US
+  { "passt gedreht", "fits rotated", "compatible après rotation" },  // STR_W_L_SRC_ROTATED
 };
 
 StringID tagWriteResultString(uint8_t code) {

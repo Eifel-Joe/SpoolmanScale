@@ -31,7 +31,30 @@ int main() {
   assert(scan.count() == 32 && records[1].rssi == -40);
   assert(strcmp(records[1].name, "nearby") == 0);
   scan.observe(device(201, -30));
-  assert(records[1].rssi == -30 && records[2].rssi == -40);
+  assert(records[1].rssi == -40 && records[2].rssi == -30);
+
+  BleDevice crowded[32]{};
+  BleCandidates setup(crowded, 32, "", false);
+  for (int i = 0; i < 32; ++i) setup.observe(device(i, -20));
+  setup.observe(printer);
+  assert(setup.count() == 32 && strcmp(crowded[0].name, "printer") == 0);
+  for (int i = 32; i < 100; ++i) setup.observe(device(i, -10));
+  assert(strcmp(crowded[0].name, "printer") == 0);
+  setup.observe(device(200, -40, "nearby"));
+  assert(strcmp(crowded[0].name, "nearby") == 0);
+  assert(strcmp(crowded[1].name, "printer") == 0);
+  setup.observe(device(200, -99));
+  assert(strcmp(crowded[0].name, "printer") == 0);
+  assert(strcmp(crowded[1].name, "nearby") == 0);
+  setup.observe(device(32, -30, "new name"));
+  assert(strcmp(crowded[0].name, "new name") == 0);
+
+  BleDevice saved_records[32]{};
+  BleCandidates saved(saved_records, 32, printer.address, false);
+  saved.observe(device(200, -20, "nearby"));
+  saved.observe(device(500, -99));
+  assert(strcmp(saved_records[0].address, printer.address) == 0);
+  assert(!saved_records[0].name[0]);
 
   BleDevice match{};
   BleCandidates target(&match, 1, printer.address, true);
@@ -51,7 +74,7 @@ int main() {
   assert(page.indices[0] == 24 && page.indices[7] == 31);
   page = bleCandidatePage(records, 32, false, 3, printer.address);
   assert(page.pages == 1 && page.number == 0 && page.count == 2);
-  assert(page.indices[0] == 0 && page.indices[1] == 2);
+  assert(page.indices[0] == 0 && page.indices[1] == 1);
   page = bleCandidatePage(nullptr, 0, true, -1, "");
   assert(page.count == 0 && page.number == 0 && page.pages == 1);
 }

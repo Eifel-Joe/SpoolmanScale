@@ -70,8 +70,8 @@ class BleCandidates {
     const bool ap = strcmp(a.address, preferred_) == 0;
     const bool bp = strcmp(b.address, preferred_) == 0;
     if (ap != bp) return ap;
-    if (a.rssi != b.rssi) return a.rssi > b.rssi;
     if (!!a.name[0] != !!b.name[0]) return !!a.name[0];
+    if (a.rssi != b.rssi) return a.rssi > b.rssi;
     return strcmp(a.address, b.address) < 0;
   }
   BleDevice* devices_;
