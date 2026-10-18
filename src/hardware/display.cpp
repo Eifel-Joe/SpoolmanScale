@@ -5,6 +5,8 @@
 
 #include <LovyanGFX.hpp>
 #include <math.h>
+#include <driver/gpio.h>
+#include <driver/rtc_io.h>
 #include <esp_heap_caps.h>
 #include <esp_sleep.h>
 #include <lvgl.h>
@@ -46,7 +48,7 @@ public:
       cfg.freq_write=LCD_BUS_WRITE_HZ;
       _bus.config(cfg); _panel.setBus(&_bus); }
     { auto cfg = _panel.config();
-      cfg.pin_cs=-1; cfg.pin_rst=4; cfg.pin_busy=-1;
+      cfg.pin_cs=-1; cfg.pin_rst=hw_pins::LCD_RESET; cfg.pin_busy=-1;
       cfg.memory_width=320; cfg.memory_height=480;
       cfg.panel_width=320;  cfg.panel_height=480;
       cfg.invert=true; cfg.rgb_order=false;
@@ -243,6 +245,13 @@ static void lvgl_touch(lv_indev_drv_t *drv, lv_indev_data_t *data) {
 bool displayHardwareBegin(void (*touch_activity_cb)()) {
   touch_activity_callback = touch_activity_cb;
 
+  // Undo what displayPrepareDeepSleep() set up: a held reset pin cannot be
+  // pulsed by the panel init, and the wake pin stays an RTC input after an
+  // ext0 wake until it is handed back. Both are no-ops on a cold boot.
+  gpio_hold_dis((gpio_num_t)hw_pins::LCD_RESET);
+  gpio_deep_sleep_hold_dis();
+  rtc_gpio_deinit((gpio_num_t)hw_pins::TOUCH_INT);
+
   tft.init();  // brings up the touch I2C bus as configured in LGFX::_touch
   tft.setRotation(1);
   // Full output until displayPowerInit() applies the user's saved level. This
@@ -318,7 +327,15 @@ void displayBacklightOn(uint8_t brightness) {
 #endif
 }
 
+// The touch chip shares the panel's reset line. In deep sleep nothing drives
+// that pin, and on some boards it drifts low: the touch chip sits in reset,
+// INT never falls and only pulling the power brings the scale back (found by
+// sticky). On the S3 a digital pad keeps its level through deep sleep only
+// with the pad hold plus the deep sleep hold.
 void displayPrepareDeepSleep() {
   displaySetBrightness(0);
+  gpio_set_level((gpio_num_t)hw_pins::LCD_RESET, 1);
+  gpio_hold_en((gpio_num_t)hw_pins::LCD_RESET);
+  gpio_deep_sleep_hold_en();
   esp_sleep_enable_ext0_wakeup((gpio_num_t)hw_pins::TOUCH_INT, 0);
 }
