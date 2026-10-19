@@ -330,8 +330,10 @@ void displayBacklightOn(uint8_t brightness) {
 // The touch chip shares the panel's reset line. In deep sleep nothing drives
 // that pin, and on some boards it drifts low: the touch chip sits in reset,
 // INT never falls and only pulling the power brings the scale back (found by
-// sticky). On the S3 a digital pad keeps its level through deep sleep only
-// with the pad hold plus the deep sleep hold.
+// sticky). The reset pin is an RTC pad on the S3, so gpio_hold_en() takes the
+// RTC hold, which lasts through deep sleep on its own. The deep sleep hold on
+// top also freezes every digital-only pad (SD, UART, backlight); harmless, the
+// backlight is already low at duty 0.
 void displayPrepareDeepSleep() {
   displaySetBrightness(0);
   gpio_set_level((gpio_num_t)hw_pins::LCD_RESET, 1);
