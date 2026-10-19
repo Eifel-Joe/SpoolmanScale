@@ -1666,6 +1666,10 @@ enum StringID {
   STR_DATE_FMT_ISO,
   STR_DATE_FMT_US,
   STR_W_L_SRC_ROTATED,
+  // Releasing the tags after a spool is archived
+  STR_FREE_TAG_ASK,
+  STR_FREE_TAG_ERASE_LINE,
+  STR_BTN_FREE_TAG,
 
   STR_COUNT
 };

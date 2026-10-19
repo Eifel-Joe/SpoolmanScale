@@ -3642,6 +3642,14 @@ const char* const STRINGS[][3] = {
     "MM/DD/YYYY",
     "MM/DD/YYYY" },  // STR_DATE_FMT_US
   { "passt gedreht", "fits rotated", "compatible après rotation" },  // STR_W_L_SRC_ROTATED
+  // Releasing the tags after a spool is archived
+  { "Tag freigeben?\nAlle Tags werden von der Spule getrennt.",
+    "Release the tag?\nAll tags of this spool are unlinked.",
+    "Libérer le tag ?\nTous les tags sont dissociés." },  // STR_FREE_TAG_ASK
+  { "Der aufliegende Tag wird gelöscht.",
+    "The tag on the reader is erased.",
+    "Le tag posé est effacé." },  // STR_FREE_TAG_ERASE_LINE
+  { "Freigeben", "Release", "Libérer" },  // STR_BTN_FREE_TAG
 };
 
 StringID tagWriteResultString(uint8_t code) {
