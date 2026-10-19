@@ -204,7 +204,10 @@ void appSetup() {
   Serial.print("Looking for PN532... ");
   uint32_t ver = 0;
   nfcResetLoad();
-  if (nfcHardwareBegin(&I2C_EXT, nfcResetPinForBoot(), hw_pins::PN532_IRQ_UNUSED, &ver)) {
+  // With an HX711 the reset pins are its clock and data line: the reader goes
+  // without a reset line rather than pulse the scale's clock.
+  const int8_t nfc_reset = scaleHx711Fitted() ? -1 : nfcResetPinForBoot();
+  if (nfcHardwareBegin(&I2C_EXT, nfc_reset, hw_pins::PN532_IRQ_UNUSED, &ver)) {
     nfc_ok = true;
     Serial.printf("OK (FW %d.%d)\n", (ver >> 16) & 0xFF, (ver >> 8) & 0xFF);
     logSDf("NFC ready (PN532 FW %d.%d)", (ver >> 16) & 0xFF, (ver >> 8) & 0xFF);
@@ -219,10 +222,10 @@ void appSetup() {
   // and there is nothing here to wait for. scl_ok and scale_ready stay false,
   // which is what every consumer already asks.
   if (!g_scale_fitted) {
-    Serial.println("Scale switched off in the settings, NAU7802 not probed");
-    logSD("Scale switched off in the settings, NAU7802 not probed");
+    Serial.println("Scale switched off in the settings, ADC not probed");
+    logSD("Scale switched off in the settings, ADC not probed");
   } else {
-    Serial.print("Looking for NAU7802... ");
+    Serial.print("Looking for NAU7802 or HX711... ");
     if (scaleHardwareBegin(&I2C_EXT, [](){
       Serial.print(".");
       delay(100);
@@ -230,13 +233,14 @@ void appSetup() {
     })) {
       scl_ok = true;
       scale_ready = true;
-      Serial.printf("OK! cal_factor=%.4f  zero_offset=%d\n", cal_factor, zero_offset);
-      logSDf("Scale ready (cal=%.4f zero=%d)", cal_factor, zero_offset);
+      Serial.printf("OK! %s cal_factor=%.4f  zero_offset=%d\n", scaleHardwareName(),
+                    cal_factor, zero_offset);
+      logSDf("Scale ready (%s cal=%.4f zero=%d)", scaleHardwareName(), cal_factor, zero_offset);
     } else {
       // Two ways to land here: the chip did not answer on 0x2A at all, or it
       // answered but never finished calibrating. scaleHardwareBegin() prints
       // which one, so this must not claim a cause of its own.
-      Serial.printf("ERROR! Scale unavailable (NAU7802 on 0x%02X, bus: %s)\n",
+      Serial.printf("ERROR! Scale unavailable (no NAU7802 on 0x%02X, no HX711; bus: %s)\n",
                     I2C_ADDR_NAU7802, i2cScanLast());
       logSDf("Scale init FAILED (bus: %s)", i2cScanLast());
     }

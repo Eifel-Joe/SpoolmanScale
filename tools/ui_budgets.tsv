@@ -139,6 +139,7 @@ STR_BTN_OPEN_BROWSER	12	128	NEVER	src/ui/drying_reminder_screen.cpp:196 150 px b
 STR_BTN_MORE_OPTIONS	16	190	NEVER	src/ui/backend_screen.cpp:361 216 px button, -8 air, -18 for "  ->" (symmetry with STR_BTN_WEB_SETUP)
 STR_DIAG_BUS_EMPTY_BANNER	14	334	NEVER	src/ui/diag_banner.cpp:89 464 px label, -24 icon, -106 widest STR_DIAG_TAP
 STR_DIAG_NAU_MISSING_BANNER	14	334	NEVER	src/ui/diag_banner.cpp:89 464 px label, -24 icon, -106 widest STR_DIAG_TAP
+STR_DIAG_HX_MISSING_BANNER	14	334	NEVER	src/ui/diag_banner.cpp:89 464 px label, -24 icon, -106 widest STR_DIAG_TAP
 STR_DIAG_PN532_MISSING_BANNER	14	334	NEVER	src/ui/diag_banner.cpp:89 464 px label, -24 icon, -106 widest STR_DIAG_TAP
 STR_DIAG_PN532_MUTE_BANNER	14	334	NEVER	src/ui/diag_banner.cpp:89 464 px label, -24 icon, -106 widest STR_DIAG_TAP
 STR_DIAG_UNCAL_BANNER	14	334	NEVER	src/ui/diag_banner.cpp:89 464 px label, -24 icon, -106 widest STR_DIAG_TAP

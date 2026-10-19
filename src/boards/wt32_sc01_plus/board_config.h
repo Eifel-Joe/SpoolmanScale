@@ -58,6 +58,14 @@ constexpr int8_t PN532_RESET_SAFE = 12;   // EXT_IO3, pin 5, no build ever wired
 // this firmware and an input after reset anyway.
 constexpr int8_t PN532_IRQ_UNUSED = 13;
 
+// An HX711 instead of the NAU7802: it has no address, only a clock and a data
+// line. The clock goes on the pin no build ever wired, so driving it is safe
+// on every device; the data line is only ever read, so the old builds with
+// their reset wire on EXT_IO5 lose nothing. While an HX711 is fitted the
+// PN532 gets no reset line at all - see scaleHx711Fitted().
+constexpr int8_t HX711_SCK  = 12;   // EXT_IO3, connector pin 5
+constexpr int8_t HX711_DOUT = 14;   // EXT_IO5, connector pin 7
+
 constexpr int8_t TOUCH_SDA = 6;      // FT6336U internal board bus
 constexpr int8_t TOUCH_SCL = 5;      // FT6336U internal board bus
 constexpr int8_t TOUCH_INT = 7;      // FT6336U INT for wake-up

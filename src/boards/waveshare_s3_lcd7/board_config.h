@@ -59,6 +59,18 @@ namespace hw_pins {
 constexpr int8_t I2C_EXT_SDA = 43;   // UART2 connector, TXD
 constexpr int8_t I2C_EXT_SCL = 44;   // UART2 connector, RXD
 
+// An HX711 instead of the PN532 and the NAU7802, on the same two pins: the
+// board has no other GPIO to give it (schematic V1.2: the sensor connector's
+// GPIO6 is the only one left, and an HX711 needs two). The two cannot share
+// a line - a clock held high for 60 us powers the HX711 down, and an idle
+// I2C bus is high - so an HX711 here means no sensor bus and no NFC.
+//
+// The clock goes on TXD, where the boot ROM prints: that only clocks an
+// input, and the HX711 powers down and starts over. Data on TXD would put
+// the chip's output against the ROM's.
+constexpr int8_t HX711_SCK  = I2C_EXT_SDA;   // UART2 connector pin 4
+constexpr int8_t HX711_DOUT = I2C_EXT_SCL;   // UART2 connector pin 3
+
 // The one GPIO the board brings out by itself, on the sensor connector. No
 // unit of this board was ever wired the old way round, so the safe pin and
 // the wire are the same pin: see boards/wt32_sc01_plus/board_config.h for

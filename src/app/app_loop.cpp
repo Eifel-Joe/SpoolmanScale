@@ -1294,8 +1294,8 @@ void appLoop() {
     scale_weight_g = 0.0f;
     if (lbl_scale_weight) lv_label_set_text(lbl_scale_weight, "---");
     updateHeaderStatus();
-    Serial.println("Scale: NAU7802 stopped answering, readings suspended");
-    logSD("Scale: NAU7802 stopped answering");
+    Serial.printf("Scale: %s stopped answering, readings suspended\n", scaleHardwareName());
+    logSDf("Scale: %s stopped answering", scaleHardwareName());
   }
 
   // NAU7802: read weight every 200ms and update labels.
@@ -1743,8 +1743,8 @@ void appLoop() {
           scale_ready = true;
           scale_lost = false;
           resetScaleFilter();
-          Serial.println("Scale: NAU7802 back on the bus");
-          logSD("Scale: NAU7802 recovered");
+          Serial.printf("Scale: %s back\n", scaleHardwareName());
+          logSDf("Scale: %s recovered", scaleHardwareName());
         } else {
           scl_ok = false;
           Serial.printf("Scale: re-init failed (%u/%u)\n",

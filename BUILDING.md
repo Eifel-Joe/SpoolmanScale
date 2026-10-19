@@ -18,6 +18,7 @@ For the project overview, features, and flashing instructions, see the [README](
 | Debug Board (recommended) | ZXACC-ESPDB | [AliExpress](https://a.aliexpress.com/_Eu5Y0Ug) |
 | NFC Reader | PN532 | [AliExpress](https://a.aliexpress.com/_ExScN8M) |
 | Scale ADC | NAU7802 (Adafruit) | [AliExpress](https://a.aliexpress.com/_EvlFNj2) |
+| Scale ADC, alternative | HX711 board (often sold with the load cell); needs a 3.3 V regulator, see [HX711](#hx711-instead-of-the-nau7802) | - |
 | Load Cell | YZC-133 2 kg beam cell (5 kg works too) | [AliExpress](https://a.aliexpress.com/_EuhhVF2) |
 | Connector Cables | STEMMA QT / JST cables | [AliExpress](https://a.aliexpress.com/_Ezjg6fQ) |
 | Connector Cables (recommended) | Micro JST 1.0 SH 5-pin – easier assembly | [Amazon](https://amzn.eu/d/0aKJ4Va9) |
@@ -84,13 +85,22 @@ The PN532 and NAU7802 share the same I2C bus (SDA/SCL) and are wired in parallel
 
 | Pin | Color | Signal | Connect to |
 |---|---|---|---|
-| 1 | Red | 5 V | PN532 VCC + NAU7802 VIN |
-| 2 | Black | GND | PN532 GND + NAU7802 GND |
+| 1 | Red | 5 V | PN532 VCC + NAU7802 VIN; input of the 3.3 V regulator (HX711) |
+| 2 | Black | GND | everything's GND |
 | 3 | Yellow | GPIO10 (SDA) | PN532 SDA + NAU7802 SDA |
 | 4 | Green | GPIO11 (SCL) | PN532 SCL + NAU7802 SCL |
-| 5 | Blue | - | unused |
+| 5 | Blue | GPIO12 | HX711 SCK (only with an HX711) |
 | 6 | White | - | unused |
-| 7 | Brown | GPIO14 | PN532 RSTPDN |
+| 7 | Brown | GPIO14 | PN532 RSTPDN (optional) **or** HX711 DT - never both |
+
+### HX711 instead of the NAU7802
+
+The firmware looks for a NAU7802 on I2C first and, without one, for an HX711 on GPIO12 (SCK) and GPIO14 (DT). Once found it is remembered: the PN532 then gets no reset line, because GPIO12/14 are the HX711's.
+
+- **Power the HX711 from 3.3 V**, through a small regulator (AMS1117-3.3 or AP2112-3.3: IN to pin 1, GND to pin 2). At 5 V its DT output would put 5 V on GPIO14, and the ESP32-S3 is not 5 V tolerant.
+- HX711 VCC (and VDD, if the board has both) to the regulator's OUT, GND to pin 2, SCK to pin 5, DT to pin 7.
+- Load cell: red E+, black E−, white A−, green A+ (the board's labels count). If the scale reports the load cell reversed, swap white and green.
+- Calibrate as with the NAU7802; the numbers differ, the procedure does not.
 
 ### PN532 – Soldering & Assembly
 

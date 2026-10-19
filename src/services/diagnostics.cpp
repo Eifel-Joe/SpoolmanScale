@@ -7,6 +7,7 @@
 #include "app_config.h"
 #include "hardware/i2c_scan.h"
 #include "hardware/nfc.h"
+#include "hardware/scale.h"
 #include "hardware/sd_logger.h"
 #include "lang.h"
 #include "services/user_options.h"
@@ -86,7 +87,8 @@ void diagnosticsTick() {
 
   DiagCode next = DIAG_NONE;
 
-  if (!pn532_on_bus && nau_missing) {
+  // An HX711 is not on the bus, so an empty bus says nothing about it.
+  if (!pn532_on_bus && nau_missing && !scaleHx711Fitted()) {
     next = DIAG_BUS_EMPTY;
   } else if (nau_missing) {
     next = DIAG_NAU_MISSING;
@@ -158,7 +160,8 @@ DiagCode diagnosticsCurrent() {
 int diagBannerString(DiagCode c) {
   switch (c) {
     case DIAG_BUS_EMPTY:          return STR_DIAG_BUS_EMPTY_BANNER;
-    case DIAG_NAU_MISSING:        return STR_DIAG_NAU_MISSING_BANNER;
+    case DIAG_NAU_MISSING:        return scaleHx711Fitted() ? STR_DIAG_HX_MISSING_BANNER
+                                                         : STR_DIAG_NAU_MISSING_BANNER;
     case DIAG_PN532_MISSING:      return STR_DIAG_PN532_MISSING_BANNER;
     case DIAG_PN532_MUTE:         return STR_DIAG_PN532_MUTE_BANNER;
     case DIAG_SCALE_UNCALIBRATED: return STR_DIAG_UNCAL_BANNER;
@@ -184,7 +187,8 @@ int diagTitleString(DiagCode c) {
 int diagTextString(DiagCode c) {
   switch (c) {
     case DIAG_BUS_EMPTY:          return STR_DIAG_BUS_EMPTY_TEXT;
-    case DIAG_NAU_MISSING:        return STR_DIAG_NAU_MISSING_TEXT;
+    case DIAG_NAU_MISSING:        return scaleHx711Fitted() ? STR_DIAG_HX_MISSING_TEXT
+                                                         : STR_DIAG_NAU_MISSING_TEXT;
     case DIAG_PN532_MISSING:      return STR_DIAG_PN532_MISSING_TEXT;
     case DIAG_PN532_MUTE:         return STR_DIAG_PN532_MUTE_TEXT;
     case DIAG_SCALE_UNCALIBRATED: return STR_DIAG_UNCAL_TEXT;
@@ -215,7 +219,7 @@ const char *diagName(DiagCode c) {
   switch (c) {
     case DIAG_NONE:               return "none";
     case DIAG_BUS_EMPTY:          return "i2c bus empty";
-    case DIAG_NAU_MISSING:        return "NAU7802 missing";
+    case DIAG_NAU_MISSING:        return scaleHx711Fitted() ? "HX711 missing" : "NAU7802 missing";
     case DIAG_PN532_MISSING:      return "PN532 missing";
     case DIAG_PN532_MUTE:         return "PN532 mute";
     case DIAG_SCALE_UNCALIBRATED: return "scale uncalibrated";

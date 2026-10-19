@@ -2087,6 +2087,8 @@ const char* const STRINGS[][3] = {
     "Prüfe VIN, GND, SDA und SCL an der NAU7802.\n\n"
     "Bei fertigen STEMMA-QT-Kabeln von Drittanbietern stimmt die "
     "Pinreihenfolge oft nicht mit der des WT32-Kabels überein.\n\n"
+    "Mit einem HX711 statt der NAU7802: DT an Pin 7 (GPIO14), SCK an Pin 5 "
+    "(GPIO12), VCC an 3,3V. Die Waage findet ihn dann von selbst.\n\n"
     "Ist dieses Gerät bewusst ohne Waage gebaut, schalte sie unter "
     "Einstellungen > Waage ab - dann verschwindet diese Meldung.",
     "The NAU7802 does not answer on 0x2A. The NFC reader does, so SDA and SCL "
@@ -2094,9 +2096,26 @@ const char* const STRINGS[][3] = {
     "Check VIN, GND, SDA and SCL on the NAU7802.\n\n"
     "On third party STEMMA QT cables the pin order often does not match the "
     "WT32 cable.\n\n"
+    "With an HX711 instead of the NAU7802: DT to pin 7 (GPIO14), SCK to pin 5 "
+    "(GPIO12), VCC to 3.3V. The scale then finds it by itself.\n\n"
     "If this device was deliberately built without a scale, switch it off "
     "under Settings > Scale and this finding goes away.",
-    "Le NAU7802 ne répond pas à l'adresse 0x2A. Le lecteur NFC, lui, répond : les fils SDA et SCL sont donc bons en principe.\n\nVérifiez les fils VIN, GND, SDA et SCL sur le NAU7802.\n\nSur les câbles STEMMA QT tout faits d'autres fabricants, l'ordre des broches diffère souvent de celui du câble WT32.\n\nSi cet appareil est volontairement monté sans balance, désactivez « Balance présente » dans Réglages > Balance : ce message disparaîtra." },  // STR_DIAG_NAU_MISSING_TEXT
+    "Le NAU7802 ne répond pas à l'adresse 0x2A. Le lecteur NFC, lui, répond : les fils SDA et SCL sont donc bons en principe.\n\nVérifiez les fils VIN, GND, SDA et SCL sur le NAU7802.\n\nSur les câbles STEMMA QT tout faits d'autres fabricants, l'ordre des broches diffère souvent de celui du câble WT32.\n\nAvec un HX711 à la place du NAU7802 : DT sur la broche 7 (GPIO14), SCK sur la broche 5 (GPIO12), VCC sur 3,3V. La balance le trouve alors toute seule.\n\nSi cet appareil est volontairement monté sans balance, désactivez « Balance présente » dans Réglages > Balance : ce message disparaîtra." },  // STR_DIAG_NAU_MISSING_TEXT
+  { "Waagen-ADC fehlt (HX711)", "Scale ADC missing (HX711)",
+    "Convertisseur absent (HX711)" },  // STR_DIAG_HX_MISSING_BANNER
+  { "Der HX711 liefert keine Messwerte mehr. Er war schon einmal da, die "
+    "Waage sucht ihn also an seinen zwei Pins.\n\n"
+    "Prüfe am HX711: VCC an 3,3V (nicht an 5V), GND, DT an Pin 7 (GPIO14) "
+    "und SCK an Pin 5 (GPIO12).\n\n"
+    "Ist dieses Gerät bewusst ohne Waage gebaut, schalte sie unter "
+    "Einstellungen > Waage ab - dann verschwindet diese Meldung.",
+    "The HX711 has stopped delivering readings. It was found before, so the "
+    "scale keeps looking for it on its two pins.\n\n"
+    "Check on the HX711: VCC to 3.3V (not 5V), GND, DT to pin 7 (GPIO14) and "
+    "SCK to pin 5 (GPIO12).\n\n"
+    "If this device was deliberately built without a scale, switch it off "
+    "under Settings > Scale and this finding goes away.",
+    "Le HX711 ne fournit plus de mesures. Il a déjà été détecté : la balance le cherche donc sur ses deux broches.\n\nVérifiez sur le HX711 : VCC sur 3,3V (pas sur 5V), GND, DT sur la broche 7 (GPIO14) et SCK sur la broche 5 (GPIO12).\n\nSi cet appareil est volontairement monté sans balance, désactivez « Balance présente » dans Réglages > Balance : ce message disparaîtra." },  // STR_DIAG_HX_MISSING_TEXT
 
   { "NFC-Reader fehlt (PN532)", "NFC reader missing (PN532)",
     "Lecteur NFC absent (PN532)" },  // STR_DIAG_PN532_MISSING_BANNER
@@ -2165,28 +2184,32 @@ const char* const STRINGS[][3] = {
   { "Die Waage liest bei leerer Plattform stark negativ und hat seit dem Start "
     "nie ein positives Gewicht gesehen. Auflegen macht die Zahl kleiner statt "
     "größer.\n\n"
-    "Tausche an der NAU7802 die beiden Signaladern: A+ (weiß) und A- (grün).\n\n"
+    "Tausche am Verstärker (NAU7802 oder HX711) die beiden Signaladern an "
+    "A+ und A- (weiß und grün).\n\n"
     "Danach neu tarieren und kalibrieren.",
     "The scale reads far below zero with an empty platform and has never seen "
     "a positive weight since it started. Loading it makes the number go down "
     "instead of up.\n\n"
-    "Swap the two signal wires on the NAU7802: A+ (white) and A- (green).\n\n"
+    "Swap the two signal wires on the amplifier (NAU7802 or HX711) at A+ and "
+    "A- (white and green).\n\n"
     "Then tare and calibrate again.",
-    "À vide, la balance affiche une valeur très négative et n'a mesuré aucun poids positif depuis le démarrage. Poser un objet la fait baisser au lieu de l'augmenter.\n\nInversez les deux fils de signal sur le NAU7802 : A+ (blanc) et A- (vert).\n\nRefaites ensuite la tare et l'étalonnage." },  // STR_DIAG_INVERTED_TEXT
+    "À vide, la balance affiche une valeur très négative et n'a mesuré aucun poids positif depuis le démarrage. Poser un objet la fait baisser au lieu de l'augmenter.\n\nInversez les deux fils de signal sur l'amplificateur (NAU7802 ou HX711), sur A+ et A- (blanc et vert).\n\nRefaites ensuite la tare et l'étalonnage." },  // STR_DIAG_INVERTED_TEXT
 
   { "Wägezelle unruhig", "Load cell unstable", "Capteur de pesée instable" },  // STR_DIAG_NOISY_BANNER
   { "Wägezelle unruhig", "Load cell unstable", "Capteur de pesée instable" },  // STR_DIAG_NOISY_TITLE
   { "Der Messwert schwankt dauerhaft um mehr als %d g, obwohl auf der "
     "Plattform nichts bewegt wird.\n\n"
-    "Das ist typisch für eine lose Ader an der NAU7802. Prüfe E+ (rot), "
-    "E- (schwarz), A+ (weiß) und A- (grün) auf kalte Lötstellen.\n\n"
+    "Das ist typisch für eine lose Ader am Verstärker (NAU7802 oder HX711). "
+    "Prüfe E+ (rot), E- (schwarz) und die Signaladern an A+ und A- (weiß, "
+    "grün) auf kalte Lötstellen.\n\n"
     "Prüfe außerdem, ob ein Kabel gegen die Wiegeplattform drückt.",
     "The reading keeps swinging by more than %d g although nothing on the "
     "platform is moving.\n\n"
-    "That is typical for a loose wire on the NAU7802. Check E+ (red), "
-    "E- (black), A+ (white) and A- (green) for cold solder joints.\n\n"
+    "That is typical for a loose wire on the amplifier (NAU7802 or HX711). "
+    "Check E+ (red), E- (black) and the signal wires at A+ and A- (white, "
+    "green) for cold solder joints.\n\n"
     "Also check whether a cable is pressing against the weighing platform.",
-    "La mesure varie en permanence de plus de %d g alors que rien ne bouge sur le plateau.\n\nC'est typique d'un fil mal fixé sur le NAU7802. Vérifiez E+ (rouge), E- (noir), A+ (blanc) et A- (vert), à la recherche d'une soudure froide.\n\nVérifiez aussi qu'aucun câble n'appuie contre le plateau de pesée." },  // STR_DIAG_NOISY_TEXT
+    "La mesure varie en permanence de plus de %d g alors que rien ne bouge sur le plateau.\n\nC'est typique d'un fil mal fixé sur l'amplificateur (NAU7802 ou HX711). Vérifiez E+ (rouge), E- (noir) et les fils de signal sur A+ et A- (blanc, vert), à la recherche d'une soudure froide.\n\nVérifiez aussi qu'aucun câble n'appuie contre le plateau de pesée." },  // STR_DIAG_NOISY_TEXT
 
   { "So kalibrierst du", "How to calibrate", "Comment étalonner" },  // STR_CAL_HELP_TITLE
   { "1. Plattform leer räumen und TARE drücken. Die Anzeige muss auf 0 gehen.\n\n"

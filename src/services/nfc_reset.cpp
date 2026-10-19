@@ -4,6 +4,7 @@
 
 #include "hardware/nfc.h"
 #include "hardware/pins.h"
+#include "hardware/scale.h"
 #include "hardware/sd_logger.h"
 #include "services/prefs_store.h"
 
@@ -40,12 +41,16 @@ void nfcResetLoad() {
 }
 
 int8_t nfcResetPinForBoot() {
+  if (scaleHx711Fitted()) return -1;
   return s_verified ? hw_pins::PN532_RESET_WIRE : hw_pins::PN532_RESET_SAFE;
 }
 
 bool nfcResetVerified() { return s_verified; }
 
 bool nfcResetSelfTest() {
+  // The wire's pin is the HX711's data line: holding it low would fight the
+  // chip, and there is no reset wire on it to find.
+  if (scaleHx711Fitted()) return false;
   const int8_t wire = hw_pins::PN532_RESET_WIRE;
 
   // Open drain: the pin sinks and never sources, so on a device that still has
@@ -85,6 +90,7 @@ void nfcReaderNoteRecovery() {
 }
 
 bool nfcResetHintDue() {
+  if (scaleHx711Fitted()) return false;   // its pin is taken
   if (s_verified) return false;   // nothing left to tell them
   if (s_never)    return false;
   if (!s_recovery) return false;  // the modification would buy them nothing yet
