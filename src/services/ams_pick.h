@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 
 // ============================================================
@@ -52,3 +53,7 @@ void amsPickOpenFor(int spool_id, const char* spool_name);
 
 // Drops a note nobody acted on. Called from appLoop().
 void amsPickTick();
+
+// The Spoolman location an assignment writes for a bay's unit, "X1C AMS 1".
+// Public so taking a spool out can tell this name from one the user chose.
+void amsLocationName(char* out, size_t n, const char* printer, int ams_id);

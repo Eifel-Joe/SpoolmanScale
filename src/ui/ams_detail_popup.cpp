@@ -12,6 +12,7 @@
 #include "ams_view.h"
 #include "more_info_screen.h"
 #include "services/backend.h"
+#include "services/ams_pick.h"
 #include "services/backend_api.h"
 #include "services/server_reach.h"
 #include "services/dried_batch.h"
@@ -1058,8 +1059,13 @@ void handleAmsDetailDeferredActions() {
       // Copied first: closing the card is what frees s_det for the next one.
       char loc[SD_LOCATION_MAX];
       snprintf(loc, sizeof(loc), "%s", s_det.location);
+      // The name the assignment wrote is wrong the moment the bay is free.
+      // A shelf the user named stays, even if no new one is chosen.
+      char auto_loc[SD_LOCATION_MAX];
+      amsLocationName(auto_loc, sizeof(auto_loc), amsViewPrinterName(), s_det.ams_id);
+      const bool clear_on_cancel = (loc[0] && strcmp(loc, auto_loc) == 0);
       closeAmsDetailPopup();
-      requestLocationPickerFor(spool_id, loc);
+      requestLocationPickerFor(spool_id, loc, clear_on_cancel);
       return;
     }
     s_write_failed = true;

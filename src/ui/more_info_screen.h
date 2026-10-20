@@ -8,8 +8,9 @@ void requestLocationPicker(bool from_popup);
 void tapLocationButton(bool from_popup);
 // The picker for a spool that is not on the pad: one just taken out of an AMS
 // bay. Writes to spool_id instead of the spool on the pad, marks `current` as
-// the location it has now, and returns to the main screen when done.
-void requestLocationPickerFor(int spool_id, const char* current);
+// the location it has now, and returns to the main screen when done. With
+// clear_on_cancel a picker closed without a choice empties the location.
+void requestLocationPickerFor(int spool_id, const char* current, bool clear_on_cancel);
 void handleMoreInfoDeferredActions();
 
 // Both More Info pickers, released from hideAllOverlays(). Without this a

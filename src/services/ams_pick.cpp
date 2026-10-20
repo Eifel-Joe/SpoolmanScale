@@ -85,7 +85,7 @@ static void offerLocationAfterPick(int spool_id) {
 // an English scale would otherwise name one shelf twice. One location per
 // unit, not per bay: the bay is what the AMS view is for.
 #define AMS_HT_FIRST_ID 128
-static void amsLocationName(char* out, size_t n, const char* printer, int ams_id) {
+void amsLocationName(char* out, size_t n, const char* printer, int ams_id) {
   char unit[16];
   if (ams_id == AMS_EXT_AMS_ID)        snprintf(unit, sizeof(unit), "Ext");
   else if (ams_id == AMS_HT_FIRST_ID)  snprintf(unit, sizeof(unit), "AMS HT");
