@@ -26,7 +26,8 @@ enum LabelPrinterModel : uint8_t {
   LP_MODEL_NONE = 0, LP_MODEL_M220 = 1, LP_MODEL_M110 = 2, LP_MODEL_M100 = 3,
   LP_MODEL_NIIMBOT_B = 4,     // the 50 mm NIIMBOT class: B1, B21, B203 ...
   LP_MODEL_NIIMBOT_M2 = 5,    // NIIMBOT M2, 300 dpi, thermal transfer
-  LP_MODEL_M120 = 6, LP_MODEL_M200 = 7, LP_MODEL_M221 = 8
+  LP_MODEL_M120 = 6, LP_MODEL_M200 = 7, LP_MODEL_M221 = 8,
+  LP_MODEL_M110S = 9          // the M110's bytes, a row as wide as the label
 };
 
 // Which bytes a model takes. Phomemo's two preambles share one write-only

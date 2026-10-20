@@ -35,6 +35,15 @@ static const LabelPrinterProfile PROFILE_M110 = {
   LP_MODEL_M110, "Phomemo", "M110", 40, 30, 20, 48, 10, 150, 384, 384, false, true,
   203, LP_PROTO_PHOMEMO_M110
 };
+// M110S: the M110's bytes, but its roll runs against the right wall, and a
+// 384 dot row lands about 1 mm left of it even with the label at the row's
+// right end (issue #55). Phomemo's own app, and a USB tool written for this
+// printer, send a row exactly as wide as the label and let the printer place
+// it: a base width of 0 does that here, and leaves no offset to set.
+static const LabelPrinterProfile PROFILE_M110S = {
+  LP_MODEL_M110S, "Phomemo", "M110S", 40, 30, 20, 48, 10, 150, 0, 384, true, true,
+  203, LP_PROTO_PHOMEMO_M110
+};
 // M100: the M110's head and bytes under its own name, so a user finds it.
 static const LabelPrinterProfile PROFILE_M100 = {
   LP_MODEL_M100, "Phomemo", "M100", 40, 30, 20, 48, 10, 150, 384, 384, false, true,
@@ -73,8 +82,8 @@ static const LabelPrinterProfile PROFILE_NIIMBOT_M2 = {
 };
 
 const LabelPrinterModel LABEL_PRINTER_MODELS[] = {
-  LP_MODEL_M220, LP_MODEL_M110, LP_MODEL_M100, LP_MODEL_M120, LP_MODEL_M200, LP_MODEL_M221,
-  LP_MODEL_NIIMBOT_B, LP_MODEL_NIIMBOT_M2,
+  LP_MODEL_M220, LP_MODEL_M110, LP_MODEL_M110S, LP_MODEL_M100, LP_MODEL_M120, LP_MODEL_M200,
+  LP_MODEL_M221, LP_MODEL_NIIMBOT_B, LP_MODEL_NIIMBOT_M2,
 };
 const int LABEL_PRINTER_MODEL_COUNT = sizeof(LABEL_PRINTER_MODELS) / sizeof(LABEL_PRINTER_MODELS[0]);
 
@@ -114,6 +123,7 @@ const LabelPrinterProfile& labelPrinterProfile(LabelPrinterModel model) {
   switch (model) {
     case LP_MODEL_M220: return PROFILE_M220;
     case LP_MODEL_M110: return PROFILE_M110;
+    case LP_MODEL_M110S: return PROFILE_M110S;
     case LP_MODEL_M100: return PROFILE_M100;
     case LP_MODEL_M120: return PROFILE_M120;
     case LP_MODEL_M200: return PROFILE_M200;
