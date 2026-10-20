@@ -39,9 +39,10 @@ static const LabelPrinterProfile PROFILE_M110 = {
 // 384 dot row lands about 1 mm left of it even with the label at the row's
 // right end (issue #55). Phomemo's own app, and a USB tool written for this
 // printer, send a row exactly as wide as the label and let the printer place
-// it: a base width of 0 does that here, and leaves no offset to set.
+// it: a base width of 0 does that here, and leaves no offset to set. The
+// reporter's calibration page sat centred on 40 x 30 with beta.63.
 static const LabelPrinterProfile PROFILE_M110S = {
-  LP_MODEL_M110S, "Phomemo", "M110S", 40, 30, 20, 48, 10, 150, 0, 384, true, true,
+  LP_MODEL_M110S, "Phomemo", "M110S", 40, 30, 20, 48, 10, 150, 0, 384, false, true,
   203, LP_PROTO_PHOMEMO_M110
 };
 // M100: the M110's head and bytes under its own name, so a user finds it.
@@ -68,9 +69,10 @@ static const LabelPrinterProfile PROFILE_M221 = {
 // NIIMBOT's 50 mm class: B1, B21, B21S and B21 C2B at 384 dots, the B203 at
 // 400, all 203 dpi. The printer says which it is and the driver pads the
 // row. Its standard roll is 50 x 30, of which the 48 mm head prints 48. The
-// protocol is from niimbluelib; no NIIMBOT was at hand, testers decide.
+// protocol is from niimbluelib. A user printed on a B1 several times, 40 x 30
+// (14.10.2026); the B21 and B203 share the driver but have not been tried.
 static const LabelPrinterProfile PROFILE_NIIMBOT_B = {
-  LP_MODEL_NIIMBOT_B, "NIIMBOT", "B1, B21, B203", 50, 30, 20, 50, 10, 150, 384, 384, true, true,
+  LP_MODEL_NIIMBOT_B, "NIIMBOT", "B1, B21, B203", 50, 30, 20, 50, 10, 150, 384, 384, false, true,
   203, LP_PROTO_NIIMBOT
 };
 // NIIMBOT M2: 300 dpi, 567 dots, which is 71 bytes and so a 568 dot row.

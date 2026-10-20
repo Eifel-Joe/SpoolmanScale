@@ -702,7 +702,9 @@ bool labelRenderCalibration(const LabelPrinterConfig& printer, LabelRaster* out)
   // Each line only where it fits, so a flatter label keeps ruler and frame.
   const lv_coord_t bottom = h - M - F;
   lv_coord_t ly = ty;
-  if (ly + big->line_height < bottom) {
+  // Where the label fills the row there is no offset to read off, and the
+  // line would ask for one (the M110S, issue #55).
+  if (lo_n != hi && ly + big->line_height < bottom) {
     drawLine(canvas, tx, ly, tw, big, black, LV_TEXT_ALIGN_CENTER, T(STR_LBL_CAL_EDGE));
     ly += big->line_height + LR_GAP_PX;
   }
