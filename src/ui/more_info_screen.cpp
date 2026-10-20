@@ -84,6 +84,7 @@ static char loc_patch_name[LOCATION_NAME_MAX] = "";   // empty: clear the locati
 // requestLocationPickerFor(), cleared whenever the picker closes.
 static int  s_loc_target_id = 0;
 static char s_loc_target_loc[LOCATION_NAME_MAX] = "";
+static bool s_loc_target_clear = false;   // Cancel empties the location
 
 static int locTargetId() { return s_loc_target_id > 0 ? s_loc_target_id : sm_id; }
 static const char* locTargetCurrent() {
@@ -256,13 +257,25 @@ void tapLocationButton(bool from_popup) {
   g_loc_picker_by_tap = true;
 }
 
-void requestLocationPickerFor(int spool_id, const char* current) {
+void requestLocationPickerFor(int spool_id, const char* current, bool clear_on_cancel) {
   if (spool_id <= 0) return;
   s_loc_target_id = spool_id;
+  s_loc_target_clear = clear_on_cancel;
   snprintf(s_loc_target_loc, sizeof(s_loc_target_loc), "%s", current ? current : "");
   requestLocationPicker(true);
   // Asked for, like a tap: the spool is named and need not be on the pad.
   g_loc_picker_by_tap = true;
+}
+
+// A spool taken out of an AMS bay still carries the unit as its location
+// until a shelf is chosen. Closed without one, the unit is wrong, so it goes.
+static void clearLeftAmsLocation() {
+  if (s_loc_target_id <= 0 || !s_loc_target_clear) return;
+  s_loc_target_clear = false;
+  const int code = serverReachNote(backendPatchSpoolLocation(cfg_spoolman_base, s_loc_target_id,
+                                             nullptr, 8000), true);
+  logSDf("LOC: spool %d left the AMS without a shelf, '%s' cleared, HTTP %d",
+         s_loc_target_id, s_loc_target_loc, code);
 }
 
 void handleMoreInfoDeferredActions() {
@@ -273,8 +286,9 @@ void handleMoreInfoDeferredActions() {
   }
   if (loc_cancel_pending) {
     loc_cancel_pending = false;
-    s_loc_target_id = 0;
     closeLocationPicker();
+    clearLeftAmsLocation();
+    s_loc_target_id = 0;
     if (g_loc_picker_from_popup) showMainScreen();
     else                         showMoreInfoScreen();
   }
@@ -285,6 +299,7 @@ void handleMoreInfoDeferredActions() {
     // The pad's own fields only follow when the pad's spool was written.
     const bool on_pad = (target == sm_id);
     s_loc_target_id = 0;
+    s_loc_target_clear = false;   // a shelf was chosen
     if (target > 0) {
       const bool clear = (loc_patch_name[0] == '\0');
       const int code = serverReachNote(backendPatchSpoolLocation(cfg_spoolman_base, target,
@@ -349,6 +364,7 @@ void handleMoreInfoDeferredActions() {
 // to be in it, so navigating away from the location picker left it standing.
 void hideMoreInfoOverlays() {
   s_loc_target_id = 0;   // a picker left by navigating away wrote nothing
+  s_loc_target_clear = false;
   releaseScreen(&scr_location_picker);
   closeStatusPicker();
   loc_status_obj  = nullptr;
