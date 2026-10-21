@@ -35,6 +35,7 @@
 #include "services/label_render.h"
 #include "ui/printer_screen.h"
 #include "web/web_access.h"
+#include "web/web_printer_select.h"
 #include "web/web_shell.h"
 // Last on purpose: T() is a macro and ArduinoJson uses T as a template
 // parameter, so lang.h has to come after anything that pulls it in.
@@ -171,6 +172,11 @@ static String stateJson() {
   }
   j += F(",\"dates\":");
   j += (!have || labelSpoolDatesKnown()) ? F("true") : F("false");
+  // The printer and stock as the two lists below the preview pick them.
+  j += F(",\"modelId\":");  j += String((int)c.model);
+  j += F(",\"mediaKey\":\""); j += String((unsigned)c.media_width_mm); j += 'x';
+  j += String((unsigned)c.media_length_mm);
+  j += F("\",\"dpi\":");    j += String((unsigned)labelPrinterProfile(c.model).dpi);
   j += F(",\"media\":\"");
   j += String((unsigned)c.media_width_mm); j += F(" x ");
   j += String((unsigned)c.media_length_mm); j += F(" mm\",\"model\":\"");
@@ -266,6 +272,21 @@ static void templateCard(String& h) {
   h += F("</button><span class='msg' id='ls-s'></span></div></div></div></div>");
 }
 
+// The printer and the stock, to change right here: the same lists and the
+// same routes as the printer page, so a roll swap needs no change of tab.
+static void printerRows(String& h, const LabelPrinterConfig& c) {
+  h += F("<div class='field lb-pick'><label>");
+  h += T(STR_PRN_MODEL);
+  h += F("</label><div class='inrow'><select id='lpm'>");
+  webPrinterModelOptions(h, c);
+  h += F("</select><span class='hint' id='ldpi'></span></div><span class='msg' id='lpm-s'></span>"
+         "</div><div class='field lb-pick'><label>");
+  h += T(STR_PRN_MEDIA);
+  h += F("</label><div class='inrow'><select id='lps'>");
+  webPrinterMediaOptions(h, c);
+  h += F("</select><span class='hint' id='lme'></span></div><span class='msg' id='lps-s'></span></div>");
+}
+
 // The right card: the label as the scale draws it, what it was drawn for,
 // and a print of it.
 static void previewCard(String& h) {
@@ -275,10 +296,9 @@ static void previewCard(String& h) {
          "<span class='msg bad' id='lp-s'></span>"
          "<div class='row'><span class='k'>");
   h += T(STR_W_L_SPOOL);
-  h += F("</span><span class='v' id='lsp'></span></div><div class='row'><span class='k'>");
-  h += T(STR_PRN_MEDIA);
-  h += F("</span><span class='v' id='lme'></span></div>"
-         "<div class='hint lb-note' id='lsa' style='display:none'>");
+  h += F("</span><span class='v' id='lsp'></span></div>");
+  printerRows(h, labelPrinterLoadConfig());
+  h += F("<div class='hint lb-note' id='lsa' style='display:none'>");
   h += T(STR_W_L_SAMPLE);
   h += F("</div><div class='hint lb-note' id='lnp' style='display:none'>");
   h += T(STR_W_L_NO_PRINTER);
@@ -316,6 +336,7 @@ static void styles(String& h) {
          ".lb-ic svg{display:block}"
          ".lb-sw .check.off{opacity:.45}"
          "#ltx{margin-top:10px;width:100%;box-sizing:border-box}"
+         ".lb-pick{margin-top:12px}.lb-pick select{flex:1;min-width:0}"
          // One column on a phone: the preview first, so a switch shows its
          // effect without scrolling.
          "@media(max-width:700px){.lb-prev{order:-1}}"
@@ -437,7 +458,10 @@ static void scriptFunctions(String& h) {
          "setMask('lf',d.fields);setMask('lo',d.options);capRow(d);"
          "if(document.activeElement!==$('ltx'))$('ltx').value=d.text;"
          "$('lsp').textContent=d.spool?(d.spool.text+' \u00b7 #'+d.spool.id+(d.spool.on?'':' '+L.offPad)):'-';"
-         "$('lme').textContent=d.media+(d.options&PB?' \u00b7 '+L.upright:'')+' \u00b7 '+d.model;"
+         "$('lme').textContent=d.options&PB?L.upright:'';"
+         "$('ldpi').textContent=d.dpi+' dpi';"
+         "if(document.activeElement!==$('lpm'))$('lpm').value=String(d.modelId);"
+         "if(document.activeElement!==$('lps'))$('lps').value=d.mediaKey;"
          "$('lsa').style.display=d.spool||srv(d)?'none':'';"
          "$('lnp').style.display=d.configured?'none':'';"
          "$('lpb').disabled=!d.spool||!d.canPrint;"
@@ -465,6 +489,10 @@ static void scriptBindings(String& h) {
          "(S.options&~PB)|(+b.dataset.o?PB:0));});});"
          "document.querySelectorAll('#lf input,#lo input').forEach(function(i){"
          "i.addEventListener('change',function(){if(!S)return;capRow(S);save(S.preset,mask('lf'),opts());});});"
+         "$('lpm').addEventListener('change',function(){"
+         "postFlash('/api/printer/model',$('lpm').value,'lpm-s',2500).then(load);});"
+         "$('lps').addEventListener('change',function(){"
+         "postFlash('/api/printer/media',$('lps').value,'lps-s',2500).then(load);});"
          "$('ltx').addEventListener('change',function(){"
          "postFlash('/api/label/text',$('ltx').value,'ltx-s',2500).then(load);});"
          "$('lr').addEventListener('click',function(){postFlash('/api/label/reset','','ls-s',2500).then(load);});"
