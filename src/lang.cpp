@@ -3727,6 +3727,11 @@ const char* const STRINGS[][3] = {
   { "Trocknen (°C, h)",      "Drying (°C, h)",       "Séchage (°C, h)" },  // STR_W_L_F_DRYING
   { "bei dieser Spule leer", "empty for this spool", "vide pour cette bobine" },  // STR_W_L_GAP_SPOOL
   { "%s führt es nicht",     "%s does not keep it",  "%s ne le gère pas" },  // STR_W_L_GAP_BACKEND
+  // Printer page: how a model prints
+  { "Druckt per Thermodirekt, ohne Farbband.", "Prints direct thermal, without a ribbon.",
+    "Impression thermique directe, sans ruban." },  // STR_W_P_METHOD_DIRECT
+  { "Druckt per Thermotransfer mit Farbband: Wärme färbt das Etikett nicht.", "Prints by thermal transfer with a ribbon: heat does not colour the label.",
+    "Impression par transfert thermique à ruban : la chaleur ne colore pas l'étiquette." },  // STR_W_P_METHOD_RIBBON
 };
 
 StringID tagWriteResultString(uint8_t code) {

@@ -78,6 +78,8 @@ static String stateJson() {
   j += labelPrinterConfigured(c) ? F("true") : F("false");
   j += F(",\"model\":");
   j += String((int)c.model);
+  j += F(",\"thermal\":");
+  j += labelPrinterProfile(c.model).direct_thermal ? F("true") : F("false");
   j += F(",\"name\":\"");
   j += jsonText(c.name);
   j += F("\",\"address\":\"");
@@ -160,8 +162,6 @@ static void supportedCard(String& h) {
     ribbon = true;
   }
   if (ribbon) h += F(").");
-  h += ' ';
-  h += T(STR_PRN_HEAT_SHORT);
   h += F("</span></div>");
 }
 
@@ -216,7 +216,15 @@ static String body() {
   h += T(STR_PRN_MODEL);
   h += F("</label><select id='pm'>");
   webPrinterModelOptions(h, c);
-  h += F("</select><span class='msg' id='pm-s'></span></div>");
+  // How the model prints, and for heat-sensitive paper what a dryer does to
+  // it; the script shows the one that fits the model picked.
+  h += F("</select><span class='hint' id='pmd'>");
+  h += T(STR_W_P_METHOD_DIRECT);
+  h += ' ';
+  h += T(STR_PRN_HEAT_SHORT);
+  h += F("</span><span class='hint' id='pmr'>");
+  h += T(STR_W_P_METHOD_RIBBON);
+  h += F("</span><span class='msg' id='pm-s'></span></div>");
 
   h += F("<div class='field'><label>");
   h += T(STR_PRN_MEDIA);
@@ -400,6 +408,8 @@ static String body() {
          "$('fb').style.display=d.printer.configured?'':'none';"
          "$('pc').style.display=d.printer.configured?'':'none';"
          "$('pm').value=String(d.printer.model);"
+         "$('pmd').style.display=d.printer.thermal?'':'none';"
+         "$('pmr').style.display=d.printer.thermal?'none':'';"
          "$('ps').value=d.printer.w+'x'+d.printer.h;"
          "$('lt').textContent=d.lastTest||'';"
          "$('ltr').style.display=d.lastTest?'':'none';"

@@ -1714,6 +1714,9 @@ enum StringID {
   STR_W_L_F_DRYING,
   STR_W_L_GAP_SPOOL,
   STR_W_L_GAP_BACKEND,
+  // Printer page: how a model prints
+  STR_W_P_METHOD_DIRECT,
+  STR_W_P_METHOD_RIBBON,
 
   STR_COUNT
 };
