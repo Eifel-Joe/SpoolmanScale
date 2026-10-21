@@ -17,6 +17,7 @@
 #define LP_KEY_NAME  "printer_name"
 #define LP_KEY_W     "printer_w"
 #define LP_KEY_H     "printer_h"
+#define LP_KEY_ASK   "printer_ask"
 // The offset belongs to one printer, not to the scale: "px" and the device's
 // address without colons, 14 characters. A second printer starts at 0, and
 // the first gets its own back when it is picked again (Nikolai, 30.09.2026).
@@ -100,6 +101,9 @@ const int LABEL_MEDIA_SIZE_COUNT = sizeof(LABEL_MEDIA_SIZES) / sizeof(LABEL_MEDI
 
 static LabelPrinterConfig s_config{};
 static bool s_loaded = false;
+// Whether "Print label" opens the print sheet first. Cached like the config.
+static bool s_ask_first = true;
+static bool s_ask_loaded = false;
 
 // The NVS key of a printer's offset; false for no printer. An address is
 // 17 characters, six pairs of hex digits and five colons.
@@ -372,4 +376,35 @@ int labelPrintResultString(LabelPrintResult r) {
     case LP_SERVER_LABEL:       return STR_PRN_ERR_SERVER_LABEL;
     default:                    return STR_PRN_ERR_WRITE;
   }
+}
+
+// The next stock size the model can take, after the current one; the first
+// fitting one when the current one is not in the table.
+void labelPrinterNextMedia(LabelPrinterConfig& c) {
+  const LabelPrinterProfile& p = labelPrinterProfile(c.model);
+  int at = -1;
+  for (int i = 0; i < LABEL_MEDIA_SIZE_COUNT; i++)
+    if (LABEL_MEDIA_SIZES[i].width_mm == c.media_width_mm &&
+        LABEL_MEDIA_SIZES[i].length_mm == c.media_length_mm) { at = i; break; }
+  for (int step = 1; step <= LABEL_MEDIA_SIZE_COUNT; step++) {
+    const LabelMediaSize& s = LABEL_MEDIA_SIZES[(at + step) % LABEL_MEDIA_SIZE_COUNT];
+    if (s.width_mm >= p.min_width_mm && s.width_mm <= p.max_width_mm &&
+        s.length_mm >= p.min_length_mm && s.length_mm <= p.max_length_mm) {
+      c.media_width_mm = s.width_mm;
+      c.media_length_mm = s.length_mm;
+      return;
+    }
+  }
+}
+
+bool labelPrinterAskFirst() {
+  if (!s_ask_loaded) { s_ask_first = prefsGetBool(LP_KEY_ASK, true); s_ask_loaded = true; }
+  return s_ask_first;
+}
+
+bool labelPrinterSetAskFirst(bool ask) {
+  const bool ok = prefsPutBool(LP_KEY_ASK, ask);
+  if (ok) { s_ask_first = ask; s_ask_loaded = true; }
+  logSDf("Printer: print sheet %s %s", ask ? "on" : "off", ok ? "saved" : "NOT saved");
+  return ok;
 }

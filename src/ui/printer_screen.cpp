@@ -16,6 +16,7 @@
 #include "services/label_render.h"
 #include "ui/info_popup.h"
 #include "ui/print_card.h"
+#include "ui/print_sheet.h"
 #include "ui/printer_offset_screen.h"
 #include "ui/theme.h"
 #include "ui_common.h"
@@ -48,6 +49,10 @@ int printerLastTestResult() { return s_last_test; }
 
 static int s_last_label = -1;
 int printerLastLabelResult() { return s_last_label; }
+
+// Where the back button leads: the print sheet, when that opened the screen.
+static bool s_back_to_sheet = false;
+void printerScreenFromSheet() { s_back_to_sheet = true; }
 
 // The spool whose server label failed, for the card's "own layout" answer.
 static SpoolLabelData s_own_layout_spool{};
@@ -99,6 +104,16 @@ static void printSpoolLabel(SpoolLabelData spool, bool own_layout = false,
   }
 }
 
+void printerPrintPadLabel(LabelKind kind) {
+  printerOffsetFlush();
+  SpoolLabelData spool{};
+  if (!labelSpoolFromScan(&spool)) {
+    showInfoPopup(STR_PRN_TITLE, STR_PRN_ERR_NO_SPOOL, INFO_WARN);
+    return;
+  }
+  printSpoolLabel(spool, false, kind);
+}
+
 void closePrinterScreen() {
   if (scr_printer) { lv_obj_del(scr_printer); scr_printer = nullptr; }
 }
@@ -111,31 +126,18 @@ static LabelPrinterModel nextModel(LabelPrinterModel m) {
   return LABEL_PRINTER_MODELS[0];
 }
 
-// The next stock size the model can take, after the current one; the first
-// fitting one when the current one is not in the table.
-static void nextMedia(LabelPrinterConfig& c) {
-  const LabelPrinterProfile& p = labelPrinterProfile(c.model);
-  int at = -1;
-  for (int i = 0; i < LABEL_MEDIA_SIZE_COUNT; i++)
-    if (LABEL_MEDIA_SIZES[i].width_mm == c.media_width_mm &&
-        LABEL_MEDIA_SIZES[i].length_mm == c.media_length_mm) { at = i; break; }
-  for (int step = 1; step <= LABEL_MEDIA_SIZE_COUNT; step++) {
-    const LabelMediaSize& s = LABEL_MEDIA_SIZES[(at + step) % LABEL_MEDIA_SIZE_COUNT];
-    if (s.width_mm >= p.min_width_mm && s.width_mm <= p.max_width_mm &&
-        s.length_mm >= p.min_length_mm && s.length_mm <= p.max_length_mm) {
-      c.media_width_mm = s.width_mm;
-      c.media_length_mm = s.length_mm;
-      return;
-    }
-  }
-}
-
 void buildPrinterScreen() {
   logSD("BUILD: PrinterScreen");
   releaseScreen(&scr_printer);
   scr_printer = buildOverlayScreen();
   buildSubHeader(scr_printer, T(STR_PRN_TITLE),
     [](lv_event_t *e){
+      if (s_back_to_sheet) {
+        logSD("BTN: Back -> Print sheet");
+        s_back_to_sheet = false;
+        show_print_sheet_pending = true;
+        return;
+      }
       logSD("BTN: Back -> Bluetooth");
       // Deferred and a rebuild: the Bluetooth screen's row names the printer.
       show_bluetooth_pending = true;
@@ -183,6 +185,22 @@ void buildPrinterScreen() {
     lv_obj_add_event_cb(btn, [](lv_event_t *e){
       logSD("BTN: Printer -> next media");
       printer_cycle_media_pending = true;
+    }, LV_EVENT_CLICKED, NULL); }
+
+  // Whether "Print label" shows the print sheet first or prints at once.
+  { char buf_t[40]; copyT(buf_t, sizeof(buf_t), STR_PS_ASK);
+    char buf_sub[48]; copyT(buf_sub, sizeof(buf_sub), STR_PS_ASK_SUB);
+    const bool ask = labelPrinterAskFirst();
+    lv_obj_t *btn = makeListBtn(list, LV_SYMBOL_EYE_OPEN, buf_t, buf_sub, ask);
+    lv_obj_t *state = lv_obj_get_child(btn, -1);
+    if (state) {
+      lv_label_set_text(state, T(ask ? STR_ON : STR_OFF));
+      lv_obj_set_style_text_color(state, lv_color_hex(ask ? UI_COL_ACCENT : UI_COL_CAPTION), 0);
+      lv_obj_set_style_text_font(state, UI_FONT_SMALL, 0);
+    }
+    lv_obj_add_event_cb(btn, [](lv_event_t *e){
+      logSD("BTN: Printer -> print sheet on/off");
+      printer_toggle_ask_pending = true;
     }, LV_EVENT_CLICKED, NULL); }
 
   // The test print: the first thing to try with a new printer.
@@ -246,6 +264,7 @@ static void rebuild() {
 
 void handlePrinterDeferredActions() {
   printCardLoop();
+  printSheetTick();
   printerOffsetTick();
   if (show_printer_offset_pending) {
     show_printer_offset_pending = false;
@@ -265,8 +284,14 @@ void handlePrinterDeferredActions() {
   if (printer_cycle_media_pending) {
     printer_cycle_media_pending = false;
     LabelPrinterConfig c = labelPrinterLoadConfig();
-    nextMedia(c);
+    labelPrinterNextMedia(c);
     if (!labelPrinterSaveConfig(c)) showInfoPopup(STR_PRN_TITLE, STR_ERR_SAVE, INFO_WARN);
+    rebuild();
+  }
+  if (printer_toggle_ask_pending) {
+    printer_toggle_ask_pending = false;
+    if (!labelPrinterSetAskFirst(!labelPrinterAskFirst()))
+      showInfoPopup(STR_PRN_TITLE, STR_ERR_SAVE, INFO_WARN);
     rebuild();
   }
   if (printer_forget_pending) {
@@ -284,13 +309,7 @@ void handlePrinterDeferredActions() {
   }
   if (print_spool_label_pending) {
     print_spool_label_pending = false;
-    printerOffsetFlush();
-    SpoolLabelData spool{};
-    if (!labelSpoolFromScan(&spool)) {
-      showInfoPopup(STR_PRN_TITLE, STR_PRN_ERR_NO_SPOOL, INFO_WARN);
-      return;
-    }
-    printSpoolLabel(spool);
+    printerPrintPadLabel(LABEL_KIND_SPOOL);
   }
   // The label editor's print: the last spool scanned, on the pad or not,
   // its own label or its filament's.

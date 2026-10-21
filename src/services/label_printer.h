@@ -140,3 +140,12 @@ LabelPrintResult labelPrinterPrint(const LabelPrinterConfig& config,
                                    const LabelRaster& image, BleProgressFn progress);
 // The StringID that says what a result means, for a popup or a status line.
 int labelPrintResultString(LabelPrintResult result);
+
+// The next stock size the model can take, after the current one; the first
+// fitting one when the current one is not in the table. Only the config.
+void labelPrinterNextMedia(LabelPrinterConfig& c);
+
+// Whether "Print label" on the scale shows the print sheet first (preview,
+// kind, arrangement) or prints at once. On until switched off.
+bool labelPrinterAskFirst();
+bool labelPrinterSetAskFirst(bool ask);

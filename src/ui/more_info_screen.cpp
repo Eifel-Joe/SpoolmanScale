@@ -818,7 +818,9 @@ void buildMoreInfoScreen() {
     lv_obj_set_style_shadow_width(btn_print, 0, 0);
     lv_obj_add_event_cb(btn_print, [](lv_event_t *e) {
       logSD("BTN: MoreInfo -> print label");
-      print_spool_label_pending = true;
+      // The print sheet first, unless the printer screen switched it off.
+      if (labelPrinterAskFirst()) show_print_sheet_pending = true;
+      else print_spool_label_pending = true;
     }, LV_EVENT_CLICKED, NULL);
     lv_obj_t *lbl_print = lv_label_create(btn_print);
     lv_label_set_text(lbl_print, T(STR_PRN_LABEL_PRINT));

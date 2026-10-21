@@ -1700,6 +1700,13 @@ enum StringID {
   STR_W_L_KIND_FILAMENT,
   STR_W_L_KIND_HINT,
   STR_W_L_FIL_NO_PAGE,
+  // The print sheet on the scale
+  STR_PS_PRINT,
+  STR_PS_ASK,
+  STR_PS_ASK_SUB,
+  STR_PS_SERVER,
+  STR_PS_SERVER_SUB,
+  STR_PS_MORE_WEB,
 
   STR_COUNT
 };

@@ -3707,6 +3707,19 @@ const char* const STRINGS[][3] = {
     "L'étiquette du filament s'imprime d'ici ; la balance imprime toujours celle de la bobine." },  // STR_W_L_KIND_HINT
   { "Dieses Backend hat keine Filamentseite: das Filament-Etikett kommt ohne Code.", "This backend has no filament page: the filament label prints without a code.",
     "Ce backend n'a pas de page filament : l'étiquette du filament s'imprime sans code." },  // STR_W_L_FIL_NO_PAGE
+  // The print sheet on the scale
+  { "Drucken", "Print",
+    "Imprimer" },  // STR_PS_PRINT
+  { "Vor dem Druck zeigen", "Show before printing",
+    "Aperçu d'abord" },  // STR_PS_ASK
+  { "Vorschau und Einstellungen", "Preview and settings",
+    "Aperçu et réglages" },  // STR_PS_ASK_SUB
+  { "Layout aus FilaMan", "Layout from FilaMan",
+    "Mise en page FilaMan" },  // STR_PS_SERVER
+  { "Im Browser unter Etiketten", "In the browser, under Labels",
+    "Navigateur, Étiquettes" },  // STR_PS_SERVER_SUB
+  { "Felder, eigene Zeile und FilaMan-Vorlagen stellst du im Browser ein:", "Fields, the own line and FilaMan presets are set in the browser:",
+    "Champs, ligne libre et modèles FilaMan : dans le navigateur" },  // STR_PS_MORE_WEB
 };
 
 StringID tagWriteResultString(uint8_t code) {

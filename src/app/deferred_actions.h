@@ -151,6 +151,14 @@ extern bool printer_test_pending;
 extern bool printer_calib_pending;   // the calibration page, browser or device
 extern bool show_printer_offset_pending;
 extern bool printer_forget_pending;
+extern bool printer_toggle_ask_pending;   // the "show before printing" row
+// The print sheet (ui/print_sheet.h): open it, rebuild it after a change on
+// it, close it, print from it, and leave it for the printer screen.
+extern bool show_print_sheet_pending;
+extern bool print_sheet_refresh_pending;
+extern bool print_sheet_close_pending;
+extern bool print_sheet_print_pending;
+extern bool print_sheet_printer_pending;
 // The label of the spool on the pad, from the More info header. Rendered
 // and printed from the loop: the print starts the BLE stack and blocks.
 extern bool print_spool_label_pending;
