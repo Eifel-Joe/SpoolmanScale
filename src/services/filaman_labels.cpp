@@ -33,6 +33,10 @@ struct SpiRamAllocator : ArduinoJson::Allocator {
 // A label is far smaller than any real one in millimetres; what lies outside
 // is not a size the server meant.
 #define FM_LABEL_MM_MAX   1000
+// FilaMan (1.4.3) refuses a row narrower than 384 dots, and the M110S sends
+// one as wide as the label, 320 dots at 40 mm (issue #55). Such a printer asks
+// for 384 and keeps the left part, where align=left puts the label.
+#define FM_LABEL_MIN_ROW  384
 
 // The raster's shape travels in headers, the body is the bare pixels.
 static const char* RASTER_HEADERS[] = {
@@ -151,11 +155,12 @@ int filamanLabelRender(const FilamanLabelRequest& req, LabelRaster* out,
   *out = LabelRaster{};
   if (!hasBase(req.base_url) || req.spool_id <= 0 || req.preset_id <= 0) return -1;
 
+  const uint16_t asked = req.row_width < FM_LABEL_MIN_ROW ? FM_LABEL_MIN_ROW : req.row_width;
   char path[FM_LABEL_PATH_LEN];
   snprintf(path, sizeof(path),
            "/api/v1/labels/spool/%d/render?format=mono1&dpi=%u&width=%u&align=left"
            "&preset_id=%d&orientation=%s",
-           req.spool_id, (unsigned)req.dpi, (unsigned)req.row_width, req.preset_id,
+           req.spool_id, (unsigned)req.dpi, (unsigned)asked, req.preset_id,
            req.landscape ? "landscape" : "portrait");
   BackendHttp http;
   if (!http.begin(String(req.base_url) + path)) return -1;
@@ -171,7 +176,8 @@ int filamanLabelRender(const FilamanLabelRequest& req, LabelRaster* out,
            req.spool_id, req.preset_id, code, reason ? reason : "");
     return code;
   }
-  const bool ok = rasterShape(http, out) && readPixels(http, out);
+  bool ok = rasterShape(http, out) && readPixels(http, out);
+  if (ok && out->width > req.row_width) ok = labelRasterCropWidth(out, req.row_width);
   // "1" when FilaMan turned a portrait preset for the roll (orientation=).
   const String rotated = http.header("X-Rotated"), preset = http.header("X-Preset-Id");
   http.end();
