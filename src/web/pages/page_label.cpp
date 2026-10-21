@@ -88,6 +88,7 @@ static void sampleSpool(SpoolLabelData* d) {
   snprintf(d->article, sizeof(d->article), "10100");
   snprintf(d->first_used, sizeof(d->first_used), "03.03.2026");
   snprintf(d->added, sizeof(d->added), "01.03.2026");
+  d->filament_id = 21;
   d->spool_weight_g = 250;
   d->net_weight_g = 1000;
   snprintf(d->location, sizeof(d->location), "Regal 2");
@@ -138,25 +139,44 @@ static void serverJson(String& j, const LabelPrinterConfig& c, int spool_id) {
   j += '"';
 }
 
-static String stateJson() {
-  const LabelLayout l = labelLayoutLoad();
-  const LabelPrinterConfig c = labelPrinterLoadConfig();
-  SpoolLabelData s{};
-  const bool have = labelSpoolLast(&s);
-  // The preview waits for these; the loop asks the backend, once per spool.
-  if (have && !labelSpoolDatesKnown()) label_dates_pending = true;
-  String j;
-  j.reserve(1500);
-  j += F("{\"preset\":");   j += String((unsigned)l.preset);
+// Which label a request is about: ?kind=1 the filament's, else the spool's.
+static LabelKind kindOf(WebServer& srv) {
+  return srv.arg("kind") == "1" ? LABEL_KIND_FILAMENT : LABEL_KIND_SPOOL;
+}
+
+// The template of one kind of label, and what the page holds its switches
+// to: how many fact lines this roll takes, which fields count, which the
+// kind has at all. A filament with no page to open prints without a code.
+static void layoutJson(String& j, LabelKind kind, const LabelPrinterConfig& c, bool fil_page) {
+  LabelLayout l = labelLayoutLoad(kind);
+  j += F("{\"kind\":");     j += String((unsigned)kind);
+  j += F(",\"preset\":");   j += String((unsigned)l.preset);
   j += F(",\"fields\":");   j += String((unsigned long)l.fields);
   j += F(",\"options\":");  j += String((unsigned long)l.options);
-  // How many fact lines this roll takes in this arrangement, and which
-  // fields count: the page holds the switches to it.
+  const bool code_possible = kind == LABEL_KIND_SPOOL || fil_page;
+  if (!code_possible) l.fields &= ~(1u << LF_QR);
   j += F(",\"cap\":");
   j += String(labelFactCapacity(l, c.media_width_mm, c.media_length_mm));
   j += F(",\"factBits\":"); j += String((unsigned long)labelFactFields(l.preset));
+  j += F(",\"kindFields\":"); j += String((unsigned long)labelKindFields(kind));
   j += F(",\"hasQr\":");
-  j += labelPresetHasQr(l.preset) ? F("true") : F("false");
+  j += labelPresetHasQr(l.preset) && code_possible ? F("true") : F("false");
+  j += F(",\"filPage\":");
+  j += fil_page ? F("true") : F("false");
+}
+
+static String stateJson(LabelKind kind) {
+  const LabelPrinterConfig c = labelPrinterLoadConfig();
+  SpoolLabelData s{};
+  const bool have = labelSpoolLast(&s);
+  if (!have) sampleSpool(&s);
+  // The preview waits for these; the loop asks the backend, once per spool.
+  if (have && !labelSpoolDatesKnown()) label_dates_pending = true;
+  char fil_qr[LABEL_QR_LEN];
+  labelQrForFilament(s.filament_id, fil_qr, sizeof(fil_qr));
+  String j;
+  j.reserve(1600);
+  layoutJson(j, kind, c, fil_qr[0] != '\0');
   j += F(",\"text\":\"");  j += jsonEsc(labelLayoutFreeText()); j += '"';
   j += F(",\"spool\":");
   if (have) {
@@ -195,7 +215,9 @@ static String stateJson() {
   j += F(",\"lastReason\":\"");
   if (last == STR_PRN_ERR_SERVER_LABEL) j += jsonEsc(labelServerLastReason());
   j += '"';
-  serverJson(j, c, have ? s.id : 0);
+  // FilaMan's presets draw a spool's label; the filament's is the scale's own.
+  if (kind == LABEL_KIND_SPOOL) serverJson(j, c, have ? s.id : 0);
+  else j += F(",\"source\":0,\"fm\":\"absent\",\"presets\":[]");
   j += '}';
   return j;
 }
@@ -218,7 +240,18 @@ static void sourceRow(String& h) {
 static void templateCard(String& h) {
   h += F("<div class='card'><h2>");
   h += T(STR_W_L_TEMPLATE);
-  h += F("</h2>");
+  h += F("</h2><div class='field'><label>");
+  // Which label: the spool's or its filament's, each with its own template.
+  h += T(STR_W_L_KIND);
+  h += F("</label><div class='btabs' id='lkind'><button class='btab' data-k='0'>");
+  h += T(STR_W_L_KIND_SPOOL);
+  h += F("</button><button class='btab' data-k='1'>");
+  h += T(STR_W_L_KIND_FILAMENT);
+  h += F("</button></div><span class='hint' id='lkh' style='display:none'>");
+  h += T(STR_W_L_KIND_HINT);
+  h += F("</span><span class='hint' id='lfq' style='display:none'>");
+  h += T(STR_W_L_FIL_NO_PAGE);
+  h += F("</span></div>");
   sourceRow(h);
   h += F("<div id='ltpl'><div class='field'><label>");
   h += T(STR_W_L_ORIENT);
@@ -265,7 +298,7 @@ static void templateCard(String& h) {
     h += T(OPTION_ROWS[i].caption);
     h += F("</label>");
   }
-  h += F("</div><span class='hint'>");
+  h += F("</div><span class='hint' id='ldh'>");
   h += T(STR_W_L_DATE_HINT);
   h += F("</span></div><div class='field'><div class='inrow'><button id='lr' class='quiet'>");
   h += T(STR_W_DEFAULTS);
@@ -368,6 +401,13 @@ static void scriptTemplate(String& h) {
          "s+='<rect x=\"'+v[0]+'\" y=\"'+v[1]+'\" width=\"'+v[2]+'\" height=\"'+v[3]+'\" fill=\"currentColor\"'"
          "+(t[0]==='l'?' fill-opacity=\".45\"':'')+'/>';});return s+'</svg>';}"
          "function tiles(d){const up=!!(d.options&PB);"
+         "document.querySelectorAll('#lkind .btab').forEach(function(b){b.classList.toggle('on',+b.dataset.k===d.kind);});"
+         "$('lkh').style.display=d.kind===1?'':'none';"
+         "$('lfq').style.display=d.kind===1&&!d.filPage?'':'none';"
+         // A filament has no date: its option and the hint go with it.
+         "$('ldh').style.display=d.kind===1?'none':'';"
+         "document.querySelectorAll('#lo input').forEach(function(i){"
+         "i.closest('label').style.display=d.kind===1&&+i.dataset.b===DB?'none':'';});"
          "document.querySelectorAll('#lori .btab').forEach(function(b){b.classList.toggle('on',+b.dataset.o===(up?1:0));});"
          "document.querySelectorAll('#lpre .btab').forEach(function(b){"
          "b.classList.toggle('on',+b.dataset.p===d.preset);const k=up?'u':'f';if(b.dataset.k===k)return;"
@@ -380,6 +420,7 @@ static void scriptTemplate(String& h) {
          "const m=$('lcap-s');m.textContent=n>d.cap?L.capOver:(n===d.cap?L.capFull:'');"
          "m.classList.toggle('bad',n>d.cap);"
          "document.querySelectorAll('#lf input').forEach(function(i){const b=+i.dataset.b;"
+         "i.closest('label').style.display=d.kindFields&(1<<b)?'':'none';"
          "i.disabled=(b===QRB&&!d.hasQr)||(!i.checked&&!!(d.factBits&(1<<b))&&n>=d.cap);"
          "i.closest('label').classList.toggle('off',i.disabled);});}"
          "function opts(){return mask('lo')|(S.options&PB);}");
@@ -418,7 +459,12 @@ static void scriptFunctions(String& h) {
   h += String((int)LF_QR);
   h += F(",PB=");
   h += String(1u << LO_PORTRAIT);
-  h += F(";let S=null,shown='',timer=0,srcKey='';");
+  h += F(",DB=");
+  h += String((int)LO_DATE_ADDED);
+  h += F(";let S=null,shown='',timer=0,srcKey='',K=0;"
+         // The kind last looked at, per browser: a convenience, not state.
+         "try{K=localStorage.getItem('lbkind')==='1'?1:0;}catch(e){}"
+         "function q(){return '?kind='+K;}");
   scriptTemplate(h);
   h += F("function mask(box){let m=0;"
          "document.querySelectorAll('#'+box+' input').forEach(function(i){"
@@ -430,15 +476,15 @@ static void scriptFunctions(String& h) {
          "function picServer(d){const m=$('lp-s');"
          "$('lp').parentNode.style.display=d.prev==='ready'?'':'none';"
          "if(d.prev==='ready'){const k='s|'+d.prevRev;if(k===shown)return;shown=k;"
-         "m.textContent='';$('lp').src='/api/label/preview.bmp?t='+Date.now();return;}"
+         "m.textContent='';$('lp').src='/api/label/preview.bmp'+q()+'&t='+Date.now();return;}"
          "shown='';$('lp').removeAttribute('src');m.classList.toggle('bad',d.prev!=='loading');"
          "m.textContent=d.prev==='loading'?L.loading:(d.prevReason||(d.spool?L.fail:L.noSpool));}"
          // The picture is drawn anew only when something it shows changed.
          "function pic(d){if(srv(d)){picServer(d);return;}"
          "$('lp').parentNode.style.display='';$('lp-s').classList.add('bad');"
-         "const k=[d.preset,d.fields,d.options,d.text,d.spool?d.spool.id:0,"
+         "const k=[d.kind,d.preset,d.fields,d.options,d.text,d.spool?d.spool.id:0,"
          "d.dates,d.media,d.model].join('|');if(k===shown)return;shown=k;"
-         "$('lp-s').textContent='';$('lp').src='/api/label/preview.bmp?t='+Date.now();}"
+         "$('lp-s').textContent='';$('lp').src='/api/label/preview.bmp'+q()+'&t='+Date.now();}"
          // The source list, built anew only when the presets or the choice
          // changed; a preset the loaded roll cannot take is listed, not offered.
          "function srcRow(d){const on=d.fm!=='absent'&&d.fm!=='unknown';"
@@ -473,9 +519,9 @@ static void scriptFunctions(String& h) {
          "const busy=!d.dates||d.fm==='loading'||d.prev==='loading';"
          "clearTimeout(timer);timer=setTimeout(load,busy?1500:5000);}"
          "function load(){if(document.hidden)return;"
-         "getJson('/api/label').then(function(d){if(d)paint(d);});}"
+         "getJson('/api/label'+q()).then(function(d){if(d&&d.kind===K)paint(d);});}"
          "function save(p,f,o){"
-         "postFlash('/api/label',p+','+f+','+o,'ls-s',2500).then(load);}");
+         "postFlash('/api/label'+q(),p+','+f+','+o,'ls-s',2500).then(load);}");
 }
 
 // Every handler is bound here rather than written into an onclick
@@ -484,6 +530,9 @@ static void scriptFunctions(String& h) {
 static void scriptBindings(String& h) {
   h += F("document.querySelectorAll('#lpre .btab').forEach(function(b){"
          "b.addEventListener('click',function(){if(S)save(+b.dataset.p,S.fields,S.options);});});"
+         "document.querySelectorAll('#lkind .btab').forEach(function(b){"
+         "b.addEventListener('click',function(){K=+b.dataset.k;"
+         "try{localStorage.setItem('lbkind',String(K));}catch(e){}shown='';srcKey='';load();});});"
          "document.querySelectorAll('#lori .btab').forEach(function(b){"
          "b.addEventListener('click',function(){if(S)save(S.preset,S.fields,"
          "(S.options&~PB)|(+b.dataset.o?PB:0));});});"
@@ -495,7 +544,7 @@ static void scriptBindings(String& h) {
          "postFlash('/api/printer/media',$('lps').value,'lps-s',2500).then(load);});"
          "$('ltx').addEventListener('change',function(){"
          "postFlash('/api/label/text',$('ltx').value,'ltx-s',2500).then(load);});"
-         "$('lr').addEventListener('click',function(){postFlash('/api/label/reset','','ls-s',2500).then(load);});"
+         "$('lr').addEventListener('click',function(){postFlash('/api/label/reset'+q(),'','ls-s',2500).then(load);});"
          "$('lsrc').addEventListener('change',function(){"
          "postFlash('/api/label/source',$('lsrc').value,'lsrc-s',2500).then(load);});"
          "$('lp').addEventListener('error',function(){$('lp-s').textContent=L.fail;shown='';});"
@@ -506,7 +555,7 @@ static void scriptBindings(String& h) {
          // The print takes about ten seconds on the scale; the verdict is
          // fetched after that and shown on the last line.
          "$('lpb').addEventListener('click',function(){"
-         "postFlash('/api/label/print','','lpb-s',4000).then(function(){setTimeout(load,12000);});});"
+         "postFlash('/api/label/print'+q(),'','lpb-s',4000).then(function(){setTimeout(load,12000);});});"
          "document.addEventListener('visibilitychange',load);"
          "load();"
          "</script>");
@@ -579,17 +628,19 @@ static void sendServerPreview(WebServer& srv, const LabelPrinterConfig& c) {
 }
 
 // The label as the printer would get it, cut to the label, as a 1-bit BMP.
-static void sendPreview(WebServer& srv) {
+static void sendPreview(WebServer& srv, LabelKind kind) {
   const LabelPrinterConfig c = labelPrinterLoadConfig();
-  if (labelServerInUse()) {
+  if (kind == LABEL_KIND_SPOOL && labelServerInUse()) {
     sendServerPreview(srv, c);
     return;
   }
   SpoolLabelData spool{};
   if (!labelSpoolLast(&spool)) sampleSpool(&spool);
-  const LabelLayout layout = labelLayoutLoad();
+  const LabelLayout layout = labelLayoutLoad(kind);
   LabelRaster r{};
-  if (!labelRenderSpool(c, layout, spool, &r)) {
+  const bool ok = kind == LABEL_KIND_FILAMENT ? labelRenderFilament(c, layout, spool, &r)
+                                              : labelRenderSpool(c, layout, spool, &r);
+  if (!ok) {
     labelRasterFree(&r);
     srv.send(409, "text/plain", T(STR_W_L_PREVIEW_FAIL));
     return;
@@ -614,20 +665,21 @@ static bool parseLayout(const String& v, LabelLayout* out) {
 static void routes(WebServer &srv) {
   srv.on("/api/label", HTTP_GET, [&srv]() {
     if (!webRequire(srv, GATE_CONFIG, T(STR_W_NAV_LABEL))) return;
-    srv.send(200, "application/json", stateJson());
+    srv.send(200, "application/json", stateJson(kindOf(srv)));
   });
 
   srv.on("/api/label", HTTP_POST, [&srv]() {
     if (!webRequire(srv, GATE_CONFIG, T(STR_W_NAV_LABEL))) return;
     LabelLayout l{};
     if (!parseLayout(srv.arg("plain"), &l)) { srv.send(400, "text/plain", "bad layout"); return; }
-    const bool ok = labelLayoutSave(l);
+    const bool ok = labelLayoutSave(l, kindOf(srv));
     srv.send(ok ? 200 : 500, "application/json", ok ? "{\"ok\":true}" : "{\"ok\":false}");
   });
 
   srv.on("/api/label/reset", HTTP_POST, [&srv]() {
     if (!webRequire(srv, GATE_CONFIG, T(STR_W_NAV_LABEL))) return;
-    const bool ok = labelLayoutSave(labelLayoutDefault());
+    const LabelKind kind = kindOf(srv);
+    const bool ok = labelLayoutSave(labelLayoutDefault(kind), kind);
     srv.send(ok ? 200 : 500, "application/json", ok ? "{\"ok\":true}" : "{\"ok\":false}");
   });
 
@@ -656,7 +708,7 @@ static void routes(WebServer &srv) {
 
   srv.on("/api/label/preview.bmp", HTTP_GET, [&srv]() {
     if (!webRequire(srv, GATE_CONFIG, T(STR_W_NAV_LABEL))) return;
-    sendPreview(srv);
+    sendPreview(srv, kindOf(srv));
   });
 
   // Parks the print like the test print: the loop renders and prints the
@@ -668,8 +720,11 @@ static void routes(WebServer &srv) {
     if (!labelPrinterConfigured(labelPrinterLoadConfig())) { srv.send(409, "text/plain", T(STR_PRN_ERR_NO_PRINTER)); return; }
     if (!bleEnabled()) { srv.send(409, "text/plain", T(STR_PRN_ERR_BLE_OFF)); return; }
     if (bleStackStuck()) { srv.send(409, "text/plain", T(STR_PRN_ERR_STUCK)); return; }
-    print_last_label_pending = true;
-    logSDf("Web: label print for spool #%d requested", s.id);
+    const LabelKind kind = kindOf(srv);
+    if (kind == LABEL_KIND_FILAMENT) print_last_filament_label_pending = true;
+    else print_last_label_pending = true;
+    logSDf("Web: %s label print for spool #%d requested",
+           kind == LABEL_KIND_FILAMENT ? "filament" : "spool", s.id);
     srv.send(200, "text/plain", T(STR_W_P_QUEUED));
   });
 }

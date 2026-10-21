@@ -885,6 +885,31 @@ void labelQrForSpool(int spool_id, char* out, size_t n) {
   else                          snprintf(out, n, "WEB+SPOOLMAN:S-%d", spool_id);
 }
 
+void labelQrForFilament(int filament_id, char* out, size_t n) {
+  if (!out || !n) return;
+  out[0] = '\0';
+  const char* base = backendBaseUrl();
+  // BamBuddy keeps no filament, and a Spoolman with no address has no page.
+  if (filament_id <= 0 || backendIsBamBuddy() || !base[0] || strcmp(base, "http://") == 0) return;
+  if (backendIsFilaMan()) snprintf(out, n, "%s/filaments/%d", base, filament_id);
+  else                    snprintf(out, n, "%s/filament/show/%d", base, filament_id);
+}
+
+bool labelRenderFilament(const LabelPrinterConfig& printer, const LabelLayout& layout,
+                         const SpoolLabelData& spool, LabelRaster* out) {
+  char qr[LABEL_QR_LEN];
+  labelQrForFilament(spool.filament_id, qr, sizeof(qr));
+  // No page to open: the label is laid out as one without a code.
+  LabelLayout l = layout;
+  if (!qr[0]) l.fields &= ~(1u << LF_QR);
+  const int capacity = labelFactCapacity(l, printer.media_width_mm, printer.media_length_mm);
+  LabelFactList f;
+  labelFilamentFacts(l, spool, capacity, &f);
+  const LabelContent c{ &spool, f.line_ptrs, f.n, false,
+                        labelLayoutHasCode(l) ? qr : nullptr, "filament", f.facts };
+  return renderLabel(printer, l, c, out);
+}
+
 bool labelRenderSpool(const LabelPrinterConfig& printer, const LabelLayout& layout,
                       const SpoolLabelData& spool, LabelRaster* out) {
   char qr[LABEL_QR_LEN];

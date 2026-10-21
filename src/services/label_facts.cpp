@@ -111,3 +111,30 @@ void labelSpoolFacts(const LabelLayout& layout, const SpoolLabelData& spool, int
   addSpoolExtras(out, capacity, layout, spool);
   if (labelLayoutHas(layout, LF_BRAND)) addFact(out, capacity, LabelFact{ "SpoolmanScale", nullptr });
 }
+
+void labelFilamentFacts(const LabelLayout& layout, const SpoolLabelData& spool, int capacity,
+                        LabelFactList* out) {
+  *out = LabelFactList{};
+  char color[sizeof(spool.color) + 1];
+  snprintf(color, sizeof(color), isHex6(spool.color) ? "#%s" : "%s", spool.color);
+  if (layout.preset == LABEL_PRESET_COMPACT && labelLayoutHas(layout, LF_VENDOR) &&
+      spool.vendor[0])
+    addFact(out, capacity, LabelFact{ nullptr, spool.vendor });
+  if (labelLayoutHas(layout, LF_COLOR) && spool.color[0])
+    addFact(out, capacity, LabelFact{ T(STR_LBL_L_COLOR), color });
+  if (labelLayoutHas(layout, LF_ARTICLE) && spool.article[0])
+    addFact(out, capacity, LabelFact{ T(STR_LBL_ARTICLE_NO_SHORT), spool.article });
+  // In the page's order, which is the order they give way in.
+  char grams[16];
+  if (labelLayoutHas(layout, LF_NET_WEIGHT) && spool.net_weight_g > 0) {
+    snprintf(grams, sizeof(grams), "%.0f g", spool.net_weight_g);
+    addFact(out, capacity, LabelFact{ T(STR_LBL_L_NET), grams });
+  }
+  char temps[32];
+  LabelFact t;
+  if (labelLayoutHas(layout, LF_TEMPS) && tempFact(spool, temps, sizeof(temps), &t))
+    addFact(out, capacity, t);
+  if (labelLayoutHas(layout, LF_FREE_TEXT) && labelLayoutFreeText()[0])
+    addFact(out, capacity, LabelFact{ nullptr, labelLayoutFreeText() });
+  if (labelLayoutHas(layout, LF_BRAND)) addFact(out, capacity, LabelFact{ "SpoolmanScale", nullptr });
+}

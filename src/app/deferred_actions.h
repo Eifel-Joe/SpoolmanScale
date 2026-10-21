@@ -157,6 +157,8 @@ extern bool print_spool_label_pending;
 // The label editor in the browser: print the last spool scanned with the
 // saved template, and fetch that spool's dates for the preview (HTTP).
 extern bool print_last_label_pending;
+// The same for the filament's label of that spool.
+extern bool print_last_filament_label_pending;
 extern bool label_dates_pending;
 // The print card's answer to a label the server would not draw: print the
 // same spool with the scale's own layout.

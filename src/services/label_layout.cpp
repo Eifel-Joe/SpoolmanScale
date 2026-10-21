@@ -7,29 +7,46 @@
 #include "services/prefs_store.h"
 #include "services/text_util.h"
 
-// NVS keys, 15 characters at most.
-#define LL_KEY_VERSION "lbl_ver"
-#define LL_KEY_PRESET  "lbl_preset"
-#define LL_KEY_FIELDS  "lbl_fields"
-#define LL_KEY_OPTIONS "lbl_opts"
+// NVS keys, 15 characters at most: the spool's from before, the filament's
+// beside them.
+struct LayoutKeys { const char* version; const char* preset; const char* fields; const char* options; };
+static const LayoutKeys LL_KEYS[LABEL_KIND_COUNT] = {
+  { "lbl_ver",  "lbl_preset",  "lbl_fields",  "lbl_opts" },
+  { "lblf_ver", "lblf_preset", "lblf_fields", "lblf_opts" },
+};
 #define LL_KEY_TEXT    "lbl_text"
 
 static const uint32_t FIELD_MASK  = (1u << LABEL_FIELD_COUNT) - 1;
 static const uint32_t OPTION_MASK = (1u << LABEL_OPTION_COUNT) - 1;
 // What the label printed before the editor: every field up to the brand.
 static const uint32_t DEFAULT_FIELDS = (1u << (LF_BRAND + 1)) - 1;
+static const uint32_t FILAMENT_FIELDS =
+    (1u << LF_VENDOR) | (1u << LF_MATERIAL) | (1u << LF_NAME) | (1u << LF_COLOR) |
+    (1u << LF_ARTICLE) | (1u << LF_NET_WEIGHT) | (1u << LF_TEMPS) | (1u << LF_FREE_TEXT) |
+    (1u << LF_QR) | (1u << LF_BRAND);
+static const uint32_t FILAMENT_DEFAULT_FIELDS =
+    (1u << LF_VENDOR) | (1u << LF_MATERIAL) | (1u << LF_NAME) | (1u << LF_COLOR) |
+    (1u << LF_TEMPS) | (1u << LF_QR);
 
-static LabelLayout s_layout{};
-static bool s_loaded = false;
+static LabelLayout s_layout[LABEL_KIND_COUNT]{};
+static bool s_loaded[LABEL_KIND_COUNT] = {};
 static char s_text[LABEL_FREE_TEXT_BYTES] = "";
 static bool s_text_loaded = false;
 
-LabelLayout labelLayoutDefault() {
+LabelLayout labelLayoutDefault(LabelKind kind) {
   LabelLayout l{};
   l.preset = LABEL_PRESET_STANDARD;
-  l.fields = DEFAULT_FIELDS;
+  l.fields = kind == LABEL_KIND_FILAMENT ? FILAMENT_DEFAULT_FIELDS : DEFAULT_FIELDS;
   l.options = 0;
   return l;
+}
+
+uint32_t labelKindFields(LabelKind kind) {
+  return kind == LABEL_KIND_FILAMENT ? FILAMENT_FIELDS : FIELD_MASK;
+}
+
+static LabelKind knownKind(LabelKind kind) {
+  return kind < LABEL_KIND_COUNT ? kind : LABEL_KIND_SPOOL;
 }
 
 LabelLayout labelLayoutSanitized(const LabelLayout& in) {
@@ -99,30 +116,37 @@ uint32_t labelFactFields(uint8_t preset) {
   return m;
 }
 
-LabelLayout labelLayoutLoad() {
-  if (s_loaded) return s_layout;
-  LabelLayout l = labelLayoutDefault();
-  // Nothing stored yet: the default, which is the label from before.
-  if (prefsGetUInt(LL_KEY_VERSION, 0) != 0) {
-    l.preset = (uint8_t)prefsGetUInt(LL_KEY_PRESET, LABEL_PRESET_STANDARD);
-    l.fields = prefsGetUInt(LL_KEY_FIELDS, l.fields);
-    l.options = prefsGetUInt(LL_KEY_OPTIONS, 0);
+LabelLayout labelLayoutLoad(LabelKind kind) {
+  kind = knownKind(kind);
+  if (s_loaded[kind]) return s_layout[kind];
+  const LayoutKeys& k = LL_KEYS[kind];
+  LabelLayout l = labelLayoutDefault(kind);
+  // Nothing stored yet: the default, for a spool the label from before.
+  if (prefsGetUInt(k.version, 0) != 0) {
+    l.preset = (uint8_t)prefsGetUInt(k.preset, LABEL_PRESET_STANDARD);
+    l.fields = prefsGetUInt(k.fields, l.fields);
+    l.options = prefsGetUInt(k.options, 0);
   }
-  s_layout = labelLayoutSanitized(l);
-  s_loaded = true;
-  return s_layout;
+  s_layout[kind] = labelLayoutSanitized(l);
+  s_layout[kind].fields &= labelKindFields(kind);
+  s_loaded[kind] = true;
+  return s_layout[kind];
 }
 
-bool labelLayoutSave(const LabelLayout& in) {
-  const LabelLayout l = labelLayoutSanitized(in);
+bool labelLayoutSave(const LabelLayout& in, LabelKind kind) {
+  kind = knownKind(kind);
+  const LayoutKeys& k = LL_KEYS[kind];
+  LabelLayout l = labelLayoutSanitized(in);
+  l.fields &= labelKindFields(kind);
   bool ok = true;
-  ok = prefsPutUInt(LL_KEY_PRESET, l.preset) && ok;
-  ok = prefsPutUInt(LL_KEY_FIELDS, l.fields) && ok;
-  ok = prefsPutUInt(LL_KEY_OPTIONS, l.options) && ok;
+  ok = prefsPutUInt(k.preset, l.preset) && ok;
+  ok = prefsPutUInt(k.fields, l.fields) && ok;
+  ok = prefsPutUInt(k.options, l.options) && ok;
   // Last, so a version only stands next to a complete set.
-  ok = prefsPutUInt(LL_KEY_VERSION, LABEL_LAYOUT_VERSION) && ok;
-  if (ok) { s_layout = l; s_loaded = true; }
-  logSDf("Label: layout preset %u fields %02x options %02x %s", (unsigned)l.preset,
+  ok = prefsPutUInt(k.version, LABEL_LAYOUT_VERSION) && ok;
+  if (ok) { s_layout[kind] = l; s_loaded[kind] = true; }
+  logSDf("Label: %s layout preset %u fields %04x options %02x %s",
+         kind == LABEL_KIND_FILAMENT ? "filament" : "spool", (unsigned)l.preset,
          (unsigned)l.fields, (unsigned)l.options, ok ? "saved" : "NOT saved");
   return ok;
 }

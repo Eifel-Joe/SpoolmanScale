@@ -28,6 +28,7 @@
 
 struct SpoolLabelData {
   int   id;
+  int   filament_id;                // 0 where the backend has no filament (BamBuddy)
   char  name[LABEL_LINE_LEN];       // the filament, as the backend names it
   char  vendor[LABEL_LINE_LEN];
   char  material[LABEL_LINE_LEN];
@@ -66,3 +67,11 @@ bool labelRenderSpool(const LabelPrinterConfig& printer, const LabelLayout& layo
 // What the QR code on a spool label carries for the active backend: the
 // spool's page on Spoolman, FilaMan and BamBuddy, so a phone opens it.
 void labelQrForSpool(int spool_id, char* out, size_t n);
+
+// The filament's label for the spool's filament, with a code to the
+// filament's page where the backend has one: Spoolman and FilaMan, not
+// BamBuddy, whose filament is a few words on the spool.
+bool labelRenderFilament(const LabelPrinterConfig& printer, const LabelLayout& layout,
+                         const SpoolLabelData& spool, LabelRaster* out);
+// The filament's page, empty when there is none to open.
+void labelQrForFilament(int filament_id, char* out, size_t n);

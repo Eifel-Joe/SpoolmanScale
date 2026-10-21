@@ -93,6 +93,7 @@ bool labelSpoolFromScan(SpoolLabelData* out) {
   if (!out || !(sm_found && sm_id > 0)) return false;
   *out = SpoolLabelData{};
   out->id = sm_id;
+  out->filament_id = sm_filament_id > 0 ? sm_filament_id : 0;
   snprintf(out->name, sizeof(out->name), "%s", sm_filament_name);
   snprintf(out->vendor, sizeof(out->vendor), "%s", sm_vendor_g);
   // Like the More info card: the backend's material when it named one,

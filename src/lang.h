@@ -1694,6 +1694,12 @@ enum StringID {
   STR_W_L_F_TEXT,
   STR_W_L_TEXT_HINT,
   STR_W_L_CHANGE_HINT,
+  // Label editor: the filament's label
+  STR_W_L_KIND,
+  STR_W_L_KIND_SPOOL,
+  STR_W_L_KIND_FILAMENT,
+  STR_W_L_KIND_HINT,
+  STR_W_L_FIL_NO_PAGE,
 
   STR_COUNT
 };

@@ -3696,6 +3696,17 @@ const char* const STRINGS[][3] = {
     "Ligne libre : 40 caractères au plus." },  // STR_W_L_TEXT_HINT
   { "Lagerort und Trocknungsdatum ändern sich, das Etikett nicht. Temperaturen kennt nicht jedes Backend.", "Location and drying date change, the label does not. Not every backend knows temperatures.",
     "L'emplacement et la date de séchage changent, l'étiquette non. Tous les backends ne connaissent pas les températures." },  // STR_W_L_CHANGE_HINT
+  // Label editor: the filament's label
+  { "Etikett für", "Label for",
+    "Étiquette pour" },  // STR_W_L_KIND
+  { "Spule", "Spool",
+    "Bobine" },  // STR_W_L_KIND_SPOOL
+  { "Filament", "Filament",
+    "Filament" },  // STR_W_L_KIND_FILAMENT
+  { "Das Filament-Etikett druckst du hier, am Gerät kommt immer das der Spule.", "The filament label prints from here; the scale itself always prints the spool's.",
+    "L'étiquette du filament s'imprime d'ici ; la balance imprime toujours celle de la bobine." },  // STR_W_L_KIND_HINT
+  { "Dieses Backend hat keine Filamentseite: das Filament-Etikett kommt ohne Code.", "This backend has no filament page: the filament label prints without a code.",
+    "Ce backend n'a pas de page filament : l'étiquette du filament s'imprime sans code." },  // STR_W_L_FIL_NO_PAGE
 };
 
 StringID tagWriteResultString(uint8_t code) {

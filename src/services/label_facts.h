@@ -32,3 +32,6 @@ struct LabelFactList {
 // first ones in the page's order stay, the rest is left off.
 void labelSpoolFacts(const LabelLayout& layout, const SpoolLabelData& spool, int capacity,
                      LabelFactList* out);
+// The same for the filament's label: only what belongs to the filament.
+void labelFilamentFacts(const LabelLayout& layout, const SpoolLabelData& spool, int capacity,
+                        LabelFactList* out);

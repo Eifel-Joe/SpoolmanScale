@@ -52,14 +52,27 @@ enum LabelOption : uint8_t {
   LABEL_OPTION_COUNT
 };
 
+// What a label is for: a spool, or the filament it is made of (for a dryer
+// box, a sample card, a shelf). Each has a template of its own.
+enum LabelKind : uint8_t {
+  LABEL_KIND_SPOOL = 0,
+  LABEL_KIND_FILAMENT = 1,
+  LABEL_KIND_COUNT
+};
+
 struct LabelLayout {
   uint8_t  preset;
   uint32_t fields;    // bit n set: LabelField n is on the label
   uint32_t options;   // bit n set: LabelOption n applies
 };
 
-// The fields of the label from before on, no option, the standard arrangement.
-LabelLayout labelLayoutDefault();
+// The spool's: the fields of the label from before on, no option, the
+// standard arrangement. The filament's: maker, material, name, colour,
+// temperatures and the code to the filament's page.
+LabelLayout labelLayoutDefault(LabelKind kind = LABEL_KIND_SPOOL);
+// The fields a kind of label has at all: a filament has no spool id, no
+// dates, no tare, no place.
+uint32_t labelKindFields(LabelKind kind);
 // Known bits only, a known arrangement: what the browser sent may be anything.
 LabelLayout labelLayoutSanitized(const LabelLayout& in);
 bool labelLayoutHas(const LabelLayout& layout, LabelField field);
@@ -80,8 +93,8 @@ int labelFactCapacity(const LabelLayout& layout, uint16_t width_mm, uint16_t len
 uint32_t labelFactFields(uint8_t preset);
 
 // Cached after the first read; every write goes through the save.
-LabelLayout labelLayoutLoad();
-bool labelLayoutSave(const LabelLayout& layout);
+LabelLayout labelLayoutLoad(LabelKind kind = LABEL_KIND_SPOOL);
+bool labelLayoutSave(const LabelLayout& layout, LabelKind kind = LABEL_KIND_SPOOL);
 
 // The free line LF_FREE_TEXT prints, empty when none was set. Bytes, so a
 // line of umlauts fits its 40 characters too.
