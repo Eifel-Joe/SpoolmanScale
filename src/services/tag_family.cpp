@@ -102,7 +102,8 @@ static void tableRemove(int i) {
   s_count--;
 }
 
-// The newest goes to the end; when the table is full the oldest falls off.
+// The newest goes to the end; when the table is full the one seen longest ago
+// falls off.
 static void tableSet(const uint8_t uid[4], char family) {
   const int i = tableFind(uid);
   if (i >= 0) tableRemove(i);
@@ -245,20 +246,29 @@ static void load() {
   loadFromFlash();
 }
 
+// The probes this memory saves are the Creality and the Snapmaker ones.
+static bool memoryInUse() { return g_creality_tags || g_snapmaker_tags; }
+
 TagFamily tagFamilyGet(const uint8_t uid[4]) {
-  if (!g_creality_tags) return TAG_FAMILY_UNKNOWN;
+  if (!memoryInUse()) return TAG_FAMILY_UNKNOWN;
   load();
   const int i = s_tab ? tableFind(uid) : -1;
   return i < 0 ? TAG_FAMILY_UNKNOWN : (TagFamily)s_tab[i].family;
 }
 
 void tagFamilySet(const uint8_t uid[4], TagFamily family) {
-  if (!g_creality_tags) return;
+  if (!memoryInUse()) return;
   load();
   if (!s_tab) return;
   const int i = tableFind(uid);
   const char old = i >= 0 ? s_tab[i].family : (char)TAG_FAMILY_UNKNOWN;
-  if (old == family) return;   // nothing changes, nothing is written
+  if (old == family) {
+    // Seen again: to the back of the table, in RAM only. The next compaction
+    // writes this order, so what falls out when it is full is the tag seen
+    // longest ago, a thrown-away spool rather than one in use.
+    if (i >= 0) tableSet(uid, family);
+    return;
+  }
   tableSet(uid, family);
   logSDf("NFC: %02X:%02X:%02X:%02X remembered as %s", uid[0], uid[1], uid[2], uid[3],
          familyName(family));

@@ -2079,6 +2079,13 @@ void appLoop() {
             // as a CFS tag. The Bambu probe would refuse it too and knock it
             // off the reader (13.10.2026), so it is not run at all.
             blank_now = true;
+          } else if (g_snapmaker_tags && family == TAG_FAMILY_SNAPMAKER) {
+            // Read as Snapmaker before: its own keys below, no Bambu probe
+            // that can only be refused. A clean record for this UID, so the
+            // Snapmaker scan below sees no blocks of the tag before it.
+            memset(&g_tag, 0, sizeof(g_tag));
+            memcpy(g_tag.uid, uid, 4);
+            snprintf(g_tag.uid_str, sizeof(g_tag.uid_str), "%s", uid_str);
           } else {
             // Bambu first on the next placement (once, see above).
             if (creality_first && family == TAG_FAMILY_UNKNOWN) {
@@ -2090,11 +2097,13 @@ void appLoop() {
             // 6/48 blocks and dropped out before that poll ever came.
             if (countBambuDataBlocksRead(g_tag) > 0) tagFamilySet(uid, TAG_FAMILY_BAMBU);
           }
-          // Opt-in, off by default, and then none of this touches the reader.
-          // Once per placement, right after the first Bambu probe came back
-          // with nothing. A tag that answers to Snapmaker's keys is no Bambu
-          // tag, so the Bambu retries are skipped and the branch below for a
-          // plain 4 byte card looks the spool up by its UID.
+          // Snapmaker: opt-in, off by default, and then none of this touches
+          // the reader. Once per placement, right after the first Bambu probe
+          // came back with nothing, or straight away for a tag read as
+          // Snapmaker before; never for one read as Bambu before. A tag that
+          // answers to Snapmaker's keys is no Bambu tag, so the Bambu retries
+          // are skipped and the branch below for a plain 4 byte card looks the
+          // spool up by its UID.
           if (blank_now) {
             // Opens with the factory key. Kept on the reader like a Creality
             // tag either way; only an empty one is remembered as blank and
@@ -2112,10 +2121,12 @@ void appLoop() {
           }
           if (creality_decoded || blank_now) {
             // Already settled above.
-          } else if (g_snapmaker_tags && countBambuDataBlocksRead(g_tag) == 0 &&
+          } else if (g_snapmaker_tags && family != TAG_FAMILY_BAMBU &&
+              countBambuDataBlocksRead(g_tag) == 0 &&
               scanSnapmakerTag(uid, uidLen) != SNAPMAKER_SCAN_NO_AUTH) {
             snapmaker_decoded = true;
-            // Never tried with the Creality key again (both switches on).
+            // Next time straight to its own keys: no Bambu probe, and no
+            // Creality attempt when that switch is on too.
             tagFamilySet(uid, TAG_FAMILY_SNAPMAKER);
             nfc_retry_count = NFC_MAX_RETRIES;
             last_nfc_check_ms = 0;
@@ -2154,6 +2165,14 @@ void appLoop() {
             // poll has just selected, rather than the Bambu scan.
             if (scanCrealityTag(uid, uidLen, /*fresh=*/true) == CREALITY_SCAN_OK) {
               creality_decoded = true;
+              nfc_retry_count = NFC_MAX_RETRIES;
+              last_nfc_check_ms = 0;
+            }
+          } else if (g_snapmaker_tags && tagFamilyGet(uid) == TAG_FAMILY_SNAPMAKER) {
+            // The same for a known Snapmaker tag that did not read on its
+            // first try: its own keys again, not the Bambu scan.
+            if (scanSnapmakerTag(uid, uidLen) != SNAPMAKER_SCAN_NO_AUTH) {
+              snapmaker_decoded = true;
               nfc_retry_count = NFC_MAX_RETRIES;
               last_nfc_check_ms = 0;
             }

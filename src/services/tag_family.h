@@ -14,8 +14,9 @@
 //
 //    TAG_FAMILY_UNKNOWN       never read: Creality first (when enabled)
 //    TAG_FAMILY_CREALITY      opened with the Creality key
-//    TAG_FAMILY_BAMBU         read as a Bambu tag
-//    TAG_FAMILY_SNAPMAKER     read as a Snapmaker tag: no Creality attempt
+//    TAG_FAMILY_BAMBU         read as a Bambu tag: no Snapmaker attempt
+//    TAG_FAMILY_SNAPMAKER     read as a Snapmaker tag: its own keys first,
+//                             no Bambu probe and no Creality attempt
 //    TAG_FAMILY_NOT_CREALITY  refused the Creality key on the last placement:
 //                             Bambu first on the next one. RAM only, and used
 //                             once: the next placement drops it, so an unknown
@@ -37,9 +38,14 @@
 //  Not in NVS: that holds every setting in 20 kB and must never fill up.
 //  A change appends one 8 byte record; tag_family.cpp has the layout.
 //
-//  Only while Creality tags are switched on: the Creality probe is what needs
-//  it, and with the switch off the scale neither reads nor writes this area,
-//  exactly as before it existed.
+//  Full: the tag seen longest ago falls out first. Seeing a tag again moves
+//  it to the back in RAM, and the next compaction writes that order, so a
+//  spool in use outlives the tags of spools long thrown away. 767 UIDs are
+//  some 380 Bambu spools (two tags each).
+//
+//  Only while Creality or Snapmaker tags are switched on: those are the
+//  probes it saves. With both off the scale neither reads nor writes this
+//  area, exactly as before it existed.
 // ============================================================
 
 // Two halves of 8 kB that take turns, see tag_family.cpp. A host test may
@@ -58,5 +64,6 @@ enum TagFamily : char {
 };
 
 TagFamily tagFamilyGet(const uint8_t uid[4]);
-// Records a family for the UID. TAG_FAMILY_UNKNOWN removes the entry.
+// Records a family for the UID. TAG_FAMILY_UNKNOWN removes the entry. The
+// same family again writes nothing and only marks the tag as just seen.
 void tagFamilySet(const uint8_t uid[4], TagFamily family);
