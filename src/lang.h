@@ -1670,6 +1670,15 @@ enum StringID {
   STR_FREE_TAG_ASK,
   STR_FREE_TAG_ERASE_LINE,
   STR_BTN_FREE_TAG,
+  // Label editor: more arrangements, upright labels, a line budget
+  STR_W_L_P_MATERIAL_BIG,
+  STR_W_L_P_TEXT_ONLY,
+  STR_W_L_ORIENT,
+  STR_W_L_FLAT,
+  STR_W_L_UPRIGHT,
+  STR_W_L_CAP,
+  STR_W_L_CAP_FULL,
+  STR_W_L_CAP_OVER,
 
   STR_COUNT
 };

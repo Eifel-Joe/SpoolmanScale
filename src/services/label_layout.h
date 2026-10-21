@@ -25,6 +25,8 @@ enum LabelPreset : uint8_t {
   LABEL_PRESET_STANDARD = 0,   // maker large on top, band, title, facts beside the code
   LABEL_PRESET_COMPACT  = 1,   // no large maker: it joins the facts, the code grows
   LABEL_PRESET_BIG_QR   = 2,   // the code takes the full height, the text a column
+  LABEL_PRESET_MATERIAL_BIG = 3, // the material across a third of the label, a small code
+  LABEL_PRESET_TEXT_ONLY = 4,  // no code, the facts large, in two columns where they fit
   LABEL_PRESET_COUNT
 };
 
@@ -40,6 +42,9 @@ enum LabelField : uint8_t {
 enum LabelOption : uint8_t {
   LO_MATERIAL_PLAIN = 0,   // the material as a line, not white on a black band
   LO_DATE_ADDED     = 1,   // the day the spool was added, never the first use
+  // Upright: the label drawn 30 wide and 40 or 50 tall, turned onto the roll.
+  // The head starts on the left, as on FilaMan's portrait presets.
+  LO_PORTRAIT       = 2,
   LABEL_OPTION_COUNT
 };
 
@@ -55,6 +60,17 @@ LabelLayout labelLayoutDefault();
 LabelLayout labelLayoutSanitized(const LabelLayout& in);
 bool labelLayoutHas(const LabelLayout& layout, LabelField field);
 bool labelLayoutOption(const LabelLayout& layout, LabelOption option);
+
+// Whether an arrangement draws a code at all; the QR field means nothing
+// where it does not.
+bool labelPresetHasQr(uint8_t preset);
+// How many fact lines a label in this arrangement keeps whole on a roll of
+// this size, upright or not. In millimetres, so it holds at 203 and 300 dpi.
+// The renderer stops there, and the browser lets no more be switched on.
+int labelFactCapacity(uint8_t preset, uint16_t width_mm, uint16_t length_mm, bool portrait);
+// The fields that become a fact line in this arrangement, as a mask: what
+// the capacity counts. The header blocks and the code are not among them.
+uint32_t labelFactFields(uint8_t preset);
 
 // Cached after the first read; every write goes through the save.
 LabelLayout labelLayoutLoad();

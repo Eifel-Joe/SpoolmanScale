@@ -65,7 +65,8 @@ static const OptionRow OPTION_ROWS[] = {
 static const int OPTION_ROW_COUNT = sizeof(OPTION_ROWS) / sizeof(OPTION_ROWS[0]);
 
 static const int PRESET_CAPTIONS[LABEL_PRESET_COUNT] = {
-  STR_W_L_P_STANDARD, STR_W_L_P_COMPACT, STR_W_L_P_BIG_QR,
+  STR_W_L_P_STANDARD, STR_W_L_P_COMPACT, STR_W_L_P_BIG_QR, STR_W_L_P_MATERIAL_BIG,
+  STR_W_L_P_TEXT_ONLY,
 };
 
 // What the preview shows until a spool has been found since boot: a spool
@@ -131,10 +132,18 @@ static String stateJson() {
   // The preview waits for these; the loop asks the backend, once per spool.
   if (have && !labelSpoolDatesKnown()) label_dates_pending = true;
   String j;
-  j.reserve(1400);
+  j.reserve(1500);
   j += F("{\"preset\":");   j += String((unsigned)l.preset);
   j += F(",\"fields\":");   j += String((unsigned long)l.fields);
   j += F(",\"options\":");  j += String((unsigned long)l.options);
+  // How many fact lines this roll takes in this arrangement, and which
+  // fields count: the page holds the switches to it.
+  j += F(",\"cap\":");
+  j += String(labelFactCapacity(l.preset, c.media_width_mm, c.media_length_mm,
+                                labelLayoutOption(l, LO_PORTRAIT)));
+  j += F(",\"factBits\":"); j += String((unsigned long)labelFactFields(l.preset));
+  j += F(",\"hasQr\":");
+  j += labelPresetHasQr(l.preset) ? F("true") : F("false");
   j += F(",\"spool\":");
   if (have) {
     j += F("{\"id\":");      j += String(s.id);
@@ -193,12 +202,20 @@ static void templateCard(String& h) {
   h += F("</h2>");
   sourceRow(h);
   h += F("<div id='ltpl'><div class='field'><label>");
+  h += T(STR_W_L_ORIENT);
+  h += F("</label><div class='btabs' id='lori'><button class='btab' data-o='0'>");
+  h += T(STR_W_L_FLAT);
+  h += F("</button><button class='btab' data-o='1'>");
+  h += T(STR_W_L_UPRIGHT);
+  h += F("</button></div></div><div class='field'><label>");
   h += T(STR_W_L_ARRANGE);
+  // Each arrangement as a tile with a sketch of it; the script draws the
+  // sketches, flat or upright as the label is.
   h += F("</label><div class='btabs' id='lpre'>");
   for (int i = 0; i < LABEL_PRESET_COUNT; i++) {
-    h += F("<button class='btab' data-p='");
+    h += F("<button class='btab lb-tile' data-p='");
     h += String(i);
-    h += F("'>");
+    h += F("'><span class='lb-ic'></span>");
     h += T(PRESET_CAPTIONS[i]);
     h += F("</button>");
   }
@@ -214,7 +231,8 @@ static void templateCard(String& h) {
     h += T(FIELD_ROWS[i].caption);
     h += F("</label>");
   }
-  h += F("</div></div><div class='field'><label>");
+  h += F("</div><span class='hint' id='lcap'></span><span class='msg' id='lcap-s'></span>"
+         "</div><div class='field'><label>");
   h += T(STR_W_L_OPTIONS);
   h += F("</label><div id='lo'>");
   for (int i = 0; i < OPTION_ROW_COUNT; i++) {
@@ -274,12 +292,58 @@ static void styles(String& h) {
          ".lb-sw .check+.check{margin-top:0}"
          ".lb-note{margin-top:12px}"
          ".lb-print{margin-top:16px}"
-         "#lpre{flex-wrap:wrap}"
+         // Five tiles, three to a row, all as wide as each other.
+         "#lpre{display:grid;grid-template-columns:repeat(3,1fr)}"
+         ".lb-tile{flex-direction:column;gap:6px;min-width:0;padding:8px 6px}"
+         ".lb-ic{height:58px;display:flex;align-items:center;justify-content:center}"
+         ".lb-ic svg{display:block}"
+         ".lb-sw .check.off{opacity:.45}"
          // One column on a phone: the preview first, so a switch shows its
          // effect without scrolling.
          "@media(max-width:700px){.lb-prev{order:-1}}"
          "@media(max-width:420px){.lb-sw{grid-template-columns:1fr}}"
          "</style>");
+}
+
+// The template's own parts: the sketches on the tiles, the orientation and
+// the line budget. Part of the script scriptFunctions() opens.
+static void scriptTemplate(String& h) {
+  h += F(
+         // The sketches: per arrangement flat and upright, each rectangle as
+         // kind x,y,w,h in millimetres; b is black, q the code, l a line.
+         "const IC=["
+         "['l8,2,24,4 b2,8,36,4 l6,14,28,3 l2,19,16,2 l2,22.5,14,2 l2,26,17,2 q26,18,10,10',"
+         "'l6,2,18,4 b2,8,26,4 l4,14,22,3 l2,19,16,2 l2,22.5,14,2 l2,26,17,2 q10,29,10,10'],"
+         "['b2,2,36,4 l6,8,28,3 l2,14,14,2 l2,17.5,17,2 l2,21,13,2 l2,24.5,16,2 q23,13,14,14',"
+         "'b2,2,26,4 l4,8,22,3 l2,13,12,2 l2,16.5,16,2 l2,20,13,2 l2,23.5,15,2 q9,27,12,12'],"
+         "['l2,3,18,3 b2,8,18,3 l2,13,18,2 l2,18,14,1.5 l2,21,16,1.5 l2,24,12,1.5 q22,6,16,16',"
+         "'q7,2,16,16 l6,20,18,3 b2,25,26,3 l4,30,22,2 l2,34,14,1.5 l2,37,10,1.5'],"
+         "['b2,2,36,8 l10,12,20,2.5 l6,16,28,2.5 l2,21,16,2 l2,24.5,14,2 q28,19,9,9',"
+         "'b2,2,26,8 l7,12,16,2.5 l4,16,22,2.5 l2,21,8,1.5 l2,23.5,14,3 l2,28,8,1.5 q11,31,8,8'],"
+         "['l8,2,24,4 b2,8,36,4 l6,14,28,3 l2,19,8,1.5 l2,21.5,14,3 l22,19,8,1.5 l22,21.5,14,3 l2,26,8,1.5',"
+         "'l6,2,18,4 b2,8,26,4 l4,14,22,3 l2,19,8,1.5 l2,21.5,14,3 l2,26,8,1.5 l2,28.5,14,3 l2,33,8,1.5 l2,35.5,14,3']];"
+         "function icon(p,up){const w=up?30:40,h=up?40:30;"
+         "let s='<svg viewBox=\"0 0 '+w+' '+h+'\" width=\"'+w*1.4+'\" height=\"'+h*1.4+'\">'"
+         "+'<rect x=\".5\" y=\".5\" width=\"'+(w-1)+'\" height=\"'+(h-1)+'\" rx=\"2\" fill=\"none\" stroke=\"currentColor\" stroke-opacity=\".4\"/>';"
+         "IC[p][up?1:0].split(' ').forEach(function(t){const v=t.slice(1).split(',');"
+         "s+='<rect x=\"'+v[0]+'\" y=\"'+v[1]+'\" width=\"'+v[2]+'\" height=\"'+v[3]+'\" fill=\"currentColor\"'"
+         "+(t[0]==='l'?' fill-opacity=\".45\"':'')+'/>';});return s+'</svg>';}"
+         "function tiles(d){const up=!!(d.options&PB);"
+         "document.querySelectorAll('#lori .btab').forEach(function(b){b.classList.toggle('on',+b.dataset.o===(up?1:0));});"
+         "document.querySelectorAll('#lpre .btab').forEach(function(b){"
+         "b.classList.toggle('on',+b.dataset.p===d.preset);const k=up?'u':'f';if(b.dataset.k===k)return;"
+         "b.dataset.k=k;b.querySelector('.lb-ic').innerHTML=icon(+b.dataset.p,up);});}"
+         // The line budget: the fact switches that are off close once it is
+         // full, and a template from before that holds more says so.
+         "function capRow(d){const f=mask('lf')&d.factBits;let n=0;"
+         "for(let b=0;b<32;b++)if(f&(1<<b))n++;"
+         "$('lcap').textContent=L.cap.replace('%d',n).replace('%d',d.cap);"
+         "const m=$('lcap-s');m.textContent=n>d.cap?L.capOver:(n===d.cap?L.capFull:'');"
+         "m.classList.toggle('bad',n>d.cap);"
+         "document.querySelectorAll('#lf input').forEach(function(i){const b=+i.dataset.b;"
+         "i.disabled=(b===QRB&&!d.hasQr)||(!i.checked&&!!(d.factBits&(1<<b))&&n>=d.cap);"
+         "i.closest('label').classList.toggle('off',i.disabled);});}"
+         "function opts(){return mask('lo')|(S.options&PB);}");
 }
 
 // The state, the preview and the saving; the handlers are bound below.
@@ -303,9 +367,21 @@ static void scriptFunctions(String& h) {
   h += jsStr(T(STR_W_L_SRC_NO_SPOOL));
   h += F(",rotated:");
   h += jsStr(T(STR_W_L_SRC_ROTATED));
-  h += F("};"
-         "let S=null,shown='',timer=0,srcKey='';"
-         "function mask(box){let m=0;"
+  h += F(",upright:");
+  h += jsStr(T(STR_W_L_UPRIGHT));
+  h += F(",cap:");
+  h += jsStr(T(STR_W_L_CAP));
+  h += F(",capFull:");
+  h += jsStr(T(STR_W_L_CAP_FULL));
+  h += F(",capOver:");
+  h += jsStr(T(STR_W_L_CAP_OVER));
+  h += F("};const QRB=");
+  h += String((int)LF_QR);
+  h += F(",PB=");
+  h += String(1u << LO_PORTRAIT);
+  h += F(";let S=null,shown='',timer=0,srcKey='';");
+  scriptTemplate(h);
+  h += F("function mask(box){let m=0;"
          "document.querySelectorAll('#'+box+' input').forEach(function(i){"
          "if(i.checked)m|=1<<(+i.dataset.b);});return m;}"
          "function setMask(box,m){document.querySelectorAll('#'+box+' input').forEach(function(i){"
@@ -339,12 +415,10 @@ static void scriptFunctions(String& h) {
          "o.textContent=p.name+(p.rotated?' \u00b7 '+L.rotated:(p.fit?'':' \u00b7 '+p.size));"
          "o.disabled=!p.fit&&p.id!==d.source;"
          "b.appendChild(o);});b.value=String(d.source);}"
-         "function paint(d){S=d;srcRow(d);"
-         "document.querySelectorAll('#lpre .btab').forEach(function(b){"
-         "b.classList.toggle('on',+b.dataset.p===d.preset);});"
-         "setMask('lf',d.fields);setMask('lo',d.options);"
+         "function paint(d){S=d;srcRow(d);tiles(d);"
+         "setMask('lf',d.fields);setMask('lo',d.options);capRow(d);"
          "$('lsp').textContent=d.spool?(d.spool.text+' \u00b7 #'+d.spool.id+(d.spool.on?'':' '+L.offPad)):'-';"
-         "$('lme').textContent=d.media+' \u00b7 '+d.model;"
+         "$('lme').textContent=d.media+(d.options&PB?' \u00b7 '+L.upright:'')+' \u00b7 '+d.model;"
          "$('lsa').style.display=d.spool||srv(d)?'none':'';"
          "$('lnp').style.display=d.configured?'none':'';"
          "$('lpb').disabled=!d.spool||!d.canPrint;"
@@ -367,8 +441,11 @@ static void scriptFunctions(String& h) {
 static void scriptBindings(String& h) {
   h += F("document.querySelectorAll('#lpre .btab').forEach(function(b){"
          "b.addEventListener('click',function(){if(S)save(+b.dataset.p,S.fields,S.options);});});"
+         "document.querySelectorAll('#lori .btab').forEach(function(b){"
+         "b.addEventListener('click',function(){if(S)save(S.preset,S.fields,"
+         "(S.options&~PB)|(+b.dataset.o?PB:0));});});"
          "document.querySelectorAll('#lf input,#lo input').forEach(function(i){"
-         "i.addEventListener('change',function(){if(S)save(S.preset,mask('lf'),mask('lo'));});});"
+         "i.addEventListener('change',function(){if(!S)return;capRow(S);save(S.preset,mask('lf'),opts());});});"
          "$('lr').addEventListener('click',function(){postFlash('/api/label/reset','','ls-s',2500).then(load);});"
          "$('lsrc').addEventListener('change',function(){"
          "postFlash('/api/label/source',$('lsrc').value,'lsrc-s',2500).then(load);});"
@@ -399,20 +476,25 @@ static String body() {
   return h;
 }
 
-// A raster's label part, from dot x0 on, as a 1-bit BMP.
-static void sendRasterBmp(WebServer& srv, const LabelRaster& r, uint16_t x0) {
-  const uint16_t w = r.content_width;
+// A raster's label part, from dot x0 on, as a 1-bit BMP; an upright label
+// turned back so it reads as it will on the spool.
+static void sendRasterBmp(WebServer& srv, const LabelRaster& r, uint16_t x0, bool upright) {
+  const uint16_t w = upright ? r.height : r.content_width;
+  const uint16_t h = upright ? r.content_width : r.height;
   const uint32_t row = labelBmpRowBytes(w);
-  const uint32_t bytes = labelBmpFileBytes(w, r.height);
+  const uint32_t bytes = labelBmpFileBytes(w, h);
   uint8_t* bmp = (uint8_t*)heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM);
   if (!bmp) {
     logSD("Web: no PSRAM for the label preview");
     srv.send(503, "text/plain", T(STR_W_L_PREVIEW_FAIL));
     return;
   }
-  labelBmpHeader(w, r.height, bmp);
-  for (uint16_t y = 0; y < r.height; y++)
-    labelBmpRow(r, x0, w, y, bmp + LABEL_BMP_HEADER_BYTES + size_t(y) * row);
+  labelBmpHeader(w, h, bmp);
+  for (uint16_t y = 0; y < h; y++) {
+    uint8_t* out = bmp + LABEL_BMP_HEADER_BYTES + size_t(y) * row;
+    if (upright) labelBmpRowUpright(r, x0, r.content_width, y, out);
+    else labelBmpRow(r, x0, w, y, out);
+  }
   srv.sendHeader("Cache-Control", "no-store");
   srv.setContentLength(bytes);
   srv.send(200, "image/bmp", "");
@@ -429,14 +511,14 @@ static void sendServerPreview(WebServer& srv, const LabelPrinterConfig& c) {
   // enough to be fetched again: the page asks for it right after.
   const LabelRaster* in_hand = labelServerPreviewInHand(c, id);
   if (in_hand) {
-    sendRasterBmp(srv, *in_hand, 0);
+    sendRasterBmp(srv, *in_hand, 0, false);
     return;
   }
   const LabelRaster* r = nullptr;
   const char* reason = "";
   switch (labelServerPreview(c, id, &r, &reason)) {
     case LSP_READY:
-      sendRasterBmp(srv, *r, 0);
+      sendRasterBmp(srv, *r, 0, false);
       return;
     case LSP_LOADING:
       srv.send(202, "text/plain", T(STR_W_L_PREVIEW_LOADING));
@@ -456,13 +538,14 @@ static void sendPreview(WebServer& srv) {
   }
   SpoolLabelData spool{};
   if (!labelSpoolLast(&spool)) sampleSpool(&spool);
+  const LabelLayout layout = labelLayoutLoad();
   LabelRaster r{};
-  if (!labelRenderSpool(c, labelLayoutLoad(), spool, &r)) {
+  if (!labelRenderSpool(c, layout, spool, &r)) {
     labelRasterFree(&r);
     srv.send(409, "text/plain", T(STR_W_L_PREVIEW_FAIL));
     return;
   }
-  sendRasterBmp(srv, r, labelPrinterContentX(c));
+  sendRasterBmp(srv, r, labelPrinterContentX(c), labelLayoutOption(layout, LO_PORTRAIT));
   labelRasterFree(&r);
 }
 

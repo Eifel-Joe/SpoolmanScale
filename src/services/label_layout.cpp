@@ -41,6 +41,41 @@ bool labelLayoutOption(const LabelLayout& layout, LabelOption option) {
   return (layout.options >> option) & 1u;
 }
 
+bool labelPresetHasQr(uint8_t preset) {
+  return preset != LABEL_PRESET_TEXT_ONLY;
+}
+
+// The rolls come 30 mm along the feed, 40 or 50 across. Measured in the
+// simulator on 40 x 30 and 50 x 30, flat and upright, with the longest
+// lines of the fixture spools: what each arrangement prints without a line
+// running into the margin or the code shrinking under its readable size.
+#define LL_LONG_ROLL_MM 50
+enum CapacityRow { CAP_FLAT_40, CAP_FLAT_50, CAP_UPRIGHT_40, CAP_UPRIGHT_50, CAP_ROWS };
+static const uint8_t FACT_CAPACITY[CAP_ROWS][LABEL_PRESET_COUNT] = {
+  // standard, compact, big code, material big, text only
+  { 5, 6, 6, 3, 4 },   // 40 x 30
+  { 5, 6, 6, 3, 6 },   // 50 x 30
+  { 3, 4, 2, 2, 4 },   // 30 x 40
+  { 5, 6, 4, 3, 6 },   // 30 x 50
+};
+
+int labelFactCapacity(uint8_t preset, uint16_t width_mm, uint16_t length_mm, bool portrait) {
+  if (preset >= LABEL_PRESET_COUNT) preset = LABEL_PRESET_STANDARD;
+  const uint16_t longer = width_mm > length_mm ? width_mm : length_mm;
+  const bool long_roll = longer >= LL_LONG_ROLL_MM;
+  const CapacityRow row = portrait ? (long_roll ? CAP_UPRIGHT_50 : CAP_UPRIGHT_40)
+                                   : (long_roll ? CAP_FLAT_50 : CAP_FLAT_40);
+  return FACT_CAPACITY[row][preset];
+}
+
+uint32_t labelFactFields(uint8_t preset) {
+  uint32_t m = (1u << LF_SPOOL_ID) | (1u << LF_COLOR) | (1u << LF_DATE) | (1u << LF_BRAND) |
+               (1u << LF_ARTICLE);
+  // The compact arrangement sets the maker among the facts.
+  if (preset == LABEL_PRESET_COMPACT) m |= 1u << LF_VENDOR;
+  return m;
+}
+
 LabelLayout labelLayoutLoad() {
   if (s_loaded) return s_layout;
   LabelLayout l = labelLayoutDefault();

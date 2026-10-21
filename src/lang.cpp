@@ -3481,9 +3481,9 @@ const char* const STRINGS[][3] = {
   { "QR groß",
     "Large QR",
     "Grand QR" },  // STR_W_L_P_BIG_QR
-  { "Standard: Hersteller groß oben. Kompakt: Hersteller klein bei den Angaben, der QR-Code wird größer. QR groß: der Code über die ganze Höhe, der Text daneben.",
-    "Standard: the vendor large on top. Compact: the vendor small among the details, the QR code grows. Large QR: the code across the full height, the text beside it.",
-    "Standard : le fabricant en grand en haut. Compact : le fabricant en petit parmi les infos, le code QR grandit. Grand QR : le code sur toute la hauteur, le texte à côté." },  // STR_W_L_ARRANGE_HINT
+  { "Standard: Hersteller groß oben. Kompakt: Hersteller klein bei den Angaben, der QR-Code wird größer. QR groß: der Code über die ganze Höhe, der Text daneben. Material groß: das Material über ein Viertel der Höhe, der Code klein. Nur Text: kein Code, die Angaben groß, wo Platz ist in zwei Spalten.",
+    "Standard: the vendor large on top. Compact: the vendor small among the details, the QR code grows. Large QR: the code across the full height, the text beside it. Large material: the material across a quarter of the height, the code small. Text only: no code, the details large, in two columns where they fit.",
+    "Standard : le fabricant en grand en haut. Compact : le fabricant en petit parmi les infos, le code QR grandit. Grand QR : le code sur toute la hauteur, le texte à côté. Matière en grand : la matière sur un quart de la hauteur, le code en petit. Texte seul : sans code, les infos en grand, sur deux colonnes si elles tiennent." },  // STR_W_L_ARRANGE_HINT
   { "Felder",
     "Fields",
     "Champs" },  // STR_W_L_FIELDS
@@ -3650,6 +3650,23 @@ const char* const STRINGS[][3] = {
     "The tag on the reader is erased.",
     "Le tag posé est effacé." },  // STR_FREE_TAG_ERASE_LINE
   { "Freigeben", "Release", "Libérer" },  // STR_BTN_FREE_TAG
+  // Label editor: more arrangements, upright labels, a line budget
+  { "Material groß", "Large material",
+    "Matière en grand" },  // STR_W_L_P_MATERIAL_BIG
+  { "Nur Text", "Text only",
+    "Texte seul" },  // STR_W_L_P_TEXT_ONLY
+  { "Ausrichtung", "Orientation",
+    "Orientation" },  // STR_W_L_ORIENT
+  { "Quer", "Landscape",
+    "Paysage" },  // STR_W_L_FLAT
+  { "Hochkant", "Portrait",
+    "Portrait" },  // STR_W_L_UPRIGHT
+  { "Zeilen: %d von %d", "Lines: %d of %d",
+    "Lignes : %d sur %d" },  // STR_W_L_CAP
+  { "Mehr Zeilen passen auf dieses Etikett nicht.", "No more lines fit on this label.",
+    "Aucune ligne de plus ne tient sur cette étiquette." },  // STR_W_L_CAP_FULL
+  { "Die letzten Zeilen passen nicht und fallen weg.", "The last lines do not fit and are left off.",
+    "Les dernières lignes ne tiennent pas et sont omises." },  // STR_W_L_CAP_OVER
 };
 
 StringID tagWriteResultString(uint8_t code) {
