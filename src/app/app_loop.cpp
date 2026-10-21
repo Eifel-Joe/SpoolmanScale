@@ -356,6 +356,18 @@ constexpr int NFC_UID_PROBE_AFTER_RETRIES = 1;
 // count each time and re-scan forever. The counter is only cleared once the
 // tag has really been gone for a while, or when a different tag shows up.
 constexpr unsigned long NFC_RETRY_RESET_ABSENT_MS = 10000;
+
+// A Creality tag that stops answering right after its read is woken, but only
+// this long after it last answered: a spool turned so the tag is out of reach
+// (13.10.2026) does not come back from any wake. Beyond it the usual grace
+// period decides.
+constexpr unsigned long NFC_CFS_RECOVER_WINDOW_MS = 3000;
+// At most one wake per interval, so a spool that really left costs a few
+// wake attempts and not more.
+constexpr unsigned long NFC_CFS_RECOVER_EVERY_MS  = 400;
+// Wakes logged per tag: the first few, then one in this many.
+constexpr int NFC_CFS_RECOVER_LOG_FIRST = 3;
+constexpr int NFC_CFS_RECOVER_LOG_EVERY = 50;
 }
 
 // The WiFi setup screen scans for networks, and wifiManagerPrepareScan() calls
@@ -1912,7 +1924,9 @@ void appLoop() {
             // tag. It goes through the family choice below like a new UID;
             // until 12.10.2026 it only re-ran the Bambu scan, so a Creality
             // tag put back after ten seconds was never tried with its key.
-            new_placement = true;
+            // Creality tags only: with them off, the same tag back gets its
+            // retries again and nothing else, as before.
+            new_placement = g_creality_tags;
           }
           tag_absent_since_ms = 0;
         }
@@ -2388,8 +2402,8 @@ void appLoop() {
         const bool lifted = g_scale_fitted && weight_at_last_read >= LOC_WEIGHT_MIN_G &&
                             scale_weight_g < weight_at_last_read - LOC_WEIGHT_TOLERANCE_G;
         if (!held && !lifted && tag_present && (creality_decoded || blank_mifare) && last_uid_len == 4 &&
-            millis() - last_tag_seen_ms < 3000 &&
-            millis() - last_presence_recover_ms >= 400) {
+            millis() - last_tag_seen_ms < NFC_CFS_RECOVER_WINDOW_MS &&
+            millis() - last_presence_recover_ms >= NFC_CFS_RECOVER_EVERY_MS) {
           last_presence_recover_ms = millis();
           const int w = crealityRecoverCard(g_tag.uid, g_tag.uid_str);
           if (strcmp(recover_uid, g_tag.uid_str) != 0) {
@@ -2398,7 +2412,8 @@ void appLoop() {
           }
           if (w) {
             recovered = true;
-            if (++recover_count <= 3 || recover_count % 50 == 0) {
+            if (++recover_count <= NFC_CFS_RECOVER_LOG_FIRST ||
+                recover_count % NFC_CFS_RECOVER_LOG_EVERY == 0) {
               logSDf("NFC: %s stopped answering, woken again (woke=%d, %d so far)",
                      g_tag.uid_str, w, recover_count);
             }
@@ -2440,8 +2455,11 @@ void appLoop() {
           const bool weight_gone = weightSaysSpoolGone() &&
                                    nfc_fast_polls >= NFC_GONE_MIN_MISSES;
           if (!weight_gone && !retrying && millis() - first_miss_ms >= absent_limit &&
-              padCarriesSpool()) {
+              g_creality_tags && last_uid_len == 4 && padCarriesSpool()) {
             // Silent tag, unchanged weight: the spool is still lying there.
+            // Creality tags only, and only for a 4 byte tag: the weak CFS tags
+            // on a side-mounted reader are what this is for, and with the
+            // switch off the removal works exactly as before.
             tag_kept_by_weight = true;
             nfc_fast_polls = 0;
             last_tag_seen_ms = millis();

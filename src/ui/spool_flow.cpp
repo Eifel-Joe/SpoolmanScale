@@ -1436,7 +1436,9 @@ static void armLinkFollowUps(int spool_id, bool is_bambu) {
 static char s_link_uid_hold[24] = "";
 
 void doLinkPatch(int spool_id, bool is_bambu) {
-  if (!is_bambu && !link_tag_uid[0] && s_link_uid_hold[0]) {
+  // Creality tags only: the weak 4 byte tags this is for are read only with
+  // them on, and with them off a link behaves exactly as before.
+  if (g_creality_tags && !is_bambu && !link_tag_uid[0] && s_link_uid_hold[0]) {
     logSDf("Link: %s dropped off the reader while the spool was picked, linking it anyway",
            s_link_uid_hold);
     snprintf(link_tag_uid, sizeof(link_tag_uid), "%s", s_link_uid_hold);
