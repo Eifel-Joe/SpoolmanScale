@@ -77,9 +77,10 @@ static const LabelPrinterProfile PROFILE_NIIMBOT_B = {
 };
 // NIIMBOT M2: 300 dpi, 567 dots, which is 71 bytes and so a 568 dot row.
 // Prints through a ribbon, so the label survives the dryer. Same protocol,
-// the B1's sequence.
+// the B1's sequence. 50 x 30 is the first roll for it (Nikolai, 21.10.2026),
+// of which the 48 mm head prints 48, as on the B1.
 static const LabelPrinterProfile PROFILE_NIIMBOT_M2 = {
-  LP_MODEL_NIIMBOT_M2, "NIIMBOT", "M2", 40, 30, 20, 50, 10, 150, 568, 568, true, false,
+  LP_MODEL_NIIMBOT_M2, "NIIMBOT", "M2", 50, 30, 20, 50, 10, 150, 568, 568, true, false,
   300, LP_PROTO_NIIMBOT
 };
 
