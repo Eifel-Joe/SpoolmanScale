@@ -26,7 +26,10 @@ using namespace labeldraw;
 // The blocks grow with the roll. 40 x 30 is the base; from LR_TALL_PX in
 // both directions the band, the fonts and the fact lines take the larger sizes.
 #define LR_TALL_PX       300
-#define LR_BAND_H_PX      30    // the material band on the base size
+#define LR_BAND_H_PX      32    // the material band on the base size, 24 px in it
+#define LR_BAND_FONT      (&lv_font_montserrat_ext_24)
+#define LR_BAND_THICK_X    1    // extra dots of white across, on the black band
+#define LR_BAND_THICK_Y    1    // and down
 #define LR_BAND_H_TALL_PX 40
 #define LR_BAND_H_BIG_PX  60    // the material-first band, a quarter of 30 mm
 #define LR_FACT_LINE_PX   22    // one fact line in the 16 px font
@@ -144,9 +147,15 @@ static lv_coord_t drawHeader(lv_obj_t* canvas, const LabelArea& a, bool tall,
     // Plain: the same line in black on white, for a roll that smears a band.
     const bool plain = labelLayoutOption(layout, LO_MATERIAL_PLAIN);
     if (!plain) fillRect(canvas, a.x, y, a.w, band_h, black);
-    const lv_font_t* f = tall ? &lv_font_montserrat_ext_28 : &lv_font_montserrat_ext_22;
-    drawLine(canvas, a.x, y + (band_h - lineHeight(f)) / 2, a.w, f,
-             plain ? black : lv_color_white(), LV_TEXT_ALIGN_CENTER, d.material);
+    const lv_font_t* f = tall ? &lv_font_montserrat_ext_28 : LR_BAND_FONT;
+    const lv_coord_t ty = y + (band_h - lineHeight(f)) / 2;
+    // White on black is drawn heavier still: the black around it bleeds into
+    // the strokes on a thermal head, and the base size's 22 px came out thin.
+    const lv_coord_t thick_x = plain ? 0 : dots(LR_BAND_THICK_X), thick_y = plain ? 0 : dots(LR_BAND_THICK_Y);
+    for (lv_coord_t dy = 0; dy <= thick_y; dy++)
+      for (lv_coord_t dx = 0; dx <= thick_x; dx++)
+        drawLine(canvas, a.x + dx, ty + dy, a.w, f, plain ? black : lv_color_white(),
+                 LV_TEXT_ALIGN_CENTER, d.material);
     y += band_h + dots(LR_GAP_PX);
   }
   if (d.name[0] && labelLayoutHas(layout, LF_NAME)) {

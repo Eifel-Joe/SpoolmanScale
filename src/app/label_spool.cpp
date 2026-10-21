@@ -76,7 +76,7 @@ static void driedToLocal(const char* de, char* out, size_t n) {
   if (sscanf(de, "%2d.%2d.%4d", &day, &m, &y) != 3) return;
   char ymd[16];
   snprintf(ymd, sizeof(ymd), "%04d-%02d-%02d", y, m, day);
-  isoToLocal(ymd, out, n);
+  isoToLabelDate(ymd, out, n);
 }
 
 static SpoolLabelData s_last{};
@@ -142,14 +142,15 @@ bool labelSpoolLast(SpoolLabelData* out) {
 bool labelSpoolDatesKnown() { return s_have_last && s_dates_for == s_last.id; }
 
 // "2026-03-03T10:00:00Z" as the servers send it, in the date format the
-// display uses (Settings > Language), so label and screen agree.
+// display uses (Settings > Language), so label and screen agree; the year
+// short, as a label has the room for it.
 static void isoToDate(const char* iso, char* out, size_t n) {
   out[0] = '\0';
   int y = 0, m = 0, day = 0;
   if (!iso || sscanf(iso, "%4d-%2d-%2d", &y, &m, &day) != 3) return;
   char ymd[16];
   snprintf(ymd, sizeof(ymd), "%04d-%02d-%02d", y, m, day);
-  isoToLocal(ymd, out, n);
+  isoToLabelDate(ymd, out, n);
 }
 
 // A temperature as the backend gave it, 0 for none or nonsense.

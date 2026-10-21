@@ -52,7 +52,8 @@ static void addFact(LabelFactList* l, int capacity, const LabelFact& f) {
     value = l->values[l->n];
   }
   char joined[sizeof(l->lines[0]) * 2];
-  if (hasText(f.caption) && value) snprintf(joined, sizeof(joined), "%s  %s", f.caption, value);
+  // "Added: 30.04.26", with the colon as the language sets it.
+  if (hasText(f.caption) && value) snprintf(joined, sizeof(joined), T(STR_LBL_FACT_FMT), f.caption, value);
   else snprintf(joined, sizeof(joined), "%s", hasText(f.caption) ? f.caption : (value ? value : ""));
   char* line = l->lines[l->n];
   utf8Cut(joined, sizeof(l->lines[0]) - 1, line, sizeof(l->lines[0]));

@@ -33,6 +33,7 @@
 #include "services/label_layout.h"
 #include "services/label_printer.h"
 #include "services/label_render.h"
+#include "ui/date_display.h"
 #include "ui/printer_screen.h"
 #include "web/web_access.h"
 #include "web/web_printer_select.h"
@@ -86,13 +87,13 @@ static void sampleSpool(SpoolLabelData* d) {
   snprintf(d->name, sizeof(d->name), "PLA Basic Jade White");
   snprintf(d->color, sizeof(d->color), "F2F2E8");
   snprintf(d->article, sizeof(d->article), "10100");
-  snprintf(d->first_used, sizeof(d->first_used), "03.03.2026");
-  snprintf(d->added, sizeof(d->added), "01.03.2026");
+  isoToLabelDate("2026-03-03", d->first_used, sizeof(d->first_used));
+  isoToLabelDate("2026-03-01", d->added, sizeof(d->added));
   d->filament_id = 21;
   d->spool_weight_g = 250;
   d->net_weight_g = 1000;
   snprintf(d->location, sizeof(d->location), "Regal 2");
-  snprintf(d->dried, sizeof(d->dried), "10.03.2026");
+  isoToLabelDate("2026-03-10", d->dried, sizeof(d->dried));
   d->nozzle_min = 190;
   d->nozzle_max = 230;
   d->bed_temp = 55;
@@ -548,9 +549,9 @@ static void scriptBindings(String& h) {
          "$('lsrc').addEventListener('change',function(){"
          "postFlash('/api/label/source',$('lsrc').value,'lsrc-s',2500).then(load);});"
          "$('lp').addEventListener('error',function(){$('lp-s').textContent=L.fail;shown='';});"
+         "$('lp').addEventListener('load',function(){var i=$('lp');"
          // Hard dot edges only where the dots are enlarged; shrunk, the
          // nearest dot would drop whole rows of them.
-         "$('lp').addEventListener('load',function(){var i=$('lp');"
          "i.style.imageRendering=i.clientWidth*(window.devicePixelRatio||1)>=i.naturalWidth?'pixelated':'auto';});"
          // The print takes about ten seconds on the scale; the verdict is
          // fetched after that and shown on the last line.

@@ -1707,6 +1707,8 @@ enum StringID {
   STR_PS_SERVER,
   STR_PS_SERVER_SUB,
   STR_PS_MORE_WEB,
+  // A fact on a printed label, caption and value on one line
+  STR_LBL_FACT_FMT,
 
   STR_COUNT
 };

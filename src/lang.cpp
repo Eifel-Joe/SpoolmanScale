@@ -3720,6 +3720,8 @@ const char* const STRINGS[][3] = {
     "Navigateur, Étiquettes" },  // STR_PS_SERVER_SUB
   { "Felder, eigene Zeile und FilaMan-Vorlagen stellst du im Browser ein:", "Fields, the own line and FilaMan presets are set in the browser:",
     "Champs, ligne libre et modèles FilaMan : dans le navigateur" },  // STR_PS_MORE_WEB
+  // A fact on a printed label, caption and value on one line
+  { "%s: %s", "%s: %s", "%s : %s" },  // STR_LBL_FACT_FMT
 };
 
 StringID tagWriteResultString(uint8_t code) {

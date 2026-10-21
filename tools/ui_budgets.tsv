@@ -322,3 +322,4 @@ STR_TILE_DISPLAY_SUB	12	206	NEVER	src/ui/settings_screen.cpp:95 tile subtitle, 2
 STR_SCALE_TITLE	18	376	NEVER	src/ui/ui_common.cpp:259 sub header title, 480 - 2 * (44 + 2 * 4)
 STR_PS_PRINT	20	204	NEVER	src/ui/print_sheet.cpp:246 220 px print button, -16 air
 STR_PS_SERVER	16	320	NEVER	src/ui/print_sheet.cpp:313 list row title, makeListBtn text_w 320
+STR_LBL_FACT_FMT	16	304	NEVER	src/services/label_facts.cpp:56 format of a printed fact line, drawLine cuts it to the label
