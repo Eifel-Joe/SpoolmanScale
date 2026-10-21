@@ -77,10 +77,12 @@ extern bool g_wake_on_load;
 // Only in the web interface, the device has no screen to spare for it.
 extern bool g_snapmaker_tags;
 
-// Try Creality's key on a 4 byte tag that refused the Bambu ones, and read
-// material, colour and weight off a CFS tag (K2 Plus, K2 Pro, K2 Max, Hi).
-// On by default: the key is derived from the UID without any guessing, so the
-// attempt costs other 4 byte tags one failed authentication.
+// Read Creality CFS tags (K2 Plus, K2 Pro, K2 Max, Hi): material, colour and
+// weight, and offer to write a blank MIFARE tag as one. Opt-in, off by
+// default like Snapmaker: the Creality key costs every other 4 byte tag one
+// refused authentication on its first placement, and that cost belongs to
+// the people who want the feature. Off, none of it touches the reader, the
+// data partition or the network.
 extern bool g_creality_tags;
 
 // Where the drying date goes in BamBuddy mode. BamBuddy has no field for it

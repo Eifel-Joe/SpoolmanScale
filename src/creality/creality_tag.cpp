@@ -8,6 +8,15 @@
 
 #include "mbedtls/aes.h"
 
+// 330 m of 1.75 mm PLA weigh a kilogram: the length classes Creality writes.
+static constexpr int CFS_METRES_PER_KG = 330;
+// Six decimal digits of serial on the tag.
+static constexpr int CFS_SERIAL_RANGE = 1000000;
+// What a record carries when the clock or the colour is unknown: the date on
+// Creality's own sample record, and mid grey.
+static const char CFS_FALLBACK_DATE[]  = "AB124";
+static const char CFS_FALLBACK_COLOR[] = "808080";
+
 // Both keys are the ones Creality's firmware and every community writer use
 // (CFS RFID app, CFTag, K2-RFID). They are not secrets of this project.
 static const uint8_t SECTOR_SECRET[16] = {
@@ -160,9 +169,9 @@ static uint16_t weightFromLength(const char len4[4], uint16_t* metres_out) {
   int m = atoi(buf);
   *metres_out = (uint16_t)m;
   if (m <= 0) return 0;
-  // 330 m of 1.75 mm PLA is a kilogram. Other materials differ by their
+  // Metres to grams as for 1.75 mm PLA. Other materials differ by their
   // density, which only the spool record in Spoolman knows.
-  return (uint16_t)((m * 1000 + 165) / 330);
+  return (uint16_t)((m * 1000 + CFS_METRES_PER_KG / 2) / CFS_METRES_PER_KG);
 }
 
 static bool isHexStr(const char* s, int n) {
@@ -364,10 +373,11 @@ bool crealityBuildRecord(const CrealityRecordIn& in, char out[41]) {
     snprintf(date, sizeof(date), "%1X%02X%02X", in.month,
              ((in.day / 10) << 4) | (in.day % 10), (unsigned)(in.year % 100));
   } else {
-    snprintf(date, sizeof(date), "AB124");
+    snprintf(date, sizeof(date), "%s", CFS_FALLBACK_DATE);
   }
   char fid[7]; crealityFilamentIdFor(in.vendor, in.name, in.material, fid);
-  char color[7] = "808080";
+  char color[7];
+  snprintf(color, sizeof(color), "%s", CFS_FALLBACK_COLOR);
   const char* c = in.color_hex ? in.color_hex : "";
   if (*c == '#') c++;
   if (strlen(c) >= 6) {
@@ -376,7 +386,7 @@ bool crealityBuildRecord(const CrealityRecordIn& in, char out[41]) {
     if (hex) for (int i = 0; i < 6; i++) color[i] = (char)toupper((unsigned char)c[i]);
   }
   char len[5]; crealityLengthCodeFor(in.net_g, len);
-  const int serial = in.spool_id > 0 ? in.spool_id % 1000000 : 1;
+  const int serial = in.spool_id > 0 ? in.spool_id % CFS_SERIAL_RANGE : 1;
   const int n = snprintf(out, 41, "%s0276A2%s0%s%s%06d000000", date, fid, color, len, serial);
   return n == 40;
 }

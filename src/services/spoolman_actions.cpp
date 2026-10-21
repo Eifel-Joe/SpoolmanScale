@@ -881,8 +881,10 @@ void spoolNfcUidAdd(int spool_id, const char* value, const uint8_t uid[4]) {
 // An unlink has to: the lookup also searches every extra field, so a UID left
 // in nfc_uid brought spool 9 straight back on 14.10.2026 ("Auto-link") a
 // second after "Alle lösen".
+// Only with Creality tags on: it costs every unlink a GET of the spool, and
+// with the switch off an unlink must cost what it did before.
 void spoolNfcUidForget(int spool_id, const char* uid, bool all) {
-  if (backendMode() != BACKEND_SPOOLMAN || spool_id <= 0) return;
+  if (!g_creality_tags || backendMode() != BACKEND_SPOOLMAN || spool_id <= 0) return;
   JsonDocument doc;
   if (backendGetSpoolJson(backendBaseUrl(), spool_id, doc) != 200 || doc.isNull()) return;
   char list[NFC_UID_LIST_BYTES];
