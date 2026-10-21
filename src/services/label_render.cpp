@@ -495,8 +495,13 @@ static const FactStyle FACT_STYLES[] = {
   { &lv_font_montserrat_ext_20, &lv_font_montserrat_ext_14, true },
   { &lv_font_montserrat_ext_24, &lv_font_montserrat_ext_14, false },
   { &lv_font_montserrat_ext_20, &lv_font_montserrat_ext_14, false },
+  // The small lines once more, for a label without a code only: in two
+  // columns they hold what one column would push off the label.
+  { &lv_font_montserrat_ext_16, &lv_font_montserrat_ext_14, false },
 };
 static const int FACT_STYLE_COUNT = sizeof(FACT_STYLES) / sizeof(FACT_STYLES[0]);
+// The last one, which only a label without a code may take.
+static const FactStyle* const FACT_STYLE_NO_CODE = &FACT_STYLES[FACT_STYLE_COUNT - 1];
 
 // cols: 2 when the facts stand in two columns, the first half on the left.
 struct FactsPlan { const FactStyle* style; lv_coord_t code; lv_coord_t text_h; int cols; };
@@ -551,7 +556,8 @@ static bool planLarger(const LabelArea& a, bool tall, const LabelContent& c,
   const lv_coord_t avail_h = a.bottom - a.y;
   for (int i = 0; i < FACT_STYLE_COUNT; i++) {
     const FactStyle& s = FACT_STYLES[i];
-    if (s.value->line_height <= one.font->line_height) continue;
+    if (&s == FACT_STYLE_NO_CODE ? !a.columns : s.value->line_height <= one.font->line_height)
+      continue;
     if (!tall && s.value->line_height > lv_font_montserrat_ext_24.line_height) continue;
     const lv_coord_t w = factsWidth(c, s);
     if (w == 0) continue;
@@ -693,7 +699,7 @@ static bool renderLabel(const LabelPrinterConfig& printer, const LabelLayout& la
   const lv_coord_t qr_max = labelPrinterDotsForMm(printer.model,
       preset == LABEL_PRESET_MATERIAL_BIG ? LR_QR_SMALL_MM : LR_QR_MAX_MM);
   LabelArea area{ M, M, (lv_coord_t)(cw - 2 * M), (lv_coord_t)(ch - M), qr_max, !standard,
-                  nullptr, preset == LABEL_PRESET_TEXT_ONLY };
+                  nullptr, !c.qr || !c.qr[0] };
   LabelContent body = c;
   lv_coord_t side_qr = 0;
   if (preset == LABEL_PRESET_BIG_QR) {
@@ -883,12 +889,10 @@ bool labelRenderSpool(const LabelPrinterConfig& printer, const LabelLayout& layo
                       const SpoolLabelData& spool, LabelRaster* out) {
   char qr[LABEL_QR_LEN];
   labelQrForSpool(spool.id, qr, sizeof(qr));
-  const int capacity = labelFactCapacity(layout.preset, printer.media_width_mm,
-                                         printer.media_length_mm,
-                                         labelLayoutOption(layout, LO_PORTRAIT));
+  const int capacity = labelFactCapacity(layout, printer.media_width_mm, printer.media_length_mm);
   LabelFactList l;
   labelSpoolFacts(layout, spool, capacity, &l);
-  const bool code = labelLayoutHas(layout, LF_QR) && labelPresetHasQr(layout.preset);
-  const LabelContent c{ &spool, l.line_ptrs, l.n, false, code ? qr : nullptr, "spool", l.facts };
+  const LabelContent c{ &spool, l.line_ptrs, l.n, false,
+                        labelLayoutHasCode(layout) ? qr : nullptr, "spool", l.facts };
   return renderLabel(printer, layout, c, out);
 }

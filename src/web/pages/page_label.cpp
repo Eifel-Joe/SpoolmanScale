@@ -152,8 +152,7 @@ static String stateJson() {
   // How many fact lines this roll takes in this arrangement, and which
   // fields count: the page holds the switches to it.
   j += F(",\"cap\":");
-  j += String(labelFactCapacity(l.preset, c.media_width_mm, c.media_length_mm,
-                                labelLayoutOption(l, LO_PORTRAIT)));
+  j += String(labelFactCapacity(l, c.media_width_mm, c.media_length_mm));
   j += F(",\"factBits\":"); j += String((unsigned long)labelFactFields(l.preset));
   j += F(",\"hasQr\":");
   j += labelPresetHasQr(l.preset) ? F("true") : F("false");

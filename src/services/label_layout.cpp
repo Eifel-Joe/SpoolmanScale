@@ -52,6 +52,10 @@ bool labelPresetHasQr(uint8_t preset) {
   return preset != LABEL_PRESET_TEXT_ONLY;
 }
 
+bool labelLayoutHasCode(const LabelLayout& layout) {
+  return labelLayoutHas(layout, LF_QR) && labelPresetHasQr(layout.preset);
+}
+
 // The rolls come 30 mm along the feed, 40 or 50 across. Measured in the
 // simulator on 40 x 30 and 50 x 30, flat and upright, with the longest
 // lines of the fixture spools: what each arrangement prints without a line
@@ -59,20 +63,31 @@ bool labelPresetHasQr(uint8_t preset) {
 #define LL_LONG_ROLL_MM 50
 enum CapacityRow { CAP_FLAT_40, CAP_FLAT_50, CAP_UPRIGHT_40, CAP_UPRIGHT_50, CAP_ROWS };
 static const uint8_t FACT_CAPACITY[CAP_ROWS][LABEL_PRESET_COUNT] = {
-  // standard, compact, big code, material big, text only
-  { 5, 6, 6, 3, 4 },   // 40 x 30
-  { 5, 6, 6, 3, 6 },   // 50 x 30
-  { 3, 4, 2, 2, 4 },   // 30 x 40
+  // standard, compact, big code, material big, text only (never has a code)
+  { 5, 6, 6, 3, 5 },   // 40 x 30
+  { 5, 6, 6, 3, 5 },   // 50 x 30
+  { 3, 4, 2, 2, 6 },   // 30 x 40
   { 5, 6, 4, 3, 6 },   // 30 x 50
 };
+// The same with the code switched off: the facts get its room, in two
+// columns where they fit. Flat, a date line is too wide for half the label,
+// so the sixth line has no room there.
+static const uint8_t FACT_CAPACITY_NO_CODE[CAP_ROWS][LABEL_PRESET_COUNT] = {
+  { 5, 6, 5, 5, 5 },
+  { 5, 6, 5, 5, 5 },
+  { 6, 6, 6, 6, 6 },
+  { 6, 6, 6, 6, 6 },
+};
 
-int labelFactCapacity(uint8_t preset, uint16_t width_mm, uint16_t length_mm, bool portrait) {
-  if (preset >= LABEL_PRESET_COUNT) preset = LABEL_PRESET_STANDARD;
+int labelFactCapacity(const LabelLayout& layout, uint16_t width_mm, uint16_t length_mm) {
+  const uint8_t preset = layout.preset < LABEL_PRESET_COUNT ? layout.preset : LABEL_PRESET_STANDARD;
   const uint16_t longer = width_mm > length_mm ? width_mm : length_mm;
   const bool long_roll = longer >= LL_LONG_ROLL_MM;
-  const CapacityRow row = portrait ? (long_roll ? CAP_UPRIGHT_50 : CAP_UPRIGHT_40)
-                                   : (long_roll ? CAP_FLAT_50 : CAP_FLAT_40);
-  return FACT_CAPACITY[row][preset];
+  const CapacityRow row = labelLayoutOption(layout, LO_PORTRAIT)
+      ? (long_roll ? CAP_UPRIGHT_50 : CAP_UPRIGHT_40)
+      : (long_roll ? CAP_FLAT_50 : CAP_FLAT_40);
+  return labelLayoutHasCode(layout) ? FACT_CAPACITY[row][preset]
+                                    : FACT_CAPACITY_NO_CODE[row][preset];
 }
 
 uint32_t labelFactFields(uint8_t preset) {

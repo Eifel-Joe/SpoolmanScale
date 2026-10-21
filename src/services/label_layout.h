@@ -68,10 +68,13 @@ bool labelLayoutOption(const LabelLayout& layout, LabelOption option);
 // Whether an arrangement draws a code at all; the QR field means nothing
 // where it does not.
 bool labelPresetHasQr(uint8_t preset);
-// How many fact lines a label in this arrangement keeps whole on a roll of
-// this size, upright or not. In millimetres, so it holds at 203 and 300 dpi.
-// The renderer stops there, and the browser lets no more be switched on.
-int labelFactCapacity(uint8_t preset, uint16_t width_mm, uint16_t length_mm, bool portrait);
+// Whether this layout's label carries a code: the arrangement has one and
+// the field is on.
+bool labelLayoutHasCode(const LabelLayout& layout);
+// How many fact lines this layout keeps whole on a roll of this size, upright
+// or not, with its code or without. In millimetres, so it holds at 203 and
+// 300 dpi. The renderer stops there, and the browser lets no more be on.
+int labelFactCapacity(const LabelLayout& layout, uint16_t width_mm, uint16_t length_mm);
 // The fields that become a fact line in this arrangement, as a mask: what
 // the capacity counts. The header blocks and the code are not among them.
 uint32_t labelFactFields(uint8_t preset);
