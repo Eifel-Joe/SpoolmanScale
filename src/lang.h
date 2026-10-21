@@ -1709,6 +1709,11 @@ enum StringID {
   STR_PS_MORE_WEB,
   // A fact on a printed label, caption and value on one line
   STR_LBL_FACT_FMT,
+  // Label editor: the drying, and the switches that print nothing
+  STR_LBL_L_DRYING,
+  STR_W_L_F_DRYING,
+  STR_W_L_GAP_SPOOL,
+  STR_W_L_GAP_BACKEND,
 
   STR_COUNT
 };

@@ -33,6 +33,8 @@ jobs:
         run: python3 test/test_label_fit.py
       - name: Test label raster crop
         run: python3 test/test_label_raster_crop.py
+      - name: Test label empty fields
+        run: python3 test/test_label_gaps.py
 
   build:
     name: Build ${{ matrix.env }}

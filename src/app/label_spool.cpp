@@ -13,6 +13,8 @@
 #include "hardware/sd_logger.h"
 #include "services/backend.h"
 #include "services/backend_api.h"
+#include "services/drying_sync.h"
+#include "services/tag_spool_match.h"
 #include "services/text_util.h"
 #include "ui/date_display.h"
 
@@ -43,11 +45,12 @@ struct SpiRamAllocator : ArduinoJson::Allocator {
   }
 };
 
-// What the backend adds to the scan: the dates and the temperatures. One
-// request brings them all, so they travel together.
+// What the backend adds to the scan: the dates, the temperatures and the
+// drying. One request brings them all, so they travel together.
 struct LabelExtras {
   char first[12], added[12];
   int16_t nozzle_min, nozzle_max, bed;
+  int16_t dry_c, dry_h;
 };
 
 static void extrasInto(SpoolLabelData* d, const LabelExtras& e) {
@@ -56,6 +59,11 @@ static void extrasInto(SpoolLabelData* d, const LabelExtras& e) {
   d->nozzle_min = e.nozzle_min;
   d->nozzle_max = e.nozzle_max;
   d->bed_temp = e.bed;
+  // The backend's drying wins; without one the tag's from the scan stays.
+  if (e.dry_c > 0 && e.dry_h > 0) {
+    d->dry_temp_c = e.dry_c;
+    d->dry_hours = e.dry_h;
+  }
 }
 
 static LabelExtras extrasOf(const SpoolLabelData& d) {
@@ -65,6 +73,8 @@ static LabelExtras extrasOf(const SpoolLabelData& d) {
   e.nozzle_min = d.nozzle_min;
   e.nozzle_max = d.nozzle_max;
   e.bed = d.bed_temp;
+  e.dry_c = d.dry_temp_c;
+  e.dry_h = d.dry_hours;
   return e;
 }
 
@@ -106,6 +116,14 @@ bool labelSpoolFromScan(SpoolLabelData* out) {
   if (sm_total > 0) out->net_weight_g = sm_total;
   utf8Cut(sm_location_name, sizeof(out->location) - 1, out->location, sizeof(out->location));
   driedToLocal(sm_last_dried, out->dried, sizeof(out->dried));
+  // The drying a Bambu tag recommends, until the backend's arrives: only
+  // while the tag on the reader is the one that found this spool, and only
+  // where the two agree, the rule drying_sync.cpp writes it back by.
+  if (g_tag.tray_uuid[0] && g_tag.dry_temp_c > 0 && g_tag.dry_hours > 0 &&
+      !tagSpoolLookupDiffers()) {
+    out->dry_temp_c = (int16_t)g_tag.dry_temp_c;
+    out->dry_hours = (int16_t)g_tag.dry_hours;
+  }
   return true;
 }
 
@@ -179,6 +197,15 @@ static bool fetchDates(const char* base_url, int id, LabelExtras* out) {
   e.nozzle_max = tempOf(f["settings_extruder_temp"]);
   e.nozzle_min = tempOf(f["x_extruder_temp_min"]);
   e.bed = tempOf(f["settings_bed_temp"]);
+  // The drying: on the filament in Spoolman and FilaMan, on the spool in
+  // BamBuddy's own inventory, one text field either way.
+  const char* dry = f["extra"]["drying"] | (const char*)nullptr;
+  if (!dry) dry = doc["extra"]["drying"] | "";
+  int dry_c = 0, dry_h = 0;
+  if (dryingParse(dry, &dry_c, &dry_h)) {
+    e.dry_c = (int16_t)dry_c;
+    e.dry_h = (int16_t)dry_h;
+  }
   *out = e;
   return true;
 }

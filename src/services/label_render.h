@@ -46,6 +46,8 @@ struct SpoolLabelData {
   // Asked of the backend with the dates, 0 where it has none. Spoolman keeps
   // one nozzle temperature (nozzle_max), BamBuddy a range and no bed.
   int16_t nozzle_min, nozzle_max, bed_temp;
+  // The drying the filament wants, 0 where neither backend nor tag names one.
+  int16_t dry_temp_c, dry_hours;
 };
 
 // The test label for the printer's loaded stock. The raster is allocated in

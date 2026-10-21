@@ -41,6 +41,15 @@ static bool tempFact(const SpoolLabelData& spool, char* value, size_t n, LabelFa
   return true;
 }
 
+// What the filament wants in the dryer, "85 °C / 8 h". False when neither the
+// backend nor the tag named both.
+static bool dryingFact(const SpoolLabelData& spool, char* value, size_t n, LabelFact* out) {
+  if (spool.dry_temp_c <= 0 || spool.dry_hours <= 0) return false;
+  snprintf(value, n, "%d \xC2\xB0" "C / %d h", spool.dry_temp_c, spool.dry_hours);
+  *out = LabelFact{ T(STR_LBL_L_DRYING), value };
+  return true;
+}
+
 // Appends a fact while the list has room; the value is copied in.
 static void addFact(LabelFactList* l, int capacity, const LabelFact& f) {
   if (l->n >= capacity || l->n >= LABEL_MAX_FACTS) return;
@@ -63,7 +72,8 @@ static void addFact(LabelFactList* l, int capacity, const LabelFact& f) {
 }
 
 // The facts after the date, each off by default: the weights, the
-// temperatures, where the spool is kept and when it was dried, the own line.
+// temperatures and the drying, where the spool is kept and when it was
+// dried, the own line.
 static void addSpoolExtras(LabelFactList* out, int capacity, const LabelLayout& layout,
                            const SpoolLabelData& spool) {
   char grams[16];
@@ -78,6 +88,9 @@ static void addSpoolExtras(LabelFactList* out, int capacity, const LabelLayout& 
   char temps[32];
   LabelFact t;
   if (labelLayoutHas(layout, LF_TEMPS) && tempFact(spool, temps, sizeof(temps), &t))
+    addFact(out, capacity, t);
+  char dry[24];
+  if (labelLayoutHas(layout, LF_DRYING) && dryingFact(spool, dry, sizeof(dry), &t))
     addFact(out, capacity, t);
   if (labelLayoutHas(layout, LF_LOCATION) && spool.location[0])
     addFact(out, capacity, LabelFact{ T(STR_LBL_L_STORED), spool.location });
@@ -134,6 +147,9 @@ void labelFilamentFacts(const LabelLayout& layout, const SpoolLabelData& spool, 
   char temps[32];
   LabelFact t;
   if (labelLayoutHas(layout, LF_TEMPS) && tempFact(spool, temps, sizeof(temps), &t))
+    addFact(out, capacity, t);
+  char dry[24];
+  if (labelLayoutHas(layout, LF_DRYING) && dryingFact(spool, dry, sizeof(dry), &t))
     addFact(out, capacity, t);
   if (labelLayoutHas(layout, LF_FREE_TEXT) && labelLayoutFreeText()[0])
     addFact(out, capacity, LabelFact{ nullptr, labelLayoutFreeText() });

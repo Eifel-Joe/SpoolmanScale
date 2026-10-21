@@ -27,9 +27,11 @@
 #include "app/label_server.h"
 #include "app/label_spool.h"
 #include "hardware/sd_logger.h"
+#include "services/backend.h"
 #include "services/ble_service.h"
 #include "services/label_bmp.h"
 #include "services/label_fit.h"
+#include "services/label_gaps.h"
 #include "services/label_layout.h"
 #include "services/label_printer.h"
 #include "services/label_render.h"
@@ -57,6 +59,7 @@ static const FieldRow FIELD_ROWS[] = {
   { LF_SPOOL_WEIGHT, STR_W_L_F_SPOOL_W },
   { LF_NET_WEIGHT, STR_W_L_F_NET_W },
   { LF_TEMPS,    STR_W_L_F_TEMPS },
+  { LF_DRYING,   STR_W_L_F_DRYING },
   { LF_LOCATION, STR_W_L_F_LOCATION },
   { LF_DRIED,    STR_W_L_F_DRIED },
   { LF_FREE_TEXT, STR_W_L_F_TEXT },
@@ -97,6 +100,8 @@ static void sampleSpool(SpoolLabelData* d) {
   d->nozzle_min = 190;
   d->nozzle_max = 230;
   d->bed_temp = 55;
+  d->dry_temp_c = 55;
+  d->dry_hours = 8;
 }
 
 // FilaMan's presets for the source row, and how the server's preview stands.
@@ -193,6 +198,13 @@ static String stateJson(LabelKind kind) {
   }
   j += F(",\"dates\":");
   j += (!have || labelSpoolDatesKnown()) ? F("true") : F("false");
+  // The switches that would print nothing: once the backend has answered,
+  // so a value still on its way is not called missing.
+  const LabelLayout l = labelLayoutLoad(kind);
+  j += F(",\"empty\":");
+  j += String((unsigned long)(have && labelSpoolDatesKnown() ? labelEmptyFields(s, l.options) : 0));
+  j += F(",\"lacks\":");
+  j += String((unsigned long)labelBackendLacks(backendMode()));
   // The printer and stock as the two lists below the preview pick them.
   j += F(",\"modelId\":");  j += String((int)c.model);
   j += F(",\"mediaKey\":\""); j += String((unsigned)c.media_width_mm); j += 'x';
@@ -280,9 +292,9 @@ static void templateCard(String& h) {
   for (int i = 0; i < FIELD_ROW_COUNT; i++) {
     h += F("<label class='check'><span class='switch'><input type='checkbox' data-b='");
     h += String((int)FIELD_ROWS[i].field);
-    h += F("'><i></i></span>");
+    h += F("'><i></i></span><span>");
     h += T(FIELD_ROWS[i].caption);
-    h += F("</label>");
+    h += F("<small class='lb-gap'></small></span></label>");
   }
   h += F("</div><span class='hint' id='lcap'></span><span class='msg' id='lcap-s'></span>"
          "<input id='ltx' type='text' maxlength='40' autocomplete='off'><span class='hint'>");
@@ -371,6 +383,7 @@ static void styles(String& h) {
          ".lb-ic{height:58px;display:flex;align-items:center;justify-content:center}"
          ".lb-ic svg{display:block}"
          ".lb-sw .check.off{opacity:.45}"
+         ".lb-gap{display:block;color:var(--ink-soft);font-size:12px}.lb-gap:empty{display:none}"
          "#ltx{margin-top:10px;width:100%;box-sizing:border-box}"
          ".lb-pick{margin-top:12px}.lb-pick select{flex:1;min-width:0}"
          // One column on a phone: the preview first, so a switch shows its
@@ -425,7 +438,10 @@ static void scriptTemplate(String& h) {
          "document.querySelectorAll('#lf input').forEach(function(i){const b=+i.dataset.b;"
          "i.closest('label').style.display=d.kindFields&(1<<b)?'':'none';"
          "i.disabled=(b===QRB&&!d.hasQr)||(!i.checked&&!!(d.factBits&(1<<b))&&n>=d.cap);"
-         "i.closest('label').classList.toggle('off',i.disabled);});}"
+         "i.closest('label').classList.toggle('off',i.disabled);"
+         // Beside a switch that would print nothing, why.
+         "i.closest('label').querySelector('.lb-gap').textContent="
+         "d.lacks&(1<<b)?L.gapB:(d.empty&(1<<b)?L.gapS:'');});}"
          "function opts(){return mask('lo')|(S.options&PB);}");
 }
 
@@ -458,6 +474,12 @@ static void scriptFunctions(String& h) {
   h += jsStr(T(STR_W_L_CAP_FULL));
   h += F(",capOver:");
   h += jsStr(T(STR_W_L_CAP_OVER));
+  h += F(",gapS:");
+  h += jsStr(T(STR_W_L_GAP_SPOOL));
+  char lacks[64];
+  snprintf(lacks, sizeof(lacks), T(STR_W_L_GAP_BACKEND), backendName());
+  h += F(",gapB:");
+  h += jsStr(lacks);
   h += F("};const QRB=");
   h += String((int)LF_QR);
   h += F(",PB=");

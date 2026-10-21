@@ -40,6 +40,9 @@ enum LabelField : uint8_t {
   // label stays; the page says so next to them.
   LF_SPOOL_WEIGHT = 9, LF_NET_WEIGHT = 10, LF_TEMPS = 11, LF_LOCATION = 12,
   LF_DRIED = 13, LF_FREE_TEXT = 14,
+  // The drying the filament wants, temperature and hours: the backend's
+  // value, else the Bambu tag's. Off by default.
+  LF_DRYING = 15,
   LABEL_FIELD_COUNT
 };
 

@@ -3722,6 +3722,11 @@ const char* const STRINGS[][3] = {
     "Champs, ligne libre et modèles FilaMan : dans le navigateur" },  // STR_PS_MORE_WEB
   // A fact on a printed label, caption and value on one line
   { "%s: %s", "%s: %s", "%s : %s" },  // STR_LBL_FACT_FMT
+  // Label editor: the drying, and the switches that print nothing
+  { "Trocknen",              "Dry",                  "Séchage" },  // STR_LBL_L_DRYING
+  { "Trocknen (°C, h)",      "Drying (°C, h)",       "Séchage (°C, h)" },  // STR_W_L_F_DRYING
+  { "bei dieser Spule leer", "empty for this spool", "vide pour cette bobine" },  // STR_W_L_GAP_SPOOL
+  { "%s führt es nicht",     "%s does not keep it",  "%s ne le gère pas" },  // STR_W_L_GAP_BACKEND
 };
 
 StringID tagWriteResultString(uint8_t code) {
