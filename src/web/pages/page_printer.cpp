@@ -15,6 +15,7 @@
 #include <Arduino.h>
 #include <WebServer.h>
 
+#include "app_config.h"
 #include "app/deferred_actions.h"
 #include "hardware/sd_logger.h"
 #include "services/ble_service.h"
@@ -41,6 +42,24 @@ static String jsonText(const char* s) {
     else out += c;
   }
   return out;
+}
+
+// The box worded for the printer at hand: none yet, another model, or one
+// of ours, the M220 without a ribbon and the M2 with one. The script switches
+// them as the printer changes; the numbers are its data-v.
+enum RecVariant { REC_NONE = 0, REC_OTHER = 1, REC_LABELS = 2, REC_RIBBON = 3 };
+struct RecText { int title, text, button; const char* anchor; };
+static const RecText REC_TEXTS[] = {
+  { STR_BT_REC_NONE,    STR_W_P_REC_NONE_TEXT,  STR_W_P_REC_NONE_BTN,   "" },
+  { STR_W_P_SHOP_TITLE, STR_W_P_REC_OTHER_TEXT, STR_W_P_REC_OTHER_BTN,  "" },
+  { STR_BT_REC_LABELS,  STR_W_P_REC_M220_TEXT,  STR_W_P_REC_LABELS_BTN, "#phomemo-m220" },
+  { STR_BT_REC_RIBBON,  STR_W_P_REC_M2_TEXT,    STR_W_P_REC_RIBBON_BTN, "#niimbot-m2" },
+};
+
+static RecVariant recVariant(const LabelPrinterConfig& c) {
+  if (!labelPrinterConfigured(c)) return REC_NONE;
+  if (!labelPrinterRecommended(c.model)) return REC_OTHER;
+  return labelPrinterProfile(c.model).direct_thermal ? REC_LABELS : REC_RIBBON;
 }
 
 static String stateJson() {
@@ -80,6 +99,8 @@ static String stateJson() {
   j += String((int)c.model);
   j += F(",\"thermal\":");
   j += labelPrinterProfile(c.model).direct_thermal ? F("true") : F("false");
+  j += F(",\"rec\":");
+  j += String((int)recVariant(c));
   j += F(",\"name\":\"");
   j += jsonText(c.name);
   j += F("\",\"address\":\"");
@@ -113,6 +134,29 @@ static String stateJson() {
   return j;
 }
 
+// The way to the manual's page of recommended printers and their labels,
+// where the shop links live: never in the firmware (Nikolai, 21.10.2026).
+// The manual has German and English; French readers get the English page.
+static void recommendRow(String& h) {
+  const RecVariant shown = recVariant(labelPrinterLoadConfig());
+  for (int v = 0; v < (int)(sizeof(REC_TEXTS) / sizeof(REC_TEXTS[0])); v++) {
+    const RecText& r = REC_TEXTS[v];
+    h += F("<div class='field pr-rec' data-v='");
+    h += String(v);
+    h += v == shown ? F("'>") : F("' style='display:none'>");
+    h += F("<label>");
+    h += T(r.title);
+    h += F("</label><span class='hint'>");
+    h += T(r.text);
+    h += F("</span><a href='");
+    h += g_lang == LANG_DE ? F(DOCS_URL "de/use/printers/") : F(DOCS_URL "use/printers/");
+    h += r.anchor;
+    h += F("' target='_blank' rel='noopener'>");
+    h += T(r.button);
+    h += F(" &rarr;</a></div>");
+  }
+}
+
 // Which printers the scale can drive: a row per brand, a pill per model,
 // green where someone has printed on one. Built from the profiles, so the
 // card and the model list never disagree. It was a row per model, which
@@ -123,6 +167,16 @@ static void supportedCard(String& h) {
          ".pr-m{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}"
          ".pill.ex{color:var(--ink-soft);border-color:var(--line);background:var(--surface-2)}"
          ".pr-leg{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 8px}"
+         // The recommendation stands out: a tinted box, its link in the look
+         // of the page's own button.
+         ".pr-rec{margin-top:16px;padding:14px 16px;border-radius:12px;"
+         "background:var(--accent-dim);border:1px solid var(--accent-line)}"
+         ".pr-rec label{color:var(--accent);font-weight:600}"
+         ".pr-rec a{display:flex;align-items:center;justify-content:center;gap:8px;"
+         "margin-top:12px;padding:9px 16px;border-radius:9px;text-decoration:none;"
+         "font-size:13.5px;font-weight:550;background:var(--btn);color:var(--accent);"
+         "border:1px solid var(--accent-line)}"
+         ".pr-rec a:hover{background:var(--btn-hover)}"
          "</style><div class='card'><h2>");
   h += T(STR_W_P_SUPPORTED);
   h += F("</h2>");
@@ -162,7 +216,9 @@ static void supportedCard(String& h) {
     ribbon = true;
   }
   if (ribbon) h += F(").");
-  h += F("</span></div>");
+  h += F("</span>");
+  recommendRow(h);
+  h += F("</div>");
 }
 
 static String body() {
@@ -410,6 +466,8 @@ static String body() {
          "$('pm').value=String(d.printer.model);"
          "$('pmd').style.display=d.printer.thermal?'':'none';"
          "$('pmr').style.display=d.printer.thermal?'none':'';"
+         "document.querySelectorAll('.pr-rec').forEach(function(e){"
+         "e.style.display=+e.dataset.v===d.printer.rec?'':'none';});"
          "$('ps').value=d.printer.w+'x'+d.printer.h;"
          "$('lt').textContent=d.lastTest||'';"
          "$('ltr').style.display=d.lastTest?'':'none';"

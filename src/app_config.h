@@ -1,6 +1,6 @@
 #pragma once
 
-#define FW_VERSION  "v0.8.3-beta.77"
+#define FW_VERSION  "v0.8.3-beta.78"
 #define DONATION_URL "ko-fi.com/formfollowsfunction"
 
 // Backlight PWM duty on GPIO45, 8 bit, straight through to LovyanGFX. Not a
@@ -63,6 +63,8 @@
 #define FLASHER_HAS_CURRENT_LAYOUT  1
 // The public web flasher, where the hint sends a device on the old layout.
 #define FLASHER_URL "https://niko11111.github.io/SpoolmanScale/"
+// The manual. A German page lives under de/, the English one at the root.
+#define DOCS_URL "https://niko11111.github.io/SpoolmanScale-Docs/"
 
 // The two chips on I2C_EXT. Named because a bare 0x2A stood in three files and
 // meant nothing to anyone reading a bus scan.

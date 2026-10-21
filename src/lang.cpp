@@ -3727,11 +3727,47 @@ const char* const STRINGS[][3] = {
   { "Trocknen (°C, h)",      "Drying (°C, h)",       "Séchage (°C, h)" },  // STR_W_L_F_DRYING
   { "bei dieser Spule leer", "empty for this spool", "vide pour cette bobine" },  // STR_W_L_GAP_SPOOL
   { "%s führt es nicht",     "%s does not keep it",  "%s ne le gère pas" },  // STR_W_L_GAP_BACKEND
-  // Printer page: how a model prints
+  // Printer page: how a model prints, and the recommended printers
   { "Druckt per Thermodirekt, ohne Farbband.", "Prints direct thermal, without a ribbon.",
     "Impression thermique directe, sans ruban." },  // STR_W_P_METHOD_DIRECT
   { "Druckt per Thermotransfer mit Farbband: Wärme färbt das Etikett nicht.", "Prints by thermal transfer with a ribbon: heat does not colour the label.",
     "Impression par transfert thermique à ruban : la chaleur ne colore pas l'étiquette." },  // STR_W_P_METHOD_RIBBON
+  { "Empfohlene Drucker", "Recommended printers",
+    "Imprimantes recommandées" },  // STR_W_P_SHOP_TITLE
+  { "Welche Drucker wir selbst testen und welche Etiketten dazu passen.", "The printers we test ourselves and the labels that go with them.",
+    "Les imprimantes que nous testons nous-mêmes et les étiquettes qui leur conviennent." },  // STR_W_P_SHOP_HINT
+  // Bluetooth screen: the way to the recommended printers
+  { "Noch kein Drucker?", "No printer yet?",
+    "Pas encore d'imprimante ?" },  // STR_BT_REC_NONE
+  { "Welche passen: QR-Code zum Handbuch", "Which ones fit: QR code to the manual",
+    "Lesquelles conviennent : QR code du manuel" },  // STR_BT_REC_NONE_SUB
+  { "Empfohlene Drucker", "Recommended printers",
+    "Imprimantes recommandées" },  // STR_BT_REC_OTHER
+  { "Von uns getestet: QR-Code zum Handbuch", "Tested by us: QR code to the manual",
+    "Testées par nous : QR code du manuel" },  // STR_BT_REC_OTHER_SUB
+  { "Etiketten nachkaufen", "Buy more labels",
+    "Racheter des étiquettes" },  // STR_BT_REC_LABELS
+  { "Etiketten und Farbband", "Labels and ribbon",
+    "Étiquettes et ruban" },  // STR_BT_REC_RIBBON
+  { "Passende Rollen: QR-Code zum Handbuch", "Rolls that fit: QR code to the manual",
+    "Rouleaux adaptés : QR code du manuel" },  // STR_BT_REC_SUPPLY_SUB
+  // Printer page: the box worded for the printer at hand
+  { "Zwei Drucker testen wir selbst mit jeder Version: Phomemo M220 und NIIMBOT M2. Welcher zu dir passt, zeigt der Vergleich im Handbuch.", "We test two printers ourselves with every release: the Phomemo M220 and the NIIMBOT M2. The comparison in the manual shows which one suits you.",
+    "Nous testons nous-mêmes deux imprimantes à chaque version : la Phomemo M220 et la NIIMBOT M2. La comparaison dans le manuel montre laquelle vous convient." },  // STR_W_P_REC_NONE_TEXT
+  { "Drucker vergleichen", "Compare printers",
+    "Comparer les imprimantes" },  // STR_W_P_REC_NONE_BTN
+  { "Neue Etikettenfunktionen bauen und testen wir zuerst auf M220 und M2. Was sie unterscheidet, steht im Handbuch.", "We build and test new label features on the M220 and the M2 first. What sets them apart is in the manual.",
+    "Nous développons et testons les nouvelles fonctions d'étiquette d'abord sur la M220 et la M2. Ce qui les distingue est dans le manuel." },  // STR_W_P_REC_OTHER_TEXT
+  { "Zum Vergleich", "See the comparison",
+    "Voir la comparaison" },  // STR_W_P_REC_OTHER_BTN
+  { "Passende Rollen für deinen M220, in 40 x 30 und 50 x 30 mm.", "Rolls that fit your M220, in 40 x 30 and 50 x 30 mm.",
+    "Rouleaux adaptés à votre M220, en 40 x 30 et 50 x 30 mm." },  // STR_W_P_REC_M220_TEXT
+  { "Zu den Etiketten", "To the labels",
+    "Voir les étiquettes" },  // STR_W_P_REC_LABELS_BTN
+  { "Passende Rollen und Farbband für deinen M2.", "Rolls and ribbon that fit your M2.",
+    "Rouleaux et ruban adaptés à votre M2." },  // STR_W_P_REC_M2_TEXT
+  { "Zu Etiketten und Farbband", "To labels and ribbon",
+    "Voir étiquettes et ruban" },  // STR_W_P_REC_RIBBON_BTN
 };
 
 StringID tagWriteResultString(uint8_t code) {

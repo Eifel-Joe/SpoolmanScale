@@ -218,6 +218,10 @@ bool labelPrinterSaveConfig(const LabelPrinterConfig& in) {
 
 bool labelPrinterConfigured(const LabelPrinterConfig& c) { return c.address[0] != '\0'; }
 
+bool labelPrinterRecommended(LabelPrinterModel model) {
+  return model == LP_MODEL_M220 || model == LP_MODEL_NIIMBOT_M2;
+}
+
 bool labelPrinterForget() {
   LabelPrinterConfig c = labelPrinterLoadConfig();
   c.address[0] = '\0';

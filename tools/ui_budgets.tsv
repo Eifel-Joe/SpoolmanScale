@@ -323,3 +323,10 @@ STR_SCALE_TITLE	18	376	NEVER	src/ui/ui_common.cpp:259 sub header title, 480 - 2 
 STR_PS_PRINT	20	204	NEVER	src/ui/print_sheet.cpp:246 220 px print button, -16 air
 STR_PS_SERVER	16	320	NEVER	src/ui/print_sheet.cpp:313 list row title, makeListBtn text_w 320
 STR_LBL_FACT_FMT	16	304	NEVER	src/services/label_facts.cpp:56 format of a printed fact line, drawLine cuts it to the label
+STR_BT_REC_NONE	16	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn title, text_w 320
+STR_BT_REC_NONE_SUB	12	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn sub, text_w 320
+STR_BT_REC_OTHER	16	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn title, text_w 320
+STR_BT_REC_OTHER_SUB	12	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn sub, text_w 320
+STR_BT_REC_LABELS	16	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn title, text_w 320
+STR_BT_REC_RIBBON	16	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn title, text_w 320
+STR_BT_REC_SUPPLY_SUB	12	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn sub, text_w 320

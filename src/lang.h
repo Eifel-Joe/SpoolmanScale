@@ -1714,9 +1714,28 @@ enum StringID {
   STR_W_L_F_DRYING,
   STR_W_L_GAP_SPOOL,
   STR_W_L_GAP_BACKEND,
-  // Printer page: how a model prints
+  // Printer page: how a model prints, and the recommended printers
   STR_W_P_METHOD_DIRECT,
   STR_W_P_METHOD_RIBBON,
+  STR_W_P_SHOP_TITLE,
+  STR_W_P_SHOP_HINT,
+  // Bluetooth screen: the way to the recommended printers
+  STR_BT_REC_NONE,
+  STR_BT_REC_NONE_SUB,
+  STR_BT_REC_OTHER,
+  STR_BT_REC_OTHER_SUB,
+  STR_BT_REC_LABELS,
+  STR_BT_REC_RIBBON,
+  STR_BT_REC_SUPPLY_SUB,
+  // Printer page: the box worded for the printer at hand
+  STR_W_P_REC_NONE_TEXT,
+  STR_W_P_REC_NONE_BTN,
+  STR_W_P_REC_OTHER_TEXT,
+  STR_W_P_REC_OTHER_BTN,
+  STR_W_P_REC_M220_TEXT,
+  STR_W_P_REC_LABELS_BTN,
+  STR_W_P_REC_M2_TEXT,
+  STR_W_P_REC_RIBBON_BTN,
 
   STR_COUNT
 };
