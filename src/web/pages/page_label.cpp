@@ -351,9 +351,11 @@ static void previewCard(String& h) {
 // The page's own look: the label as paper, the switches in two columns.
 static void styles(String& h) {
   h += F("<style>"
-         // One print dot per CSS pixel, never stretched: scaled by an
-         // uneven factor the dots came out blurred and blocky. A label wider
-         // than the card shrinks to it.
+         // The label as large as its millimetres, whatever the printer: the
+         // script sets the width at 8 CSS pixels to the millimetre, which is
+         // one dot per pixel at 203 dpi, so those stay as sharp as before and
+         // a 300 dpi label shows its finer dots in the same size rather than
+         // growing (Nikolai, 21.10.2026). A label wider than the card shrinks.
          ".lb-paper{background:#fff;border:1px solid var(--line);border-radius:8px;"
          "padding:6px;margin:0 auto 12px;line-height:0;width:fit-content;max-width:100%;"
          "box-sizing:border-box}"
@@ -462,6 +464,8 @@ static void scriptFunctions(String& h) {
   h += String(1u << LO_PORTRAIT);
   h += F(",DB=");
   h += String((int)LO_DATE_ADDED);
+  // CSS pixels per millimetre of label in the preview.
+  h += F(",PPM=8");
   h += F(";let S=null,shown='',timer=0,srcKey='',K=0;"
          // The kind last looked at, per browser: a convenience, not state.
          "try{K=localStorage.getItem('lbkind')==='1'?1:0;}catch(e){}"
@@ -550,9 +554,11 @@ static void scriptBindings(String& h) {
          "postFlash('/api/label/source',$('lsrc').value,'lsrc-s',2500).then(load);});"
          "$('lp').addEventListener('error',function(){$('lp-s').textContent=L.fail;shown='';});"
          "$('lp').addEventListener('load',function(){var i=$('lp');"
-         // Hard dot edges only where the dots are enlarged; shrunk, the
-         // nearest dot would drop whole rows of them.
-         "i.style.imageRendering=i.clientWidth*(window.devicePixelRatio||1)>=i.naturalWidth?'pixelated':'auto';});"
+         "if(S&&S.dpi)i.style.width=Math.round(i.naturalWidth*PPM*25.4/S.dpi)+'px';"
+         // Hard dot edges only where every dot becomes a whole number of
+         // screen pixels; at any other factor they come out uneven.
+         "var f=i.clientWidth*(window.devicePixelRatio||1)/i.naturalWidth;"
+         "i.style.imageRendering=f>=1&&Math.abs(f-Math.round(f))<0.05?'pixelated':'auto';});"
          // The print takes about ten seconds on the scale; the verdict is
          // fetched after that and shown on the last line.
          "$('lpb').addEventListener('click',function(){"
