@@ -9,8 +9,8 @@
 //  in the globals. The display forgets a spool as soon as it
 //  leaves the pad; the label editor in the browser shows the last
 //  one scanned, so a copy is kept here when the display lets go.
-//  The dates are not part of the scan: they are asked of the
-//  backend once per spool and kept with the copy.
+//  The dates and the temperatures are not part of the scan: they
+//  are asked of the backend once per spool and kept with the copy.
 // ============================================================
 
 // The spool on the pad as the backend named it. False when none was found.

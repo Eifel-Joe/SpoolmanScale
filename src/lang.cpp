@@ -3667,6 +3667,35 @@ const char* const STRINGS[][3] = {
     "Aucune ligne de plus ne tient sur cette étiquette." },  // STR_W_L_CAP_FULL
   { "Die letzten Zeilen passen nicht und fallen weg.", "The last lines do not fit and are left off.",
     "Les dernières lignes ne tiennent pas et sont omises." },  // STR_W_L_CAP_OVER
+  // Label editor: more fields, an own line
+  { "Leer", "Empty",
+    "Vide" },  // STR_LBL_L_EMPTY
+  { "Netto", "Net",
+    "Net" },  // STR_LBL_L_NET
+  { "Düse", "Nozzle",
+    "Buse" },  // STR_LBL_L_NOZZLE
+  { "Düse/Bett", "Nozzle/bed",
+    "Buse/plat." },  // STR_LBL_L_TEMPS
+  { "Lager", "Stored",
+    "Lieu" },  // STR_LBL_L_STORED
+  { "Getrocknet", "Dried",
+    "Séchée" },  // STR_LBL_L_DRIED
+  { "Leergewicht", "Empty weight",
+    "Poids à vide" },  // STR_W_L_F_SPOOL_W
+  { "Nettogewicht", "Net weight",
+    "Poids net" },  // STR_W_L_F_NET_W
+  { "Temperaturen", "Temperatures",
+    "Températures" },  // STR_W_L_F_TEMPS
+  { "Lagerort", "Location",
+    "Emplacement" },  // STR_W_L_F_LOCATION
+  { "Trocknungsdatum", "Drying date",
+    "Date de séchage" },  // STR_W_L_F_DRIED
+  { "Eigene Zeile", "Own line",
+    "Ligne libre" },  // STR_W_L_F_TEXT
+  { "Eigene Zeile: höchstens 40 Zeichen.", "Own line: 40 characters at most.",
+    "Ligne libre : 40 caractères au plus." },  // STR_W_L_TEXT_HINT
+  { "Lagerort und Trocknungsdatum ändern sich, das Etikett nicht. Temperaturen kennt nicht jedes Backend.", "Location and drying date change, the label does not. Not every backend knows temperatures.",
+    "L'emplacement et la date de séchage changent, l'étiquette non. Tous les backends ne connaissent pas les températures." },  // STR_W_L_CHANGE_HINT
 };
 
 StringID tagWriteResultString(uint8_t code) {

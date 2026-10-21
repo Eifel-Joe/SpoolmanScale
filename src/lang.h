@@ -1679,6 +1679,21 @@ enum StringID {
   STR_W_L_CAP,
   STR_W_L_CAP_FULL,
   STR_W_L_CAP_OVER,
+  // Label editor: more fields, an own line
+  STR_LBL_L_EMPTY,
+  STR_LBL_L_NET,
+  STR_LBL_L_NOZZLE,
+  STR_LBL_L_TEMPS,
+  STR_LBL_L_STORED,
+  STR_LBL_L_DRIED,
+  STR_W_L_F_SPOOL_W,
+  STR_W_L_F_NET_W,
+  STR_W_L_F_TEMPS,
+  STR_W_L_F_LOCATION,
+  STR_W_L_F_DRIED,
+  STR_W_L_F_TEXT,
+  STR_W_L_TEXT_HINT,
+  STR_W_L_CHANGE_HINT,
 
   STR_COUNT
 };

@@ -425,6 +425,12 @@ static void mapSpool(JsonObjectConst src, JsonObject dst) {
   // The maker's article number, Spoolman's article_number.
   const char* article = src["material_number"] | "";
   if (article[0]) f["article_number"] = article;
+  // The nozzle range, for the label: Spoolman's one temperature takes the
+  // upper end, the lower one a name of the scale's own.
+  const int t_min = src["nozzle_temp_min"] | 0;
+  const int t_max = src["nozzle_temp_max"] | 0;
+  if (t_max > 0) f["settings_extruder_temp"] = t_max;
+  if (t_min > 0 && t_min < t_max) f["x_extruder_temp_min"] = t_min;
 
   // Spoolman shows one name. BamBuddy keeps the three parts apart, so they are
   // joined in the order they are printed on the spool itself: "PETG HF

@@ -13,6 +13,7 @@
 #include "hardware/sd_logger.h"
 #include "services/backend.h"
 #include "services/backend_api.h"
+#include "services/text_util.h"
 #include "ui/date_display.h"
 
 // One spool by id, a small answer: a slow server only costs the label its date.
@@ -25,6 +26,8 @@
 #define LABEL_DATE_CORE        0
 #define LABEL_DATE_MIN_HEAP    60000
 #define LABEL_DATE_URL_LEN     160
+// Above this a temperature is a typo or a unit mix-up, not a setting.
+#define LABEL_TEMP_MAX_C       500
 
 struct SpiRamAllocator : ArduinoJson::Allocator {
   void* allocate(size_t size) override {
@@ -39,6 +42,42 @@ struct SpiRamAllocator : ArduinoJson::Allocator {
     return p;
   }
 };
+
+// What the backend adds to the scan: the dates and the temperatures. One
+// request brings them all, so they travel together.
+struct LabelExtras {
+  char first[12], added[12];
+  int16_t nozzle_min, nozzle_max, bed;
+};
+
+static void extrasInto(SpoolLabelData* d, const LabelExtras& e) {
+  snprintf(d->first_used, sizeof(d->first_used), "%s", e.first);
+  snprintf(d->added, sizeof(d->added), "%s", e.added);
+  d->nozzle_min = e.nozzle_min;
+  d->nozzle_max = e.nozzle_max;
+  d->bed_temp = e.bed;
+}
+
+static LabelExtras extrasOf(const SpoolLabelData& d) {
+  LabelExtras e{};
+  snprintf(e.first, sizeof(e.first), "%s", d.first_used);
+  snprintf(e.added, sizeof(e.added), "%s", d.added);
+  e.nozzle_min = d.nozzle_min;
+  e.nozzle_max = d.nozzle_max;
+  e.bed = d.bed_temp;
+  return e;
+}
+
+// "dd.mm.yyyy" as the scan keeps the last drying, in the display's format;
+// empty for the scan's "-" or anything else that is not a date.
+static void driedToLocal(const char* de, char* out, size_t n) {
+  out[0] = '\0';
+  int day = 0, m = 0, y = 0;
+  if (sscanf(de, "%2d.%2d.%4d", &day, &m, &y) != 3) return;
+  char ymd[16];
+  snprintf(ymd, sizeof(ymd), "%04d-%02d-%02d", y, m, day);
+  isoToLocal(ymd, out, n);
+}
 
 static SpoolLabelData s_last{};
 static bool s_have_last = false;
@@ -62,6 +101,10 @@ bool labelSpoolFromScan(SpoolLabelData* out) {
            sm_material_global[0] ? sm_material_global : g_tag.material);
   snprintf(out->color, sizeof(out->color), "%s", sm_color_global);
   snprintf(out->article, sizeof(out->article), "%s", sm_article_nr);
+  if (sm_tare_source != TARE_NONE && sm_spool_weight > 0) out->spool_weight_g = sm_spool_weight;
+  if (sm_total > 0) out->net_weight_g = sm_total;
+  utf8Cut(sm_location_name, sizeof(out->location) - 1, out->location, sizeof(out->location));
+  driedToLocal(sm_last_dried, out->dried, sizeof(out->dried));
   return true;
 }
 
@@ -70,8 +113,7 @@ static void takeFromScan() {
   SpoolLabelData d{};
   if (!labelSpoolFromScan(&d)) return;
   if (s_have_last && s_last.id == d.id) {
-    snprintf(d.first_used, sizeof(d.first_used), "%s", s_last.first_used);
-    snprintf(d.added, sizeof(d.added), "%s", s_last.added);
+    extrasInto(&d, extrasOf(s_last));
   } else {
     s_dates_for = 0;
     s_dates_ok  = false;
@@ -109,9 +151,15 @@ static void isoToDate(const char* iso, char* out, size_t n) {
   isoToLocal(ymd, out, n);
 }
 
-// One spool's dates from the backend. False when it did not answer; `first`
-// and `added` are written only on an answer. Any task.
-static bool fetchDates(const char* base_url, int id, char* first, char* added, size_t n) {
+// A temperature as the backend gave it, 0 for none or nonsense.
+static int16_t tempOf(JsonVariantConst v) {
+  const int t = v | 0;
+  return t > 0 && t < LABEL_TEMP_MAX_C ? (int16_t)t : 0;
+}
+
+// One spool's dates and temperatures from the backend. False when it did not
+// answer; `out` is written only on an answer. Any task.
+static bool fetchDates(const char* base_url, int id, LabelExtras* out) {
   SpiRamAllocator alloc;
   JsonDocument doc(&alloc);
   if (backendGetSpoolJson(base_url, id, doc, LABEL_DATE_TIMEOUT_MS) != 200) {
@@ -120,8 +168,16 @@ static bool fetchDates(const char* base_url, int id, char* first, char* added, s
   }
   // The first use where the backend records one (Spoolman), and the day the
   // spool was added.
-  isoToDate(doc["first_used"] | "", first, n);
-  isoToDate(doc["registered"] | "", added, n);
+  LabelExtras e{};
+  isoToDate(doc["first_used"] | "", e.first, sizeof(e.first));
+  isoToDate(doc["registered"] | "", e.added, sizeof(e.added));
+  // Spoolman's filament settings; BamBuddy's range arrives under the same
+  // name for its upper end and a name of the scale's own for the lower.
+  JsonObjectConst f = doc["filament"];
+  e.nozzle_max = tempOf(f["settings_extruder_temp"]);
+  e.nozzle_min = tempOf(f["x_extruder_temp_min"]);
+  e.bed = tempOf(f["settings_bed_temp"]);
+  *out = e;
   return true;
 }
 
@@ -131,8 +187,7 @@ void labelSpoolFetchDates(SpoolLabelData* d) {
   // that loses the date its preview showed because this one failed. A copy
   // whose request failed is asked again here.
   if (labelSpoolDatesKnown() && s_dates_ok && s_last.id == d->id) {
-    snprintf(d->first_used, sizeof(d->first_used), "%s", s_last.first_used);
-    snprintf(d->added, sizeof(d->added), "%s", s_last.added);
+    extrasInto(d, extrasOf(s_last));
     return;
   }
   // The browser's task is on its request right now and holds the pooled
@@ -142,14 +197,12 @@ void labelSpoolFetchDates(SpoolLabelData* d) {
     logSDf("Label: dates of spool #%d still loading, the label goes without", d->id);
     return;
   }
-  char first[sizeof(d->first_used)] = "", added[sizeof(d->added)] = "";
-  if (!fetchDates(backendBaseUrl(), d->id, first, added, sizeof(first))) return;
-  snprintf(d->first_used, sizeof(d->first_used), "%s", first);
-  snprintf(d->added, sizeof(d->added), "%s", added);
+  LabelExtras e{};
+  if (!fetchDates(backendBaseUrl(), d->id, &e)) return;
+  extrasInto(d, e);
   // A print fetches them too: the copy of the same spool learns them as well.
   if (s_have_last && s_last.id == d->id) {
-    snprintf(s_last.first_used, sizeof(s_last.first_used), "%s", first);
-    snprintf(s_last.added, sizeof(s_last.added), "%s", added);
+    extrasInto(&s_last, e);
     s_dates_for = d->id;
     s_dates_ok  = true;
   }
@@ -162,12 +215,12 @@ struct DateJob {
   int id;
   uint32_t gen;        // backendGeneration() at the start
   bool ok;
-  char first[12], added[12];
+  LabelExtras extras;
 };
 static DateJob s_job;
 
 static void dateTask(void*) {
-  s_job.ok = fetchDates(s_job.url, s_job.id, s_job.first, s_job.added, sizeof(s_job.first));
+  s_job.ok = fetchDates(s_job.url, s_job.id, &s_job.extras);
   __sync_synchronize();
   s_job_done = true;
   vTaskDelete(NULL);
@@ -202,8 +255,7 @@ static void collectDateJob() {
   s_job_running = false;
   if (s_job.gen != backendGeneration() || !s_have_last || s_last.id != s_job.id) return;
   if (s_job.ok) {
-    snprintf(s_last.first_used, sizeof(s_last.first_used), "%s", s_job.first);
-    snprintf(s_last.added, sizeof(s_last.added), "%s", s_job.added);
+    extrasInto(&s_last, s_job.extras);
     s_dates_ok = true;
   }
   // Asked once, answered or not: a server without dates is not asked again

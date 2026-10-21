@@ -1,13 +1,18 @@
 #include "services/label_layout.h"
 
+#include <stdio.h>
+#include <string.h>
+
 #include "hardware/sd_logger.h"
 #include "services/prefs_store.h"
+#include "services/text_util.h"
 
 // NVS keys, 15 characters at most.
 #define LL_KEY_VERSION "lbl_ver"
 #define LL_KEY_PRESET  "lbl_preset"
 #define LL_KEY_FIELDS  "lbl_fields"
 #define LL_KEY_OPTIONS "lbl_opts"
+#define LL_KEY_TEXT    "lbl_text"
 
 static const uint32_t FIELD_MASK  = (1u << LABEL_FIELD_COUNT) - 1;
 static const uint32_t OPTION_MASK = (1u << LABEL_OPTION_COUNT) - 1;
@@ -16,6 +21,8 @@ static const uint32_t DEFAULT_FIELDS = (1u << (LF_BRAND + 1)) - 1;
 
 static LabelLayout s_layout{};
 static bool s_loaded = false;
+static char s_text[LABEL_FREE_TEXT_BYTES] = "";
+static bool s_text_loaded = false;
 
 LabelLayout labelLayoutDefault() {
   LabelLayout l{};
@@ -70,7 +77,8 @@ int labelFactCapacity(uint8_t preset, uint16_t width_mm, uint16_t length_mm, boo
 
 uint32_t labelFactFields(uint8_t preset) {
   uint32_t m = (1u << LF_SPOOL_ID) | (1u << LF_COLOR) | (1u << LF_DATE) | (1u << LF_BRAND) |
-               (1u << LF_ARTICLE);
+               (1u << LF_ARTICLE) | (1u << LF_SPOOL_WEIGHT) | (1u << LF_NET_WEIGHT) |
+               (1u << LF_TEMPS) | (1u << LF_LOCATION) | (1u << LF_DRIED) | (1u << LF_FREE_TEXT);
   // The compact arrangement sets the maker among the facts.
   if (preset == LABEL_PRESET_COMPACT) m |= 1u << LF_VENDOR;
   return m;
@@ -101,5 +109,21 @@ bool labelLayoutSave(const LabelLayout& in) {
   if (ok) { s_layout = l; s_loaded = true; }
   logSDf("Label: layout preset %u fields %02x options %02x %s", (unsigned)l.preset,
          (unsigned)l.fields, (unsigned)l.options, ok ? "saved" : "NOT saved");
+  return ok;
+}
+
+const char* labelLayoutFreeText() {
+  if (s_text_loaded) return s_text;
+  utf8Cut(prefsGetString(LL_KEY_TEXT, "").c_str(), sizeof(s_text) - 1, s_text, sizeof(s_text));
+  s_text_loaded = true;
+  return s_text;
+}
+
+bool labelLayoutSaveFreeText(const char* text) {
+  char cut[LABEL_FREE_TEXT_BYTES];
+  utf8Cut(text ? text : "", sizeof(cut) - 1, cut, sizeof(cut));
+  const bool ok = prefsPutString(LL_KEY_TEXT, cut);
+  if (ok) { snprintf(s_text, sizeof(s_text), "%s", cut); s_text_loaded = true; }
+  logSDf("Label: free text of %u bytes %s", (unsigned)strlen(cut), ok ? "saved" : "NOT saved");
   return ok;
 }

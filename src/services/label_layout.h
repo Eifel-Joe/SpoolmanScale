@@ -36,6 +36,10 @@ enum LabelField : uint8_t {
   // Off by default: the default stays the label from before, and a mask
   // saved before the field existed has the bit clear already.
   LF_ARTICLE = 8,
+  // Off by default as well. The location and the drying change while the
+  // label stays; the page says so next to them.
+  LF_SPOOL_WEIGHT = 9, LF_NET_WEIGHT = 10, LF_TEMPS = 11, LF_LOCATION = 12,
+  LF_DRIED = 13, LF_FREE_TEXT = 14,
   LABEL_FIELD_COUNT
 };
 
@@ -75,3 +79,10 @@ uint32_t labelFactFields(uint8_t preset);
 // Cached after the first read; every write goes through the save.
 LabelLayout labelLayoutLoad();
 bool labelLayoutSave(const LabelLayout& layout);
+
+// The free line LF_FREE_TEXT prints, empty when none was set. Bytes, so a
+// line of umlauts fits its 40 characters too.
+#define LABEL_FREE_TEXT_BYTES 64
+const char* labelLayoutFreeText();
+// Cut to the buffer on a character boundary; false when NVS refused it.
+bool labelLayoutSaveFreeText(const char* text);

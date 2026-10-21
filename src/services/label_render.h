@@ -36,6 +36,15 @@ struct SpoolLabelData {
   // dd.mm.yyyy, each empty when the backend has none. The layout picks one.
   char  first_used[12];
   char  added[12];
+  // From the scan: 0 or empty where it knows none. The empty spool only when
+  // its weight came from somewhere, never the 0 g of an unknown tare.
+  float spool_weight_g;
+  float net_weight_g;               // the filament when new
+  char  location[LABEL_LINE_LEN];
+  char  dried[12];                  // the last drying, in the date format
+  // Asked of the backend with the dates, 0 where it has none. Spoolman keeps
+  // one nozzle temperature (nozzle_max), BamBuddy a range and no bed.
+  int16_t nozzle_min, nozzle_max, bed_temp;
 };
 
 // The test label for the printer's loaded stock. The raster is allocated in

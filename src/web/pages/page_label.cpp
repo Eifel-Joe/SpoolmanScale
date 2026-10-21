@@ -52,6 +52,12 @@ static const FieldRow FIELD_ROWS[] = {
   { LF_COLOR,    STR_LBL_L_COLOR },
   { LF_ARTICLE,  STR_LBL_ARTICLE_NO_SHORT },
   { LF_DATE,     STR_W_L_F_DATE },
+  { LF_SPOOL_WEIGHT, STR_W_L_F_SPOOL_W },
+  { LF_NET_WEIGHT, STR_W_L_F_NET_W },
+  { LF_TEMPS,    STR_W_L_F_TEMPS },
+  { LF_LOCATION, STR_W_L_F_LOCATION },
+  { LF_DRIED,    STR_W_L_F_DRIED },
+  { LF_FREE_TEXT, STR_W_L_F_TEXT },
   { LF_QR,       STR_W_L_F_QR },
   { LF_BRAND,    STR_W_L_F_BRAND },
 };
@@ -81,6 +87,13 @@ static void sampleSpool(SpoolLabelData* d) {
   snprintf(d->article, sizeof(d->article), "10100");
   snprintf(d->first_used, sizeof(d->first_used), "03.03.2026");
   snprintf(d->added, sizeof(d->added), "01.03.2026");
+  d->spool_weight_g = 250;
+  d->net_weight_g = 1000;
+  snprintf(d->location, sizeof(d->location), "Regal 2");
+  snprintf(d->dried, sizeof(d->dried), "10.03.2026");
+  d->nozzle_min = 190;
+  d->nozzle_max = 230;
+  d->bed_temp = 55;
 }
 
 // FilaMan's presets for the source row, and how the server's preview stands.
@@ -144,6 +157,7 @@ static String stateJson() {
   j += F(",\"factBits\":"); j += String((unsigned long)labelFactFields(l.preset));
   j += F(",\"hasQr\":");
   j += labelPresetHasQr(l.preset) ? F("true") : F("false");
+  j += F(",\"text\":\"");  j += jsonEsc(labelLayoutFreeText()); j += '"';
   j += F(",\"spool\":");
   if (have) {
     j += F("{\"id\":");      j += String(s.id);
@@ -232,7 +246,11 @@ static void templateCard(String& h) {
     h += F("</label>");
   }
   h += F("</div><span class='hint' id='lcap'></span><span class='msg' id='lcap-s'></span>"
-         "</div><div class='field'><label>");
+         "<input id='ltx' type='text' maxlength='40' autocomplete='off'><span class='hint'>");
+  h += T(STR_W_L_TEXT_HINT);
+  h += ' ';
+  h += T(STR_W_L_CHANGE_HINT);
+  h += F("</span><span class='msg' id='ltx-s'></span></div><div class='field'><label>");
   h += T(STR_W_L_OPTIONS);
   h += F("</label><div id='lo'>");
   for (int i = 0; i < OPTION_ROW_COUNT; i++) {
@@ -298,6 +316,7 @@ static void styles(String& h) {
          ".lb-ic{height:58px;display:flex;align-items:center;justify-content:center}"
          ".lb-ic svg{display:block}"
          ".lb-sw .check.off{opacity:.45}"
+         "#ltx{margin-top:10px;width:100%;box-sizing:border-box}"
          // One column on a phone: the preview first, so a switch shows its
          // effect without scrolling.
          "@media(max-width:700px){.lb-prev{order:-1}}"
@@ -397,7 +416,7 @@ static void scriptFunctions(String& h) {
          // The picture is drawn anew only when something it shows changed.
          "function pic(d){if(srv(d)){picServer(d);return;}"
          "$('lp').parentNode.style.display='';$('lp-s').classList.add('bad');"
-         "const k=[d.preset,d.fields,d.options,d.spool?d.spool.id:0,"
+         "const k=[d.preset,d.fields,d.options,d.text,d.spool?d.spool.id:0,"
          "d.dates,d.media,d.model].join('|');if(k===shown)return;shown=k;"
          "$('lp-s').textContent='';$('lp').src='/api/label/preview.bmp?t='+Date.now();}"
          // The source list, built anew only when the presets or the choice
@@ -417,6 +436,7 @@ static void scriptFunctions(String& h) {
          "b.appendChild(o);});b.value=String(d.source);}"
          "function paint(d){S=d;srcRow(d);tiles(d);"
          "setMask('lf',d.fields);setMask('lo',d.options);capRow(d);"
+         "if(document.activeElement!==$('ltx'))$('ltx').value=d.text;"
          "$('lsp').textContent=d.spool?(d.spool.text+' \u00b7 #'+d.spool.id+(d.spool.on?'':' '+L.offPad)):'-';"
          "$('lme').textContent=d.media+(d.options&PB?' \u00b7 '+L.upright:'')+' \u00b7 '+d.model;"
          "$('lsa').style.display=d.spool||srv(d)?'none':'';"
@@ -446,6 +466,8 @@ static void scriptBindings(String& h) {
          "(S.options&~PB)|(+b.dataset.o?PB:0));});});"
          "document.querySelectorAll('#lf input,#lo input').forEach(function(i){"
          "i.addEventListener('change',function(){if(!S)return;capRow(S);save(S.preset,mask('lf'),opts());});});"
+         "$('ltx').addEventListener('change',function(){"
+         "postFlash('/api/label/text',$('ltx').value,'ltx-s',2500).then(load);});"
          "$('lr').addEventListener('click',function(){postFlash('/api/label/reset','','ls-s',2500).then(load);});"
          "$('lsrc').addEventListener('change',function(){"
          "postFlash('/api/label/source',$('lsrc').value,'lsrc-s',2500).then(load);});"
@@ -579,6 +601,15 @@ static void routes(WebServer &srv) {
   srv.on("/api/label/reset", HTTP_POST, [&srv]() {
     if (!webRequire(srv, GATE_CONFIG, T(STR_W_NAV_LABEL))) return;
     const bool ok = labelLayoutSave(labelLayoutDefault());
+    srv.send(ok ? 200 : 500, "application/json", ok ? "{\"ok\":true}" : "{\"ok\":false}");
+  });
+
+  // The own line, as typed; the store cuts it to its buffer.
+  srv.on("/api/label/text", HTTP_POST, [&srv]() {
+    if (!webRequire(srv, GATE_CONFIG, T(STR_W_NAV_LABEL))) return;
+    const String v = srv.arg("plain");
+    if (v.length() >= LABEL_FREE_TEXT_BYTES * 2) { srv.send(400, "text/plain", "text too long"); return; }
+    const bool ok = labelLayoutSaveFreeText(v.c_str());
     srv.send(ok ? 200 : 500, "application/json", ok ? "{\"ok\":true}" : "{\"ok\":false}");
   });
 

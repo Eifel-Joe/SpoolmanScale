@@ -6,6 +6,7 @@
 
 #include "lang.h"
 #include "services/backend.h"
+#include "services/text_util.h"
 
 static bool hasText(const char* s) { return s && s[0]; }
 
@@ -27,21 +28,63 @@ static bool dateFact(const SpoolLabelData& spool, const LabelLayout& layout, Lab
   return false;
 }
 
+// The temperatures as one fact: "Nozzle 240-270 °C", or with the bed
+// "Nozzle/bed 220/55 °C". False when the backend gave no nozzle.
+static bool tempFact(const SpoolLabelData& spool, char* value, size_t n, LabelFact* out) {
+  if (spool.nozzle_max <= 0) return false;
+  char nozzle[16];
+  if (spool.nozzle_min > 0) snprintf(nozzle, sizeof(nozzle), "%d-%d", spool.nozzle_min, spool.nozzle_max);
+  else snprintf(nozzle, sizeof(nozzle), "%d", spool.nozzle_max);
+  if (spool.bed_temp > 0) snprintf(value, n, "%s/%d \xC2\xB0" "C", nozzle, spool.bed_temp);
+  else snprintf(value, n, "%s \xC2\xB0" "C", nozzle);
+  *out = LabelFact{ T(spool.bed_temp > 0 ? STR_LBL_L_TEMPS : STR_LBL_L_NOZZLE), value };
+  return true;
+}
+
 // Appends a fact while the list has room; the value is copied in.
 static void addFact(LabelFactList* l, int capacity, const LabelFact& f) {
   if (l->n >= capacity || l->n >= LABEL_MAX_FACTS) return;
   const char* value = nullptr;
+  // Cut on a character boundary: a location or the own line can be longer
+  // than the room, and half an umlaut prints as a box.
   if (hasText(f.value)) {
-    snprintf(l->values[l->n], sizeof(l->values[0]), "%s", f.value);
+    utf8Cut(f.value, sizeof(l->values[0]) - 1, l->values[l->n], sizeof(l->values[0]));
     value = l->values[l->n];
   }
+  char joined[sizeof(l->lines[0]) * 2];
+  if (hasText(f.caption) && value) snprintf(joined, sizeof(joined), "%s  %s", f.caption, value);
+  else snprintf(joined, sizeof(joined), "%s", hasText(f.caption) ? f.caption : (value ? value : ""));
   char* line = l->lines[l->n];
-  const size_t size = sizeof(l->lines[0]);
-  if (hasText(f.caption) && value) snprintf(line, size, "%s  %s", f.caption, value);
-  else snprintf(line, size, "%s", hasText(f.caption) ? f.caption : (value ? value : ""));
+  utf8Cut(joined, sizeof(l->lines[0]) - 1, line, sizeof(l->lines[0]));
   l->facts[l->n] = LabelFact{ f.caption, value };
   l->line_ptrs[l->n] = line;
   l->n++;
+}
+
+// The facts after the date, each off by default: the weights, the
+// temperatures, where the spool is kept and when it was dried, the own line.
+static void addSpoolExtras(LabelFactList* out, int capacity, const LabelLayout& layout,
+                           const SpoolLabelData& spool) {
+  char grams[16];
+  if (labelLayoutHas(layout, LF_SPOOL_WEIGHT) && spool.spool_weight_g > 0) {
+    snprintf(grams, sizeof(grams), "%.0f g", spool.spool_weight_g);
+    addFact(out, capacity, LabelFact{ T(STR_LBL_L_EMPTY), grams });
+  }
+  if (labelLayoutHas(layout, LF_NET_WEIGHT) && spool.net_weight_g > 0) {
+    snprintf(grams, sizeof(grams), "%.0f g", spool.net_weight_g);
+    addFact(out, capacity, LabelFact{ T(STR_LBL_L_NET), grams });
+  }
+  char temps[32];
+  LabelFact t;
+  if (labelLayoutHas(layout, LF_TEMPS) && tempFact(spool, temps, sizeof(temps), &t))
+    addFact(out, capacity, t);
+  if (labelLayoutHas(layout, LF_LOCATION) && spool.location[0])
+    addFact(out, capacity, LabelFact{ T(STR_LBL_L_STORED), spool.location });
+  if (labelLayoutHas(layout, LF_DRIED) && spool.dried[0])
+    addFact(out, capacity, LabelFact{ T(STR_LBL_L_DRIED), spool.dried });
+  // The own line has no caption: it prints large, like a value.
+  if (labelLayoutHas(layout, LF_FREE_TEXT) && labelLayoutFreeText()[0])
+    addFact(out, capacity, LabelFact{ nullptr, labelLayoutFreeText() });
 }
 
 void labelSpoolFacts(const LabelLayout& layout, const SpoolLabelData& spool, int capacity,
@@ -65,5 +108,6 @@ void labelSpoolFacts(const LabelLayout& layout, const SpoolLabelData& spool, int
     addFact(out, capacity, LabelFact{ T(STR_LBL_ARTICLE_NO_SHORT), spool.article });
   LabelFact date;
   if (labelLayoutHas(layout, LF_DATE) && dateFact(spool, layout, &date)) addFact(out, capacity, date);
+  addSpoolExtras(out, capacity, layout, spool);
   if (labelLayoutHas(layout, LF_BRAND)) addFact(out, capacity, LabelFact{ "SpoolmanScale", nullptr });
 }
