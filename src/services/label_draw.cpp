@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "hardware/sd_logger.h"
+#include "services/accent_fold.h"
 #include "services/label_render.h"
 #include "services/text_util.h"
 #include "src/extra/libs/qrcode/qrcodegen.h"
@@ -25,6 +26,9 @@
 #define LR_QR_QUIET_TIGHT  2
 #define LR_QR_MAX_VERSION 10    // 57 modules: far more than a spool URL needs
 #define LR_BLACK_BELOW   128    // brightness under which a canvas pixel prints
+// Room for a line as drawLine() cuts or folds it: the longest text a block
+// carries is a fact of two LABEL_LINE_LEN fields.
+#define LR_SPELL_LEN     (LABEL_LINE_LEN * 2 + 4)
 
 namespace labeldraw {
 
@@ -115,6 +119,17 @@ bool canSpell(const lv_font_t* base, const char* s) {
   return sized(base)->fallback != nullptr || bigFontCovers(s);
 }
 
+// The line as this font spells it: itself where the font has every glyph,
+// else with the accents folded onto their base letters (é to e, œ to oe) in
+// `buf` of LR_SPELL_LEN bytes. A 300 dpi head prints the maker, the band and
+// the material in the sizes 30 to 48, and those have no supplement behind
+// them: a missing accent reads, a box does not (Nikolai, 22.10.2026).
+static const char* spelled(const lv_font_t* base, const char* s, char* buf) {
+  if (canSpell(base, s)) return s;
+  accentFold(s, buf, LR_SPELL_LEN);
+  return buf;
+}
+
 lv_coord_t boldFor(const lv_font_t* font) {
   return font->line_height > lv_font_montserrat_ext_24.line_height ? 0 : dots(LR_BOLD_DOTS);
 }
@@ -123,13 +138,21 @@ lv_coord_t textWidth(const char* s, const lv_font_t* font) {
   return lv_txt_get_width(s, strlen(s), sized(font), 0, LV_TEXT_FLAG_NONE);
 }
 
-// The largest of the fonts that fits the line into the width, the last one
-// when none does; the line is then cut to it.
+// The largest of the fonts that fits the line into the width as written,
+// else the largest that fits it with the accents folded, else the last one;
+// the line is then cut to it. So a line with an accent keeps it wherever a
+// font with the supplement fits, and only loses it where none does.
 const lv_font_t* fitFont(const char* text, lv_coord_t w,
                                 const lv_font_t* const* fonts, int count) {
   for (int i = 0; i < count; i++) {
     if (!canSpell(fonts[i], text)) continue;
     if (textWidth(text, fonts[i]) <= w) return fonts[i];
+  }
+  char plain[LR_SPELL_LEN];
+  for (int i = 0; i < count; i++) {
+    const char* s = spelled(fonts[i], text, plain);
+    if (s == text || !canSpell(fonts[i], s)) continue;
+    if (textWidth(s, fonts[i]) <= w) return fonts[i];
   }
   return fonts[count - 1];
 }
@@ -142,7 +165,9 @@ void drawLine(lv_obj_t* canvas, lv_coord_t x, lv_coord_t y, lv_coord_t w,
   // No canvas: a header being measured, not drawn.
   if (!canvas || !text || !text[0]) return;
   const lv_coord_t bold = boldFor(font);
-  char line[LABEL_LINE_LEN * 2 + 4];
+  char plain[LR_SPELL_LEN];
+  text = spelled(font, text, plain);
+  char line[LR_SPELL_LEN];
   size_t budget = strlen(text);
   for (;;) {
     utf8Cut(text, budget, line, sizeof(line));
@@ -242,15 +267,19 @@ lv_coord_t drawQr(lv_obj_t* canvas, lv_coord_t x, lv_coord_t y,
   return total;
 }
 
-// Whether a line fits the width whole in this font.
+// Whether a line fits the width whole in this font, as the font spells it.
 bool fitsLine(const char* text, const lv_font_t* f, lv_coord_t w) {
-  return canSpell(f, text) && textWidth(text, f) + boldFor(f) <= w;
+  char plain[LR_SPELL_LEN];
+  const char* s = spelled(f, text, plain);
+  return canSpell(f, s) && textWidth(s, f) + boldFor(f) <= w;
 }
 
 // The text as two lines that each fit the width in this font, broken where
 // LVGL breaks a paragraph. False when it needs more than two.
 bool splitTwoLines(const char* text, const lv_font_t* f, lv_coord_t w,
                           char* first, char* second) {
+  char plain[LR_SPELL_LEN];
+  text = spelled(f, text, plain);
   if (!canSpell(f, text)) return false;
   lv_coord_t used = 0;
   const uint32_t n = _lv_txt_get_next_line(text, sized(f), 0, w - boldFor(f), &used,
