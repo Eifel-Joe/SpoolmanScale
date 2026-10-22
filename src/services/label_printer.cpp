@@ -79,15 +79,18 @@ static const LabelPrinterProfile PROFILE_NIIMBOT_B = {
 // NIIMBOT M2: 300 dpi, 567 dots, which is 71 bytes and so a 568 dot row.
 // Prints through a ribbon, so the label survives the dryer. Same protocol,
 // the B1's sequence. 50 x 30 is the first roll for it (Nikolai, 21.10.2026),
-// of which the 48 mm head prints 48, as on the B1.
+// of which the 48 mm head prints 48, as on the B1. Only 50 mm wide: NIIMBOT
+// sells no 40 x 30 roll for it, and no layout of ours fits a narrower one.
+// Hardware proven: Nikolai printed on it with the original white 50 x 30
+// roll and black ribbon (22.10.2026).
 static const LabelPrinterProfile PROFILE_NIIMBOT_M2 = {
-  LP_MODEL_NIIMBOT_M2, "NIIMBOT", "M2", 50, 30, 20, 50, 10, 150, 568, 568, true, false,
+  LP_MODEL_NIIMBOT_M2, "NIIMBOT", "M2", 50, 30, 50, 50, 10, 150, 568, 568, false, false,
   300, LP_PROTO_NIIMBOT
 };
 
 const LabelPrinterModel LABEL_PRINTER_MODELS[] = {
-  LP_MODEL_M220, LP_MODEL_M110, LP_MODEL_M110S, LP_MODEL_M100, LP_MODEL_M120, LP_MODEL_M200,
-  LP_MODEL_M221, LP_MODEL_NIIMBOT_B, LP_MODEL_NIIMBOT_M2,
+  LP_MODEL_M220, LP_MODEL_NIIMBOT_M2, LP_MODEL_M110, LP_MODEL_M110S, LP_MODEL_M100,
+  LP_MODEL_NIIMBOT_B, LP_MODEL_M120, LP_MODEL_M200, LP_MODEL_M221,
 };
 const int LABEL_PRINTER_MODEL_COUNT = sizeof(LABEL_PRINTER_MODELS) / sizeof(LABEL_PRINTER_MODELS[0]);
 
