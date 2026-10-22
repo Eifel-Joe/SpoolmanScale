@@ -255,7 +255,7 @@ static BodyPlan planOneLine(const LabelArea& a, bool tall, const LabelContent& c
   // The code comes out in whole dots per module and is mostly smaller than its
   // box: the text column reaches to the code, not to the box, which gave a
   // date line on 40 x 30 the room it was cut short of.
-  if (p.qr >= dots(LR_QR_MIN_PX) && c.qr && c.qr[0]) p.code = drawQr(nullptr, 0, 0, p.qr, c.qr);
+  if (p.qr >= dots(LR_QR_MIN_PX) && c.qr && c.qr[0]) p.code = drawQr(nullptr, 0, 0, p.qr, c.qr, true);
   return p;
 }
 
@@ -453,7 +453,7 @@ static lv_coord_t drawSideQr(lv_obj_t* canvas, LabelArea* a, const LabelContent&
   if (box > a->w - keep - gap) box = a->w - keep - gap;
   if (box > a->qr_max) box = a->qr_max;
   if (box < dots(LR_QR_MIN_PX)) { a->facts_font = nullptr; return 0; }
-  const lv_coord_t code = drawQr(nullptr, 0, 0, box, c.qr);
+  const lv_coord_t code = drawQr(nullptr, 0, 0, box, c.qr, true);
   if (!code) { a->facts_font = nullptr; return 0; }
   drawQr(canvas, a->x + a->w - code, a->y + (a->bottom - a->y - code) / 2, code, c.qr);
   a->w -= code + gap;
@@ -467,7 +467,7 @@ static lv_coord_t drawTopQr(lv_obj_t* canvas, LabelArea* a, const LabelContent& 
   a->facts_font = &lv_font_montserrat_ext_14;
   lv_coord_t box = LV_MIN(a->w, (a->bottom - a->y) / 2);
   box = LV_MIN(box, a->qr_max);
-  const lv_coord_t code = box >= dots(LR_QR_MIN_PX) ? drawQr(nullptr, 0, 0, box, c.qr) : 0;
+  const lv_coord_t code = box >= dots(LR_QR_MIN_PX) ? drawQr(nullptr, 0, 0, box, c.qr, true) : 0;
   if (!code) { a->facts_font = nullptr; return 0; }
   drawQr(canvas, a->x + (a->w - code) / 2, a->y, code, c.qr);
   a->y += code + dots(LR_GAP_PX);

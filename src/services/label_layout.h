@@ -99,9 +99,11 @@ uint32_t labelFactFields(uint8_t preset);
 LabelLayout labelLayoutLoad(LabelKind kind = LABEL_KIND_SPOOL);
 bool labelLayoutSave(const LabelLayout& layout, LabelKind kind = LABEL_KIND_SPOOL);
 
-// The free line LF_FREE_TEXT prints, empty when none was set. Bytes, so a
-// line of umlauts fits its 40 characters too.
-#define LABEL_FREE_TEXT_BYTES 64
+// The free line LF_FREE_TEXT prints, empty when none was set. The buffer
+// holds 40 characters of up to 4 bytes each, so a line of umlauts or a euro
+// sign keeps all 40 (64 bytes cut a line of umlauts after 31).
+#define LABEL_FREE_TEXT_CHARS 40
+#define LABEL_FREE_TEXT_BYTES (LABEL_FREE_TEXT_CHARS * 4 + 1)
 const char* labelLayoutFreeText();
 // Cut to the buffer on a character boundary; false when NVS refused it.
 bool labelLayoutSaveFreeText(const char* text);

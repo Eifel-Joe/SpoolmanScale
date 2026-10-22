@@ -14,6 +14,7 @@
 #include "services/backend.h"
 #include "services/backend_api.h"
 #include "services/drying_sync.h"
+#include "services/local_date.h"
 #include "services/tag_spool_match.h"
 #include "services/text_util.h"
 #include "ui/date_display.h"
@@ -78,14 +79,13 @@ static LabelExtras extrasOf(const SpoolLabelData& d) {
   return e;
 }
 
-// "dd.mm.yyyy" as the scan keeps the last drying, in the display's format;
-// empty for the scan's "-" or anything else that is not a date.
-static void driedToLocal(const char* de, char* out, size_t n) {
+// The last drying as the scan keeps it, in whichever display format the
+// setting had when it was looked up, as the label's date; empty for the
+// scan's "-" or anything else that is not a date.
+static void driedToLocal(const char* local, char* out, size_t n) {
   out[0] = '\0';
-  int day = 0, m = 0, y = 0;
-  if (sscanf(de, "%2d.%2d.%4d", &day, &m, &y) != 3) return;
-  char ymd[16];
-  snprintf(ymd, sizeof(ymd), "%04d-%02d-%02d", y, m, day);
+  char ymd[LOCAL_DATE_ISO_LEN];
+  if (!localDateToIso(local, ymd, sizeof(ymd))) return;
   isoToLabelDate(ymd, out, n);
 }
 

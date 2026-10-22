@@ -3703,8 +3703,8 @@ const char* const STRINGS[][3] = {
     "Bobine" },  // STR_W_L_KIND_SPOOL
   { "Filament", "Filament",
     "Filament" },  // STR_W_L_KIND_FILAMENT
-  { "Das Filament-Etikett druckst du hier, am Gerät kommt immer das der Spule.", "The filament label prints from here; the scale itself always prints the spool's.",
-    "L'étiquette du filament s'imprime d'ici ; la balance imprime toujours celle de la bobine." },  // STR_W_L_KIND_HINT
+  { "Am Gerät wählst du die Art im Druckfenster, ohne Druckfenster kommt das der Spule.", "On the scale the print sheet picks the kind; without the sheet the spool's prints.",
+    "Sur la balance, la fenêtre d'impression choisit le type ; sans elle, c'est celle de la bobine." },  // STR_W_L_KIND_HINT
   { "Dieses Backend hat keine Filamentseite: das Filament-Etikett kommt ohne Code.", "This backend has no filament page: the filament label prints without a code.",
     "Ce backend n'a pas de page filament : l'étiquette du filament s'imprime sans code." },  // STR_W_L_FIL_NO_PAGE
   // The print sheet on the scale
@@ -3768,6 +3768,8 @@ const char* const STRINGS[][3] = {
     "Rouleaux et ruban adaptés à votre M2." },  // STR_W_P_REC_M2_TEXT
   { "Zu Etiketten und Farbband", "To labels and ribbon",
     "Voir étiquettes et ruban" },  // STR_W_P_REC_RIBBON_BTN
+  { "Anderer Tag auf dem Leser - nicht gelöscht", "A different tag is on the reader - not erased",
+    "Autre tag sur le lecteur - rien effacé" },  // STR_TW_ERR_OTHER_TAG
 };
 
 StringID tagWriteResultString(uint8_t code) {
@@ -3777,6 +3779,7 @@ StringID tagWriteResultString(uint8_t code) {
     case TW_ERR_NOT_NTAG:  return STR_TW_ERR_NOT_NTAG;
     case TW_ERR_BACKEND:   return STR_TW_ERR_BACKEND;
     case TW_ERR_SPACE:     return STR_TW_ERR_SPACE;
+    case TW_ERR_OTHER_TAG: return STR_TW_ERR_OTHER_TAG;
     default:               return STR_TW_ERR_WRITE;
   }
 }

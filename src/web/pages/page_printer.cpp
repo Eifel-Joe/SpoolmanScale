@@ -273,12 +273,18 @@ static String body() {
   h += F("</label><select id='pm'>");
   webPrinterModelOptions(h, c);
   // How the model prints, and for heat-sensitive paper what a dryer does to
-  // it; the script shows the one that fits the model picked.
-  h += F("</select><span class='hint' id='pmd'>");
+  // it. The one that fits the saved model shows from the first paint; the
+  // script follows the model picked.
+  const bool thermal = labelPrinterProfile(c.model).direct_thermal;
+  h += F("</select><span class='hint' id='pmd'");
+  if (!thermal) h += F(" style='display:none'");
+  h += '>';
   h += T(STR_W_P_METHOD_DIRECT);
   h += ' ';
   h += T(STR_PRN_HEAT_SHORT);
-  h += F("</span><span class='hint' id='pmr'>");
+  h += F("</span><span class='hint' id='pmr'");
+  if (thermal) h += F(" style='display:none'");
+  h += '>';
   h += T(STR_W_P_METHOD_RIBBON);
   h += F("</span><span class='msg' id='pm-s'></span></div>");
 

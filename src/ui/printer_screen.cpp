@@ -114,8 +114,23 @@ void printerPrintPadLabel(LabelKind kind) {
   printSpoolLabel(spool, false, kind);
 }
 
+// The label of the last spool scanned, on the pad or not: the print sheet
+// and the browser's editor print what they showed.
+void printerPrintLastLabel(LabelKind kind) {
+  printerOffsetFlush();
+  SpoolLabelData spool{};
+  if (!labelSpoolLast(&spool)) {
+    showInfoPopup(STR_PRN_TITLE, STR_PRN_ERR_NO_SPOOL, INFO_WARN);
+    return;
+  }
+  printSpoolLabel(spool, false, kind);
+}
+
 void closePrinterScreen() {
   if (scr_printer) { lv_obj_del(scr_printer); scr_printer = nullptr; }
+  // Closed by the X or by "Devices" as well as by its back button: the next
+  // opening, from the Bluetooth screen, must lead back there.
+  s_back_to_sheet = false;
 }
 
 // The next model in the table's order, NONE never included.
@@ -317,13 +332,7 @@ void handlePrinterDeferredActions() {
     const LabelKind kind = print_last_label_pending ? LABEL_KIND_SPOOL : LABEL_KIND_FILAMENT;
     print_last_label_pending = false;
     print_last_filament_label_pending = false;
-    printerOffsetFlush();
-    SpoolLabelData spool{};
-    if (!labelSpoolLast(&spool)) {
-      showInfoPopup(STR_PRN_TITLE, STR_PRN_ERR_NO_SPOOL, INFO_WARN);
-      return;
-    }
-    printSpoolLabel(spool, false, kind);
+    printerPrintLastLabel(kind);
   }
   if (print_own_layout_pending) {
     print_own_layout_pending = false;

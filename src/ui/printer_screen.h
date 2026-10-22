@@ -27,6 +27,9 @@ int printerLastLabelResult();
 // The label of the spool on the pad, its own or its filament's, under the
 // print card. From the loop: it starts the BLE stack and blocks.
 void printerPrintPadLabel(LabelKind kind);
+// The label of the last spool scanned, on the pad or not: what the print
+// sheet and the browser's editor showed. From the loop, like the one above.
+void printerPrintLastLabel(LabelKind kind);
 // The next build of the screen is entered from the print sheet: its back
 // button leads there instead of to the Bluetooth screen.
 void printerScreenFromSheet();

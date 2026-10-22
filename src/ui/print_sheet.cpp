@@ -15,6 +15,7 @@
 #include "services/label_render.h"
 #include "services/label_thumb.h"
 #include "services/device_name.h"
+#include "ui/more_info_screen.h"
 #include "ui/navigation.h"
 #include "ui/printer_screen.h"
 #include "ui/theme.h"
@@ -60,6 +61,9 @@ static LabelKind s_kind = LABEL_KIND_SPOOL;
 static SheetAction s_action = PS_NONE;
 static bool s_waiting = false;       // a server label or the dates still on their way
 static uint32_t s_poll_ms = 0;
+// The back button's way out: the More info card the sheet was opened from,
+// built a pass after the sheet is gone.
+static bool s_reopen_more_info = false;
 
 static int presetCaption(uint8_t preset) {
   static const int CAPTIONS[LABEL_PRESET_COUNT] = {
@@ -337,6 +341,8 @@ static void buildSheet() {
     char buf_s[64]; copyT(buf_s, sizeof(buf_s), STR_PS_SERVER_SUB);
     s_row_server = makeListBtn(list, LV_SYMBOL_LIST, buf_t, buf_s);
     lv_obj_clear_flag(s_row_server, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_t* arrow = lv_obj_get_child(s_row_server, -1);   // the chevron, built last
+    if (arrow) lv_obj_add_flag(arrow, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_to_index(s_row_server, 2); }
   buildWebHint(list);
   refresh();
@@ -363,6 +369,12 @@ static void pollPreview() {
 }
 
 void printSheetTick() {
+  // The sheet was released at the end of the last pass; the card is large,
+  // so the two never share the pool.
+  if (s_reopen_more_info && !s_scr) {
+    s_reopen_more_info = false;
+    if (sm_found && sm_id > 0) showMoreInfoScreen();
+  }
   if (show_print_sheet_pending) {
     show_print_sheet_pending = false;
     hideAllOverlays();
@@ -371,6 +383,7 @@ void printSheetTick() {
   if (print_sheet_close_pending) {
     print_sheet_close_pending = false;
     closePrintSheet();
+    s_reopen_more_info = true;
   }
   if (print_sheet_refresh_pending) {
     print_sheet_refresh_pending = false;
@@ -381,7 +394,7 @@ void printSheetTick() {
     print_sheet_print_pending = false;
     const LabelKind kind = s_kind;
     closePrintSheet();
-    printerPrintPadLabel(kind);
+    printerPrintLastLabel(kind);   // the spool the picture showed
   }
   if (print_sheet_printer_pending) {
     print_sheet_printer_pending = false;

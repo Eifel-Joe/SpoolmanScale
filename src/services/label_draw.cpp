@@ -93,11 +93,13 @@ bool packCanvas(lv_obj_t* canvas, uint16_t content_w, uint16_t h,
   return labelRasterValid(*out);
 }
 
-// Whether the large fonts can spell a line: ASCII and the German letters they
-// were generated with. Anything else has a glyph only in the sizes up to 24.
+// Whether the large fonts can spell a line: ASCII, the degree sign of the
+// temperatures and the German letters they were generated with. Anything
+// else has a glyph only in the sizes up to 24.
 static bool bigFontCovers(const char* s) {
   for (const unsigned char* p = (const unsigned char*)s; *p; p++) {
     if (*p < 0x80) continue;
+    if (*p == 0xC2 && p[1] == 0xB0) { p++; continue; }
     if (*p == 0xC3 && p[1]) {
       const unsigned char n = p[1];
       if (n == 0x84 || n == 0x96 || n == 0x9C || n == 0x9F || n == 0xA4 || n == 0xB6 || n == 0xBC) { p++; continue; }
@@ -257,6 +259,8 @@ bool splitTwoLines(const char* text, const lv_font_t* f, lv_coord_t w,
   snprintf(first, LABEL_LINE_LEN, "%.*s", (int)n, text);
   const char* rest = text + n;
   while (*rest == ' ') rest++;
+  // Only spaces after the break: that is one line, not two.
+  if (!*rest) return false;
   snprintf(second, LABEL_LINE_LEN, "%s", rest);
   // The break leaves a space at the end of the first line.
   for (size_t k = strlen(first); k > 0 && first[k - 1] == ' '; k--) first[k - 1] = '\0';

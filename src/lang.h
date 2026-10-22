@@ -1736,6 +1736,8 @@ enum StringID {
   STR_W_P_REC_LABELS_BTN,
   STR_W_P_REC_M2_TEXT,
   STR_W_P_REC_RIBBON_BTN,
+  // Tag erase refused: another tag than the one asked about lies on the reader
+  STR_TW_ERR_OTHER_TAG,
 
   STR_COUNT
 };

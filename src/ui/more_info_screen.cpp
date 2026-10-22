@@ -72,6 +72,7 @@ static bool unlink_pending  = false;
 static bool unlink_all      = false;
 static int  unlink_spool_id = 0;
 static bool unlink_erase_now = false;   // the erase was agreed to with the unlink
+static char unlink_erase_uid[26] = "";  // ... and for this tag, as the question saw it
 static bool loc_patch_pending  = false;
 static char loc_patch_name[LOCATION_NAME_MAX] = "";   // empty: clear the location
 // The picker row is 370 px wide; its label keeps 10 px off each edge.
@@ -106,6 +107,7 @@ static void unlinkConfirmCb(lv_event_t *e) {
   unlink_all      = (bool)(intptr_t)lv_obj_get_user_data(btn);
   unlink_spool_id = sm_id;
   unlink_erase_now = false;
+  unlink_erase_uid[0] = 0;
   // Read out of the button before the popup goes. The popup is this button's
   // grandparent, so it is released asynchronously; the unlink itself runs from
   // the loop a pass later.
@@ -113,10 +115,11 @@ static void unlinkConfirmCb(lv_event_t *e) {
   unlink_pending = true;
 }
 
-void requestSpoolUnlink(int spool_id, bool all, bool erase_now) {
+void requestSpoolUnlink(int spool_id, bool all, bool erase_now, const char* erase_uid) {
   unlink_all       = all;
   unlink_spool_id  = spool_id;
   unlink_erase_now = erase_now;
+  snprintf(unlink_erase_uid, sizeof(unlink_erase_uid), "%s", erase_uid ? erase_uid : "");
   unlink_pending   = true;
 }
 
@@ -177,7 +180,7 @@ static void runUnlink() {
   // longer knows. Asked rather than done: the tag may be somebody else's, and
   // the question only appears when one is actually lying there with something
   // on it. "Release the tag" after an archive has asked it already.
-  if (unlink_erase_now) requestTagEraseNow();
+  if (unlink_erase_now) requestTagEraseNow(unlink_erase_uid);
   else                  requestTagEraseAsk();
 
   // Close More Info and reset display - NFC will re-scan and find no match
@@ -816,6 +819,8 @@ void buildMoreInfoScreen() {
     lv_obj_set_style_border_width(btn_print, 1, 0);
     lv_obj_set_style_radius(btn_print, UI_RADIUS_BTN, 0);
     lv_obj_set_style_shadow_width(btn_print, 0, 0);
+    // Read here, so the tap below finds it cached and never opens NVS itself.
+    labelPrinterAskFirst();
     lv_obj_add_event_cb(btn_print, [](lv_event_t *e) {
       logSD("BTN: MoreInfo -> print label");
       // The print sheet first, unless the printer screen switched it off.

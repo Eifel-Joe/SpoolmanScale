@@ -297,7 +297,9 @@ static void templateCard(String& h) {
     h += F("<small class='lb-gap'></small></span></label>");
   }
   h += F("</div><span class='hint' id='lcap'></span><span class='msg' id='lcap-s'></span>"
-         "<input id='ltx' type='text' maxlength='40' autocomplete='off'><span class='hint'>");
+         "<input id='ltx' type='text' maxlength='");
+  h += LABEL_FREE_TEXT_CHARS;
+  h += F("' autocomplete='off'><span class='hint'>");
   h += T(STR_W_L_TEXT_HINT);
   h += ' ';
   h += T(STR_W_L_CHANGE_HINT);
