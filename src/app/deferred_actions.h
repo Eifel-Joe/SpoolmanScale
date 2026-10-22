@@ -145,8 +145,6 @@ extern bool ble_card_forget_printer_pending;
 // The printer screen behind the Bluetooth screen's row, and its rows: each
 // change is saved and the screen rebuilt, the test print blocks for seconds.
 extern bool show_printer_pending;
-extern bool printer_cycle_model_pending;
-extern bool printer_cycle_media_pending;
 extern bool printer_test_pending;
 extern bool printer_calib_pending;   // the calibration page, browser or device
 extern bool show_printer_offset_pending;

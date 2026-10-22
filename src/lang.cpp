@@ -3770,6 +3770,12 @@ const char* const STRINGS[][3] = {
     "Voir étiquettes et ruban" },  // STR_W_P_REC_RIBBON_BTN
   { "Anderer Tag auf dem Leser - nicht gelöscht", "A different tag is on the reader - not erased",
     "Autre tag sur le lecteur - rien effacé" },  // STR_TW_ERR_OTHER_TAG
+  { "Empfohlen", "Recommended",
+    "Recommandée" },  // STR_PRN_TAG_RECOMMENDED
+  { "experimentell", "experimental",
+    "expérimentale" },  // STR_PRN_TAG_EXPERIMENTAL
+  { "noch keine Vorlage", "no layout yet",
+    "pas encore de modèle" },  // STR_PRN_MEDIA_NO_LAYOUT
 };
 
 StringID tagWriteResultString(uint8_t code) {

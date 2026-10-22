@@ -14,6 +14,7 @@
 #include "services/label_layout.h"
 #include "services/label_printer.h"
 #include "services/label_render.h"
+#include "ui/choice_grid.h"
 #include "ui/info_popup.h"
 #include "ui/print_card.h"
 #include "ui/print_sheet.h"
@@ -128,17 +129,99 @@ void printerPrintLastLabel(LabelKind kind) {
 
 void closePrinterScreen() {
   if (scr_printer) { lv_obj_del(scr_printer); scr_printer = nullptr; }
+  closeChoiceGrid();
   // Closed by the X or by "Devices" as well as by its back button: the next
   // opening, from the Bluetooth screen, must lead back there.
   s_back_to_sheet = false;
 }
 
-// The next model in the table's order, NONE never included.
-static LabelPrinterModel nextModel(LabelPrinterModel m) {
-  for (int i = 0; i < LABEL_PRINTER_MODEL_COUNT; i++)
-    if (LABEL_PRINTER_MODELS[i] == m)
-      return LABEL_PRINTER_MODELS[(i + 1) % LABEL_PRINTER_MODEL_COUNT];
-  return LABEL_PRINTER_MODELS[0];
+static void rebuild();
+
+// Saves a picked model or stock and redraws the rows that name it.
+static void saveAndRebuild(const LabelPrinterConfig& c) {
+  if (!labelPrinterSaveConfig(c)) showInfoPopup(STR_PRN_TITLE, STR_ERR_SAVE, INFO_WARN);
+  rebuild();
+}
+
+static void modelPicked(int index) {
+  if (index < 0 || index >= LABEL_PRINTER_MODEL_COUNT) return;
+  LabelPrinterConfig c = labelPrinterLoadConfig();
+  if (c.model == LABEL_PRINTER_MODELS[index]) return;
+  c.model = LABEL_PRINTER_MODELS[index];
+  logSDf("Printer: model -> %s", labelPrinterProfile(c.model).name);
+  // A stock the new model cannot take falls back to its default in the save.
+  saveAndRebuild(c);
+}
+
+// Every model in the table's order: recommended ones say so, experimental
+// ones warn.
+static void showModelPicker() {
+  const LabelPrinterModel now = labelPrinterLoadConfig().model;
+  ChoiceCard cards[CHOICE_GRID_MAX] = {};
+  int current = -1;
+  const int n = LABEL_PRINTER_MODEL_COUNT < CHOICE_GRID_MAX ? LABEL_PRINTER_MODEL_COUNT : CHOICE_GRID_MAX;
+  for (int i = 0; i < n; i++) {
+    const LabelPrinterProfile& p = labelPrinterProfile(LABEL_PRINTER_MODELS[i]);
+    ChoiceCard& card = cards[i];
+    card.caption = p.brand;
+    snprintf(card.value, sizeof(card.value), "%s", p.name);
+    card.enabled = true;
+    if (labelPrinterRecommended(p.model)) {
+      card.tag = CHOICE_TAG_GOOD; card.tag_text = STR_PRN_TAG_RECOMMENDED;
+    } else if (p.experimental) {
+      card.tag = CHOICE_TAG_WARN; card.tag_text = STR_PRN_TAG_EXPERIMENTAL;
+    }
+    if (p.model == now) current = i;
+  }
+  showChoiceGrid(STR_PRN_MODEL, cards, n, current, 3, modelPicked);
+}
+
+// The sizes offered in the grid, in its order; filled when it opens.
+static LabelMediaSize s_media_offer[CHOICE_GRID_MAX];
+
+static void mediaPicked(int index) {
+  if (index < 0 || index >= CHOICE_GRID_MAX) return;
+  LabelPrinterConfig c = labelPrinterLoadConfig();
+  c.media_width_mm = s_media_offer[index].width_mm;
+  c.media_length_mm = s_media_offer[index].length_mm;
+  logSDf("Printer: label stock -> %ux%u mm", (unsigned)c.media_width_mm, (unsigned)c.media_length_mm);
+  saveAndRebuild(c);
+}
+
+static void addMediaCard(ChoiceCard* cards, int* n, const LabelMediaSize& s, bool enabled) {
+  if (*n >= CHOICE_GRID_MAX) return;
+  ChoiceCard& card = cards[*n];
+  card.caption = nullptr;   // the outline says enough
+  snprintf(card.value, sizeof(card.value), T(STR_PRN_MEDIA_FMT),
+           (unsigned)s.width_mm, (unsigned)s.length_mm);
+  card.shape_w_mm = s.width_mm;
+  card.shape_h_mm = s.length_mm;
+  card.enabled = enabled;
+  s_media_offer[*n] = s;
+  (*n)++;
+}
+
+// The sizes the model takes, each drawn to scale, then the planned ones it
+// would take, greyed.
+static void showMediaPicker() {
+  const LabelPrinterConfig c = labelPrinterLoadConfig();
+  ChoiceCard cards[CHOICE_GRID_MAX] = {};
+  int n = 0, current = -1;
+  for (int i = 0; i < LABEL_MEDIA_SIZE_COUNT; i++) {
+    const LabelMediaSize& s = LABEL_MEDIA_SIZES[i];
+    if (!labelPrinterTakesMedia(c.model, s.width_mm, s.length_mm)) continue;
+    if (s.width_mm == c.media_width_mm && s.length_mm == c.media_length_mm) current = n;
+    addMediaCard(cards, &n, s, true);
+  }
+  for (int i = 0; i < LABEL_MEDIA_PLANNED_COUNT && n < CHOICE_GRID_MAX; i++) {
+    const LabelMediaSize& s = LABEL_MEDIA_SIZES_PLANNED[i];
+    if (!labelPrinterTakesMedia(c.model, s.width_mm, s.length_mm)) continue;
+    cards[n].tag = CHOICE_TAG_WARN;
+    cards[n].tag_text = STR_PRN_MEDIA_NO_LAYOUT;
+    addMediaCard(cards, &n, s, false);
+  }
+  // Two or three cards share the width rather than leaving a gap.
+  showChoiceGrid(STR_PRN_MEDIA, cards, n, current, n < 3 ? n : 3, mediaPicked);
 }
 
 void buildPrinterScreen() {
@@ -175,18 +258,18 @@ void buildPrinterScreen() {
       show_ble_devices_pending = true;
     }, LV_EVENT_CLICKED, NULL); }
 
-  // The model, cycled with a tap.
+  // The model, picked from a grid.
   { char buf_t[40]; copyT(buf_t, sizeof(buf_t), STR_PRN_MODEL);
     char buf_s[64];
     if (p.experimental) snprintf(buf_s, sizeof(buf_s), "%s %s  %s", p.brand, p.name, T(STR_PRN_EXPERIMENTAL));
     else snprintf(buf_s, sizeof(buf_s), "%s %s", p.brand, p.name);
     lv_obj_t *btn = makeListBtn(list, LV_SYMBOL_SETTINGS, buf_t, buf_s);
     lv_obj_add_event_cb(btn, [](lv_event_t *e){
-      logSD("BTN: Printer -> next model");
-      printer_cycle_model_pending = true;
+      logSD("BTN: Printer -> model grid");
+      showModelPicker();
     }, LV_EVENT_CLICKED, NULL); }
 
-  // The label stock, cycled with a tap through what the model takes. On
+  // The label stock, picked from a grid of what the model takes. On
   // thermal paper its "?" says what a dryer does to it.
   { char buf_t[40]; copyT(buf_t, sizeof(buf_t), STR_PRN_MEDIA);
     char buf_s[48];
@@ -198,8 +281,8 @@ void buildPrinterScreen() {
     if (help) lv_obj_add_event_cb(help, infoPopupEventCb, LV_EVENT_CLICKED,
                                   INFO_POPUP_ARG(STR_PRN_MEDIA, STR_PRN_HEAT_HELP));
     lv_obj_add_event_cb(btn, [](lv_event_t *e){
-      logSD("BTN: Printer -> next media");
-      printer_cycle_media_pending = true;
+      logSD("BTN: Printer -> label stock grid");
+      showMediaPicker();
     }, LV_EVENT_CLICKED, NULL); }
 
   // Whether "Print label" shows the print sheet first or prints at once.
@@ -278,6 +361,7 @@ static void rebuild() {
 }
 
 void handlePrinterDeferredActions() {
+  handleChoiceGridDeferredActions();
   printCardLoop();
   printSheetTick();
   printerOffsetTick();
@@ -287,21 +371,6 @@ void handlePrinterDeferredActions() {
     hideAllOverlays();
     // Built hidden like every overlay; shown once the others are down.
     showPrinterOffsetScreen();
-  }
-  if (printer_cycle_model_pending) {
-    printer_cycle_model_pending = false;
-    LabelPrinterConfig c = labelPrinterLoadConfig();
-    c.model = nextModel(c.model);
-    // A stock the new model cannot take falls back to its default in the save.
-    if (!labelPrinterSaveConfig(c)) showInfoPopup(STR_PRN_TITLE, STR_ERR_SAVE, INFO_WARN);
-    rebuild();
-  }
-  if (printer_cycle_media_pending) {
-    printer_cycle_media_pending = false;
-    LabelPrinterConfig c = labelPrinterLoadConfig();
-    labelPrinterNextMedia(c);
-    if (!labelPrinterSaveConfig(c)) showInfoPopup(STR_PRN_TITLE, STR_ERR_SAVE, INFO_WARN);
-    rebuild();
   }
   if (printer_toggle_ask_pending) {
     printer_toggle_ask_pending = false;

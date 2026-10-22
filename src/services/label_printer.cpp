@@ -102,6 +102,14 @@ const LabelMediaSize LABEL_MEDIA_SIZES[] = {
 };
 const int LABEL_MEDIA_SIZE_COUNT = sizeof(LABEL_MEDIA_SIZES) / sizeof(LABEL_MEDIA_SIZES[0]);
 
+// 50 x 50 rolls are sold for the M220, the B1 and the M2, but no layout of
+// ours is drawn for them yet (Nikolai, 22.10.2026).
+const LabelMediaSize LABEL_MEDIA_SIZES_PLANNED[] = {
+  {50, 50},
+};
+const int LABEL_MEDIA_PLANNED_COUNT =
+  sizeof(LABEL_MEDIA_SIZES_PLANNED) / sizeof(LABEL_MEDIA_SIZES_PLANNED[0]);
+
 static LabelPrinterConfig s_config{};
 static bool s_loaded = false;
 // Whether "Print label" opens the print sheet first. Cached like the config.
@@ -148,6 +156,10 @@ static bool mediaFits(const LabelPrinterProfile& p, uint16_t w, uint16_t h) {
   return p.model != LP_MODEL_NONE &&
          w >= p.min_width_mm && w <= p.max_width_mm &&
          h >= p.min_length_mm && h <= p.max_length_mm;
+}
+
+bool labelPrinterTakesMedia(LabelPrinterModel model, uint16_t width_mm, uint16_t length_mm) {
+  return mediaFits(labelPrinterProfile(model), width_mm, length_mm);
 }
 
 // What is stored is taken as it is, except for two things that would leave

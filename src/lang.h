@@ -1738,6 +1738,10 @@ enum StringID {
   STR_W_P_REC_RIBBON_BTN,
   // Tag erase refused: another tag than the one asked about lies on the reader
   STR_TW_ERR_OTHER_TAG,
+  // Printer screen: the model and label stock grids
+  STR_PRN_TAG_RECOMMENDED,
+  STR_PRN_TAG_EXPERIMENTAL,
+  STR_PRN_MEDIA_NO_LAYOUT,
 
   STR_COUNT
 };
