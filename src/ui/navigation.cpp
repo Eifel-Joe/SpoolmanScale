@@ -78,6 +78,7 @@ void hideAllOverlays() {
   if (scr_tagwrite)       lv_obj_add_flag(scr_tagwrite,       LV_OBJ_FLAG_HIDDEN);
   if (scr_timezone)    lv_obj_add_flag(scr_timezone,    LV_OBJ_FLAG_HIDDEN);
   if (scr_spoolman_options) lv_obj_add_flag(scr_spoolman_options, LV_OBJ_FLAG_HIDDEN);
+  if (scr_tag_comp)      lv_obj_add_flag(scr_tag_comp, LV_OBJ_FLAG_HIDDEN);
   if (scr_tag_field)     lv_obj_add_flag(scr_tag_field, LV_OBJ_FLAG_HIDDEN);
   if (scr_spoolman_fail) lv_obj_add_flag(scr_spoolman_fail, LV_OBJ_FLAG_HIDDEN);
   if (scr_wifi)        lv_obj_add_flag(scr_wifi,        LV_OBJ_FLAG_HIDDEN);
@@ -188,6 +189,7 @@ void showMainScreen() {
   if (s_ams_numpad_scr)    { lv_obj_del(s_ams_numpad_scr);    s_ams_numpad_scr    = nullptr; }
   s_ams_numpad_lbl = nullptr;
   if (scr_spoolman_options) { lv_obj_del(scr_spoolman_options); scr_spoolman_options = nullptr; }
+  if (scr_tag_comp)        { lv_obj_del(scr_tag_comp);        scr_tag_comp        = nullptr; }
   if (scr_bambuddy_options) { lv_obj_del(scr_bambuddy_options); scr_bambuddy_options = nullptr; }
   if (scr_bambuddy_dried)  { lv_obj_del(scr_bambuddy_dried);  scr_bambuddy_dried  = nullptr; }
   if (scr_tagwrite)        { lv_obj_del(scr_tagwrite);        scr_tagwrite        = nullptr; }

@@ -89,6 +89,7 @@
 #include "ui/cal_reminder_screen.h"
 #include "ui/bambuddy_options_screen.h"
 #include "ui/spoolman_options_screen.h"
+#include "ui/tag_companion_screen.h"
 #include "services/prefs_store.h"
 #include "web/web_jobs.h"
 #include "ui/confirm_popup.h"
@@ -844,6 +845,12 @@ void appLoop() {
     buildSpoolmanOptionsScreen();  // releases the previous instance itself
     hideAllOverlays();
     lv_obj_clear_flag(scr_spoolman_options, LV_OBJ_FLAG_HIDDEN);
+  }
+  if (show_tag_comp_pending) {
+    show_tag_comp_pending = false;
+    buildTagCompanionScreen();     // releases the previous instance itself
+    hideAllOverlays();
+    lv_obj_clear_flag(scr_tag_comp, LV_OBJ_FLAG_HIDDEN);
   }
   if (show_extra_fields_pending) {
     show_extra_fields_pending = false;

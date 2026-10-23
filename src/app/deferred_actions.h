@@ -49,6 +49,9 @@ extern bool show_tag_view_pending;
 extern bool show_filaman_fields_pending;
 extern bool show_bambuddy_options_pending;
 extern bool show_bambuddy_dried_pending;
+// The companion field picker, opened from the Spoolman options and rebuilt by
+// its own rows after a pick - same shape as show_bambuddy_dried_pending.
+extern bool show_tag_comp_pending;
 // The tag write screen: opened from the scale menu, and re-rendered by its own
 // rows after a pick - same shape as show_bambuddy_dried_pending above.
 extern bool show_tagwrite_pending;

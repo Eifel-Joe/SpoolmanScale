@@ -1372,10 +1372,6 @@ enum StringID {
   STR_LBL_L_ADDED,
   STR_LBL_TEST_BAND,
   STR_LBL_TEST_DONATE,
-  // Spoolman: extra.tag for OpenSpoolman beside the native tags
-  STR_OSM_TAG,
-  STR_OSM_TAG_SUB,
-  STR_OSM_TAG_INFO,
   // Extra fields screen: the verdict at the top
   STR_EF_HEAD_OK,
   STR_EF_HEAD_MISSING,
@@ -1742,6 +1738,15 @@ enum StringID {
   STR_PRN_TAG_RECOMMENDED,
   STR_PRN_TAG_EXPERIMENTAL,
   STR_PRN_MEDIA_NO_LAYOUT,
+  // Spoolman: the companion field beside the native tags
+  STR_TAG_COMP,
+  STR_TAG_COMP_INFO,
+  STR_TAG_COMP_OFF,
+  STR_TAG_COMP_OFF_SUB,
+  STR_TAG_COMP_TAG,
+  STR_TAG_COMP_TAG_SUB,
+  STR_TAG_COMP_NFCID,
+  STR_TAG_COMP_NFCID_SUB,
 
   STR_COUNT
 };

@@ -412,6 +412,7 @@ static void settingRowClicked(lv_event_t *e) {
       case OPEN_FLM_FIELDS:      show_filaman_fields_pending  = true; break;
       case OPEN_AMS_ASSIGN:      show_ams_assign_pending      = true; break;
       case OPEN_BB_DRIED:        show_bambuddy_dried_pending  = true; break;
+      case OPEN_TAG_COMP:        show_tag_comp_pending        = true; break;
       default: break;
     }
     logSDf("BTN: Options -> %s", s->id);

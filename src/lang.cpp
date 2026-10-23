@@ -2942,11 +2942,6 @@ const char* const STRINGS[][3] = {
   { "Dieses Feature hat viel Zeit gekostet. Ich freue mich über eine Spende.",
     "This feature took a lot of time. I'd be glad about a donation.",
     "Cette fonction a pris beaucoup de temps. Un don me ferait plaisir." },  // STR_LBL_TEST_DONATE
-  { "Für OpenSpoolman",             "For OpenSpoolman",             "OpenSpoolman" },  // STR_OSM_TAG
-  { "Bambu-UUID auch in extra.tag", "Bambu UUID also in extra.tag", "UUID Bambu en extra.tag" },  // STR_OSM_TAG_SUB
-  { "OpenSpoolman kennt die nativen Tags von Spoolman noch nicht. Es findet eine Bambu-Spule über die UUID im Feld extra.tag.\n\nIst das an, schreibt die Waage die UUID beim Verknüpfen zusätzlich dort hinein und legt das Feld an, falls es fehlt. Andere Tags betrifft das nicht.",
-    "OpenSpoolman does not know Spoolman's native tags yet. It finds a Bambu spool by the UUID in the field extra.tag.\n\nWith this on, the scale also writes the UUID there when linking, and creates the field if it is missing. Other tags are not affected.",
-    "OpenSpoolman ne connaît pas encore les tags natifs. Il trouve une bobine Bambu par l'UUID dans extra.tag.\n\nActivé : la balance y écrit aussi l'UUID lors d'une liaison et crée le champ s'il manque. Les autres tags ne sont pas concernés." },  // STR_OSM_TAG_INFO
   { "Alles eingerichtet", "All set",            "Tout est prêt" },  // STR_EF_HEAD_OK
   { "Es fehlen Felder",   "Fields are missing", "Champs absents" },  // STR_EF_HEAD_MISSING
   { "Anlegen",            "Create",             "Créer" },  // STR_EF_BTN_CREATE
@@ -3776,6 +3771,20 @@ const char* const STRINGS[][3] = {
     "expérimentale" },  // STR_PRN_TAG_EXPERIMENTAL
   { "noch keine Vorlage", "no layout yet",
     "pas encore de modèle" },  // STR_PRN_MEDIA_NO_LAYOUT
+  { "Auch in Extra-Feld", "Also in extra field",
+    "Aussi dans un champ" },  // STR_TAG_COMP
+  { "Nicht jedes Tool kennt die nativen Tags von Spoolman. Hier schreibt die Waage beim Verknüpfen zusätzlich in ein Extra-Feld und legt es an, falls es fehlt.\n\nextra.tag: die UUID einer Bambu-Spule, für OpenSpoolman. Andere Tags betrifft das nicht.\nextra.nfc_id: die UUID einer Bambu-Spule, bei anderen Tags die Chip-UID.\n\nBeim Auflegen füllt die Waage nur ein leeres Feld. Geleert wird es erst, wenn alle Tags der Spule gelöst werden oder der Tag, dessen UID darin steht.",
+    "Not every tool knows Spoolman's native tags. With this, the scale also writes into an extra field when linking, and creates the field if it is missing.\n\nextra.tag: the UUID of a Bambu spool, for OpenSpoolman. Other tags are not affected.\nextra.nfc_id: the UUID of a Bambu spool, the chip UID for other tags.\n\nWhen a spool is placed, the scale only fills an empty field. It is cleared only when all of the spool's tags are unlinked, or the tag whose UID it holds.",
+    "Certains outils ignorent les tags natifs de Spoolman. La balance écrit alors aussi dans un champ supplémentaire lors d'une liaison et le crée s'il manque.\n\nextra.tag : l'UUID d'une bobine Bambu, pour OpenSpoolman. Rien pour les autres tags.\nextra.nfc_id : l'UUID d'une bobine Bambu, sinon l'UID de la puce.\n\nUne bobine posée ne remplit qu'un champ vide. Il n'est vidé que si tous ses tags sont dissociés, ou le tag dont il contient l'UID." },  // STR_TAG_COMP_INFO
+  { "Aus",                          "Off",                          "Désactivé" },  // STR_TAG_COMP_OFF
+  { "Nur die nativen Tags", "Native tags only",
+    "Tags natifs uniquement" },  // STR_TAG_COMP_OFF_SUB
+  { "extra.tag",                    "extra.tag",                    "extra.tag" },  // STR_TAG_COMP_TAG
+  { "Bambu-UUID, für OpenSpoolman", "Bambu UUID, for OpenSpoolman",
+    "UUID Bambu, pour OpenSpoolman" },  // STR_TAG_COMP_TAG_SUB
+  { "extra.nfc_id",                 "extra.nfc_id",                 "extra.nfc_id" },  // STR_TAG_COMP_NFCID
+  { "Bambu-UUID oder Chip-UID", "Bambu UUID or chip UID",
+    "UUID Bambu ou UID de puce" },  // STR_TAG_COMP_NFCID_SUB
 };
 
 StringID tagWriteResultString(uint8_t code) {

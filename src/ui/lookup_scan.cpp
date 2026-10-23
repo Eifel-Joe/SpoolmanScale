@@ -806,33 +806,34 @@ LookupStep lookupResolveActive(const LookupCtx& c, JsonDocument& doc,
         }
       }
 
-      // OpenSpoolman reads a spool's tray uuid out of extra.tag and knows
-      // nothing about Spoolman's relation yet. A spool that migrates over
-       // through this path - found by a chip uid in card_uids, say - would
-      // otherwise drop out of its view, and this is the very path a whole
-      // library gets adopted through. The explicit link in patchSpoolTag()
-      // does the same thing for the same reason.
+      // Tools that read a field know nothing about Spoolman's relation -
+      // OpenSpoolman reads the tray uuid out of extra.tag, other setups read
+      // extra.nfc_id. A spool that migrates over through this path - found by
+      // a chip uid in card_uids, say - would otherwise drop out of their view,
+      // and this is the very path a whole library gets adopted through. The
+      // explicit link in patchSpoolTag() does the same thing for the same
+      // reason.
       //
       // Only into an empty field. Filling a blank is an addition; overwriting
       // a value somebody put there would be an opinion, and this runs without
       // anybody asking for it.
-      // Behind its switch, and created on the first write when missing.
-      if (g_osm_tag && tagIsBambu(tray_uuid) && !sm_tag_values[TAG_FIELD_TAG][0]) {
-        const TagFieldSpec& companion = tagFieldSpec(TAG_FIELD_TAG);
-        {
-          char val[40];
-          tagFieldFormat(companion, tray_uuid, val, sizeof(val));
-          int c = backendPatchExtraField(cfg_spoolman_base, sm_id,
-                                         companion.key, val);
-          logSDf("Auto-link: kept tray uuid in %s='%s' of spool %d HTTP %d",
-                 companion.key, val, sm_id, c);
-          if (c >= 200 && c < 300) {
-            strncpy(sm_tag_values[TAG_FIELD_TAG], val, CARD_UIDS_MAX - 1);
-            sm_tag_values[TAG_FIELD_TAG][CARD_UIDS_MAX - 1] = '\0';
-            // Spoolman's own relation does not count as bound in the link
-            // list, a value in extra.tag does.
-            spoolCacheSetBound(sm_id, true);
-          }
+      // Behind its choice (g_tag_comp), and created on the first write when
+      // missing.
+      const int comp = tagCompanionField();
+      char comp_val[40];
+      if (comp >= 0 && !sm_tag_values[comp][0] &&
+          tagCompanionValue(tray_uuid, comp_val, sizeof(comp_val))) {
+        const TagFieldSpec& companion = tagFieldSpec((uint8_t)comp);
+        int c = backendPatchExtraField(cfg_spoolman_base, sm_id,
+                                       companion.key, comp_val);
+        logSDf("Auto-link: kept uid in companion %s='%s' of spool %d HTTP %d",
+               companion.key, comp_val, sm_id, c);
+        if (c >= 200 && c < 300) {
+          strncpy(sm_tag_values[comp], comp_val, CARD_UIDS_MAX - 1);
+          sm_tag_values[comp][CARD_UIDS_MAX - 1] = '\0';
+          // Spoolman's own relation does not count as bound in the link
+          // list, a value in an extra field does.
+          spoolCacheSetBound(sm_id, true);
         }
       }
 

@@ -122,6 +122,7 @@ static void addFieldRow(lv_obj_t *list, uint8_t value) {
   lv_obj_add_event_cb(btn, [](lv_event_t *e) {
     uint8_t v = (uint8_t)(intptr_t)lv_obj_get_user_data(lv_event_get_target(e));
     if (v == g_tag_field) return;
+    tagCompanionNoteSourceChange(g_tag_field, v);
     g_tag_field = v;
     g_tag_field_chosen = true;
     prefsPutUChar("tag_field", v);

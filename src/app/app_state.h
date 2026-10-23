@@ -60,6 +60,7 @@ extern lv_obj_t *scr_bambuddy_dried;
 extern lv_obj_t *scr_tagwrite;   // writing a tag after a link
 extern lv_obj_t *scr_timezone;
 extern lv_obj_t *scr_spoolman_options;
+extern lv_obj_t *scr_tag_comp;   // companion field beside the native tags
 extern lv_obj_t *scr_spoolman;
 extern lv_obj_t *scr_spoolman_fail;
 extern lv_obj_t *scr_welcome;
