@@ -10,7 +10,7 @@
 
 ### *One Scale to rule them all.*
 
-[![Discord](https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/xadskCrPFu)
+[![Discord](https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/K3KmKnrWhP)
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/formfollowsfunction)
 
 > [!IMPORTANT]
@@ -53,7 +53,7 @@ Firmware is available via the [Web Flasher](https://niko11111.github.io/Spoolman
   <img src="https://img.shields.io/badge/📖%20Documentation-Full%20Build%20Guide%2C%20Wiring%20%26%20Setup-28d49a?style=for-the-badge&logoColor=white" alt="Documentation"/>
 </a>
 
-Over 200 people are running a SpoolmanScale, and it is tested daily against a Spoolman library of 260+ active spools. If you have an even larger collection, I'd love to hear how it holds up. Questions or trouble? Join the [Discord](https://discord.gg/xadskCrPFu), happy to help.
+Over 200 people are running a SpoolmanScale, and it is tested daily against a Spoolman library of 260+ active spools. If you have an even larger collection, I'd love to hear how it holds up. Questions or trouble? Join the [Discord](https://discord.gg/K3KmKnrWhP), happy to help.
 
 ---
 <div align="center">
@@ -199,7 +199,7 @@ One thing only BamBuddy can do: create a spool straight from a Bambu tag. Materi
 
 ### Community requests & ideas
 
-- More ideas welcome – open an issue or join the [Discord](https://discord.gg/xadskCrPFu)!
+- More ideas welcome – open an issue or join the [Discord](https://discord.gg/K3KmKnrWhP)!
 
 ---
 
@@ -210,9 +210,9 @@ A lot of my free time – time I could have spent with my family – has gone in
 - ⭐ **Star this repo on GitHub** – it helps more people discover the project
 - ⭐⭐⭐⭐⭐ **Rate 5 stars & boost on MakerWorld** – every like, rating and boost helps: [makerworld.com/@FormFollowsF](https://makerworld.com/de/models/2713675-spoolmanscale#profileId-3005075)
 - ☕ **Support on Ko-fi** – even a single euro makes a difference: [ko-fi.com/formfollowsfunction](https://ko-fi.com/formfollowsfunction)
-- 💬 **Join the Discord** – share your build, report issues, or just say hi: [discord.gg/xadskCrPFu](https://discord.gg/xadskCrPFu)
+- 💬 **Join the Discord** – share your build, report issues, or just say hi: [discord.gg/K3KmKnrWhP](https://discord.gg/K3KmKnrWhP)
 
-Have a feature request? Post it in the [Discord](https://discord.gg/xadskCrPFu) or [open an issue](https://github.com/Niko11111/SpoolmanScale/issues) – I read every one of them and do my best to make it happen.
+Have a feature request? Post it in the [Discord](https://discord.gg/K3KmKnrWhP) or [open an issue](https://github.com/Niko11111/SpoolmanScale/issues) – I read every one of them and do my best to make it happen.
 
 **Thank you for your support. It means a lot. 🙏**
 

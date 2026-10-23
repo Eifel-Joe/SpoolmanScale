@@ -24,7 +24,7 @@ static const char* QR_TITLES[QR_COUNT] = { "Ko-fi", "GitHub", "Discord", "MakerW
 static const char* QR_URLS[QR_COUNT]   = {
   "https://ko-fi.com/formfollowsfunction",
   "https://github.com/Niko11111/SpoolmanScale",
-  "https://discord.gg/xadskCrPFu",
+  "https://discord.gg/K3KmKnrWhP",
   "https://makerworld.com/de/@FormFollowsF/upload",
   "https://niko11111.github.io/SpoolmanScale-Docs/",
   nullptr   // by language, see qrUrl()
@@ -32,7 +32,7 @@ static const char* QR_URLS[QR_COUNT]   = {
 static const char* QR_URLS_DISPLAY[QR_COUNT] = {
   "ko-fi.com/formfollowsfunction",
   "github.com/Niko11111/SpoolmanScale",
-  "discord.gg/xadskCrPFu",
+  "discord.gg/K3KmKnrWhP",
   "makerworld.com/de/@FormFollowsF/upload",
   "niko11111.github.io/SpoolmanScale-Docs",
   nullptr
