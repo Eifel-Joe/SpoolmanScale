@@ -201,6 +201,14 @@ lv_obj_t* makeListBtn(lv_obj_t* list, const char* ico_sym, const char* title,
   return btn;
 }
 
+void markListBtnChosen(lv_obj_t* btn, bool active) {
+  lv_obj_t* arr_lbl = lv_obj_get_child(btn, -1);
+  if (!arr_lbl) return;
+  lv_label_set_text(arr_lbl, active ? LV_SYMBOL_OK : "");
+  lv_obj_set_style_text_color(arr_lbl, lv_color_hex(UI_COL_ACCENT), 0);
+  lv_obj_set_style_text_font(arr_lbl, UI_FONT_BODY, 0);
+}
+
 void addBackButton(lv_obj_t *parent, lv_event_cb_t cb) {
   lv_obj_t *btn = lv_btn_create(parent);
   lv_obj_set_size(btn, 44, 44);

@@ -658,8 +658,9 @@ void unlinkCardUid(int spool_id, const char* uid, bool all) {
   // while it is being migrated.
   if (backendHasNativeTags()) {
     // By the chip uid for a Bambu tag, because that is what the link was made
-    // with. The extra fields below still go by `uid`, the tray uuid, which is
-    // what they hold.
+    // with. The hw uid field below still goes by `uid`, the tray uuid, which
+    // is what it holds; "only this tag" compares the tag fields by the chip
+    // as well, see unlinkTagFromFields().
     const char* native_uid = tagNativeUid(uid);
     if (all) {
       // A Bambu spool holds up to three entries, one per chip plus the tray

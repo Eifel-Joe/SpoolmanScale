@@ -17,6 +17,7 @@
 #define CG_CELL_H_SHAPE 124   // the same with a label outline above the value
 #define CG_SHAPE_PX_PER_MM_X10 12   // 50 mm draws 60 px
 #define CG_SHAPE_SLOT_PX 62         // the largest outline, 50 mm, and its border
+#define CG_SHAPE_LINE_PX 2          // the outline's stroke
 #define CG_CLOSE_SIZE   40
 #define CG_SCREEN_W     480
 #define CG_SCREEN_H     320
@@ -79,8 +80,8 @@ static void addShape(lv_obj_t* card, const ChoiceCard& c, uint32_t colour) {
                   c.shape_h_mm * CG_SHAPE_PX_PER_MM_X10 / 10);
   lv_obj_set_style_bg_opa(r, LV_OPA_TRANSP, 0);
   lv_obj_set_style_border_color(r, lv_color_hex(colour), 0);
-  lv_obj_set_style_border_width(r, 2, 0);
-  lv_obj_set_style_radius(r, 4, 0);
+  lv_obj_set_style_border_width(r, CG_SHAPE_LINE_PX, 0);
+  lv_obj_set_style_radius(r, UI_RADIUS_OUTLINE, 0);
   lv_obj_set_style_pad_all(r, 0, 0);
   lv_obj_clear_flag(r, (lv_obj_flag_t)(LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE));
 }

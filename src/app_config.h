@@ -1,6 +1,6 @@
 #pragma once
 
-#define FW_VERSION  "v0.8.3-beta.85"
+#define FW_VERSION  "v0.8.3-beta.86"
 #define DONATION_URL "ko-fi.com/formfollowsfunction"
 
 // Backlight PWM duty on GPIO45, 8 bit, straight through to LovyanGFX. Not a
@@ -208,3 +208,10 @@
 // answering, before it stops trying. Mirrors SCALE_RECOVER_ATTEMPTS, which is
 // declared next to the scale watchdog in app_loop.cpp.
 #define NFC_RECOVER_ATTEMPTS  3
+
+// Signal strength as four bars, drawn by the status page for the WiFi link
+// and by the printer page for the printer's Bluetooth RSSI: one ladder for
+// both, green from three bars up.
+#define SIGNAL_BARS_4_DBM  -50
+#define SIGNAL_BARS_3_DBM  -65
+#define SIGNAL_BARS_2_DBM  -75

@@ -2775,8 +2775,6 @@ const char* const STRINGS[][3] = {
   { "Nur bei Bedarf an: der Funk läuft, während ein Gerät ihn braucht, und wird danach freigegeben. Nach dem Einschalten braucht die Waage einmal einen Neustart.",
     "Only when needed: the radio runs while a device needs it and is released afterwards. After switching it on, the scale needs one restart.",
     "Seulement au besoin : la radio tourne tant qu'un appareil l'utilise, puis est libérée. Après l'activation, la balance a besoin d'un redémarrage." },  // STR_W_P_BLE_HINT
-  { "Unterstützte Drucker", "Supported printers", "Imprimantes prises en charge" },  // STR_W_P_SUPPORTED
-  { "getestet",             "tested",             "testée" },  // STR_W_P_TESTED
   { "Weitere Modelle kommen mit Rückmeldungen aus der Community.",
     "More models come with feedback from the community.",
     "D'autres modèles viendront avec les retours de la communauté." },  // STR_W_P_SUPPORTED_HINT
@@ -3448,9 +3446,8 @@ const char* const STRINGS[][3] = {
   { "Bluetooth braucht zuerst einen Neustart der Waage.",
     "Bluetooth needs a restart of the scale first.",
     "Bluetooth exige d'abord un redémarrage." },  // STR_PRN_ERR_BLE_RESTART
-  // The printer page: the legend under the supported printers, and the line
-  // under the print position strip when the label fills the whole head
-  { "experimentell", "experimental", "expérimentale" },  // STR_W_P_EXPERIMENTAL
+  // The printer page: the line under the print position strip when the label
+  // fills the whole head
   { "Das Etikett füllt den ganzen Druckkopf, hier gibt es nichts zu verschieben.",
     "The label fills the whole print head, so there is nothing to move here.",
     "L'étiquette occupe toute la tête d'impression, il n'y a rien à décaler ici." },  // STR_W_P_CAL_FILLS

@@ -391,8 +391,12 @@ static void scriptStrings(String& h) {
 // The bar and the tile from the state.
 static void scriptDevice(String& h) {
   h += F("let timer=0,allOpen=false,wasScanning=false;"
-         // Four bars as on the status page, green from three up.
-         "const SIG_DBM=[-50,-65,-75];"
+         // Four bars on the status page's ladder, green from three up.
+         "const SIG_DBM=[");
+  h += String(SIGNAL_BARS_4_DBM); h += ',';
+  h += String(SIGNAL_BARS_3_DBM); h += ',';
+  h += String(SIGNAL_BARS_2_DBM);
+  h += F("];"
          "function sig(r){const n=r>=SIG_DBM[0]?4:r>=SIG_DBM[1]?3:r>=SIG_DBM[2]?2:1;"
          "const s=document.createElement('span');s.className='sig';s.title=r+' dBm';"
          "for(let i=1;i<=4;i++){const b=document.createElement('i');"

@@ -29,15 +29,6 @@ static const StringID COMP_SUB[TAG_COMP_COUNT] = {
   STR_TAG_COMP_OFF_SUB, STR_TAG_COMP_TAG_SUB, STR_TAG_COMP_NFCID_SUB
 };
 
-// Last child is the arrow, which here shows which entry is the chosen one.
-static void markChosen(lv_obj_t *btn, bool active) {
-  lv_obj_t *arr_lbl = lv_obj_get_child(btn, -1);
-  if (!arr_lbl) return;
-  lv_label_set_text(arr_lbl, active ? LV_SYMBOL_OK : "");
-  lv_obj_set_style_text_color(arr_lbl, lv_color_hex(UI_COL_ACCENT), 0);
-  lv_obj_set_style_text_font(arr_lbl, &lv_font_montserrat_ext_16, 0);
-}
-
 static void addCompanionRow(lv_obj_t *list, const SettingDesc &s, uint8_t value) {
   const bool active = settingGet(s) == value;
 
@@ -47,7 +38,7 @@ static void addCompanionRow(lv_obj_t *list, const SettingDesc &s, uint8_t value)
   copyT(buf_s, sizeof(buf_s), COMP_SUB[value]);
 
   lv_obj_t *btn = makeListBtn(list, "", buf_t, buf_s, active);
-  markChosen(btn, active);
+  markListBtnChosen(btn, active);
 
   lv_obj_set_user_data(btn, (void *)(intptr_t)value);
   lv_obj_add_event_cb(btn, [](lv_event_t *e) {

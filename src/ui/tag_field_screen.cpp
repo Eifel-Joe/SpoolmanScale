@@ -99,15 +99,9 @@ static void addFieldRow(lv_obj_t *list, uint8_t value) {
   if (help) lv_obj_add_event_cb(help, infoPopupEventCb, LV_EVENT_CLICKED,
                                 INFO_POPUP_ARG(spec.str_name, spec.str_info));
 
-  // Last child is the arrow, which here shows which entry is the chosen one.
-  // makeListBtn() creates the help button before the arrow on purpose, so this
-  // still finds the arrow on a row that has both.
-  lv_obj_t *arr_lbl = lv_obj_get_child(btn, -1);
-  if (arr_lbl) {
-    lv_label_set_text(arr_lbl, active ? LV_SYMBOL_OK : "");
-    lv_obj_set_style_text_color(arr_lbl, lv_color_hex(UI_COL_ACCENT), 0);
-    lv_obj_set_style_text_font(arr_lbl, &lv_font_montserrat_ext_16, 0);
-  }
+  // The arrow becomes the tick of the chosen entry; the row has a help button
+  // too, which makeListBtn() builds before the arrow for this reason.
+  markListBtnChosen(btn, active);
 
   // A source the server cannot serve stays visible but inert: the reason it
   // cannot be picked is more use than an entry that simply is not there. An

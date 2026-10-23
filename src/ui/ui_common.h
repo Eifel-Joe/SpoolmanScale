@@ -137,6 +137,11 @@ lv_obj_t* makeListBtn(lv_obj_t* list, const char* ico_sym, const char* title,
                       const char* sub, bool toggle_active = false,
                       lv_obj_t** out_help = nullptr);
 
+// A row of a one-of-several picker: the arrow makeListBtn() put last turns
+// into a tick on the chosen entry and into nothing on the rest. The help
+// button is built before the arrow, so a row with both still ends in the arrow.
+void markListBtnChosen(lv_obj_t* btn, bool active);
+
 // ---------------------------------------------------------------------------
 //  Settings rows, built from services/settings_registry.h
 // ---------------------------------------------------------------------------

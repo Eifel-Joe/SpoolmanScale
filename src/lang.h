@@ -1295,8 +1295,6 @@ enum StringID {
   // The printer page in the browser
   STR_W_NAV_PRINTER,          // the tab
   STR_W_P_BLE_HINT,           // under the master switch
-  STR_W_P_SUPPORTED,          // card: which printers the scale can drive
-  STR_W_P_TESTED,             // the M220's verdict
   STR_W_P_SUPPORTED_HINT,
   STR_W_P_DEVICES,            // the device list's label
   STR_BT_SCAN_WEB,            // the scan button
@@ -1592,7 +1590,6 @@ enum StringID {
   STR_PRN_ERR_MODEL_UNKNOWN,
   STR_W_P_RESTART_HINT,
   STR_PRN_ERR_BLE_RESTART,
-  STR_W_P_EXPERIMENTAL,
   STR_W_P_CAL_FILLS,
   STR_W_NAV_LABEL,
   STR_W_L_TEMPLATE,
