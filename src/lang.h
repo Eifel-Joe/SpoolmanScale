@@ -1749,6 +1749,12 @@ enum StringID {
   // Printer page: only BLE printers, and the way to what a printer needs
   STR_W_P_BLE_ONLY,
   STR_W_P_NEEDS_LINK,
+  // Printer page: the Bluetooth bar, the device tile and the model cards
+  STR_W_P_RESTART_NEEDED,     // the bar's pill while the radio waits for a restart
+  STR_W_P_EMPTY_HINT,         // the tile without a printer
+  STR_W_P_PICK_HINT,          // the tile without a printer, after a scan found some
+  STR_W_P_CHANGE,             // the tile's scan button once there is a printer
+  STR_W_P_SPEC_RIBBON,        // a model card's last word: prints through a ribbon
 
   STR_COUNT
 };

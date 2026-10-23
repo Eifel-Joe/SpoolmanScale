@@ -3788,6 +3788,16 @@ const char* const STRINGS[][3] = {
     "La balance ne parle que le Bluetooth Low Energy. Les imprimantes en Bluetooth classique, comme les Brother P-touch, lui restent inaccessibles." },  // STR_W_P_BLE_ONLY
   { "Was ein Drucker können muss", "What a printer needs",
     "Ce qu'une imprimante doit savoir faire" },  // STR_W_P_NEEDS_LINK
+  { "Neustart nötig", "Restart needed",
+    "Redémarrage requis" },  // STR_W_P_RESTART_NEEDED
+  { "Drucker einschalten, dann suchen.", "Switch the printer on, then scan.",
+    "Allumez l'imprimante, puis lancez la recherche." },  // STR_W_P_EMPTY_HINT
+  { "Wähle deinen Drucker aus der Liste unten.", "Pick yours from the list below.",
+    "Choisissez la vôtre dans la liste ci-dessous." },  // STR_W_P_PICK_HINT
+  { "Drucker wechseln", "Change printer",
+    "Changer d'imprimante" },  // STR_W_P_CHANGE
+  { "Farbband", "ribbon",
+    "ruban" },  // STR_W_P_SPEC_RIBBON
 };
 
 StringID tagWriteResultString(uint8_t code) {
