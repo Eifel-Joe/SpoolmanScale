@@ -134,9 +134,14 @@ static String stateJson() {
   return j;
 }
 
+// The manual's printers page. The manual has German and English; French
+// readers get the English page.
+static const __FlashStringHelper* docsPrintersUrl() {
+  return g_lang == LANG_DE ? F(DOCS_URL "de/use/printers/") : F(DOCS_URL "use/printers/");
+}
+
 // The way to the manual's page of recommended printers and their labels,
 // where the shop links live: never in the firmware (Nikolai, 21.10.2026).
-// The manual has German and English; French readers get the English page.
 static void recommendRow(String& h) {
   const RecVariant shown = recVariant(labelPrinterLoadConfig());
   for (int v = 0; v < (int)(sizeof(REC_TEXTS) / sizeof(REC_TEXTS[0])); v++) {
@@ -149,12 +154,27 @@ static void recommendRow(String& h) {
     h += F("</label><span class='hint'>");
     h += T(r.text);
     h += F("</span><a href='");
-    h += g_lang == LANG_DE ? F(DOCS_URL "de/use/printers/") : F(DOCS_URL "use/printers/");
+    h += docsPrintersUrl();
     h += r.anchor;
     h += F("' target='_blank' rel='noopener'>");
     h += T(r.button);
     h += F(" &rarr;</a></div>");
   }
+}
+
+// Under the list: more models to come, and the one limit no driver can
+// lift. The scale's ESP32-S3 has no Classic Bluetooth radio, so a printer
+// that only speaks Classic (every Brother P-touch) can never be on the list.
+static void supportedHint(String& h) {
+  h += F("<span class='hint'>");
+  h += T(STR_W_P_SUPPORTED_HINT);
+  h += F("</span><span class='hint pr-need'>");
+  h += T(STR_W_P_BLE_ONLY);
+  h += F(" <a href='");
+  h += docsPrintersUrl();
+  h += F("#printer-needs' target='_blank' rel='noopener'>");
+  h += T(STR_W_P_NEEDS_LINK);
+  h += F(" &rarr;</a></span>");
 }
 
 // Which printers the scale can drive: a row per brand, a pill per model,
@@ -177,6 +197,7 @@ static void supportedCard(String& h) {
          "font-size:13.5px;font-weight:550;background:var(--btn);color:var(--accent);"
          "border:1px solid var(--accent-line)}"
          ".pr-rec a:hover{background:var(--btn-hover)}"
+         ".pr-need{display:block}.pr-need a{color:var(--accent)}"
          "</style><div class='card'><h2>");
   h += T(STR_W_P_SUPPORTED);
   h += F("</h2>");
@@ -202,21 +223,8 @@ static void supportedCard(String& h) {
   h += T(STR_W_P_TESTED);
   h += F("</span><span class='pill ex'>");
   h += T(STR_W_P_EXPERIMENTAL);
-  h += F("</span></div><span class='hint'>");
-  h += T(STR_W_P_SUPPORTED_HINT);
-  // The models that print through a ribbon, named once in the hint. In
-  // brackets rather than after a colon, which French spaces differently.
-  bool ribbon = false;
-  for (int i = 0; i < LABEL_PRINTER_MODEL_COUNT; i++) {
-    const LabelPrinterProfile& p = labelPrinterProfile(LABEL_PRINTER_MODELS[i]);
-    if (p.direct_thermal) continue;
-    h += ribbon ? F(", ") : F(" ");
-    if (!ribbon) { h += T(STR_PRN_RIBBON_SHORT); h += F(" ("); }
-    h += p.brand; h += ' '; h += p.name;
-    ribbon = true;
-  }
-  if (ribbon) h += F(").");
-  h += F("</span>");
+  h += F("</span></div>");
+  supportedHint(h);
   recommendRow(h);
   h += F("</div>");
 }

@@ -3441,9 +3441,6 @@ const char* const STRINGS[][3] = {
   { "Dieses NIIMBOT-Modell kennt die Waage noch nicht. Bitte die Kennung aus dem Log melden.",
     "The scale does not know this NIIMBOT model yet. Please report the id from the log.",
     "Modèle NIIMBOT encore inconnu de la balance. Merci de signaler l'identifiant du journal." },  // STR_PRN_ERR_MODEL_UNKNOWN
-  { "Thermotransfer mit Farbband",
-    "Thermal transfer with a ribbon",
-    "Transfert thermique à ruban" },  // STR_PRN_RIBBON_SHORT
   // Bluetooth switched on in the browser while the stack cannot start
   { "Bluetooth ist eingeschaltet, braucht aber einmal einen Neustart der Waage: Der Funk-Speicher wurde beim Start freigegeben.",
     "Bluetooth is on but needs one restart of the scale: its radio memory was released at boot.",
@@ -3785,6 +3782,12 @@ const char* const STRINGS[][3] = {
   { "extra.nfc_id",                 "extra.nfc_id",                 "extra.nfc_id" },  // STR_TAG_COMP_NFCID
   { "Bambu-UUID oder Chip-UID", "Bambu UUID or chip UID",
     "UUID Bambu ou UID de puce" },  // STR_TAG_COMP_NFCID_SUB
+  // Printer page: only BLE printers, and the way to what a printer needs
+  { "Die Waage spricht nur Bluetooth Low Energy. Drucker mit klassischem Bluetooth, etwa Brother P-touch, kann sie nicht erreichen.",
+    "The scale speaks Bluetooth Low Energy only. Printers on Classic Bluetooth, such as Brother P-touch, are out of its reach.",
+    "La balance ne parle que le Bluetooth Low Energy. Les imprimantes en Bluetooth classique, comme les Brother P-touch, lui restent inaccessibles." },  // STR_W_P_BLE_ONLY
+  { "Was ein Drucker können muss", "What a printer needs",
+    "Ce qu'une imprimante doit savoir faire" },  // STR_W_P_NEEDS_LINK
 };
 
 StringID tagWriteResultString(uint8_t code) {
