@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SpoolmanScale fork by Eifel-Joe – Web Flasher, Waveshare 7B (test)</title>
+  <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #06080f;
+      color: #e8f0ff;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
+    }
+
+    .card {
+      background: #0d1525;
+      border: 1px solid #1a3060;
+      border-radius: 16px;
+      padding: 48px 40px;
+      max-width: 520px;
+      width: 100%;
+      text-align: center;
+    }
+
+    .logo {
+      font-size: 32px;
+      font-weight: 700;
+      color: #28d49a;
+      margin-bottom: 8px;
+      letter-spacing: -0.5px;
+    }
+
+    .tagline {
+      color: #4a6fa0;
+      font-size: 15px;
+      margin-bottom: 40px;
+    }
+
+    .steps {
+      text-align: left;
+      margin-bottom: 36px;
+      background: #080d1a;
+      border-radius: 10px;
+      padding: 20px 24px;
+    }
+
+    .steps h3 {
+      color: #c8d8f0;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 14px;
+    }
+
+    .steps ol {
+      padding-left: 20px;
+      color: #4a6fa0;
+      font-size: 14px;
+      line-height: 2;
+    }
+
+    .steps ol li span {
+      color: #c8d8f0;
+    }
+
+    esp-web-install-button {
+      display: block;
+      margin-bottom: 16px;
+    }
+
+    esp-web-install-button::part(button) {
+      background: #1a3020;
+      color: #40c080;
+      border: 1px solid #2a5030;
+      border-radius: 10px;
+      padding: 14px 32px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      transition: background 0.15s;
+    }
+
+    esp-web-install-button::part(button):hover {
+      background: #2a5030;
+    }
+
+    .warning {
+      background: #1a1a08;
+      border: 1px solid #3a2800;
+      border-radius: 8px;
+      padding: 12px 16px;
+      color: #f0b838;
+      font-size: 13px;
+      margin-bottom: 28px;
+      text-align: left;
+      line-height: 1.6;
+    }
+
+    .warning.help summary {
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .warning.help[open] summary {
+      margin-bottom: 4px;
+    }
+
+    .warning strong:first-child {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .links {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      margin-top: 28px;
+      flex-wrap: wrap;
+    }
+
+    .links a {
+      color: #4a6fa0;
+      text-decoration: none;
+      font-size: 13px;
+      transition: color 0.15s;
+    }
+
+    .links a:hover {
+      color: #28d49a;
+    }
+
+    .version {
+      color: #2a4060;
+      font-size: 12px;
+      margin-top: 24px;
+    }
+
+    @media (max-width: 480px) {
+      .card { padding: 32px 20px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">SpoolmanScale – Fork</div>
+    <div class="tagline">Web flasher for the Waveshare ESP32-S3-Touch-LCD-7B (1024×600)</div>
+
+    <div class="warning">
+      <strong>⚠ Unofficial fork, test build</strong>
+      This is <strong>not</strong> the original project. This firmware comes from the fork
+      <a href="https://github.com/Eifel-Joe/SpoolmanScale" target="_blank">Eifel-Joe/SpoolmanScale</a>
+      (branch <code>feat/waveshare-7b</code>) and is an untested first build for the Waveshare
+      <strong>7B</strong> board. Do not use it on other boards.
+      The original is <a href="https://github.com/Niko11111/SpoolmanScale" target="_blank">Niko11111/SpoolmanScale</a>;
+      please do not report problems with this fork there.
+    </div>
+
+    <div class="steps">
+      <h3>Before Flashing</h3>
+      <ol>
+        <li>Connect a USB data cable to the board's <span>"USB"</span> connector (not "UART") and to your PC</li>
+        <li>Click <span>"Install"</span>, select the port and confirm</li>
+        <li>After flashing: enter your <span>WiFi</span> right in the browser</li>
+      </ol>
+    </div>
+
+    <div class="warning">
+      <strong>⚠ Your settings</strong>
+      If the flasher asks whether to erase the device: left unticked, your settings survive;
+      ticked, the scale starts empty.
+    </div>
+
+    <esp-web-install-button manifest="manifest.json">
+      <span slot="unsupported">
+        This browser does not support Web Serial.<br>
+        Please use <strong>Chrome</strong> or <strong>Edge</strong>.
+      </span>
+      <span slot="not-allowed">
+        No USB access. Open this page via <strong>HTTPS</strong> or
+        <strong>localhost</strong>.
+      </span>
+    </esp-web-install-button>
+
+    <details class="warning help">
+      <summary>Flashing fails with "Failed to initialize"?</summary>
+      Close anything else that uses the USB port (a second flasher tab, Arduino IDE) and use a
+      data cable plugged straight into the computer, no hub. Still failing: hold <b>BOOT</b>,
+      press and release <b>RESET</b>, release <b>BOOT</b>, then click "Install" again.
+      Press <b>RESET</b> once when flashing is done.
+    </details>
+
+    <div class="links">
+      <a href="https://github.com/Eifel-Joe/SpoolmanScale" target="_blank">Fork on GitHub</a>
+      <a href="https://github.com/Niko11111/SpoolmanScale" target="_blank">Original project</a>
+      <a href="https://github.com/Eifel-Joe/SpoolmanScale/blob/feat/waveshare-7b/LICENSE" target="_blank">License GPL-3.0</a>
+    </div>
+
+    <div class="version">Firmware v0.8.3-beta.87 · fork build 082836f · Waveshare 7B · test build</div>
+  </div>
+</body>
+</html>
