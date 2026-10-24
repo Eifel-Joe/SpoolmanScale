@@ -9,6 +9,7 @@
 #include "app/app_state.h"
 #include "app/backend_switch.h"
 #include "app/deferred_actions.h"
+#include "app/label_link.h"
 #include "bambu/bambu_tag.h"
 #include "hardware/sd_logger.h"
 #include "services/backend.h"
@@ -213,6 +214,9 @@ static bool fetchDates(const char* base_url, int id, LabelExtras* out) {
 
 void labelSpoolFetchDates(SpoolLabelData* d) {
   if (!d) return;
+  // The QR code's address is due with the label too, and asked here where a
+  // request is allowed; not beside the browser's task, for the reason below.
+  if (!s_job_running) labelLinkRefresh();
   // The browser's copy already knows them: no second request, and no label
   // that loses the date its preview showed because this one failed. A copy
   // whose request failed is asked again here.
@@ -246,10 +250,13 @@ struct DateJob {
   uint32_t gen;        // backendGeneration() at the start
   bool ok;
   LabelExtras extras;
+  bool want_link;      // the QR code's address is due as well
+  LabelLinkAnswer link;
 };
 static DateJob s_job;
 
 static void dateTask(void*) {
+  if (s_job.want_link) labelLinkFetch(&s_job.link);
   s_job.ok = fetchDates(s_job.url, s_job.id, &s_job.extras);
   __sync_synchronize();
   s_job_done = true;
@@ -284,6 +291,7 @@ static bool startDateJob(int id) {
   snprintf(s_job.url, sizeof(s_job.url), "%s", backendBaseUrl());
   s_job.id = id;
   s_job.gen = backendGeneration();
+  s_job.want_link = labelLinkDue();
   s_job_done = false;
   s_job_running = true;
   if (xTaskCreatePinnedToCore(dateTask, "labeldates", LABEL_DATE_STACK_BYTES, nullptr,
@@ -309,6 +317,9 @@ static void collectDateJob() {
   if (!s_job_running || !s_job_done) return;
   __sync_synchronize();
   s_job_running = false;
+  // Taken before the dates count as known: the preview drawn on them then
+  // carries the right address as well.
+  if (s_job.want_link) labelLinkTake(s_job.link);
   if (s_job.gen != backendGeneration() || !s_have_last || s_last.id != s_job.id) return;
   if (s_job.ok) {
     extrasInto(&s_last, s_job.extras);
