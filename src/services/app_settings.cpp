@@ -16,6 +16,7 @@
 #include "ota_state.h"
 #include "prefs_store.h"
 #include "settings_registry.h"
+#include "spool_extras.h"
 #include "tag_field.h"
 #include "tag_write.h"
 #include "time_service.h"
@@ -54,6 +55,7 @@ void loadPrefs() {
   // on the old 50 g default and starts without a bag from 0.8.3 on, which
   // the release notes say.
   bag_weight_g = prefsGetFloat("bag_weight", 0.0f);
+  spoolExtrasLoad();
 
   spool_list_limit = (int)prefsGetUChar("list_limit", 30);
   if (spool_list_limit < 5) spool_list_limit = 5;

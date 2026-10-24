@@ -9,6 +9,7 @@
 
 #include "hardware/sd_logger.h"
 #include "lang.h"
+#include "services/spool_extras.h"
 #include "ui/theme.h"
 
 // ============================================================
@@ -137,9 +138,9 @@ void showCopyConfirmPopup(int template_spool_id, int template_filament_id,
   lv_obj_set_width(lbl2, UI_POPUP_W - UI_CARD_TEXT_PAD);
   lv_obj_align(lbl2, LV_ALIGN_TOP_MID, 0, UI_CARD_TEXT_Y - 4 + COPY_CARD_LINE_H + 4);
 
-  // Line 3: what the new spool starts with - the scale minus the template's
-  // empty spool, as it will be saved.
-  float display_netto = scale_weight_g - template_spool_w;
+  // Line 3: what the new spool starts with - the scale minus the parts on the
+  // spool and the template's empty spool, as copy_flow.cpp will save it.
+  float display_netto = spoolExtrasBareReading() - template_spool_w;
   if (display_netto < 0) display_netto = 0;
   char line3[64];
   snprintf(line3, sizeof(line3), T(STR_COPY_CARD_WEIGHT), display_netto, template_spool_w);

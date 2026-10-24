@@ -10,6 +10,7 @@
 #include "confirm_popup.h"
 #include "hardware/sd_logger.h"
 #include "lang.h"
+#include "services/spool_extras.h"
 #include "theme.h"
 #include "ui_common.h"
 
@@ -69,7 +70,8 @@ static bool inputValue(float *out) {
   if (!s_input[0]) return false;
   const float v = atof(s_input);
   if (v < NEW_SPOOL_TARE_MIN_G || v > NEW_SPOOL_TARE_MAX_G) return false;
-  if (padHoldsSpool() && v >= scale_weight_g) return false;
+  // Against the spool alone: the parts on it are not the spool's weight.
+  if (padHoldsSpool() && v >= spoolExtrasBareReading()) return false;
   if (out) *out = v;
   return true;
 }
@@ -90,9 +92,10 @@ static void refreshPad() {
   if (ok && padHoldsSpool()) {
     // What a weighing would store once this tare is in - the number the
     // issue asked to see before anything is saved.
-    snprintf(info, sizeof(info), T(STR_TARE_ENTER_REST), scale_weight_g, v, scale_weight_g - v);
+    const float bare = spoolExtrasBareReading();
+    snprintf(info, sizeof(info), T(STR_TARE_ENTER_REST), bare, v, bare - v);
     info_col = UI_COL_GOOD;
-  } else if (s_input[0] && padHoldsSpool() && atof(s_input) >= scale_weight_g) {
+  } else if (s_input[0] && padHoldsSpool() && atof(s_input) >= spoolExtrasBareReading()) {
     copyT(info, sizeof(info), STR_TARE_ENTER_OVER);
     info_col = UI_COL_WARN;
   } else {
@@ -299,11 +302,12 @@ void showTareChoice() {
 
   int y = 44;
   char weigh_buf[96];
-  snprintf(weigh_buf, sizeof(weigh_buf), T(STR_TARE_CHOICE_WEIGH), scale_weight_g);
+  // The empty spool without the parts on it: they are not the spool's.
+  snprintf(weigh_buf, sizeof(weigh_buf), T(STR_TARE_CHOICE_WEIGH), spoolExtrasBareReading());
   lv_obj_t *weigh = choiceButton(box, y, BTN_W, BTN_H, weigh_buf);
   lv_obj_add_event_cb(weigh, [](lv_event_t *e) {
     // The reading at the moment of the press, as the old button took it.
-    const float g = scale_weight_g;
+    const float g = spoolExtrasBareReading();
     closeTareEntry();
     showSpoolWeightScope(g, true);
   }, LV_EVENT_CLICKED, NULL);

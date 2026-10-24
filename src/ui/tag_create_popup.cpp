@@ -17,6 +17,7 @@
 #include "lang.h"
 #include "services/server_reach.h"
 #include "services/spool_cache.h"
+#include "services/spool_extras.h"
 #include "services/tag_create.h"
 #include "services/tag_db_match.h"
 #include "ui/main_screen_helpers.h"
@@ -95,17 +96,20 @@ void closeTagCreatePopup() {
 // What the new spool starts with: the net reading when the spool lies on the
 // pad, otherwise a full one - a spool still in its box has not been touched.
 // Without the empty spool's weight nothing can be subtracted: full as well.
+// The reading is the one without the parts on the spool (spool_extras.h): they
+// are neither the spool's nor the filament's.
 static float remainingWeight() {
   const float core = (float)s_in.spool_weight_g;
-  if (core <= 0.0f || scale_weight_g < core) return (float)s_label_weight;
-  return scale_weight_g - core;
+  const float bare = spoolExtrasBareReading();
+  if (core <= 0.0f || bare < core) return (float)s_label_weight;
+  return bare - core;
 }
 
 // The tag's own net weight; without it the nominal size nearest the reading.
 static int labelWeight() {
   if (s_in.net_weight_g > 0) return s_in.net_weight_g;
   static const int choices[NEWTAG_LABEL_COUNT] = NEWTAG_LABEL_CHOICES;
-  const float netto = scale_weight_g - (float)s_in.spool_weight_g;
+  const float netto = spoolExtrasBareReading() - (float)s_in.spool_weight_g;
   int best = choices[NEWTAG_LABEL_COUNT - 1], best_diff = -1;
   for (int i = 0; i < NEWTAG_LABEL_COUNT; i++) {
     const int diff = (int)fabsf(netto - (float)choices[i]);

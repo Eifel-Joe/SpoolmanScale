@@ -91,6 +91,7 @@
 #include "ui/spoolman_options_screen.h"
 #include "ui/tag_companion_screen.h"
 #include "services/prefs_store.h"
+#include "services/spool_extras.h"
 #include "web/web_jobs.h"
 #include "ui/confirm_popup.h"
 #include "ui/tare_entry.h"
@@ -1392,7 +1393,8 @@ void appLoop() {
     char w_str[16];
     // Fix 4: show filament netto (without spool) as big scale value
     if (sm_spool_weight > 0) {
-      float netto = scale_weight_g - sm_spool_weight;
+      // Without the parts on the spool, as every weight that becomes filament.
+      float netto = spoolExtrasBareReading() - sm_spool_weight;
       if (netto < 0) netto = 0;
       fmtG(w_str, sizeof(w_str), netto);
     } else {
@@ -1408,7 +1410,7 @@ void appLoop() {
 
     // Fix 4: update live/bag below, SM diff next to netto
     if (sm_found && sm_spool_weight > 0) {
-      float netto = scale_weight_g - sm_spool_weight;
+      float netto = spoolExtrasBareReading() - sm_spool_weight;
       if (netto < 0) netto = 0;
 
       // SM diff: filament netto vs Spoolman remaining
@@ -1438,7 +1440,7 @@ void appLoop() {
 
       // Fix 4: ohne Beutel = live - spool - bag; fixed color like scale netto; diff green/red
       if (lbl_keys) {
-        float ohne_beutel = scale_weight_g - sm_spool_weight - bag_weight_g;
+        float ohne_beutel = spoolExtrasBareReading() - sm_spool_weight - bag_weight_g;
         if (ohne_beutel < 0) ohne_beutel = 0;
         char b_str[16];
         fmtG(b_str, sizeof(b_str), ohne_beutel);
@@ -1531,7 +1533,11 @@ void appLoop() {
         aw_done = true;
         auto_weight_stable_ms = 0;
         aw_last_shown_s = -1;
-        float netto = cur - (float)sm_spool_weight;
+        // What is remembered for this spool, else the default: there is no
+        // chooser before the countdown. The same bare reading goes into the
+        // AMS note below, as the weight popup's buttons do.
+        const float bare = extrasBare(cur, spoolExtrasNow());
+        float netto = bare - (float)sm_spool_weight;
         if (netto < 0) netto = 0;
         // Haekchen im Button - bleibt bis Spule abgenommen wird
         if (lbl_weight_main_lbl) {
@@ -1543,7 +1549,7 @@ void appLoop() {
         patchSpoolmanWeight(netto);
         // Remembered, not held back: the value is in FilaMan now, this only
         // lets a yes on removal report it once more to open the window.
-        if (amsAskActive()) amsNoteMeasurement(sm_id, netto, cur, true);
+        if (amsAskActive()) amsNoteMeasurement(sm_id, netto, bare, true);
         if (amsPickActive()) amsPickNote(sm_id, sm_filament_name);
       } else if (auto_weight_stable_ms == 0) {
         auto_weight_last_val = cur;
@@ -2238,9 +2244,11 @@ void appLoop() {
                 // Nothing was weighed on purpose this time, so the settled
                 // reading stands in for the report that never happened. That is
                 // what makes the question independent of auto weighing.
-                float ams_netto = ams_settled_g - (float)sm_spool_weight;
+                // The parts on the spool are neither filament nor spool.
+                const float ams_bare = extrasBare(ams_settled_g, spoolExtrasNow());
+                float ams_netto = ams_bare - (float)sm_spool_weight;
                 if (ams_netto < 0) ams_netto = 0;
-                amsNoteMeasurement(sm_id, ams_netto, ams_settled_g, false);
+                amsNoteMeasurement(sm_id, ams_netto, ams_bare, false);
               } else if (!amsHasPending()) {
                 Serial.printf("AMS: no usable weight, no question (needs >= %.0fg)\n",
                               (double)LOC_WEIGHT_MIN_G);

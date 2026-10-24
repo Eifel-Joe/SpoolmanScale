@@ -1772,6 +1772,9 @@ enum StringID {
   STR_W_SCALE_CAL,
   STR_W_SCALE_ZERO,
   STR_W_SCALE_NONE,
+  // Parts on the spool (clip, RFID holder): the chooser on the weight popup
+  STR_EXTRAS_TITLE,
+  STR_EXTRAS_SUM,             // %.0f is the grams that come off
 
   STR_COUNT
 };

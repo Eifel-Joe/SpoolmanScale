@@ -18,6 +18,7 @@
 #include "services/spoolman_actions.h"
 #include "services/server_reach.h"
 #include "services/spool_cache.h"
+#include "services/spool_extras.h"
 #include "services/uid_index.h"
 #include "services/http_progress.h"
 #include "services/spoolman_api.h"
@@ -2640,13 +2641,12 @@ static void showLinkConfirmPopup(int idx) {
   lv_obj_center(lbl_no);
 }
 
-// What is on the scale as the list opens, or -1 when nothing may be compared
-// against it. Read here and not in the fetch: a list out of the cache is there
-// before the spool has settled on the pad. A copy picks a template, and a
-// template's stored weight says nothing about the spool on the scale.
+// What is on the scale as the list opens, without the parts on the spool, or -1
+// when nothing may be compared. Read here, not in the fetch: a cached list is there
+// before the spool has settled. A copy picks a template, whose weight says nothing.
 static float linkListGross() {
   if (copy_flow_via_list || !scale_ready) return -1.0f;
-  return scale_weight_g;
+  return spoolExtrasBareReading();
 }
 
 // The spool's stored remaining weight matches what is on the scale. Compared

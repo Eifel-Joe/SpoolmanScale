@@ -14,6 +14,7 @@
 #include "services/ams_pick.h"
 #include "services/auto_weight_state.h"
 #include "services/prefs_store.h"
+#include "services/spool_extras.h"
 #include "services/spoolman_actions.h"
 #include "services/tag_write.h"
 #include "dried_action.h"
@@ -21,6 +22,7 @@
 #include "app/deferred_actions.h"
 #include "spoolman_screen.h"
 #include "tare_entry.h"
+#include "extras_chooser.h"
 #include "lang.h"
 #include "theme.h"
 
@@ -34,17 +36,23 @@ static lv_obj_t *lbl_auto_weight_btn = nullptr;
 static lv_obj_t *s_scope_popup = nullptr;   // where the empty spool weight goes
 static lv_obj_t *s_auto_popup  = nullptr;   // the auto-weight question
 static lv_obj_t *s_cap_popup   = nullptr;   // BamBuddy's label weight question
+// The weight question's text, so the popup can come back after the parts
+// on the spool were chosen, with numbers that take them off.
+static char      s_weight_msg[128] = "";
+static void reopenWeightPopup() { showConfirmPopup(s_weight_msg, 2); }
 
 void closeConfirmPopups() {
   closeConfirmPopup();
   releaseScreen(&s_scope_popup);
   releaseScreen(&s_auto_popup);
   releaseScreen(&s_cap_popup);
+  closeExtrasChooser();
   closeTareEntry();
 }
 
 bool isConfirmPopupOpen() {
-  return confirm_popup != nullptr;
+  // The parts chooser stands in for the weight popup it came from.
+  return confirm_popup != nullptr || isExtrasChooserOpen();
 }
 
 bool isSpoolWeightScopeOpen() {
@@ -236,7 +244,7 @@ static void tareDropFollowUp() {
 // can never promise a different number than the press writes.
 static bool newSpoolDerivesTare(float* out_tare) {
   if (sm_tare_source != TARE_NONE) return false;
-  const float derived = scale_weight_g - sm_total;
+  const float derived = spoolExtrasBareReading() - sm_total;
   const bool plausible = (sm_total > 0.0f) &&
                          (derived >= NEW_SPOOL_TARE_MIN_G) &&
                          (derived <= NEW_SPOOL_TARE_MAX_G);
@@ -429,6 +437,35 @@ void showConfirmPopup(const char* msg, int action) {
     lv_obj_set_pos(lbl_q, EDGE, 6);
     lv_obj_set_style_text_font(lbl_q, &lv_font_montserrat_ext_14, 0);
     lv_obj_set_style_text_align(lbl_q, LV_TEXT_ALIGN_CENTER, 0);
+    // Back from the parts chooser, msg is this buffer: no copy onto itself.
+    if (msg != s_weight_msg) snprintf(s_weight_msg, sizeof(s_weight_msg), "%s", msg);
+
+    // The parts on the spool, top right: what comes off, a tap to change it.
+    // Only once any are set up; the question keeps the middle either way.
+    if (spoolExtrasAny()) {
+      const int CHIP_W = 84, CHIP_H = 30;
+      lv_obj_set_width(lbl_q, BOX_W - 2*EDGE - 2*(CHIP_W + PAD));
+      lv_obj_set_x(lbl_q, EDGE + CHIP_W + PAD);
+      lv_obj_t *chip = lv_btn_create(box);
+      lv_obj_set_size(chip, CHIP_W, CHIP_H);
+      lv_obj_set_pos(chip, BOX_W - EDGE - CHIP_W, 4);
+      lv_obj_set_style_bg_color(chip, lv_color_hex(UI_COL_CHIP), 0);
+      lv_obj_set_style_bg_color(chip, lv_color_hex(UI_COL_PRESS_FILL), LV_STATE_PRESSED);
+      lv_obj_set_style_radius(chip, UI_RADIUS_BTN, 0);
+      lv_obj_set_style_shadow_width(chip, 0, 0);
+      lv_obj_set_style_pad_all(chip, 0, 0);
+      lv_obj_add_event_cb(chip, [](lv_event_t *e) {
+        closeConfirmPopup();
+        showExtrasChooser(reopenWeightPopup);
+      }, LV_EVENT_CLICKED, NULL);
+      lv_obj_t *cl = lv_label_create(chip);
+      char cbuf[24];
+      snprintf(cbuf, sizeof(cbuf), LV_SYMBOL_EDIT " -%.0f g", spoolExtrasNow());
+      lv_label_set_text(cl, cbuf);
+      lv_obj_set_style_text_color(cl, lv_color_hex(UI_COL_INK_2), 0);
+      lv_obj_set_style_text_font(cl, &lv_font_montserrat_ext_14, 0);
+      lv_obj_center(cl);
+    }
 
     const int Y1 = EDGE + HDR_H + PAD;
     const int Y2 = Y1 + H_ROW1 + PAD;
@@ -443,7 +480,7 @@ void showConfirmPopup(const char* msg, int action) {
     const int XL  = EDGE;
     const int XR  = EDGE + BW2 + PAD;
 
-    float netto_plain = scale_weight_g - (float)sm_spool_weight;
+    float netto_plain = spoolExtrasBareReading() - (float)sm_spool_weight;
     // Settled here, with the same arithmetic the weight buttons use, so the
     // reactivate button below can name the number it will write.
     s_reactivate_g = (netto_plain < 0) ? 0.0f : netto_plain;
@@ -460,10 +497,11 @@ void showConfirmPopup(const char* msg, int action) {
     lv_obj_set_style_shadow_width(btn1, 0, 0);
     lv_obj_add_event_cb(btn1, [](lv_event_t *e) {
       closeConfirmPopup();
-      float r = scale_weight_g - (float)sm_spool_weight;
+      const float bare = spoolExtrasBareReading();
+      float r = bare - (float)sm_spool_weight;
       if (r < 0) r = 0;
       // The numbers are taken now, the request runs on the next loop pass.
-      s_job = CJ_WEIGHT; s_job_value = r; s_job_gross = scale_weight_g;
+      s_job = CJ_WEIGHT; s_job_value = r; s_job_gross = bare;
     }, LV_EVENT_CLICKED, NULL);
     lv_obj_t *l1 = lv_label_create(btn1);
     char buf1[48];
@@ -485,11 +523,12 @@ void showConfirmPopup(const char* msg, int action) {
       lv_obj_set_style_shadow_width(btn2, 0, 0);
       lv_obj_add_event_cb(btn2, [](lv_event_t *e) {
         closeConfirmPopup();
-        float r = scale_weight_g - (float)sm_spool_weight - bag_weight_g;
+        const float bare = spoolExtrasBareReading();
+        float r = bare - (float)sm_spool_weight - bag_weight_g;
         if (r < 0) r = 0;
-        // Gross without the bag: that is what the scale would have shown had
-        // the spool been weighed bare, and it is what FilaMan has to be told.
-        s_job = CJ_WEIGHT; s_job_value = r; s_job_gross = scale_weight_g - bag_weight_g;
+        // Gross without the bag or the parts: that is what the scale would
+        // have shown had the spool been weighed bare, and what FilaMan is told.
+        s_job = CJ_WEIGHT; s_job_value = r; s_job_gross = bare - bag_weight_g;
       }, LV_EVENT_CLICKED, NULL);
       lv_obj_t *l2 = lv_label_create(btn2);
       char buf2[56];
@@ -516,7 +555,7 @@ void showConfirmPopup(const char* msg, int action) {
         showSpoolWeightPopup(derived, true);   // stores the tare, then the initial
         return;
       }
-      float initial = scale_weight_g - (float)sm_spool_weight;
+      float initial = spoolExtrasBareReading() - (float)sm_spool_weight;
       if (initial < 0) initial = 0;
       s_job = CJ_INITIAL; s_job_value = initial;
     }, LV_EVENT_CLICKED, NULL);

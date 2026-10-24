@@ -3825,6 +3825,12 @@ const char* const STRINGS[][3] = {
   { "Kalibrierfaktor",          "Calibration factor",    "Facteur d'étalonnage" },  // STR_W_SCALE_CAL
   { "Nullpunkt (Rohwert)",      "Zero point (raw)",      "Zéro (valeur brute)" },  // STR_W_SCALE_ZERO
   { "keiner gefunden",          "none found",            "aucun trouvé" },  // STR_W_SCALE_NONE
+  { "Zubehör an dieser Spule",
+    "Parts on this spool",
+    "Accessoires bobine" },  // STR_EXTRAS_TITLE
+  { "Abzug: %.0f g (bis zu 3)",
+    "Taken off: %.0f g (up to 3)",
+    "Déduit : %.0f g (3 max.)" },  // STR_EXTRAS_SUM
 };
 
 StringID tagWriteResultString(uint8_t code) {
