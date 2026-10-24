@@ -1,4 +1,4 @@
-"""Compile the production 7B expander driver against a Wire that records every frame, and check what reaches the chip: levels before direction, GPIO19/20 always on USB."""
+"""Compile the production 7B expander driver against a Wire that records every frame, and check what reaches the chip: levels before direction, GPIO19/20 always on USB, a pin write the chip refuses sent again and counted."""
 import subprocess
 import tempfile
 from pathlib import Path
@@ -12,6 +12,7 @@ wire_h = r'''
 #pragma once
 #include <stddef.h>
 #include <stdint.h>
+#include <deque>
 #include <vector>
 
 struct Frame {
@@ -21,9 +22,11 @@ struct Frame {
 
 class TwoWire {
  public:
-  static constexpr size_t NONE = (size_t)-1;
   std::vector<Frame> frames;
-  size_t nack_at = NONE;  // the frame, by index, the chip does not acknowledge
+  // What the next transmissions return, one each, in turn; 0, acknowledged,
+  // once they are used up. arduino-esp32 3.3 returns 2 for a NACK, 5 for a
+  // timeout and 4 for anything else (endTransmission() in Wire.cpp).
+  std::deque<uint8_t> answers;
 
   void beginTransmission(uint8_t address) { open_ = Frame{address, {}}; }
   size_t write(uint8_t value) {
@@ -32,7 +35,10 @@ class TwoWire {
   }
   uint8_t endTransmission() {
     frames.push_back(open_);
-    return frames.size() - 1 == nack_at ? 2 : 0;  // 2: address not acknowledged
+    if (answers.empty()) return 0;
+    const uint8_t answer = answers.front();
+    answers.pop_front();
+    return answer;
   }
 
  private:
@@ -50,6 +56,7 @@ source = r'''
 // must agree with this text, not with itself.
 static constexpr uint8_t ADDR = 0x24, DIRECTION = 0x02, OUTPUTS = 0x03, PWM = 0x05;
 static constexpr uint8_t USB_SEL = 1u << 5;  // EXIO5: high hands GPIO19/20 to CAN
+static constexpr uint8_t ACK = 0, NACK = 2, OTHER = 4, TIMEOUT = 5;  // endTransmission()
 
 static void expect(bool ok, const char* what) {
   if (!ok) {
@@ -106,16 +113,52 @@ int main() {
   }
 
   // Only the writes after the direction decide: the first levels may land on
-  // inputs that drop them, the last ones are what the pins hold.
-  size_t first = bus.frames.size();
-  bus.nack_at = first;
+  // inputs that drop them, the last ones are what the pins hold. Neither
+  // begin() nor pwm() sends a frame again, and neither counts for write().
+  uint32_t retries_at = io_ch32v003::retries();
+  uint32_t failures_at = io_ch32v003::failures();
+  const size_t refused_from = bus.frames.size();
+  bus.answers = {NACK};
   expect(io_ch32v003::begin(bus, 0x00), "begin does not depend on the first levels");
-  first = bus.frames.size();
-  bus.nack_at = first + 1;
+  bus.answers = {ACK, NACK};
   expect(!io_ch32v003::begin(bus, 0x00), "begin fails when the direction is not acknowledged");
-  first = bus.frames.size();
-  bus.nack_at = first + 2;
+  bus.answers = {ACK, ACK, NACK};
   expect(!io_ch32v003::begin(bus, 0x00), "begin fails when the last levels are not acknowledged");
+  bus.answers = {NACK};
+  expect(!io_ch32v003::pwm(0x00), "pwm fails when it is not acknowledged");
+  expect(bus.frames.size() == refused_from + 3 * 3 + 1, "begin and pwm send each frame once, refused or not");
+  expect(io_ch32v003::retries() == retries_at && io_ch32v003::failures() == failures_at,
+         "begin and pwm leave the write counters alone");
+
+  // A pin write the chip refuses goes out again, the same byte, three times
+  // in all at most; the first try it acknowledges ends it.
+  retries_at = io_ch32v003::retries();
+  failures_at = io_ch32v003::failures();
+  size_t first = bus.frames.size();
+  bus.answers = {NACK};
+  expect(io_ch32v003::write(2, true), "a write acknowledged at the second try succeeds");
+  expect(bus.frames.size() == first + 2, "a write refused once is sent twice");
+  expect(frameIs(bus.frames[first], OUTPUTS, 0x04) && frameIs(bus.frames[first + 1], OUTPUTS, 0x04),
+         "the second try sends the same byte");
+  expect(io_ch32v003::retries() - retries_at == 1u, "the second try counts as one retry");
+  expect(io_ch32v003::failures() == failures_at, "a write that gets through at the second try is no failure");
+
+  // Refused at every try, whatever the error: three frames, then false.
+  retries_at = io_ch32v003::retries();
+  failures_at = io_ch32v003::failures();
+  first = bus.frames.size();
+  bus.answers = {NACK, TIMEOUT, OTHER};
+  expect(!io_ch32v003::write(6, true), "a write refused at every try fails");
+  expect(bus.frames.size() == first + 3, "a write refused at every try is sent three times");
+  for (size_t i = 0; i < 3; i++) {
+    expect(frameIs(bus.frames[first + i], OUTPUTS, 0x44), "every try sends the same byte");
+  }
+  expect(io_ch32v003::retries() - retries_at == 2u, "the two tries after the first count as retries");
+  expect(io_ch32v003::failures() - failures_at == 1u, "a write refused at every try counts as one failure");
+
+  // The refused pin stays in the kept byte and goes out with the next write.
+  expect(io_ch32v003::write(3, true), "the write after a failed one is acknowledged");
+  expect(frameIs(bus.frames.back(), OUTPUTS, 0x4C), "the next write carries the pin that was refused");
 
   // Whatever was sent, GPIO19/20 stayed on the USB connector.
   for (const Frame& f : bus.frames) {
