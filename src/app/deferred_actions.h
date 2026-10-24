@@ -163,6 +163,9 @@ extern bool print_sheet_printer_pending;
 // The label of the spool on the pad, from the More info header. Rendered
 // and printed from the loop: the print starts the BLE stack and blocks.
 extern bool print_spool_label_pending;
+// The same header without a Bluetooth printer, on FilaMan: the card that
+// sends the label to the PC (ui/pc_print_popup.h).
+extern bool show_pc_print_pending;
 // The label editor in the browser: print the last spool scanned with the
 // saved template, and fetch that spool's dates for the preview (HTTP).
 extern bool print_last_label_pending;

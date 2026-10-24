@@ -500,3 +500,9 @@ int  backendGetSpoolDetail(int spool_id, AmsSpoolDetail& out,
 int  backendLabelPresets(FilamanLabelPresetList* list, uint32_t timeout_ms);
 int  backendLabelRender(FilamanLabelRequest req, LabelRaster* out,
        char* reason, size_t reason_size);
+// A label printed on the PC instead: FilaMan files the request and a tab of
+// its own in the browser offers to print it (filamanLabelPrintRequest()).
+// `id` is the spool's, or its filament's when `filament` is set. 201 when it
+// was filed.
+int  backendLabelPrintRequest(bool filament, int id, char* reason, size_t reason_size,
+       uint32_t timeout_ms);

@@ -1781,6 +1781,17 @@ enum StringID {
   STR_TAGNEW_W_OVER_TARE, // the same, with an inherited empty spool to check
   STR_COPY_CARD_TARE,     // copy card line 3: the weight line and the template's empty spool
 
+  // Printing on the PC through FilaMan (ui/pc_print_popup.cpp)
+  STR_PCP_TITLE,          // the card's title
+  STR_PCP_SUB,            // under it: what it takes on the PC
+  STR_PCP_SPOOL,          // the two kinds of label
+  STR_PCP_FILAMENT,
+  STR_PCP_SENDING,        // while the request is on its way
+  STR_PCP_SENT_TITLE,     // filed
+  STR_PCP_SENT_TEXT,      // what to do in the browser, quoting FilaMan's own button
+  STR_PCP_FAIL_TITLE,     // refused; FilaMan's own reason goes under it
+  STR_PCP_NO_ROUTE,       // a FilaMan before 1.4.3
+
   STR_COUNT
 };
 

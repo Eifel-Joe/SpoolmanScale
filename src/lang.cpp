@@ -3869,6 +3869,34 @@ const char* const STRINGS[][3] = {
   { "%s | leer %.0f g",
     "%s | empty %.0f g",
     "%s | vide %.0f g" },  // STR_COPY_CARD_TARE
+  // Printing on the PC through FilaMan
+  { "Am PC drucken",
+    "Print on the PC",
+    "Imprimer sur le PC" },  // STR_PCP_TITLE
+  { "Über FilaMan. Dazu muss FilaMan am PC im Browser offen sein.",
+    "Through FilaMan. FilaMan has to be open in a browser on the PC.",
+    "Via FilaMan, qui doit être ouvert dans un navigateur sur le PC." },  // STR_PCP_SUB
+  { "Spulen-Etikett",
+    "Spool label",
+    "Étiquette bobine" },  // STR_PCP_SPOOL
+  { "Filament-Etikett",
+    "Filament label",
+    "Étiquette filament" },  // STR_PCP_FILAMENT
+  { "Wird an FilaMan gesendet ...",
+    "Sending to FilaMan ...",
+    "Envoi à FilaMan ..." },  // STR_PCP_SENDING
+  { "An FilaMan gesendet",
+    "Sent to FilaMan",
+    "Envoyé à FilaMan" },  // STR_PCP_SENT_TITLE
+  { "Im FilaMan-Tab auf \"Druckfenster öffnen\" klicken und im Designer drucken. Die Anfrage verfällt nach 5 Minuten.",
+    "In the FilaMan tab, click \"Open print window\" and print from the designer. The request expires after 5 minutes.",
+    "Dans l'onglet FilaMan, cliquez sur \"Ouvrir la fenêtre d'impression\" puis imprimez. Demande valable 5 minutes." },  // STR_PCP_SENT_TEXT
+  { "Nicht gesendet",
+    "Not sent",
+    "Non envoyé" },  // STR_PCP_FAIL_TITLE
+  { "Dieses FilaMan nimmt noch keine Druckanfragen an. Nötig ist FilaMan 1.4.3 oder neuer.",
+    "This FilaMan does not take print requests yet. It needs FilaMan 1.4.3 or newer.",
+    "Ce FilaMan ne gère pas encore l'impression sur PC. Il faut FilaMan 1.4.3 ou plus récent." },  // STR_PCP_NO_ROUTE
 };
 
 StringID tagWriteResultString(uint8_t code) {

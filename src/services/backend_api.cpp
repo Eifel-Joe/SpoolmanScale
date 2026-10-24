@@ -1692,3 +1692,11 @@ int backendLabelRender(FilamanLabelRequest req, LabelRaster* out,
   req.api_key = filamanApiKey();
   return filamanLabelRender(req, out, reason, reason_size);
 }
+
+int backendLabelPrintRequest(bool filament, int id, char* reason, size_t reason_size,
+                             uint32_t timeout_ms) {
+  HttpStallTime stall(__func__);
+  if (backendMode() != BACKEND_FILAMAN) return notSupported(__func__);
+  return filamanLabelPrintRequest(backendBaseUrl(), filamanApiKey(), filament, id,
+                                  reason, reason_size, timeout_ms);
+}
