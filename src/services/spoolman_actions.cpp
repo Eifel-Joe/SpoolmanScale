@@ -40,8 +40,10 @@ bool reactivateSpool(float remaining) {
   if (remaining < 0) remaining = 0;
 
   // Gross for the backends that subtract the tare themselves, exactly the way
-  // the weight path does it: the callers computed remaining as pad minus
-  // sm_spool_weight, so adding it back is what the pad showed.
+  // the weight path does it: the callers computed remaining as the reading
+  // without the parts on the spool (spoolExtrasBareReading()) minus
+  // sm_spool_weight, so adding it back gives that reading without the parts:
+  // what the scale would show for the spool alone, not the raw pad value.
   const float gross = remaining + sm_spool_weight;
   int code = serverReachNote(backendReactivateSpool(cfg_spoolman_base, sm_id, remaining, gross), true);
   logSDf("REACTIVATE ID=%d remaining=%.1fg gross=%.1fg HTTP %d",
@@ -98,8 +100,10 @@ int patchSpoolmanWeight(float remaining, bool skip_cap_check) {
   if (last_used_mode == 1 && !nowIsoUtc(now_iso, sizeof(now_iso))) now_iso[0] = '\0';
   Serial.printf("PATCH weight: %.1fg\n", remaining);
   // FilaMan wants the gross weight and subtracts the empty spool weight
-  // itself. The callers computed remaining as scale minus sm_spool_weight,
-  // so adding it back gives exactly what the scale showed.
+  // itself. The callers computed remaining as the reading without the parts
+  // on the spool (spoolExtrasBareReading()) minus sm_spool_weight, so adding
+  // it back gives that reading without the parts: what the scale would show
+  // for the spool alone, and that is what the backend is told.
   float measured = remaining + sm_spool_weight;
   int code = serverReachNote(backendPatchSpoolRemaining(cfg_spoolman_base, sm_id, remaining,
                                         now_iso[0] ? now_iso : nullptr, nullptr, measured), true);
