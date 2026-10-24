@@ -19,13 +19,26 @@ static bool writeReg(uint8_t reg, uint8_t value) {
   return s_wire->endTransmission() == 0;
 }
 
-// Direction first and the levels right after, the order of Waveshare's own
-// driver. The other way round would be the CH422G's, but whether this
-// firmware keeps a level written to a pin that is still an input is not
-// known, and a level it dropped would leave the pin wherever it was.
+// The levels, then every pin an output, then the levels again.
+//
+// Not the direction first, the order of Waveshare's driver
+// (IO_EXTENSION_Init() in io_extension.c) and of ESPHome's (setup() in
+// waveshare_io_ch32v003.cpp). It leaves a window: a 1 the chip holds for
+// EXIO5 from power-up drives that pin high from the direction frame until
+// the levels frame, the switch U9 hands GPIO19/20 to the CAN transceiver,
+// and USB drops on the cold boot whose serial log is the one that says what
+// went wrong. While EXIO5 is still an input, R117 holds it low, on USB.
+//
+// The first levels close that window if the firmware keeps a level written
+// to a pin that is an input. Whether it does is not known (its source is not
+// published), so their acknowledgement decides nothing: if it drops them,
+// this is the direction-first order with one frame more. The levels after
+// the direction are the ones the pins hold, and only those two writes count.
+// test/test_io_ch32v003.py checks the frames.
 bool begin(TwoWire& wire, uint8_t outputs) {
   s_wire    = &wire;
   s_outputs = outputs;
+  (void)writeReg(REG_OUTPUTS, s_outputs);
   const bool direction_ok = writeReg(REG_DIRECTION, ALL_OUTPUTS);
   const bool outputs_ok   = writeReg(REG_OUTPUTS, s_outputs);
   return direction_ok && outputs_ok;

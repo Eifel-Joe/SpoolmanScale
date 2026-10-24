@@ -167,12 +167,14 @@ static bool rgbBegin() {
 }
 
 // The GT911 takes its I2C address from the level of its INT line when its
-// reset ends: low gives 0x5D. The timing follows Waveshare's for this board
-// (touch_gt911_init() in gt911.c), with INT low from the start: 100 ms in
-// reset, then INT held low for 200 ms while the chip starts, against 10 and
-// 70 ms on the 7. The line is the chip's output afterwards, and Waveshare's
-// driver asks the chip for its configuration right then, as gt911::begin()
-// does here.
+// reset ends: low gives 0x5D. Here INT is low before the reset begins, the
+// reset lasts 100 ms, and INT stays low for 200 ms after it while the chip
+// starts, against 10 and 70 ms on the 7. Waveshare's driver for this board
+// (touch_gt911_init() in gt911.c) is not the same: it holds the reset for
+// 200 ms and pulls INT low only halfway through. What the two share is what
+// decides the address, INT low when the reset ends, and the 200 ms after it.
+// The line is the chip's output afterwards, and Waveshare's driver asks the
+// chip for its configuration right then, as gt911::begin() does here.
 static void touchBegin() {
   static constexpr uint32_t RESET_HOLD_MS = 100;
   static constexpr uint32_t BOOT_MS       = 200;
@@ -210,10 +212,15 @@ bool panelBegin() {
   const bool lcd_ok = rgbBegin();
   if (!lcd_ok) logSD("Panel: the RGB driver did not start, see the serial log");
   // What the panel costs in internal RAM is its two bounce buffers. The
-  // figure after them is what the rest of the firmware starts with.
-  logSDf("Panel: %d x %d at %u MHz, %u bounce lines, internal heap %u free",
-         PANEL_W, PANEL_H, (unsigned)(LCD_PCLK_HZ / 1000000), (unsigned)LCD_BOUNCE_LINES,
-         (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+  // figure after them is what the rest of the firmware starts with. On the
+  // serial log as well: the glass may still be dark, and the SD card missing.
+  char panel_line[96];
+  snprintf(panel_line, sizeof(panel_line),
+           "Panel: %d x %d at %u MHz, %u bounce lines, internal heap %u free",
+           PANEL_W, PANEL_H, (unsigned)(LCD_PCLK_HZ / 1000000), (unsigned)LCD_BOUNCE_LINES,
+           (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+  Serial.println(panel_line);
+  logSD(panel_line);
   touchBegin();
   // Only now, over a frame buffer that is black: no flash of whatever the
   // PSRAM held.

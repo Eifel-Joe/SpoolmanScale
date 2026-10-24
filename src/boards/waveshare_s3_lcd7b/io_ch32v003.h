@@ -19,7 +19,9 @@
 // is kept here and a change of one pin sends all eight.
 namespace io_ch32v003 {
 
-// Every pin an output, then the levels. False unless both writes are
+// The levels, every pin an output, the levels again, so that no pin drives
+// a level the chip held from before (EXIO5 high would take the USB
+// connector away). False unless the direction and the second levels are
 // acknowledged.
 bool begin(TwoWire& wire, uint8_t outputs);
 

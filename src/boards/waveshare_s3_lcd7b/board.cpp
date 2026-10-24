@@ -23,14 +23,21 @@ static_assert((EXIO_AT_BOOT & (1u << hw_pins::EXIO_USB_SEL)) == 0,
 
 void boardEarlyInit() {
   Wire.begin(hw_pins::BOARD_SDA, hw_pins::BOARD_SCL, BOARD_I2C_HZ);
-  if (io_ch32v003::begin(Wire, EXIO_AT_BOOT) && io_ch32v003::pwm(BACKLIGHT_PWM_FULL)) {
-    Serial.println("Board: CH32V003 expander ready");
-    logSD("Board: CH32V003 expander ready");
-  } else {
+  if (!io_ch32v003::begin(Wire, EXIO_AT_BOOT)) {
     // Without it there is no panel power, no backlight, no panel reset and no
     // SD card. The boot goes on: the web interface and the log still say
     // what happened.
     Serial.println("Board: CH32V003 expander does not answer on the board I2C bus");
     logSD("Board: CH32V003 expander does not answer on the board I2C bus");
+    return;
   }
+  if (!io_ch32v003::pwm(BACKLIGHT_PWM_FULL)) {
+    // The pins are set, so panel, touch and SD card come up. The brightness
+    // is whatever the chip started with, possibly a dark screen.
+    Serial.println("Board: CH32V003 expander answers, backlight PWM not acknowledged");
+    logSD("Board: CH32V003 expander answers, backlight PWM not acknowledged");
+    return;
+  }
+  Serial.println("Board: CH32V003 expander ready");
+  logSD("Board: CH32V003 expander ready");
 }
