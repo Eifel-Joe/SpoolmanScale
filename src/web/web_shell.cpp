@@ -378,11 +378,20 @@ String webShellRestartUi() {
   h += F(",gone:");   h += jsStr(T(STR_W_RESTART_GONE));
   h += F(",reload:"); h += jsStr(T(STR_W_RELOAD));
   h += F("};"
+         // Three pieces rather than one, because a restored backup restarts
+         // the scale by itself (web_backup.cpp): the backup card needs to know
+         // whether there is an SD card, and the waiting, but neither the
+         // question nor the request that doRestart() adds. rtSd() has to be
+         // asked before the restart, while the device still answers.
+         "async function rtSd(){"
+         "try{return !!(await(await fetch('/status.json',{cache:'no-store'})).json()).sd}"
+         "catch(e){return false}}"
          "async function doRestart(){"
          "if(!await ask(RT.ask,RT.go))return;"
-         "let sd=false;"
-         "try{sd=(await(await fetch('/status.json',{cache:'no-store'})).json()).sd}catch(e){}"
+         "const sd=await rtSd();"
          "try{await fetch('/api/restart',{method:'POST'})}catch(e){}"
+         "restartWait(sd);}"
+         "function restartWait(sd){"
          "const box=document.getElementById('rbox'),m=document.getElementById('rsec');"
          "box.style.display='flex';"
          "const expect=sd?35:10,limit=180;let t=0;"

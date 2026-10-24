@@ -3795,6 +3795,23 @@ const char* const STRINGS[][3] = {
     "Changer d'imprimante" },  // STR_W_P_CHANGE
   { "Farbband", "ribbon",
     "ruban" },  // STR_W_P_SPEC_RIBBON
+  // Settings page: every setting as one file, and back
+  { "Sichern und wiederherstellen", "Backup and restore", "Sauvegarde et restauration" },  // STR_W_C_BACKUP
+  { "Alle Einstellungen dieser Waage als eine Datei: Kalibrierung, Backend, Anzeige. Nach einem Neuflashen wieder einspielen.",
+    "Every setting of this scale as one file: calibration, backend, display. Load it back after a reflash.",
+    "Tous les réglages de cette balance dans un fichier : étalonnage, serveur, affichage. À recharger après un reflash." },  // STR_W_BACKUP_HINT
+  { "Mit WLAN-Zugang und API-Schlüsseln", "Include Wi-Fi login and API keys",
+    "Avec accès Wi-Fi et clés API" },  // STR_W_BACKUP_SECRETS
+  { "Einstellungen herunterladen", "Download settings",
+    "Télécharger les réglages" },  // STR_W_BACKUP_SAVE
+  { "Sicherung einspielen", "Load a backup",
+    "Charger une sauvegarde" },  // STR_W_BACKUP_LOAD
+  { "Einspielen", "Load",
+    "Charger" },  // STR_W_BACKUP_RESTORE
+  { "%d Einstellungen übernommen. Die Waage startet neu.", "%d settings loaded. The scale restarts.",
+    "%d réglages chargés. La balance redémarre." },  // STR_W_BACKUP_DONE
+  { "Das ist keine Sicherung dieser Waage.", "This is not a backup of this scale.",
+    "Ce n'est pas une sauvegarde de cette balance." },  // STR_W_BACKUP_BAD
 };
 
 StringID tagWriteResultString(uint8_t code) {

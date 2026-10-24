@@ -1752,6 +1752,15 @@ enum StringID {
   STR_W_P_PICK_HINT,          // the tile without a printer, after a scan found some
   STR_W_P_CHANGE,             // the tile's scan button once there is a printer
   STR_W_P_SPEC_RIBBON,        // a model card's last word: prints through a ribbon
+  // Settings page: every setting as one file, and back
+  STR_W_C_BACKUP,
+  STR_W_BACKUP_HINT,
+  STR_W_BACKUP_SECRETS,
+  STR_W_BACKUP_SAVE,
+  STR_W_BACKUP_LOAD,
+  STR_W_BACKUP_RESTORE,
+  STR_W_BACKUP_DONE,          // %d is how many settings were written
+  STR_W_BACKUP_BAD,
 
   STR_COUNT
 };

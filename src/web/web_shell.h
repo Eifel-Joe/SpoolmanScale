@@ -23,6 +23,11 @@ String webShellFoot();
 
 // The overlay waits before polling: the old server answers for a moment after
 // the request, and an immediate poll would reload too early.
+//
+// Brings three functions to the page: doRestart() asks, restarts and waits;
+// rtSd() says whether the device has an SD card (the boot takes longer then);
+// restartWait(sd) shows the overlay and polls until the device is back, for a
+// restart that something else has already set off.
 String webShellRestartUi();
 
 // Opens a page's <script> block: assigns the two strings /app.js needs into

@@ -24,6 +24,7 @@
 #include "services/time_service.h"
 #include "services/wifi_manager.h"
 #include "web/web_access.h"
+#include "web/web_backup.h"
 #include "web/web_shell.h"
 // Last on purpose: T() is a macro and ArduinoJson uses T as a template
 // parameter, so lang.h has to come after anything that pulls it in.
@@ -355,10 +356,14 @@ static String body() {
          "$('gn-b').addEventListener('click',setGain);"
          "load();"
          "</script>");
+  h += F("<div class='grid'>");
+  h += webBackupCard();
+  h += F("</div>");
   return h;
 }
 
 static void routes(WebServer &srv) {
+  webBackupRoutes(srv);
   srv.on("/api/hostname", HTTP_GET, [&srv]() {
     if (!webRequire(srv, GATE_CONFIG, T(STR_W_NAV_SETTINGS))) return;
     srv.send(200, "application/json", nameStateJson());
