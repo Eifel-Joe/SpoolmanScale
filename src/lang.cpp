@@ -3812,6 +3812,19 @@ const char* const STRINGS[][3] = {
     "%d réglages chargés. La balance redémarre." },  // STR_W_BACKUP_DONE
   { "Das ist keine Sicherung dieser Waage.", "This is not a backup of this scale.",
     "Ce n'est pas une sauvegarde de cette balance." },  // STR_W_BACKUP_BAD
+  // Scale page: the converter, raw count, weight, spread and calibration, live
+  { "Waage",      "Scale",      "Balance" },  // STR_W_NAV_SCALE
+  { "Waage live", "Scale live", "Balance en direct" },  // STR_W_C_SCALE_LIVE
+  { "Leicht auf die Schale drücken: Rohwert und Gewicht müssen steigen. Eine Streuung unter 1 g bei leerer Schale ist gut.",
+    "Press lightly on the platform: the raw value and the weight must go up. A spread below 1 g on an empty platform is good.",
+    "Appuyez légèrement sur le plateau : la valeur brute et le poids doivent monter. Une dispersion sous 1 g à vide est bonne." },  // STR_W_SCALE_LIVE_HINT
+  { "Wandler",                  "Converter",             "Convertisseur" },  // STR_W_SCALE_ADC
+  { "Rohwert",                  "Raw value",             "Valeur brute" },  // STR_W_SCALE_RAW
+  { "Gewicht",                  "Weight",                "Poids" },  // STR_W_SCALE_WEIGHT
+  { "Streuung (Spitze-Spitze)", "Spread (peak to peak)", "Dispersion (crête à crête)" },  // STR_W_SCALE_SPREAD
+  { "Kalibrierfaktor",          "Calibration factor",    "Facteur d'étalonnage" },  // STR_W_SCALE_CAL
+  { "Nullpunkt (Rohwert)",      "Zero point (raw)",      "Zéro (valeur brute)" },  // STR_W_SCALE_ZERO
+  { "keiner gefunden",          "none found",            "aucun trouvé" },  // STR_W_SCALE_NONE
 };
 
 StringID tagWriteResultString(uint8_t code) {

@@ -1761,6 +1761,17 @@ enum StringID {
   STR_W_BACKUP_RESTORE,
   STR_W_BACKUP_DONE,          // %d is how many settings were written
   STR_W_BACKUP_BAD,
+  // Scale page: the converter, raw count, weight, spread and calibration, live
+  STR_W_NAV_SCALE,
+  STR_W_C_SCALE_LIVE,
+  STR_W_SCALE_LIVE_HINT,
+  STR_W_SCALE_ADC,
+  STR_W_SCALE_RAW,
+  STR_W_SCALE_WEIGHT,
+  STR_W_SCALE_SPREAD,
+  STR_W_SCALE_CAL,
+  STR_W_SCALE_ZERO,
+  STR_W_SCALE_NONE,
 
   STR_COUNT
 };

@@ -71,3 +71,7 @@ bool scaleHardwareAvailable() {
 int32_t scaleHardwareReadRaw() {
   return nau.read();
 }
+
+const char* scaleHardwareName() {
+  return "NAU7802";
+}

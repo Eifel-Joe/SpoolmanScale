@@ -15,3 +15,9 @@ bool scaleHardwarePresent();
 
 bool scaleHardwareAvailable();
 int32_t scaleHardwareReadRaw();
+
+// The name of the converter, for the web page that shows the raw count. The
+// NAU7802 is the only one this firmware drives, so that is the whole answer;
+// once a second kind is supported this is where the one that was found comes
+// back.
+const char* scaleHardwareName();
