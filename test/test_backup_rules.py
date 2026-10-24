@@ -12,7 +12,7 @@ source = r'''
 // The three groups, spelled out here on purpose: the production lists must
 // agree with this text, not with themselves.
 static const char* const SECRETS[] = {
-  "wifi_ssid", "wifi_pass", "filaman_key", "filaman_dev", "bb_key", "sm_secret"
+  "wifi_ssid", "wifi_pass", "filaman_key", "filaman_dev", "bb_key", "sm_secret", "sm_bind"
 };
 static const char* const DEVICE[] = {
   "fw_ver", "fw_since", "upd_sha", "upd_ver",

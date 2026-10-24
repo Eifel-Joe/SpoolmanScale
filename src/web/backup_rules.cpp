@@ -6,7 +6,7 @@
 // from a prefix: each name is a decision somebody made (see the header). A key
 // in neither list is a setting.
 static const char* const SECRET_KEYS[] = {
-  "wifi_ssid", "wifi_pass", "filaman_key", "filaman_dev", "bb_key", "sm_secret",
+  "wifi_ssid", "wifi_pass", "filaman_key", "filaman_dev", "bb_key", "sm_secret", "sm_bind",
 };
 static const char* const DEVICE_KEYS[] = {
   "fw_ver", "fw_since", "upd_sha", "upd_ver",
@@ -57,8 +57,8 @@ bool backupHexEncode(const uint8_t* data, size_t n, char* out, size_t out_size) 
   return true;
 }
 
-// Value of one hex digit of either case, -1 for anything else. A byte of a
-// UTF-8 text is negative as a char and lands in the -1 as well.
+// Value of one hex digit of either case, -1 for anything else: any byte
+// outside the three ranges, a byte of a UTF-8 text included.
 static int hexDigit(char c) {
   if (c >= '0' && c <= '9') return c - '0';
   if (c >= 'a' && c <= 'f') return c - 'a' + 10;

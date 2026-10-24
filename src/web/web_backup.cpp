@@ -52,6 +52,24 @@ static nvs_type_t typeFromName(const char *name) {
   return NVS_TYPE_ANY;
 }
 
+// Every fault of the store or of memory answers alike on both routes, so the
+// card can tell it from a refused file and from a shut gate.
+static void sendStoreError(WebServer &srv) {
+  srv.send(500, "application/json", "{\"ok\":false,\"error\":\"nvs\"}");
+}
+
+namespace {
+// Appends to a String. ArduinoJson's own writer for a String empties it
+// first, and emptying a String frees the buffer reserved for it; this one
+// keeps the reservation, so the file is built in the one block measured for
+// it. The cast matters: concat(unsigned char) would append the number.
+struct BackupOut {
+  String &s;
+  size_t write(uint8_t c) { return s.concat((char)c) ? 1 : 0; }
+  size_t write(const uint8_t *b, size_t n) { return s.concat(b, n) ? n : 0; }
+};
+}  // namespace
+
 static void sendBackup(WebServer &srv, bool secrets) {
   JsonDocument doc;
   doc["format"] = BACKUP_FORMAT;
@@ -60,25 +78,50 @@ static void sendBackup(WebServer &srv, bool secrets) {
 
   Preferences p;
   if (!p.begin(NS, true)) {
-    srv.send(500, "application/json", "{\"error\":\"nvs\"}");
+    logSDf("Web: settings backup refused (namespace not readable)");
+    sendStoreError(srv);
     return;
   }
+  // A restore is exact, so whatever a file lacks is erased when it is loaded.
+  // A setting that travels and cannot be put into the file therefore refuses
+  // the file: one that looks whole and is not would cost that setting on the
+  // next restore. The first one lost is named in the log.
+  char lost[NVS_KEY_NAME_MAX_SIZE] = "";
+  const char *lost_why = nullptr;
   nvs_iterator_t it = nullptr;
   esp_err_t e = nvs_entry_find(NVS_DEFAULT_PART_NAME, NS, NVS_TYPE_ANY, &it);
   while (e == ESP_OK) {
     nvs_entry_info_t info;
     nvs_entry_info(it, &info);
     const char *t = typeName(info.type);
-    bool take = t && backupKeyTravels(info.key, secrets);
-    // Floats are stored as four byte blobs; any blob travels as hex. A blob
-    // reads as 0 bytes when it is empty or larger than the buffer. Neither
-    // goes into the file: putBytes() cannot store an empty one, and a restore
-    // refuses empty hex, so the device would refuse its own file.
+    const char *why = nullptr;
+    bool take = backupKeyTravels(info.key, secrets);
+    if (take && !t) why = "unknown type";
+    // Floats are stored as four byte blobs; any blob travels as hex. An empty
+    // blob stays out and the file is still whole: putBytes() cannot store an
+    // empty one, and a restore refuses empty hex, so the device would refuse
+    // its own file. getBytes() answers 0 for an empty blob, for one larger
+    // than the buffer and for a failed read alike; the stored length tells
+    // the empty one from the two that would lose a setting.
     uint8_t buf[BLOB_MAX];
     size_t n = 0;
-    if (take && info.type == NVS_TYPE_BLOB) {
-      n = p.getBytes(info.key, buf, sizeof(buf));
-      take = n > 0;
+    if (take && !why && info.type == NVS_TYPE_BLOB) {
+      const size_t stored = p.getBytesLength(info.key);
+      if (stored == 0) {
+        take = false;
+      } else if (stored > sizeof(buf)) {
+        why = "blob too large";
+      } else {
+        n = p.getBytes(info.key, buf, sizeof(buf));
+        if (n != stored) why = "blob unreadable";
+      }
+    }
+    if (why) {
+      take = false;
+      if (!lost_why) {
+        snprintf(lost, sizeof(lost), "%s", info.key);
+        lost_why = why;
+      }
     }
     if (take) {
       JsonObject o = items.add<JsonObject>();
@@ -106,16 +149,38 @@ static void sendBackup(WebServer &srv, bool secrets) {
   }
   nvs_release_iterator(it);
   p.end();
-  // A walk that stopped before its end would leave settings out of the file,
-  // and a restore is exact: loading that file would erase them.
+  // A walk that stopped before its end leaves settings out just the same.
   if (e != ESP_ERR_NVS_NOT_FOUND) {
-    srv.send(500, "application/json", "{\"error\":\"nvs\"}");
+    logSDf("Web: settings backup refused (NVS walk stopped: %s)", esp_err_to_name(e));
+    sendStoreError(srv);
     return;
   }
-
+  if (lost_why) {
+    logSDf("Web: settings backup refused (%s: %s)", lost, lost_why);
+    sendStoreError(srv);
+    return;
+  }
+  // Out of memory, ArduinoJson drops what did not fit and says so only here.
+  if (doc.overflowed()) {
+    logSDf("Web: settings backup refused (no memory for the document)");
+    sendStoreError(srv);
+    return;
+  }
+  // Measured first, so that a String that cannot hold the whole file is
+  // found before a byte of it is written, and a short one after.
+  const size_t len = measureJsonPretty(doc);
   String out;
-  serializeJsonPretty(doc, out);
-  srv.sendHeader("Content-Disposition", "attachment; filename=\"spoolmanscale-settings.json\"");
+  BackupOut w{out};
+  if (!out.reserve(len) || serializeJsonPretty(doc, w) != len || out.length() != len) {
+    logSDf("Web: settings backup refused (no memory for %u bytes)", (unsigned)len);
+    sendStoreError(srv);
+    return;
+  }
+  // The name says what the file holds: one with secrets is a key to the
+  // network and the backends, and should be recognisable as one.
+  srv.sendHeader("Content-Disposition",
+                 secrets ? "attachment; filename=\"spoolmanscale-settings-secrets.json\""
+                         : "attachment; filename=\"spoolmanscale-settings.json\"");
   srv.send(200, "application/json", out);
   logSDf("Web: settings backup downloaded (%u settings%s)", (unsigned)items.size(),
          secrets ? ", with secrets" : "");
@@ -204,6 +269,9 @@ static void restoreBackup(WebServer &srv) {
   bool good = srv.hasArg("plain") && !deserializeJson(doc, srv.arg("plain")) &&
               (doc["format"] | 0) == BACKUP_FORMAT && doc["settings"].is<JsonArray>();
   JsonArrayConst items = doc["settings"].as<JsonArrayConst>();
+  // An empty list is refused like a foreign file: loaded exactly, it would
+  // erase every setting and write none.
+  good = good && items.size() > 0;
   if (good) {
     for (JsonVariantConst e : items) {
       if (!entryOk(e)) { good = false; break; }
@@ -221,24 +289,30 @@ static void restoreBackup(WebServer &srv) {
   std::vector<String> doomed;
   Preferences p;
   if (!travellingKeys(secrets, doomed) || !p.begin(NS, false)) {
-    srv.send(500, "application/json", "{\"ok\":false,\"error\":\"nvs\"}");
+    sendStoreError(srv);
     return;
   }
   int cleared = 0;
   for (const String &k : doomed) {
     if (p.remove(k.c_str())) cleared++;
   }
-  int written = 0, skipped = 0;
+  // Skipped is an entry whose key does not travel with this file, a device
+  // fact or a secret in a file made without them, left alone on purpose.
+  // Failed is one that travels and did not take: erased above, now missing.
+  int written = 0, skipped = 0, failed = 0;
   for (JsonVariantConst e : items) {
     const char *k = e["k"].as<const char *>();
-    if (backupKeyTravels(k, secrets) && putValue(p, k, typeFromName(e["t"].as<const char *>()), e["v"])) {
+    if (!backupKeyTravels(k, secrets)) {
+      skipped++;
+    } else if (putValue(p, k, typeFromName(e["t"].as<const char *>()), e["v"])) {
       written++;
     } else {
-      skipped++;
+      failed++;
     }
   }
   p.end();
-  logSDf("Web: settings restored (%d written, %d skipped, %d cleared)", written, skipped, cleared);
+  logSDf("Web: settings restored (%d written, %d skipped, %d failed, %d cleared)", written, skipped,
+         failed, cleared);
   String r = "{\"ok\":true,\"written\":";
   r += written;
   r += ",\"skipped\":";
@@ -256,6 +330,9 @@ void webBackupRoutes(WebServer &srv) {
   // pages are. With them it is a key to the network and the backends, and a
   // restore rewrites everything: both sit behind the maintenance gate.
   srv.on("/api/backup", HTTP_GET, [&srv]() {
+    // On every answer of this route, the refusals too: no cache keeps a copy
+    // of a file that may hold the Wi-Fi login and the keys.
+    srv.sendHeader("Cache-Control", "no-store");
     const bool secrets = srv.arg("secrets") == "1";
     if (!webRequire(srv, secrets ? GATE_MAINT : GATE_CONFIG, T(STR_W_C_BACKUP))) return;
     sendBackup(srv, secrets);
@@ -294,14 +371,20 @@ String webBackupCard() {
          // Fetched rather than followed as a link: a shut gate answers with a
          // sentence, and a link would save that sentence as the backup.
          "$('bk-dl').addEventListener('click',()=>{"
-         "fetch('/api/backup'+($('bk-sec').checked?'?secrets=1':''),{cache:'no-store'})"
+         // Read once: the name has to match what was asked for, even if the
+         // box changes while the file is on its way.
+         "const s=$('bk-sec').checked;"
+         "fetch('/api/backup'+(s?'?secrets=1':''),{cache:'no-store'})"
          ".then(r=>r.ok?r.blob().then(b=>{"
          "const a=document.createElement('a');a.href=URL.createObjectURL(b);"
-         "a.download='spoolmanscale-settings.json';"
+         "a.download='spoolmanscale-settings'+(s?'-secrets':'')+'.json';"
          "document.body.appendChild(a);a.click();a.remove();"
          // Not at once: a browser may still be reading the blob for the save.
          "setTimeout(()=>URL.revokeObjectURL(a.href),10000);})"
-         ":r.text().then(t=>flash('bk-s',t||WS.err,true,6000)))"
+         // A fault on the scale answers with JSON, a shut gate with its own
+         // sentence, which says what to switch on.
+         ":r.text().then(t=>{let j=null;try{j=JSON.parse(t)}catch(e){}"
+         "flash('bk-s',(j||!t)?WS.err:t,true,6000)}))"
          ".catch(()=>flash('bk-s',WS.err,true,6000));});"
          "$('bk-up').addEventListener('click',async()=>{"
          "const f=$('bk-f').files[0];if(!f)return;"
@@ -310,9 +393,11 @@ String webBackupCard() {
          // has written it, and the wait depends on whether it has a card.
          "const sd=await rtSd();"
          "const r=await post('/api/restore',t);"
-         // A refused file answers with JSON, a shut gate with its own
-         // sentence, which says what to switch on.
-         "if(!r.ok){flash('bk-s',r.json&&r.json.error?BK.bad:(r.text||WS.err),true,6000);return}"
+         // Only a refused file is "not a backup". Any other JSON answer is a
+         // fault on the scale, and a shut gate answers with its own sentence,
+         // which says what to switch on.
+         "if(!r.ok){flash('bk-s',r.json?(r.json.error==='not a settings file'?BK.bad:WS.err)"
+         ":(r.text||WS.err),true,6000);return}"
          "flash('bk-s',BK.done.replace('%d',r.json.written),false,0);"
          "restartWait(sd);});"
          "</script>");

@@ -6,7 +6,8 @@
 // Every setting of this scale as one JSON file, and back again.
 //
 // GET  /api/backup             the file without secrets (GATE_CONFIG)
-// GET  /api/backup?secrets=1   with the Wi-Fi login and the API keys
+// GET  /api/backup?secrets=1   with the Wi-Fi login, the API keys and the
+//                              address the Spoolman secret is bound to
 //                              (GATE_MAINT: a file like that opens the
 //                              network and the backends to whoever holds it)
 // POST /api/restore            the file as the body (GATE_MAINT)
@@ -24,7 +25,8 @@
 // file made without them leaves the device's own untouched. What belongs to
 // this device rather than to its owner never travels: the firmware version
 // and the update bookkeeping, what was found out about the NFC reset line,
-// the web access switches and the password.
+// the log clear sequence (log_clr_seq), the web access switches and the
+// password.
 void webBackupRoutes(WebServer &srv);
 
 // The card for a settings page. Expects webShellRestartUi() on the same page:

@@ -27,7 +27,10 @@
 //             backup is a file that lands on a PC or in a mailbox.
 //             The consequence of that default: a new key that holds
 //             a credential has to be added to the secret list, or
-//             it travels in every backup.
+//             it travels in every backup. sm_bind goes with them: it
+//             is the address the Spoolman secret was entered for, and
+//             restored without its secret it would bind the secret a
+//             device kept to whatever host the file names.
 //
 //    device   Facts about this unit and its history, not choices:
 //             the firmware version and the update bookkeeping, what
@@ -38,10 +41,11 @@
 //             or take on what was found out about another unit.
 //
 //  The web access switches (web_master, web_config, web_maint) and
-//  web_pass are device facts on purpose. They are set at the device
-//  (ui/web_screen.cpp) and nowhere else. A backup that came through
-//  the web interface must not be able to open the gates it came
-//  through, nor lock its owner out of them.
+//  web_pass are device facts on purpose. They are set from the
+//  device's own screens and nowhere else: ui/web_screen.cpp, and
+//  ui/ota_browser.cpp when it opens a gate for the page it shows. A
+//  backup that came through the web interface must not be able to
+//  open the gates it came through, nor lock its owner out of them.
 // ============================================================
 
 // Layout of the backup file, written into it as "format". A file with
