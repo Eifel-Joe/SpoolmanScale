@@ -49,22 +49,24 @@ static_assert(BOARD_PANEL_ALIGN_X == 1 && BOARD_PANEL_ALIGN_Y == 1,
               "panelWrite() takes strips of any size and wants them unrounded");
 
 // The panel's timing. The porches and the clock edge are Waveshare's for this
-// board (rgb_lcd_port.c). The pixel clock was 14 MHz, about 15 frames a second,
-// and the panel flickered at that, mostly along its edges and in its corners
-// (24.10.2026; a video of it beat against the camera at 8.7 Hz). 24 MHz is
-// what Waveshare's own LVGL 9 demo runs, and ESPHome users run this board at
-// 30 MHz with the PSRAM at 80 MHz octal and the code running from it, as here
-// (docs/recherche/2026-10-24-7b/display.md of the meta repo, 1.1). Against it:
-// Espressif's FAQ puts the limit near 22 MHz for octal PSRAM at 80 MHz; the
-// 30 MB a second the 7 read out of PSRAM was measured before XIP was switched
-// on (boards/waveshare_s3_lcd7/panel.cpp) and so is no figure for this build;
-// a 7B ESPHome user without XIP saw jitter under load at 25 and 30 MHz
-// (display.md 1.3); and Waveshare's 24 MHz demo uses 20 bounce lines and
-// likely PSRAM at 120 MHz, so it is not this configuration. With these
-// porches a line is 1386 clocks and a frame 661 lines: 24 MHz gives 26.2
-// frames a second, and a slice of ten lines lasts 578 us. Whether the copy
-// fits in that, measureSliceCopy() logs at every boot; the glass decides.
-static constexpr uint32_t LCD_PCLK_HZ     = 24000000;
+// board (rgb_lcd_port.c); with them a line is 1386 clocks and a frame 661
+// lines. At 14 MHz, about 15 frames a second, the panel flickered, mostly
+// along its edges and in its corners (24.10.2026; a video of it beat against
+// the camera at 8.7 Hz). At 24 MHz, what Waveshare's own LVGL 9 demo runs, a
+// slice of ten lines lasted 578 us on the glass, and the board measured
+// 236..456 us for copying one, 20480 B (boot log 24.10.2026); the picture
+// was better. At 28 MHz a slice lasts 495 us and the frame rate is 30.6 Hz:
+// the slowest copy measured still fits, with less room. measureSliceCopy()
+// goes on logging the copy at every boot, the figure to judge this clock by.
+//
+// Not 30 MHz, although ESPHome users run this board at that with the PSRAM
+// at 80 MHz octal and the code running from it, as here (display.md, 1.1, in
+// docs/recherche/2026-10-24-7b/ of the meta repo): a slice would last 462 us,
+// 6 us more than the slowest copy measured. Against any clock above 22 MHz
+// stand Espressif's FAQ, which puts the limit near there for octal PSRAM at
+// 80 MHz, and a 7B ESPHome user without XIP who saw jitter under load at 25
+// and 30 MHz (display.md 1.3). The glass decides.
+static constexpr uint32_t LCD_PCLK_HZ     = 28000000;
 static constexpr uint32_t LCD_HSYNC_PULSE = 162;
 static constexpr uint32_t LCD_HSYNC_BACK  = 152;
 static constexpr uint32_t LCD_HSYNC_FRONT = 48;
@@ -235,7 +237,7 @@ static void touchBegin() {
 // interrupt just preloaded, and the first run may include the write-back of
 // lines the frame buffer's memset left dirty in the cache. The slowest below
 // the time a slice lasts means the copy fits. Above it does not prove that
-// 24 MHz fails; the glass decides.
+// the pixel clock is too fast; the glass decides.
 //
 // Every run reads another slice of the frame: the data cache would hand back
 // one just read. Every run holds this core's interrupts, the panel's
