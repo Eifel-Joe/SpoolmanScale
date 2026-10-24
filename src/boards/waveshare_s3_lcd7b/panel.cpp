@@ -132,7 +132,9 @@ static void buildScaleTables() {
 // the hardware watchdog reset the chip a few seconds later (10.10.2026). So
 // the panel is stopped first, dark, whoever asks for the restart. A restart
 // does not reset the expander; boardEarlyInit() takes the panel's power and
-// reset back down before panelBegin() runs again.
+// reset back down before panelBegin() runs again. What the backlight write
+// returns is not logged: this runs as the device restarts. write() tries it
+// again by itself.
 static void panelStop() {
   io_ch32v003::write(hw_pins::EXIO_BACKLIGHT, false);
   if (!s_panel) return;
@@ -283,15 +285,27 @@ static void measureSliceCopy() {
   logSD(line);
 }
 
+// A pin write the expander took at none of its tries, by its bit, in the
+// serial and the SD log: panel power, panel reset and backlight decide
+// whether there is a picture at all. The boot goes on as before.
+static void expanderWrite(uint8_t bit, bool on) {
+  if (io_ch32v003::write(bit, on)) return;
+  char line[64];
+  snprintf(line, sizeof(line), "Panel: expander write EXIO%u failed after %u tries",
+           (unsigned)bit, (unsigned)io_ch32v003::WRITE_ATTEMPTS);
+  Serial.println(line);
+  logSD(line);
+}
+
 bool panelBegin() {
   static constexpr uint32_t LCD_POWER_SETTLE_MS = 20;
   static constexpr uint32_t LCD_RESET_SETTLE_MS = 20;
   buildScaleTables();
   // boardEarlyInit() has held the panel unpowered and in reset since
   // power-up. Its voltages first, then out of reset, then the clock.
-  io_ch32v003::write(hw_pins::EXIO_LCD_VDD, true);
+  expanderWrite(hw_pins::EXIO_LCD_VDD, true);
   delay(LCD_POWER_SETTLE_MS);
-  io_ch32v003::write(hw_pins::EXIO_LCD_RST, true);
+  expanderWrite(hw_pins::EXIO_LCD_RST, true);
   delay(LCD_RESET_SETTLE_MS);
   const bool lcd_ok = rgbBegin();
   if (!lcd_ok) logSD("Panel: the RGB driver did not start, see the serial log");
@@ -310,7 +324,21 @@ bool panelBegin() {
   touchBegin();
   // Only now, over a frame buffer that is black: no flash of whatever the
   // PSRAM held.
-  if (lcd_ok) io_ch32v003::write(hw_pins::EXIO_BACKLIGHT, true);
+  if (lcd_ok) expanderWrite(hw_pins::EXIO_BACKLIGHT, true);
+  // The counters, once a boot and only when write() had to try again (the
+  // touch reset's two writes are in them): the evidence for or against a
+  // refused write as the cause of the dark glass after the update to 912c3ff
+  // (io_ch32v003.cpp, write()). Retries here and the light on confirm it; the
+  // light off with no failure here rules it out.
+  const uint32_t retried = io_ch32v003::retries();
+  const uint32_t failed  = io_ch32v003::failures();
+  if (retried || failed) {
+    char line[80];
+    snprintf(line, sizeof(line), "Board: CH32V003 writes needed %u retries, %u failed",
+             (unsigned)retried, (unsigned)failed);
+    Serial.println(line);
+    logSD(line);
+  }
   return lcd_ok;
 }
 

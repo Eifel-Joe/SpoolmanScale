@@ -8,8 +8,10 @@ static constexpr uint8_t REG_OUTPUTS   = 0x03;
 static constexpr uint8_t REG_PWM       = 0x05;
 static constexpr uint8_t ALL_OUTPUTS   = 0xFF;
 
-static TwoWire* s_wire    = nullptr;
-static uint8_t  s_outputs = 0;
+static TwoWire* s_wire     = nullptr;
+static uint8_t  s_outputs  = 0;
+static uint32_t s_retries  = 0;
+static uint32_t s_failures = 0;
 
 static bool writeReg(uint8_t reg, uint8_t value) {
   if (!s_wire) return false;
@@ -44,11 +46,36 @@ bool begin(TwoWire& wire, uint8_t outputs) {
   return direction_ok && outputs_ok;
 }
 
+// The same byte again, up to WRITE_ATTEMPTS frames in all, until the chip
+// acknowledges one; any result of endTransmission() but 0 counts as refused
+// (2 a NACK, 5 a timeout, 4 anything else: Wire.cpp of arduino-esp32 3.3).
+//
+// After the OTA update to 912c3ff (24.10.2026) the backlight stayed off over
+// a frame buffer with the right picture and "Board: CH32V003 expander ready"
+// in the boot log; a power cycle brought it back. panel.cpp did not look at
+// what this returned, so a write the chip did not take would have gone
+// unnoticed. That is a guess (H1), not a finding; the counters, which
+// panelBegin() logs, are the evidence the next update brings.
+//
+// The kept byte is not set back when every try fails: the next write of any
+// pin then carries the level, which is what a lost backlight-on needs. No
+// pause between the tries, as this file includes Wire.h alone for the host
+// test (test/test_io_ch32v003.py); should writes fail after every try, a
+// pause is the next step, not more tries.
 bool write(uint8_t bit, bool on) {
   if (on) s_outputs |= (uint8_t)(1u << bit);
   else    s_outputs &= (uint8_t)~(1u << bit);
-  return writeReg(REG_OUTPUTS, s_outputs);
+  if (writeReg(REG_OUTPUTS, s_outputs)) return true;
+  for (uint8_t again = 1; again < WRITE_ATTEMPTS; again++) {
+    s_retries++;
+    if (writeReg(REG_OUTPUTS, s_outputs)) return true;
+  }
+  s_failures++;
+  return false;
 }
+
+uint32_t retries()  { return s_retries; }
+uint32_t failures() { return s_failures; }
 
 bool pwm(uint8_t value) {
   return writeReg(REG_PWM, value);

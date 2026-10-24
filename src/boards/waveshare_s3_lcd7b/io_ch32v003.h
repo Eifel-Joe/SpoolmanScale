@@ -25,8 +25,20 @@ namespace io_ch32v003 {
 // acknowledged.
 bool begin(TwoWire& wire, uint8_t outputs);
 
-// One pin, by bit number. False when the write did not go through.
+// How often write() sends a byte the chip does not acknowledge, the first
+// time included.
+constexpr uint8_t WRITE_ATTEMPTS = 3;
+
+// One pin, by bit number, sent again until the chip acknowledges it, up to
+// WRITE_ATTEMPTS times. False when no try went through; the pin keeps its new
+// level in the kept byte either way and goes out with the next write.
 bool write(uint8_t bit, bool on);
+
+// What write() needed since the firmware started: the tries after the first,
+// and the writes that no try got through. begin() and pwm() are sent once and
+// not counted; their callers say themselves what failed.
+uint32_t retries();
+uint32_t failures();
 
 // The backlight PWM, 0..255, inverted: 0 is full brightness. Waveshare's
 // demo starts at 0 and turns its slider round (15_LVGL_SLIDER, lvgl_demo.c).
