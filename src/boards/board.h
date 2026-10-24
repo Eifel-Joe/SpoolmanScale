@@ -46,6 +46,8 @@
   #include "boards/wt32_sc01_plus/board_config.h"
 #elif defined(BOARD_WAVESHARE_S3_LCD7)
   #include "boards/waveshare_s3_lcd7/board_config.h"
+#elif defined(BOARD_WAVESHARE_S3_LCD7B)
+  #include "boards/waveshare_s3_lcd7b/board_config.h"
 #else
   #error "No board selected: the environment in platformio.ini must define a BOARD_* macro"
 #endif
