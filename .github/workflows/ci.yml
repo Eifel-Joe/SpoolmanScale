@@ -41,6 +41,10 @@ jobs:
         run: python3 test/test_accent_fold.py
       - name: Test card uids merge
         run: python3 test/test_card_uids_merge.py
+      - name: Test HX711 pins
+        run: python3 test/test_hx711_pins.py
+      - name: Test scale ADC calibration
+        run: python3 test/test_scale_adc_cal.py
 
   build:
     name: Build ${{ matrix.env }}
