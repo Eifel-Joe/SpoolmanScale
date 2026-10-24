@@ -155,12 +155,13 @@ The firmware is built for one board at a time. Everything above describes the WT
 |---|---|---|---|
 | WT32-SC01 Plus | `wt32-sc01-plus` | 480×320, native | the reference board |
 | Waveshare ESP32-S3-Touch-LCD-7 | `waveshare-s3-lcd7` | 800×480, the 480×320 UI enlarged to fill it | new, see the notes below |
+| Waveshare ESP32-S3-Touch-LCD-7B | `waveshare-s3-lcd7b` | 1024×600, the 480×320 UI enlarged to fill it | new, see the notes below |
 
 There is no printable enclosure for the other boards yet.
 
 ### Waveshare ESP32-S3-Touch-LCD-7
 
-The 800×480 version with the ESP32-S3-WROOM-1-N16R8 module (16 MB flash, 8 MB PSRAM). The 1024×600 "7B" is a different board and is not supported.
+The 800×480 version with the ESP32-S3-WROOM-1-N16R8 module (16 MB flash, 8 MB PSRAM). The 1024×600 "7B" is a different board with a firmware of its own, see below.
 
 **What is different on this board**
 
@@ -203,7 +204,19 @@ esptool --chip esp32s3 write-flash 0x0 SpoolmanScale-waveshare-s3-lcd7_<version>
 
 If the board is not found: hold **BOOT**, press and release **RESET**, release **BOOT**, and try again.
 
+Writing a factory image at offset 0 erases the settings. The settings live between the partition table and boot_app0 (0x9000 to 0xDFFF, see `partitions.csv`), and the file holds empty flash there. On a board that already runs SpoolmanScale, update over WiFi or with the browser upload instead, or save the settings first under **Backup and restore** in the web interface.
+
 Later updates come over WiFi as on the WT32. The board downloads its own image (`SpoolmanScale-waveshare-s3-lcd7.bin`), and the upload in the browser refuses an image built for another board.
+
+### Waveshare ESP32-S3-Touch-LCD-7B
+
+The 1024×600 version (16 MB flash, 8 MB PSRAM). Everything above for the 7 applies, wiring included, with these differences:
+
+- **Its own firmware**, environment `waveshare-s3-lcd7b`. The board's I/O expander is a CH32V003 that does not speak like the 7's CH422G, so the 7's firmware cannot switch on its screen.
+- **The picture** is enlarged to the 1024×600 panel, about 14 % wider than on the WT32.
+- **Brightness** is applied to the picture as on the 7. This board could dim its backlight, but the firmware keeps it at full.
+- **The optional PN532 reset** (GPIO6) is on the connector labelled **GPIO**.
+- **First flash** with the factory image `SpoolmanScale-waveshare-s3-lcd7b_<version>_factory.bin`, written at offset 0 as above, or with `pio run -e waveshare-s3-lcd7b -t upload`. After that it updates over WiFi with `SpoolmanScale-waveshare-s3-lcd7b.bin`.
 
 ### Adding a board
 

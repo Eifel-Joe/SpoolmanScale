@@ -11,7 +11,12 @@
 # until that fleet has been re-flashed over USB.
 #
 # nvs and otadata stay where they were, so a re-flash over USB leaves every
-# setting in place. coredump lets the framework keep a crash dump in flash
+# setting in place when the parts go to their own offsets (pio upload, the
+# web flasher without its erase option). A factory image written at 0x0 does
+# not: it holds empty flash from the end of the table to boot_app0, nvs
+# included, and erases the settings.
+#
+# coredump lets the framework keep a crash dump in flash
 # (CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH is set). The data partition keeps the
 # label spiffs, which is where LittleFS looks by default; it is not mounted
 # yet.
