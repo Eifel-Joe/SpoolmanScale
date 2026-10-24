@@ -257,8 +257,6 @@ STR_TAGNEW_CREATING	16	360	NEVER	src/ui/tag_create_popup.cpp status line of the 
 STR_TAGNEW_CREATE_FAIL	16	360	NEVER	src/ui/tag_create_popup.cpp status line of the card, UI_POPUP_W - UI_CARD_TEXT_PAD
 STR_TAGNEW_FILAMENT_ONLY	16	360	NEVER	src/ui/tag_create_popup.cpp status line of the card, UI_POPUP_W - UI_CARD_TEXT_PAD
 STR_TAGNEW_SPOOL_UNSURE	16	360	NEVER	src/ui/tag_create_popup.cpp status line of the card, UI_POPUP_W - UI_CARD_TEXT_PAD
-STR_TAGNEW_META_ART	14	360	NEVER	src/ui/tag_create_popup.cpp line 2 of the card, UI_POPUP_W - UI_CARD_TEXT_PAD
-STR_TAGNEW_META	14	360	NEVER	src/ui/tag_create_popup.cpp line 2 of the card, UI_POPUP_W - UI_CARD_TEXT_PAD
 STR_TAGNEW_PRICE_BTN	14	64	NEVER	src/ui/tag_create_popup.cpp 80 px price button, 8 px air each side
 STR_PRICE_PAD_TITLE	14	460	NEVER	src/ui/price_pad.cpp title above the keypad
 STR_PRICE_PAD_INFO	12	168	WRAP:3	src/ui/price_pad.cpp right column, PP_COL_W
@@ -340,3 +338,31 @@ STR_TAG_COMP_OFF	12	290	NEVER	src/ui/ui_common.cpp addSettingRow sub, text_w 290
 STR_TAG_COMP_OFF_SUB	12	320	NEVER	src/ui/tag_companion_screen.cpp makeListBtn sub, text_w 320
 STR_TAG_COMP_TAG_SUB	12	320	NEVER	src/ui/tag_companion_screen.cpp makeListBtn sub, text_w 320
 STR_TAG_COMP_NFCID_SUB	12	320	NEVER	src/ui/tag_companion_screen.cpp makeListBtn sub, text_w 320
+
+# --- the card for an unknown spool (unknown_spool_popup.cpp) ----------------
+# Centred lines UNK_TEXT_W 400; answers 132 px, -8 air; the row's weight line
+# from x 56 to the end, 412 - 56 - 12 = 344, -20 for the tick; chips and tiles
+# 132 px with 12 px air.
+STR_UNK_ASK	16	290	NEVER	src/ui/ui_common.cpp addSettingRow title with help
+STR_UNK_SUGGEST_ONE	14	400	NEVER	src/ui/unknown_spool_popup.cpp caption, UNK_TEXT_W
+STR_UNK_SUGGEST_MANY	14	400	NEVER	src/ui/unknown_spool_popup.cpp caption, UNK_TEXT_W
+STR_UNK_SUGGEST_NEW	14	400	NEVER	src/ui/unknown_spool_popup.cpp caption, UNK_TEXT_W
+STR_UNK_STORED_HIT	14	324	NEVER	src/ui/unknown_spool_popup.cpp row line 2 beside the tick
+STR_UNK_NONE_LINE	16	344	NEVER	src/ui/unknown_spool_popup.cpp create note line 1, 412 - 56 - 12
+STR_UNK_NONE_SUB	14	344	NEVER	src/ui/unknown_spool_popup.cpp create note line 2
+STR_UNK_MORE	16	120	NEVER	src/ui/unknown_spool_popup.cpp last chip
+STR_UNK_BTN_ALL	18	124	NEVER	src/ui/unknown_spool_popup.cpp 132 px answer, -8 air
+STR_UNK_BTN_OTHER	16	124	NEVER	src/ui/unknown_spool_popup.cpp 132 px answer, -8 air
+STR_UNK_BTN_WEIGH	16	124	NEVER	src/ui/unknown_spool_popup.cpp 132 px answer, -8 air
+STR_UNK_TILE_COPY	16	120	NEVER	src/ui/unknown_spool_popup.cpp tile caption
+
+# --- what a spool created off the pad starts with (ui_common.cpp spoolStartText) ---
+# Line 2 of the tag card at 14 px and line 3 of the copy card at 16 px share
+# the six; measured at the larger font, UI_POPUP_W - UI_CARD_TEXT_PAD.
+STR_TAGNEW_W_OF	16	360	NEVER	src/ui/tag_create_popup.cpp line 2, src/ui/copy_confirm_popup.cpp line 3
+STR_TAGNEW_W_FULL	16	360	NEVER	src/ui/tag_create_popup.cpp line 2, src/ui/copy_confirm_popup.cpp line 3
+STR_TAGNEW_W_NOT	16	360	NEVER	src/ui/tag_create_popup.cpp line 2, src/ui/copy_confirm_popup.cpp line 3
+STR_TAGNEW_W_NO_TARE	16	360	NEVER	src/ui/tag_create_popup.cpp line 2, src/ui/copy_confirm_popup.cpp line 3
+STR_TAGNEW_W_OVER	16	360	NEVER	src/ui/tag_create_popup.cpp line 2, src/ui/copy_confirm_popup.cpp line 3
+STR_TAGNEW_W_OVER_TARE	14	360	NEVER	src/ui/tag_create_popup.cpp line 2 of the card
+STR_COPY_CARD_TARE	16	360	NEVER	src/ui/copy_confirm_popup.cpp line 3 of the card

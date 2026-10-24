@@ -1513,8 +1513,6 @@ enum StringID {
   STR_W_SHOT_AT_PANEL,
   STR_W_SHOT_FAIL,
   STR_W_SHOT_EMPTY,
-  STR_TAGNEW_META_ART,
-  STR_TAGNEW_META,
   STR_TAGNEW_SEARCHING,
   STR_TAGNEW_FOUND,
   STR_TAGNEW_FROM_DB,
@@ -1752,6 +1750,36 @@ enum StringID {
   STR_W_P_PICK_HINT,          // the tile without a printer, after a scan found some
   STR_W_P_CHANGE,             // the tile's scan button once there is a printer
   STR_W_P_SPEC_RIBBON,        // a model card's last word: prints through a ribbon
+
+  // The card for a spool the inventory does not know
+  STR_UNK_ASK,           // the settings row
+  STR_UNK_ASK_SUB,       // its subtitle
+  STR_UNK_ASK_INFO,      // its help text
+  STR_UNK_SUGGEST_ONE,   // caption over the one matching spool
+  STR_UNK_SUGGEST_MANY,  // caption over the chips, %d spools
+  STR_UNK_SUGGEST_NEW,   // caption over the create note
+  STR_UNK_STORED_HIT,    // the grams on file (%s, as the list row), equal to the scale
+  STR_UNK_STORED,        // the grams on file (%s, as the list row)
+  STR_UNK_NONE_LINE,     // the create note, first line
+  STR_UNK_NONE_SUB,      // the create note, second line
+  STR_UNK_MORE,          // the last chip, %d further spools
+  STR_UNK_BTN_ALL,       // button: the whole link list
+  STR_UNK_BTN_OTHER,     // button: the tiles with every way
+  STR_UNK_BTN_WEIGH,     // button: close and only weigh
+  STR_UNK_TILE_COPY,     // tile: the copy entry
+  STR_UNK_NET,           // what lies on the pad, without the empty spool
+  STR_UNK_GROSS,         // what lies on the pad, all of it
+  STR_UNK_UID,           // an NTAG without data, by its chip
+  STR_UNK_NO_COLOR,      // the swatch of a tag that names no colour
+
+  // What a spool created off the pad starts with (ui_common.cpp spoolStartText)
+  STR_TAGNEW_W_OF,        // what is left of the label: used, or full on a default core
+  STR_TAGNEW_W_FULL,      // a full spool filing its measured weight
+  STR_TAGNEW_W_NOT,       // nothing on the pad: filed as full
+  STR_TAGNEW_W_NO_TARE,   // on the pad, but no empty spool weight to subtract
+  STR_TAGNEW_W_OVER,      // more than a full spool can weigh: filed as full
+  STR_TAGNEW_W_OVER_TARE, // the same, with an inherited empty spool to check
+  STR_COPY_CARD_TARE,     // copy card line 3: the weight line and the template's empty spool
 
   STR_COUNT
 };

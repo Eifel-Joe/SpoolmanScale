@@ -20,6 +20,7 @@ bool g_hw_uid_write = false;
 uint8_t g_tag_comp = TAG_COMP_OFF;
 bool g_ams_pick_ask = false;
 bool g_tag2_ask = false;
+bool g_unk_ask = true;
 bool g_flm_bambu_tags = false;
 bool g_flm_ext_id = true;
 uint8_t g_tagwrite_mode = TAGWRITE_OFF;

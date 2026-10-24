@@ -14,6 +14,29 @@ void tagFilamentPlanClear(TagFilamentPlan* plan) {
   if (plan) memset(plan, 0, sizeof(*plan));
 }
 
+int tagCreateTare(const TagCreateInput& in, const TagFilamentPlan& plan,
+                  uint8_t* from, TareQuality* quality) {
+  int w = 0;
+  uint8_t src = TARE_NONE;
+  TareQuality q = TARE_Q_NONE;
+  if (plan.state == TFS_FOUND && plan.found_spool_weight_g > 0) {
+    w = plan.found_spool_weight_g; src = TARE_FILAMENT; q = TARE_Q_KNOWN;
+  } else if (plan.vendor_spool_weight_g > 0) {
+    w = plan.vendor_spool_weight_g; src = TARE_VENDOR; q = TARE_Q_KNOWN;
+  } else if (plan.spool_weight_g > 0 || in.spool_weight_g > 0) {
+    // The plan's is the database entry's, or the input's copied over; the
+    // input's is a catalog pick or the fixed core. Only the fixed core is a
+    // default, and an entry that happens to say the same number is none
+    // better.
+    w = plan.spool_weight_g > 0 ? plan.spool_weight_g : in.spool_weight_g;
+    src = TARE_SPOOL;
+    q = (in.spool_weight_default && w == in.spool_weight_g) ? TARE_Q_DEFAULT : TARE_Q_KNOWN;
+  }
+  if (from) *from = src;
+  if (quality) *quality = q;
+  return w;
+}
+
 // One per kind of tag that can become a spool, tried in this order. Each
 // answers false for a scan that is not its own. A new kind is a file of its
 // own (tag_create_bambu.cpp is the pattern) and a line here.

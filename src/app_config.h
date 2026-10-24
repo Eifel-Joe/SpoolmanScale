@@ -1,6 +1,6 @@
 #pragma once
 
-#define FW_VERSION  "v0.8.3-beta.87"
+#define FW_VERSION  "v0.8.3-beta.90"
 #define DONATION_URL "ko-fi.com/formfollowsfunction"
 
 // Backlight PWM duty on GPIO45, 8 bit, straight through to LovyanGFX. Not a
@@ -121,6 +121,28 @@
 // was never booked against it.
 #define LINK_WEIGHT_TOLERANCE_G  20.0f
 
+// How still the pad has to be before a reading counts as the spool's weight,
+// where nothing was weighed on purpose: the AMS question and the card for an
+// unknown spool. Deliberately looser and far shorter than the auto weight
+// criterion (0.5 g over 3 s): there the user is waiting for a countdown, here
+// they are putting a spool down and picking it up again. With the 1.6 s
+// moving average in front of it, this settles about 2.4 s after the spool
+// lands instead of the 5 s the strict values needed.
+#define PAD_SETTLE_TOL_G   2.0f
+#define PAD_SETTLE_MS      800
+
+// What a spool starts with when it is created off the pad
+// (services/spool_start.h). A net reading within this band around the label
+// is a full spool: Bambu winds up to about 1.5 % over the label, and an empty
+// spool someone weighed is good to a few grams. On Bambu's fixed core the
+// band widens by the 11 g the real cores vary (241 to 252 g in one library).
+// Below START_MIN_NET_G of filament the pad counts as empty: the spool is
+// being held to the reader, or only its core lies there.
+#define START_FULL_TOL_PCT          3
+#define START_FULL_TOL_MIN_G       15.0f
+#define START_TARE_DEFAULT_SLACK_G 10.0f
+#define START_MIN_NET_G            20.0f
+
 // Creating a spool straight from a Bambu tag. The tag carries material,
 // brand, colour and temperatures, but no weights at all - a Bambu Lab core
 // weighs 250 g, which is also BamBuddy's own default, so a spool created here
@@ -132,9 +154,9 @@
 // empty brand the server would turn into a filament with no vendor at all.
 #define BAMBU_VENDOR_NAME     "Bambu Lab"
 #define BAMBU_CORE_WEIGHT_G      250
-// The nominal filament weights Bambu sells. The scale picks whichever is
-// closest to what it reads and the user can correct it before saving, which
-// beats guessing 1000 g for a 250 g refill.
+// The nominal filament weights Bambu sells, for a tag that names no net
+// weight of its own (Bambu tags carry theirs): the scale takes whichever is
+// closest to what it reads, which beats guessing 1000 g for a 250 g refill.
 #define NEWTAG_LABEL_COUNT         4
 #define NEWTAG_LABEL_CHOICES  { 250, 500, 750, 1000 }
 
