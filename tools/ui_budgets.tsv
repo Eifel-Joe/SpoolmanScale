@@ -385,3 +385,18 @@ STR_TAGNEW_W_NO_TARE	16	360	NEVER	src/ui/tag_create_popup.cpp line 2, src/ui/cop
 STR_TAGNEW_W_OVER	16	360	NEVER	src/ui/tag_create_popup.cpp line 2, src/ui/copy_confirm_popup.cpp line 3
 STR_TAGNEW_W_OVER_TARE	14	360	NEVER	src/ui/tag_create_popup.cpp line 2 of the card
 STR_COPY_CARD_TARE	16	360	NEVER	src/ui/copy_confirm_popup.cpp line 3 of the card
+
+# --- printing on the PC through FilaMan (src/ui/pc_print_popup.cpp) -----------
+# The house card, UI_POPUP_W - UI_CARD_TEXT_PAD = 360 px for the text lines.
+# The answer text has UI_CARD_TEXT_Y 98 to the button row at 186: four lines
+# of 16 px. The two kinds share the answer row: (376 - 8) / 2 = 184 px each,
+# by the button rule 176.
+STR_PCP_TITLE	20	360	NEVER	src/ui/pc_print_popup.cpp question title
+STR_PCP_SUB	14	360	WRAP:2	src/ui/pc_print_popup.cpp question line under the title
+STR_PCP_SPOOL	18	176	NEVER	src/ui/pc_print_popup.cpp kind button, 184 px
+STR_PCP_FILAMENT	18	176	NEVER	src/ui/pc_print_popup.cpp kind button, 184 px
+STR_PCP_SENDING	20	360	NEVER	src/ui/pc_print_popup.cpp busy card
+STR_PCP_SENT_TITLE	20	360	NEVER	src/ui/pc_print_popup.cpp answer title
+STR_PCP_FAIL_TITLE	20	360	NEVER	src/ui/pc_print_popup.cpp answer title
+STR_PCP_SENT_TEXT	16	360	WRAP:4	src/ui/pc_print_popup.cpp answer text
+STR_PCP_NO_ROUTE	16	360	WRAP:4	src/ui/pc_print_popup.cpp answer text

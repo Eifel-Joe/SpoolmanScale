@@ -113,6 +113,7 @@
 #include "ui/more_info_screen.h"
 #include "ui/navigation.h"
 #include "ui/ota_menu.h"
+#include "ui/pc_print_popup.h"
 #include "ui/printer_screen.h"
 #include "ui/scale_menu.h"
 #include "ui/settings_screen.h"
@@ -1022,6 +1023,7 @@ void appLoop() {
   perfSection("deferred2");
   handleStatusPickerDeferredActions();
   handleMoreInfoDeferredActions();
+  pcPrintTick();
   handleAmsAssignDeferredActions();
   handleAmsViewDeferredActions();
   handleAmsDetailDeferredActions();

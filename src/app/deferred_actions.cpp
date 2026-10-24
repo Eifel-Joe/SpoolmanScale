@@ -74,6 +74,7 @@ bool print_sheet_close_pending   = false;
 bool print_sheet_print_pending   = false;
 bool print_sheet_printer_pending = false;
 bool print_spool_label_pending   = false;
+bool show_pc_print_pending       = false;
 bool print_last_label_pending    = false;
 bool print_last_filament_label_pending = false;
 bool label_dates_pending         = false;
