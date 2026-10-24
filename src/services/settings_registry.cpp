@@ -137,6 +137,13 @@ const SettingDesc SETTINGS[] = {
     0, 0, nullptr,
     appliesSecondTag, nullptr, nullptr, OPEN_NONE, nullptr, false },
 
+  // The card for a spool the inventory does not know. Beside the second tag
+  // because both are questions the scale asks on its own around a link.
+  { "unk_ask", SET_BOOL, SC_ALL, &g_unk_ask,
+    STR_UNK_ASK, STR_UNK_ASK_SUB, STR_UNK_ASK_INFO, LV_SYMBOL_BELL,
+    1, 0, nullptr,
+    nullptr, nullptr, nullptr, OPEN_NONE, nullptr, false },
+
   // Copying the hardware uid into the field Happy Hare reads. Always offered
   // on Spoolman, unlike the row above: it hangs on no tag field, because it
   // writes beside the binding rather than into it.

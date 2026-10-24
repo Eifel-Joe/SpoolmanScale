@@ -487,3 +487,31 @@ void addSettingRows(lv_obj_t *list) {
   // took a moment earlier. The difference is one screen's worth of rows.
   logLvMem("options", rows);
 }
+
+lv_obj_t* labelOneLine(lv_obj_t* parent, const char* text, const lv_font_t* font, int max_w) {
+  lv_obj_t* l = lv_label_create(parent);
+  lv_obj_set_style_text_font(l, font, 0);
+  lv_label_set_text(l, text);
+  lv_point_t size;
+  lv_txt_get_size(&size, text, font, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+  lv_obj_set_size(l, LV_MIN(size.x, max_w), lv_font_get_line_height(font));
+  lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+  return l;
+}
+
+void spoolStartText(const SpoolStart& s, bool tare_inherited, char* out, size_t out_size) {
+  if (s.verdict == START_NOT_WEIGHED) {
+    snprintf(out, out_size, T(STR_TAGNEW_W_NOT), s.label_g);
+  } else if (s.verdict == START_NO_TARE) {
+    snprintf(out, out_size, T(STR_TAGNEW_W_NO_TARE), s.label_g);
+  } else if (s.verdict == START_OVER && tare_inherited) {
+    snprintf(out, out_size, T(STR_TAGNEW_W_OVER_TARE), s.net_g, s.tare_g);
+  } else if (s.verdict == START_OVER) {
+    snprintf(out, out_size, T(STR_TAGNEW_W_OVER), s.net_g, s.label_g);
+  } else if (s.verdict == START_FULL && s.initial_g != s.label_g) {
+    snprintf(out, out_size, T(STR_TAGNEW_W_FULL), s.remaining_g);
+  } else {
+    // Used, or full on a default core: the label stays the full weight.
+    snprintf(out, out_size, T(STR_TAGNEW_W_OF), s.remaining_g, s.label_g);
+  }
+}

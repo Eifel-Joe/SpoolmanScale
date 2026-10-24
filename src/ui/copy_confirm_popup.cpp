@@ -5,9 +5,11 @@
 
 #include <Arduino.h>
 #include <lvgl.h>
+#include <cmath>
 #include <cstring>
 
 #include "hardware/sd_logger.h"
+#include "services/spool_start.h"
 #include "lang.h"
 #include "services/spool_extras.h"
 #include "services/spool_types.h"   // spoolTypesActive(), NEW_SPOOL_TARE_MIN_G
@@ -156,12 +158,22 @@ static void buildCopyCard() {
   lv_obj_set_width(lbl2, UI_POPUP_W - UI_CARD_TEXT_PAD);
   lv_obj_align(lbl2, LV_ALIGN_TOP_MID, 0, UI_CARD_TEXT_Y - 4 + COPY_CARD_LINE_H + 4);
 
-  // Line 3: what the new spool starts with - the scale minus the parts on the
-  // spool and the empty spool, as copy_flow.cpp will save it.
-  float display_netto = spoolExtrasBareReading() - tare;
-  if (display_netto < 0) display_netto = 0;
-  char line3[64];
-  snprintf(line3, sizeof(line3), T(STR_COPY_CARD_WEIGHT), display_netto, tare);
+  // Line 3: what the new spool starts with, as doCopySpoolCreate() will file
+  // it (spool_start.h), and the empty spool it is weighed against: the type
+  // chosen, else the template's (copyTare()). The reading is the one without
+  // the parts on the spool (spool_extras.h), as doCopySpoolCreate() takes it.
+  const SpoolStart start = spoolStartValues(spoolExtrasBareReading(), (int)lroundf(tare),
+                                            tare > 0.0f ? TARE_Q_KNOWN : TARE_Q_NONE,
+                                            (int)lroundf(copy_template_initial));
+  char line3[80];
+  if (start.verdict == START_PARTIAL) {
+    snprintf(line3, sizeof(line3), T(STR_COPY_CARD_WEIGHT), start.remaining_g, tare);
+  } else {
+    char weight[64];
+    spoolStartText(start, false, weight, sizeof(weight));
+    if (start.verdict == START_FULL) snprintf(line3, sizeof(line3), T(STR_COPY_CARD_TARE), weight, tare);
+    else                             snprintf(line3, sizeof(line3), "%s", weight);
+  }
   lv_obj_t *lbl3 = lv_label_create(box);
   lv_label_set_text(lbl3, line3);
   lv_obj_set_style_text_color(lbl3, lv_color_hex(UI_COL_INK_2), 0);

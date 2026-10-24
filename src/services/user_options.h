@@ -249,6 +249,13 @@ extern uint8_t g_tag_comp;
 // so g_tagwrite_mode asks for it the same way.
 extern bool g_tag2_ask;
 
+// Whether a spool the inventory does not know opens a card when it is put
+// down, with the step that most likely comes next: link a matching spool
+// without a tag, or create one from the tag. On by default - the two buttons
+// on the main screen that change their meaning are easy to miss. Off leaves
+// only those buttons, as before.
+extern bool g_unk_ask;
+
 // Whether the scale offers the AMS bay picker after weighing a spool, for the
 // backends that can pin a spool to a bay. Off by default: the assignment also
 // configures the bay on the printer over MQTT, and that is a side effect

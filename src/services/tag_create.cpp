@@ -7,11 +7,47 @@
 
 #include "../app/app_state.h"
 #include "../bambu/material_match.h"
+#include "spool_type_rules.h"
 #include "tag_create_bambu.h"
 
 
 void tagFilamentPlanClear(TagFilamentPlan* plan) {
   if (plan) memset(plan, 0, sizeof(*plan));
+}
+
+int tagCreateTare(const TagCreateInput& in, const TagFilamentPlan& plan,
+                  uint8_t* from, TareQuality* quality) {
+  int w = 0;
+  uint8_t src = TARE_NONE;
+  TareQuality q = TARE_Q_NONE;
+  if (plan.state == TFS_FOUND && plan.found_spool_weight_g > 0) {
+    w = plan.found_spool_weight_g; src = TARE_FILAMENT; q = TARE_Q_KNOWN;
+  } else if (plan.vendor_spool_weight_g > 0) {
+    w = plan.vendor_spool_weight_g; src = TARE_VENDOR; q = TARE_Q_KNOWN;
+  } else if (plan.spool_weight_g > 0 || in.spool_weight_g > 0) {
+    // The plan's is the database entry's, or the input's copied over; the
+    // input's is a catalog pick or the fixed core. Only the fixed core is a
+    // default, and an entry that happens to say the same number is none
+    // better.
+    w = plan.spool_weight_g > 0 ? plan.spool_weight_g : in.spool_weight_g;
+    src = TARE_SPOOL;
+    q = (in.spool_weight_default && w == in.spool_weight_g) ? TARE_Q_DEFAULT : TARE_Q_KNOWN;
+  }
+  // A spool type chosen at the scale for this spool alone (BBS, design note
+  // L20) goes before the chain and counts as stored, even at Bambu's 250 g:
+  // it is the new spool's own empty weight, so it is filed where the spool's
+  // is (TARE_SPOOL). One step after the chain, which stays as it is: folded
+  // into its input step instead, the filament's and the brand's would outrank
+  // the type, and a chosen 250 g read as the fixed core would get the
+  // default's wider band and keep the label as the full weight
+  // (spoolTypeCreateTare()).
+  bool trusted = false;
+  w = spoolTypeCreateTare(in.spool_type_g, w, q == TARE_Q_KNOWN, &trusted);
+  if (in.spool_type_g > 0) src = TARE_SPOOL;
+  if (trusted) q = TARE_Q_KNOWN;
+  if (from) *from = src;
+  if (quality) *quality = q;
+  return w;
 }
 
 // One per kind of tag that can become a spool, tried in this order. Each

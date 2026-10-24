@@ -128,6 +128,7 @@
 #include "ui/weight_format.h"
 #include "lang.h"
 #include "ui/theme.h"
+#include "ui/unknown_spool_popup.h"
 
 namespace {
 constexpr unsigned long NO_TAG_CLEAR_MS = 60000;
@@ -723,6 +724,8 @@ void appLoop() {
     else                showMainScreen();
   }
   handleSpoolFlowDeferredActions();
+  // After the flow's own actions, so a way the card opens is taken this pass.
+  unknownSpoolTick();
   if (show_bag_pending) {
     show_bag_pending = false;
     if (!scr_bag) buildBagScreen();
@@ -2205,6 +2208,9 @@ void appLoop() {
               // the branch above, where the spool is still there and nothing
               // would look it up again.
               lookupAbandon();
+              // The card for an unknown spool goes with it; put down again, it
+              // may be asked about again.
+              unknownSpoolForget();
             }
             TagSeen::forget();
             link_popup_dismissed = false;   // Reset flag → next spool can show popup

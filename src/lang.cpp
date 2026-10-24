@@ -3217,12 +3217,6 @@ const char* const STRINGS[][3] = {
   { "Noch keine Screenshots.",
     "No screenshots yet.",
     "Aucune capture pour l'instant." },  // STR_W_SHOT_EMPTY
-  { "%s | %s | %.0f von %d g",
-    "%s | %s | %.0f of %d g",
-    "%s | %s | %.0f sur %d g" },  // STR_TAGNEW_META_ART
-  { "%s | %.0f von %d g",
-    "%s | %.0f of %d g",
-    "%s | %.0f sur %d g" },  // STR_TAGNEW_META
   { "Filament wird gesucht ...",
     "Looking for the filament ...",
     "Recherche du filament ..." },  // STR_TAGNEW_SEARCHING
@@ -3892,6 +3886,86 @@ const char* const STRINGS[][3] = {
     "Bobine pleine : saisir le poids du filament" },  // STR_FULL_TITLE
   { "Waage %.0f g\n- Filament %.0f g\n= Spule %.0f g", "Scale %.0f g\n- filament %.0f g\n= spool %.0f g",
     "Balance %.0f g\n- filament %.0f g\n= bobine %.0f g" },  // STR_FULL_INFO
+  // ── The card for a spool the inventory does not know ──
+  { "Bei unbekannter Spule fragen",
+    "Ask about unknown spools",
+    "Demander si bobine inconnue" },  // STR_UNK_ASK
+  { "Beim Auflegen",
+    "When one is put down",
+    "À la pose" },  // STR_UNK_ASK_SUB
+  { "An: Legst du eine Spule auf, die das Inventar noch nicht kennt, schlägt die Waage den nächsten Schritt vor - eine passende Spule ohne Tag verknüpfen oder eine neue aus dem Tag anlegen. \"Nur wiegen\" schließt die Frage, bis die Spule wieder heruntergenommen wird.\n\nAus: Es wechseln nur die beiden Knöpfe auf dem Hauptscreen, wie bisher.",
+    "On: when you put down a spool the inventory does not know yet, the scale suggests the next step - link a matching spool without a tag, or create a new one from the tag. \"Just weigh\" closes the question until the spool is taken off again.\n\nOff: only the two buttons on the main screen change, as before.",
+    "Activé : quand vous posez une bobine que l'inventaire ne connaît pas encore, la balance propose l'étape suivante - lier une bobine correspondante sans tag, ou en créer une nouvelle depuis le tag. « Juste peser » ferme la question jusqu'à ce que la bobine soit retirée.\n\nDésactivé : seuls les deux boutons de l'écran principal changent." },  // STR_UNK_ASK_INFO
+  { "Vorschlag: diese Spule ohne Tag",
+    "Suggestion: this spool without a tag",
+    "Suggestion : cette bobine sans tag" },  // STR_UNK_SUGGEST_ONE
+  { "Vorschlag: %d Spulen ohne Tag passen",
+    "Suggestion: %d spools without a tag match",
+    "Suggestion : %d bobines sans tag conviennent" },  // STR_UNK_SUGGEST_MANY
+  { "Vorschlag: neu aus dem Tag",
+    "Suggestion: new from the tag",
+    "Suggestion : nouvelle depuis le tag" },  // STR_UNK_SUGGEST_NEW
+  { "%s im Bestand, passt zur Waage",
+    "%s on file, matches the scale",
+    "%s en stock, comme la balance" },  // STR_UNK_STORED_HIT
+  { "%s im Bestand",
+    "%s on file",
+    "%s en stock" },  // STR_UNK_STORED
+  { "Noch keine Spule davon im Bestand",
+    "No spool of it in the inventory yet",
+    "Pas encore dans l'inventaire" },  // STR_UNK_NONE_LINE
+  { "Neue Spule aus den Daten des Tags",
+    "A new spool from the tag's data",
+    "Nouvelle bobine selon le tag" },  // STR_UNK_NONE_SUB
+  { "+%d weitere",
+    "+%d more",
+    "+%d autres" },  // STR_UNK_MORE
+  { "Alle zeigen",
+    "Show all",
+    "Tout voir" },  // STR_UNK_BTN_ALL
+  { "Andere Wege",
+    "Other ways",
+    "Autres choix" },  // STR_UNK_BTN_OTHER
+  { "Nur wiegen",
+    "Just weigh",
+    "Juste peser" },  // STR_UNK_BTN_WEIGH
+  { "Kopie",
+    "Copy",
+    "Copie" },  // STR_UNK_TILE_COPY
+  { "%.0f g netto",
+    "%.0f g net",
+    "%.0f g net" },  // STR_UNK_NET
+  { "%.0f g auf der Waage",
+    "%.0f g on the scale",
+    "%.0f g sur la balance" },  // STR_UNK_GROSS
+  { "UID %s",
+    "UID %s",
+    "UID %s" },  // STR_UNK_UID
+  { "?",
+    "?",
+    "?" },  // STR_UNK_NO_COLOR
+  // ── What a spool created off the pad starts with ──
+  { "%.0f von %d g",
+    "%.0f of %d g",
+    "%.0f sur %d g" },  // STR_TAGNEW_W_OF
+  { "voll: %.0f g",
+    "full: %.0f g",
+    "pleine : %.0f g" },  // STR_TAGNEW_W_FULL
+  { "nicht gewogen, voll: %d g",
+    "not weighed, full: %d g",
+    "non pesée, pleine : %d g" },  // STR_TAGNEW_W_NOT
+  { "Leerspule unbekannt, voll: %d g",
+    "empty spool unknown, full: %d g",
+    "bobine vide inconnue, pleine : %d g" },  // STR_TAGNEW_W_NO_TARE
+  { "zu schwer: %.0f g, voll: %d g",
+    "too heavy: %.0f g, full: %d g",
+    "trop lourde : %.0f g, pleine : %d g" },  // STR_TAGNEW_W_OVER
+  { "zu schwer: %.0f g, Leerspule %d g prüfen",
+    "too heavy: %.0f g, check empty spool %d g",
+    "trop lourde : %.0f g, vérifier vide %d g" },  // STR_TAGNEW_W_OVER_TARE
+  { "%s | leer %.0f g",
+    "%s | empty %.0f g",
+    "%s | vide %.0f g" },  // STR_COPY_CARD_TARE
 };
 
 StringID tagWriteResultString(uint8_t code) {

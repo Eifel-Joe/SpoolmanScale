@@ -10,6 +10,7 @@
 // backend_api.h brings ArduinoJson, whose templates have a parameter T:
 // before lang.h, which defines T().
 #include "services/backend_api.h"
+#include "ui/spoolman_lookup.h"
 #include "app/app_state.h"
 #include "app/backend_switch.h"
 #include "app_config.h"
@@ -18,8 +19,10 @@
 #include "services/server_reach.h"
 #include "services/spool_cache.h"
 #include "services/spool_extras.h"
+#include "services/spool_start.h"
 #include "services/tag_create.h"
 #include "services/tag_db_match.h"
+#include "services/user_options.h"
 #include "ui/main_screen_helpers.h"
 #include "ui/price_pad.h"
 #include "ui/spool_flow_internal.h"
@@ -93,23 +96,32 @@ void closeTagCreatePopup() {
 //  Weights
 // ------------------------------------------------------------
 
-// The empty spool the card subtracts: a spool type chosen at the scale for
-// this spool (BBS, design note L20), else the entry's or the tag's.
+// The empty spool labelWeight() guesses the nominal size with: a spool type
+// chosen at the scale for this spool (BBS, design note L20), else the
+// entry's or the tag's.
 static float cardCore() {
   return (float)(s_in.spool_type_g > 0 ? s_in.spool_type_g : s_in.spool_weight_g);
 }
 
-// What the new spool starts with: the net reading when the spool lies on the
-// pad, otherwise a full one - a spool still in its box has not been touched.
-// Without the empty spool's weight nothing can be subtracted: full as well.
-// The reading is the one without the parts on the spool (spool_extras.h): they
-// are neither the spool's nor the filament's.
-static float remainingWeight() {
-  const float core = cardCore();
-  const float bare = spoolExtrasBareReading();
-  if (core <= 0.0f || bare < core) return (float)s_label_weight;
-  return bare - core;
+// What the new spool starts with, off the pad as it stands (spool_start.h),
+// weighed against the empty spool the inventory has on file for it. The plan
+// brings that in, so the line is refreshed once the plan is. A spool type
+// chosen for this spool comes first (tagCreateTare()). The reading is the one
+// without the parts on the spool (spool_extras.h): they are neither the
+// spool's nor the filament's, and the raw one would count them as filament.
+static uint8_t s_tare_from = TARE_NONE;
+
+static float startGross() {
+  return (g_scale_fitted && scale_ready) ? spoolExtrasBareReading() : 0.0f;
 }
+
+static SpoolStart startValues() {
+  TareQuality q = TARE_Q_NONE;
+  const int tare = tagCreateTare(s_in, s_plan, &s_tare_from, &q);
+  return spoolStartValues(startGross(), tare, q, s_label_weight);
+}
+
+static bool tareInherited() { return s_tare_from == TARE_FILAMENT || s_tare_from == TARE_VENDOR; }
 
 // The tag's own net weight; without it the nominal size nearest the reading.
 static int labelWeight() {
@@ -260,14 +272,17 @@ static lv_obj_t* textLine(lv_obj_t* box, const lv_font_t* font, uint32_t color, 
 }
 
 // Line 2: whose it is, the article number, and what the spool starts with.
+// A reading that could not be taken as the spool's says why instead, and
+// stands alone on the line: the hint matters more than the maker's name.
 static void refreshMeta() {
   if (!s_meta) return;
-  char meta[96];
-  if (s_in.article[0])
-    snprintf(meta, sizeof(meta), T(STR_TAGNEW_META_ART), s_in.vendor, s_in.article,
-             remainingWeight(), s_label_weight);
-  else
-    snprintf(meta, sizeof(meta), T(STR_TAGNEW_META), s_in.vendor, remainingWeight(), s_label_weight);
+  const SpoolStart start = startValues();
+  char weight[64], meta[112];
+  spoolStartText(start, tareInherited(), weight, sizeof(weight));
+  const bool plain = start.verdict == START_FULL || start.verdict == START_PARTIAL;
+  if (!plain)               snprintf(meta, sizeof(meta), "%s", weight);
+  else if (s_in.article[0]) snprintf(meta, sizeof(meta), "%s | %s | %s", s_in.vendor, s_in.article, weight);
+  else                      snprintf(meta, sizeof(meta), "%s | %s", s_in.vendor, weight);
   lv_label_set_text(s_meta, meta);
 }
 
@@ -429,6 +444,7 @@ static void runPlan() {
   backendPlanTagFilament(s_in, &s_plan);
   serverReachNote(s_plan.state == TFS_FAILED ? s_plan.http_code : 200, true);
   showPlan();
+  refreshMeta();   // the plan may have brought an empty spool weight
   if (s_plan.state == TFS_CREATE_DB && s_plan.db_found && !s_in.db_id[0]) mergeDbEntry();
 }
 
@@ -456,10 +472,14 @@ static void runCreate() {
     if (!planCanCreate(s_plan.state)) return;   // showPlan() has said why
   }
   TagCreateResult r;
-  const TagSpoolValues values = { s_label_weight, remainingWeight(), s_price };
+  const SpoolStart start = startValues();
+  logSDf("TagCreate: start %s gross=%.0f tare=%d (%s) label=%d -> initial=%d remaining=%.0f",
+         spoolStartVerdictName(start.verdict), startGross(), start.tare_g,
+         tareSourceName(s_tare_from), s_label_weight, start.initial_g, start.remaining_g);
+  const TagSpoolValues values = { start.initial_g, start.remaining_g, s_price };
   const int code = serverReachNote(backendCreateFromTag(s_in, s_plan, values, &r), true);
-  logSDf("TagCreate: HTTP %d, spool %d, filament %d, label %d g, price %.2f, link %s",
-         code, r.spool_id, r.filament_id, s_label_weight, s_price, s_in.link_id);
+  logSDf("TagCreate: HTTP %d, spool %d, filament %d, full %d g, price %.2f, link %s",
+         code, r.spool_id, r.filament_id, start.initial_g, s_price, s_in.link_id);
   char buf[96];
   if ((code == 200 || code == 201) && r.spool_id > 0) {
     spoolCacheForget("spool created from a tag");

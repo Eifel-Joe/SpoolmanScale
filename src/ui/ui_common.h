@@ -3,6 +3,7 @@
 #include <lvgl.h>
 
 #include "services/spool_color.h"
+#include "services/spool_start.h"
 #include "services/text_util.h"
 #include "theme.h"
 
@@ -92,6 +93,19 @@ void swatchPaint(lv_obj_t* obj, const SpoolColor& c);
 // Spoolman and FilaMan hand out empty and truncated colour fields, which
 // paint as SWATCH_FALLBACK_COLOR rather than as a random colour off the stack.
 void swatchPaintHex(lv_obj_t* obj, const char* hex);
+
+// The weight line of a create card (services/spool_start.h): the grams as
+// they will be filed and, where the reading could not be taken as the
+// spool's, why. `tare_inherited` turns a reading too heavy for the empty
+// spool into the hint to check that inherited weight.
+void spoolStartText(const SpoolStart& s, bool tare_inherited, char* out, size_t out_size);
+
+// A label of one line, as wide as its text up to `max_w` and ending in dots
+// beyond that. LVGL writes the dots on a label of fixed size only: one that
+// sizes itself to its content under a max_width style is cut at the edge
+// instead, and one with a fixed width but content height wraps to a second
+// line. The caller sets the colour.
+lv_obj_t* labelOneLine(lv_obj_t* parent, const char* text, const lv_font_t* font, int max_w);
 
 // The colour in the middle of a painted swatch as 0xRRGGBB, for choosing the
 // colour of text drawn across it.

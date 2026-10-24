@@ -65,6 +65,7 @@ bool spoolHasAnyTag(JsonObjectConst spool);
 #include "ui/main_screen_helpers.h"
 #include "ui/spool_flow.h"
 #include "ui/theme.h"
+#include "ui/unknown_spool_popup.h"
 #include "ui_common.h"
 
 // The inventory: 20 s for large Spoolman datasets over WiFi (200+ spools),
@@ -159,6 +160,9 @@ void lookupFollowUp(LookupOrigin origin, const char* uid) {
     default:
       break;
   }
+  // The card for it, opened by the loop once nothing else is in the way.
+  if (!sm_found && s_verdict_certain && origin != LOOKUP_FROM_OTHER)
+    unknownSpoolOffer(origin == LOOKUP_FROM_BAMBU, uid);
 }
 
 // The verdict is in. A lookup that went through the worker has nobody waiting
@@ -916,5 +920,6 @@ void lookupResolveArchive(const LookupCtx& c, JsonDocument* doc2p,
   lv_obj_set_style_text_color(lbl_spoolman_weight, lv_color_hex(UI_COL_GOOD), 0);
   sm_found = false;
   s_verdict_unknown = true;
+  s_verdict_certain = c.index_unknown || (scanned_inventory && archive_whole);
   updateLinkButton();
 }
