@@ -63,6 +63,11 @@ int  backendGetSpoolFieldsJson(const char* base_url, JsonDocument& doc,
 int  backendGetHealthCode(const char* base_url, uint32_t timeout_ms = 3000);
 bool backendGetVersion(const char* base_url, char* out_version, size_t out_size,
        uint32_t timeout_ms = 3000);
+// The address the server's own labels link to, set by its user for that
+// purpose: Spoolman's "Base URL", BamBuddy's "External URL". In `out` as the
+// server holds it, "" when unset. Returns the HTTP code; BACKEND_NOT_SUPPORTED
+// on FilaMan, where each label design carries its own.
+int  backendGetLinkBase(char* out, size_t out_size, uint32_t timeout_ms = 3000);
 int  backendCountActiveSpools(const char* base_url, uint32_t timeout_ms = 6000);
 
 // A fingerprint of the active inventory: how many spools, and the id of one

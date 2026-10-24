@@ -379,6 +379,21 @@ bool spoolmanGetVersion(const char* base_url, char* out_version, size_t out_size
   return true;
 }
 
+int spoolmanGetBaseUrlSetting(const char* base_url, char* out, size_t out_size,
+                              uint32_t timeout_ms) {
+  if (!out || out_size == 0) return -1;
+  out[0] = '\0';
+  JsonDocument doc;
+  const int code = spoolmanGetJson(base_url, "/api/v1/setting/base_url", doc, timeout_ms);
+  if (code != 200) return code;
+  // A setting's value is JSON text of its own: the address arrives as
+  // "\"https://...\"", an unset one as "\"\"".
+  JsonDocument value;
+  if (deserializeJson(value, doc["value"] | "") != DeserializationError::Ok) return -2;
+  snprintf(out, out_size, "%s", value.as<const char*>() ? value.as<const char*>() : "");
+  return code;
+}
+
 int spoolmanCountActiveSpools(const char* base_url, uint32_t timeout_ms) {
   if (!hasBaseUrl(base_url)) return -1;
 

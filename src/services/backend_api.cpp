@@ -597,6 +597,18 @@ bool backendGetVersion(const char* base_url, char* out_version, size_t out_size,
   }
 }
 
+int backendGetLinkBase(char* out, size_t out_size, uint32_t timeout_ms) {
+  HttpStallTime stall(__func__);   // the loop stands still for this call
+  switch (backendMode()) {
+    case BACKEND_FILAMAN:
+      return notSupported(__func__);
+    case BACKEND_BAMBUDDY:
+      return bbGetExternalUrl(backendBaseUrl(), bambuddyApiKey(), out, out_size, timeout_ms);
+    default:
+      return spoolmanGetBaseUrlSetting(backendBaseUrl(), out, out_size, timeout_ms);
+  }
+}
+
 int backendCountActiveSpools(const char* base_url, uint32_t timeout_ms) {
   HttpStallTime stall(__func__);   // the loop stands still for this call
   switch (backendMode()) {
