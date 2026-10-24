@@ -12,6 +12,8 @@
 #include <driver/rtc_io.h>
 #include <esp_sleep.h>
 #include <esp_system.h>
+#include <esp_timer.h>
+#include <stdint.h>
 #include <string.h>
 
 #include "boards/waveshare_s3_lcd7/gt911.h"
@@ -47,17 +49,22 @@ static_assert(BOARD_PANEL_ALIGN_X == 1 && BOARD_PANEL_ALIGN_Y == 1,
               "panelWrite() takes strips of any size and wants them unrounded");
 
 // The panel's timing. The porches and the clock edge are Waveshare's for this
-// board (rgb_lcd_port.c). The pixel clock is not: Waveshare's demos run
-// 30 MHz, the LVGL ones with the PSRAM at 120 MHz, which ESP-IDF offers for
-// octal PSRAM only among its experimental features. This firmware runs the
-// PSRAM at 80 MHz, where Espressif puts the limit near 22 MHz (ESP FAQ,
-// LCD), and the 7 measured some 30 MB a second out of it (see
-// boards/waveshare_s3_lcd7/panel.cpp). 14 MHz at two bytes a pixel asks for
-// 28 MB a second. With these long porches a line is 1386 clocks and a frame
-// 661 lines, so 14 MHz gives 15.3 frames a second: slow for animation, enough
-// for a scale. A slice of ten lines lasts 990 us on the glass and takes about
-// 670 us to copy at the 7's rate (computed, not measured).
-static constexpr uint32_t LCD_PCLK_HZ     = 14000000;
+// board (rgb_lcd_port.c). The pixel clock was 14 MHz, about 15 frames a second,
+// and the panel flickered at that, mostly along its edges and in its corners
+// (24.10.2026; a video of it beat against the camera at 8.7 Hz). 24 MHz is
+// what Waveshare's own LVGL 9 demo runs, and ESPHome users run this board at
+// 30 MHz with the PSRAM at 80 MHz octal and the code running from it, as here
+// (docs/recherche/2026-10-24-7b/display.md of the meta repo, 1.1). Against it:
+// Espressif's FAQ puts the limit near 22 MHz for octal PSRAM at 80 MHz; the
+// 30 MB a second the 7 read out of PSRAM was measured before XIP was switched
+// on (boards/waveshare_s3_lcd7/panel.cpp) and so is no figure for this build;
+// a 7B ESPHome user without XIP saw jitter under load at 25 and 30 MHz
+// (display.md 1.3); and Waveshare's 24 MHz demo uses 20 bounce lines and
+// likely PSRAM at 120 MHz, so it is not this configuration. With these
+// porches a line is 1386 clocks and a frame 661 lines: 24 MHz gives 26.2
+// frames a second, and a slice of ten lines lasts 578 us. Whether the copy
+// fits in that, measureSliceCopy() logs at every boot; the glass decides.
+static constexpr uint32_t LCD_PCLK_HZ     = 24000000;
 static constexpr uint32_t LCD_HSYNC_PULSE = 162;
 static constexpr uint32_t LCD_HSYNC_BACK  = 152;
 static constexpr uint32_t LCD_HSYNC_FRONT = 48;
@@ -81,6 +88,18 @@ static constexpr uint32_t LCD_VSYNC_FRONT = 3;
 // which keep interrupts off for longer than a slice lasts.
 static constexpr size_t LCD_BOUNCE_LINES = 10;
 static constexpr size_t LCD_DMA_BURST_BYTES = 64;
+
+// What the timing adds up to, porches included: the frame rate in tenths of a
+// hertz and the time a slice lasts on the glass in microseconds, both rounded.
+// 64-bit maths, because ten lines of clocks times a million is more than 32
+// bits hold.
+static constexpr uint64_t LCD_LINE_CLOCKS = PANEL_W + LCD_HSYNC_PULSE + LCD_HSYNC_BACK + LCD_HSYNC_FRONT;
+static constexpr uint64_t LCD_FRAME_LINES = PANEL_H + LCD_VSYNC_PULSE + LCD_VSYNC_BACK + LCD_VSYNC_FRONT;
+static constexpr uint64_t LCD_FRAME_CLOCKS = LCD_LINE_CLOCKS * LCD_FRAME_LINES;
+static constexpr uint32_t LCD_FRAME_TENTHS_HZ =
+    (uint32_t)((LCD_PCLK_HZ * 10ULL + LCD_FRAME_CLOCKS / 2) / LCD_FRAME_CLOCKS);
+static constexpr uint32_t LCD_SLICE_US =
+    (uint32_t)((LCD_BOUNCE_LINES * LCD_LINE_CLOCKS * 1000000ULL + LCD_PCLK_HZ / 2) / LCD_PCLK_HZ);
 
 static esp_lcd_panel_handle_t s_panel = nullptr;
 static uint16_t* s_fb = nullptr;
@@ -199,6 +218,71 @@ static void touchBegin() {
   }
 }
 
+// Copies one slice out of the frame buffer eight times, with the panel already
+// scanning it out, and logs how long that took next to the time a slice lasts
+// on the glass (serial and SD log). It is an upper bound on what the driver's
+// interrupt pays for the same copy, not that copy: a plain CPU memcpy, cold,
+// with no other traffic on the bus. The driver preloads the next slice into the
+// data cache at the end of every turn (Cache_Start_DCache_Preload in
+// lcd_rgb_panel_fill_bounce_buffer(), IDF 5.5.5), so its interrupt mostly
+// copies from cache.
+// What pulls the other way, XIP code fetches and LVGL and WiFi in PSRAM, is
+// not in this figure either.
+//
+// Judge by the slowest of the eight: the fastest may land on a slice the
+// interrupt just preloaded, and the first run may include the write-back of
+// lines the frame buffer's memset left dirty in the cache. The slowest below
+// the time a slice lasts means the copy fits. Above it does not prove that
+// 24 MHz fails; the glass decides.
+//
+// Every run reads another slice of the frame: the data cache would hand back
+// one just read. Every run holds this core's interrupts, the panel's
+// included: left to run, they take most of the core's time, and the figure
+// would be the copy and the panel's own turns together. A turn the panel
+// misses meanwhile is made up by the driver at the next vsync, and the glass
+// is dark and the frame buffer black at this point.
+static void measureSliceCopy() {
+  static constexpr size_t RUNS = 8;
+  static constexpr size_t SLICE_BYTES = (size_t)PANEL_W * LCD_BOUNCE_LINES * sizeof(uint16_t);
+  static constexpr size_t SLICES_PER_FRAME = PANEL_H / LCD_BOUNCE_LINES;
+  static constexpr size_t RUN_STRIDE = SLICES_PER_FRAME / RUNS;
+  static_assert(PANEL_H % LCD_BOUNCE_LINES == 0, "a frame is not a whole number of slices");
+  static_assert(RUN_STRIDE >= 1 && (RUNS - 1) * RUN_STRIDE < SLICES_PER_FRAME,
+                "a run would read beyond the frame buffer");
+
+  uint8_t* slice = (uint8_t*)heap_caps_malloc(SLICE_BYTES, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  if (!slice) {
+    static const char msg[] = "Panel: no internal RAM for a test slice, the copy is not measured";
+    Serial.println(msg);
+    logSD(msg);
+    return;
+  }
+  static portMUX_TYPE hold = portMUX_INITIALIZER_UNLOCKED;
+  const uint8_t* frame = (const uint8_t*)s_fb;
+  uint32_t fastest = UINT32_MAX;
+  uint32_t slowest = 0;
+  for (size_t run = 0; run < RUNS; run++) {
+    const uint8_t* from = frame + run * RUN_STRIDE * SLICE_BYTES;
+    portENTER_CRITICAL(&hold);
+    const int64_t t0 = esp_timer_get_time();
+    memcpy(slice, from, SLICE_BYTES);
+    const int64_t t1 = esp_timer_get_time();
+    portEXIT_CRITICAL(&hold);
+    const uint32_t us = (uint32_t)(t1 - t0);
+    if (us < fastest) fastest = us;
+    if (us > slowest) slowest = us;
+  }
+  heap_caps_free(slice);
+
+  char line[128];
+  snprintf(line, sizeof(line),
+           "Panel: a %u B slice copies from PSRAM in %u..%u us, a slice lasts %u us at %u MHz",
+           (unsigned)SLICE_BYTES, (unsigned)fastest, (unsigned)slowest,
+           (unsigned)LCD_SLICE_US, (unsigned)(LCD_PCLK_HZ / 1000000));
+  Serial.println(line);
+  logSD(line);
+}
+
 bool panelBegin() {
   static constexpr uint32_t LCD_POWER_SETTLE_MS = 20;
   static constexpr uint32_t LCD_RESET_SETTLE_MS = 20;
@@ -211,14 +295,16 @@ bool panelBegin() {
   delay(LCD_RESET_SETTLE_MS);
   const bool lcd_ok = rgbBegin();
   if (!lcd_ok) logSD("Panel: the RGB driver did not start, see the serial log");
+  if (lcd_ok) measureSliceCopy();
   // What the panel costs in internal RAM is its two bounce buffers. The
   // figure after them is what the rest of the firmware starts with. On the
   // serial log as well: the glass may still be dark, and the SD card missing.
   char panel_line[96];
   snprintf(panel_line, sizeof(panel_line),
-           "Panel: %d x %d at %u MHz, %u bounce lines, internal heap %u free",
-           PANEL_W, PANEL_H, (unsigned)(LCD_PCLK_HZ / 1000000), (unsigned)LCD_BOUNCE_LINES,
-           (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+           "Panel: %d x %d at %u MHz (%u.%u Hz), %u bounce lines, internal heap %u free",
+           PANEL_W, PANEL_H, (unsigned)(LCD_PCLK_HZ / 1000000),
+           (unsigned)(LCD_FRAME_TENTHS_HZ / 10), (unsigned)(LCD_FRAME_TENTHS_HZ % 10),
+           (unsigned)LCD_BOUNCE_LINES, (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
   Serial.println(panel_line);
   logSD(panel_line);
   touchBegin();
