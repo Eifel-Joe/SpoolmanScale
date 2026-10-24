@@ -22,8 +22,11 @@ static_assert(SPOOL_EXTRAS_FOLLOW_DEFAULT == 0xFF, "0xFF follows the default");
 
 int main() {
   // Places 0, 2, 3 and 4 are used; 1 has no name, 5 to 7 were never set.
+  // Place 1 still holds 7 g, as a place cleared in the settings can after a
+  // backup is restored: only then does "an unused place weighs nothing" say
+  // more than a plain sum.
   SpoolExtra list[SPOOL_EXTRAS_MAX] = {
-    {"Halter", 3.0f}, {"", 0.0f}, {"Clip", 1.5f}, {"Ring", 10.0f}, {"Extra", 2.0f}
+    {"Halter", 3.0f}, {"", 7.0f}, {"Clip", 1.5f}, {"Ring", 10.0f}, {"Extra", 2.0f}
   };
 
   // A place counts when it has a name, and an index outside the eight is no
@@ -43,7 +46,7 @@ int main() {
   assert(extrasClampMask(list, 0x1D) == 0x0D);
 
   // 3 + 1.5 + 10 g, all exact in a float. A place that is not used weighs
-  // nothing, and no mask weighs nothing.
+  // nothing even with 7 g left in it, and no mask weighs nothing.
   assert(extrasMaskGrams(list, 0x0D) == 14.5f);
   assert(extrasMaskGrams(list, 0x02) == 0.0f);
   assert(extrasMaskGrams(list, 0) == 0.0f);
@@ -90,11 +93,13 @@ int main() {
 
   // What is stored for a choice. The default itself is stored as "follows",
   // anything else as it is, cut as extrasClampMask cuts it; none stays none
-  // although the default is something.
+  // although the default is something. A pick equal to the default follows
+  // it also when both are none: with no default, no parts is "follows" too.
   assert(extrasToStore(list, 0x01, 0x01) == 0xFF);
   assert(extrasToStore(list, 0x04, 0x01) == 0x04);
   assert(extrasToStore(list, 0x1D, 0) == 0x0D);
   assert(extrasToStore(list, 0, 0x01) == 0);
+  assert(extrasToStore(list, 0, 0) == SPOOL_EXTRAS_FOLLOW_DEFAULT);
 
   // What the scale shows without the parts, and never less than nothing: a
   // shell lighter than its parts is 0 g, not minus one.
