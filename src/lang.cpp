@@ -3831,6 +3831,18 @@ const char* const STRINGS[][3] = {
   { "Abzug: %.0f g (bis zu 3)",
     "Taken off: %.0f g (up to 3)",
     "Déduit : %.0f g (3 max.)" },  // STR_EXTRAS_SUM
+  { "Zubehör an der Spule",
+    "Parts on the spool",
+    "Accessoires de bobine" },  // STR_W_C_EXTRAS
+  { "Filament-Clip, RFID-Halter und Ähnliches: Ihr Gewicht wird zusätzlich zur Leerspule abgezogen. Angekreuzt (bis zu 3) gilt für jede Spule; auf der Waage lässt sich je Spule eine eigene Auswahl treffen, die sie sich merkt.",
+    "Filament clip, RFID holder and the like: their weight comes off on top of the empty spool. Ticked ones (up to 3) apply to every spool; on the scale, each spool can get its own choice, which it remembers.",
+    "Clip à filament, support RFID, etc. : leur poids est déduit en plus de la bobine vide. Les cases cochées (3 max.) valent pour toutes les bobines ; sur la balance, chaque bobine peut avoir son propre choix, mémorisé." },  // STR_W_EXTRAS_HINT
+  { "Teil",
+    "Part",
+    "Pièce" },  // STR_W_EXTRAS_NAME
+  { "Standard",
+    "Default",
+    "Par défaut" },  // STR_W_EXTRAS_DEFAULT
 };
 
 StringID tagWriteResultString(uint8_t code) {

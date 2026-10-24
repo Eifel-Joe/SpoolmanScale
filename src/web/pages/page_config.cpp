@@ -19,6 +19,8 @@
 #include "services/list_limits.h"
 #include "services/mdns_service.h"
 #include "services/prefs_store.h"
+#include "services/spool_extras.h"
+#include "services/text_util.h"
 #include "hardware/scale_state.h"
 #include "services/user_options.h"
 #include "services/time_service.h"
@@ -100,7 +102,7 @@ static String nameStateJson() {
 
 static String body() {
   String h;
-  h.reserve(7400);
+  h.reserve(10400);   // the parts card is about 3000 of it
 
   h += F("<div class='grid'><div class='card wide'><h2>");
   h += T(STR_W_C_DEVNAME);
@@ -270,6 +272,44 @@ static String body() {
   h += T(STR_W_RESTART);
   h += F("</button></div></div></div></div>");
 
+  // ---- what hangs on a spool besides its filament -----------------------
+  // Eight places, a name and a weight each, and up to three ticked as the
+  // default. Rendered filled in, like the rest of this page. A card of its
+  // own below the grid, above the backup: the places are a list, and a list
+  // wants the full width. It sits ahead of the script, not after it, because
+  // the script below binds its button while it runs.
+  h += F("<div class='card'><h2>");
+  h += T(STR_W_C_EXTRAS);
+  h += F("</h2><span class='hint'>");
+  h += T(STR_W_EXTRAS_HINT);
+  h += F("</span>");
+  for (int i = 0; i < SPOOL_EXTRAS_MAX; i++) {
+    const SpoolExtra& x = spoolExtraAt(i);
+    const String n = String(i);
+    h += F("<div class='field'><div class='inrow'><input id='xn");
+    h += n;
+    h += F("' type='text' style='flex:1' maxlength='19' placeholder='");
+    h += T(STR_W_EXTRAS_NAME);
+    h += F(" ");
+    h += String(i + 1);
+    h += F("' value='");
+    h += htmlEsc(x.name);
+    h += F("'><input id='xg");
+    h += n;
+    h += F("' type='number' min='0' max='200' step='0.1' value='");
+    if (x.name[0]) h += String(x.grams, 1);
+    h += F("'><span class='hint'>g</span><label class='check'><input id='xd");
+    h += n;
+    h += F("' type='checkbox'");
+    if (spoolExtrasDefault() & (1u << i)) h += F(" checked");
+    h += F(">");
+    h += T(STR_W_EXTRAS_DEFAULT);
+    h += F("</label></div></div>");
+  }
+  h += F("<button id='xt-b' class='quiet block'>");
+  h += T(STR_W_SAVE);
+  h += F("</button><span class='msg' id='xt-s'></span></div>");
+
   h += webShellRestartUi();
 
   // Its own script. When the pages were split the shared block stayed behind
@@ -351,6 +391,14 @@ static String body() {
          "post('/api/snapmaker',want?'1':'0').then(r=>{"
          "if(!r.ok)$('sn').checked=!want;"
          "flash('sn-s',r.ok?WS.ok:WS.err,!r.ok,4000);});});"
+         // One line per place: name, tab, grams, tab, 1 when a default. At
+         // most three defaults: a fourth tick undoes itself.
+         "document.querySelectorAll('[id^=xd]').forEach(c=>c.addEventListener('change',()=>{"
+         "if(document.querySelectorAll('[id^=xd]:checked').length>3)c.checked=false;}));"
+         "$('xt-b').addEventListener('click',()=>{let b='';"
+         "for(let i=0;i<8;i++){b+=$('xn'+i).value.replace(/[\\t\\n]/g,' ').trim()+'\\t'"
+         "+($('xg'+i).value||'0')+'\\t'+($('xd'+i).checked?'1':'0')+'\\n';}"
+         "postFlash('/api/extras',b,'xt-s',4000);});"
          "$('sf-rb').addEventListener('click',doRestart);"
          "$('ll-b').addEventListener('click',setLimits);"
          "$('gn-b').addEventListener('click',setGain);"
@@ -507,6 +555,37 @@ static void routes(WebServer &srv) {
     prefsPutUInt("ui_gain", (uint32_t)v);
     logSDf("Web: UI gain -> %d", v);
     srv.send(200, "application/json", String("{\"gain\":") + v + "}");
+  });
+
+  // Eight lines "name<TAB>grams<TAB>0|1", see the script above. A line without
+  // its two tabs is refused as a whole and nothing is saved; fewer than eight
+  // lines are fine, the places missing from the end come out empty.
+  srv.on("/api/extras", HTTP_POST, [&srv]() {
+    if (!webRequire(srv, GATE_CONFIG, T(STR_W_NAV_SETTINGS))) return;
+    const String body = srv.arg("plain");
+    SpoolExtra list[SPOOL_EXTRAS_MAX] = {};
+    uint8_t def = 0;
+    int line = 0, from = 0;
+    while (line < SPOOL_EXTRAS_MAX && from < (int)body.length()) {
+      int end = body.indexOf('\n', from);
+      if (end < 0) end = body.length();
+      const String row = body.substring(from, end);
+      const int t1 = row.indexOf('\t');
+      const int t2 = t1 < 0 ? -1 : row.indexOf('\t', t1 + 1);
+      if (t1 < 0 || t2 < 0) {
+        srv.send(400, "application/json", "{\"ok\":false}");
+        return;
+      }
+      utf8Cut(row.substring(0, t1).c_str(), sizeof(list[line].name) - 1, list[line].name,
+              sizeof(list[line].name));
+      list[line].grams = row.substring(t1 + 1, t2).toFloat();
+      if (row.substring(t2 + 1).toInt() == 1) def |= (uint8_t)(1u << line);
+      line++;
+      from = end + 1;
+    }
+    const bool ok = spoolExtrasSave(list, def);
+    logSDf("Web: spool parts saved, default %.1f g", spoolExtrasGrams(spoolExtrasDefault()));
+    srv.send(ok ? 200 : 500, "application/json", ok ? "{\"ok\":true}" : "{\"ok\":false}");
   });
 }
 
