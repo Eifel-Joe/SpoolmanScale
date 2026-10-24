@@ -63,7 +63,9 @@ static String body() {
          "slSet('sl-g',d.ready?d.g.toFixed(1)+' g':'-');"
          "slSet('sl-pp',d.full?d.spread.toFixed(2)+' g':'-');"
          "slSet('sl-cal',d.cal.toFixed(4));"
-         "slSet('sl-zero',d.zero);}).catch(()=>{});}"
+         "slSet('sl-zero',d.zero);}).catch(()=>{"
+         // No answer is no reading: numbers left standing would look live.
+         "slSet('sl-raw','-');slSet('sl-g','-');slSet('sl-pp','-');});}"
          "slTick();setInterval(slTick,500);"
          "</script>");
   return h;
