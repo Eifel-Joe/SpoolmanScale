@@ -128,7 +128,7 @@ jobs:
         #     table and firmware in one file, to flash at offset 0 over USB
         # A new board is one more name in OTHER_BOARDS, here and below.
         env:
-          OTHER_BOARDS: waveshare-s3-lcd7
+          OTHER_BOARDS: waveshare-s3-lcd7 waveshare-s3-lcd7b
         run: |
           VERSION=${{ steps.version.outputs.version }}
           BOOT_APP0="$(find ~/.platformio/packages -path '*framework-arduinoespressif32*' -name boot_app0.bin | head -1)"
@@ -192,7 +192,7 @@ jobs:
           SIZE=$(stat -c%s SpoolmanScale.bin)
           # Every other board has the same keys in an object of its own under
           # "boards", which is where its firmware looks (BOARD_VERSION_NODE).
-          OTHER_BOARDS="waveshare-s3-lcd7"
+          OTHER_BOARDS="waveshare-s3-lcd7 waveshare-s3-lcd7b"
           python3 - "$VERSION" "$SHA" "$SIZE" $OTHER_BOARDS <<'PY'
           import hashlib, json, os, re, sys
           version, sha, size = sys.argv[1], sys.argv[2], int(sys.argv[3])
