@@ -71,10 +71,11 @@ constexpr int8_t I2C_EXT_SCL = 44;   // UART2 connector, RXD
 constexpr int8_t PN532_RESET_WIRE = 6;
 constexpr int8_t PN532_RESET_SAFE = 6;
 
-// The library calls pinMode(INPUT) on this pin and never reads it. One of
-// the two lines to the RS485 transceiver, which this firmware does not use,
-// as on the 7.
-constexpr int8_t PN532_IRQ_UNUSED = 16;
+// The library calls pinMode(INPUT) on this pin and never reads it. GPIO15 is
+// the net RS485_TXD, which the schematic gives to the RO pin of the SP3485
+// transceiver, its receiver output, with a 4.7k pull-up (R74): a line the
+// transceiver drives, so an input is the only thing it may be here.
+constexpr int8_t PN532_IRQ_UNUSED = 15;
 
 // The board's own bus: GT911 touch, CH32V003 expander, the I2C connector.
 constexpr int8_t BOARD_SDA = 8;
@@ -83,9 +84,16 @@ constexpr int8_t TOUCH_INT = 4;
 
 // The card's chip select is an expander pin, which the SD library cannot
 // drive: it wants a GPIO. boardEarlyInit() selects the card for good, it is
-// alone on its bus, and the library gets the other line to the RS485
-// transceiver to toggle, as on the 7: the board has no GPIO left over.
-constexpr int8_t SD_CS   = 15;
+// alone on its bus, and the library gets a pin to toggle that nothing else
+// drives, as the board has no GPIO left over. GPIO16 is the net RS485_RXD:
+// the DI pin of the SP3485, its transmitter input, and the input of the
+// buffer U15 that switches the transceiver's direction through Q1. Both are
+// inputs, so the pin drives nothing but them. A low level does switch the
+// transmitter on, and the toggling would reach the A/B terminals: noise for
+// an RS485 bus on J7, which this scale does not use. GPIO15 (RS485_TXD)
+// would not do: it is the transceiver's output, and the two would drive the
+// line against each other.
+constexpr int8_t SD_CS   = 16;
 constexpr int8_t SD_SCK  = 12;
 constexpr int8_t SD_MOSI = 11;
 constexpr int8_t SD_MISO = 13;
