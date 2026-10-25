@@ -122,12 +122,27 @@ static bool waitAndRead(uint8_t sector, const uint8_t uid_in[4], const uint8_t k
   return false;
 }
 
+// One mifareWrite() as it runs: what the caller asked for, and once the card
+// is found, the card and its key. The steps below share it instead of handing
+// the same six values on from one to the next.
+struct WriteRun {
+  const MifareWriteJob& job;
+  const uint8_t* expect;      // the UID the write is for, or nullptr for any
+  MifareWaitFn wait;
+  bool overwrite;
+  uint8_t uid[4];
+  char uid_str[24];
+  uint8_t key[MIFARE_KEY_BYTES];
+};
+
 // Finds the card to write to. A card that refused a key earlier may not
 // answer a plain poll; release it, then reset the field once, then ask for
 // the spool to be put back. An overwrite with a known UID skips the waiting
 // here and reads the tag the moment it answers (*deferred).
-static bool findCard(const MifareWriteJob& job, uint8_t uid[NFC_UID_MAX], const uint8_t* expect,
-                     MifareWaitFn wait, bool overwrite, bool* deferred) {
+static bool findCard(const WriteRun& run, uint8_t uid[NFC_UID_MAX], bool* deferred) {
+  const MifareWriteJob& job = run.job;
+  const uint8_t* expect = run.expect;
+  MifareWaitFn wait = run.wait;
   uint8_t uid_len = 0;
   auto right_card = [&]() { return uid_len == 4 && (!expect || memcmp(uid, expect, 4) == 0); };
   bool found = nfcReadPassiveTarget(uid, &uid_len, FIND_POLL_MS) && right_card();
@@ -139,7 +154,7 @@ static bool findCard(const MifareWriteJob& job, uint8_t uid[NFC_UID_MAX], const 
     delay(WAKE_SETTLE_MS);
     found = nfcReadPassiveTarget(uid, &uid_len, WAKE_POLL_MS) && right_card();
   }
-  if (!found && overwrite && expect && wait) {
+  if (!found && run.overwrite && expect && wait) {
     memcpy(uid, expect, 4);
     *deferred = true;
     return true;
@@ -166,11 +181,12 @@ static bool writeDataBlocks(const MifareWriteJob& job, int* refused_block) {
 // Reads the sector back with the final key and compares it with the job.
 // A card that has gone quiet after the write is read once it has been put
 // back.
-static MifareWriteResult verifyWritten(const MifareWriteJob& job, const uint8_t uid_in[4],
-                                       const char* uid_str, const uint8_t key[6],
-                                       MifareWaitFn wait, bool silent) {
+static MifareWriteResult verifyWritten(const WriteRun& run, const uint8_t key[6], bool silent) {
+  const MifareWriteJob& job = run.job;
+  const char* uid_str = run.uid_str;
+  MifareWaitFn wait = run.wait;
   uint8_t uid[4], k[MIFARE_KEY_BYTES];
-  memcpy(uid, uid_in, 4);
+  memcpy(uid, run.uid, 4);
   memcpy(k, key, MIFARE_KEY_BYTES);
   uint8_t back[4][MIFARE_BLOCK_BYTES];
   bool read = false;
@@ -199,11 +215,12 @@ static MifareWriteResult verifyWritten(const MifareWriteJob& job, const uint8_t 
 // whose sector was just authenticated with key A (by the read). The keys stay
 // as they are. Some writers lock the data blocks to key B, which is the same
 // key on Creality's own tags, so that is tried once before giving up.
-static MifareWriteResult overwriteData(const MifareWriteJob& job, const uint8_t uid_in[4],
-                                       const char* uid_str, const uint8_t key[6],
-                                       MifareWaitFn wait, bool had_record) {
+static MifareWriteResult overwriteData(const WriteRun& run, bool had_record) {
+  const MifareWriteJob& job = run.job;
+  const char* uid_str = run.uid_str;
+  const uint8_t* key = run.key;
   uint8_t uid[4];
-  memcpy(uid, uid_in, 4);
+  memcpy(uid, run.uid, 4);
   bool silent = false;
   logSDf("%s write: %s opens with the format's key%s - overwriting as asked",
          job.label, uid_str, had_record ? " and holds a record" : "");
@@ -219,19 +236,21 @@ static MifareWriteResult overwriteData(const MifareWriteJob& job, const uint8_t 
     if (!silent) mifareWakeCard(uid, uid_str, &silent);
     return MIFARE_WRITE_FAILED;
   }
-  return verifyWritten(job, uid, uid_str, key, wait, silent);
+  return verifyWritten(run, key, silent);
 }
 
 // Step 0 of an overwrite: the format's own key first, on the card as freshly
 // selected as it gets. Asked the factory key first, a weakly placed tag
 // refused it and then its own key as well (13.10.2026), and the write gave up
 // as 'not blank'. True when the outcome is decided, in *out.
-static bool overwriteFirst(const MifareWriteJob& job, const uint8_t uid[4], const char* uid_str,
-                           const uint8_t key[6], MifareWaitFn wait, bool deferred,
-                           bool* silent, MifareWriteResult* out) {
+static bool overwriteFirst(const WriteRun& run, bool deferred, bool* silent,
+                           MifareWriteResult* out) {
+  const MifareWriteJob& job = run.job;
+  const char* uid_str = run.uid_str;
+  MifareWaitFn wait = run.wait;
   uint8_t u[4], k[MIFARE_KEY_BYTES];
-  memcpy(u, uid, 4);
-  memcpy(k, key, MIFARE_KEY_BYTES);
+  memcpy(u, run.uid, 4);
+  memcpy(k, run.key, MIFARE_KEY_BYTES);
   uint8_t blocks[4][MIFARE_BLOCK_BYTES];
   bool ok = !deferred && nfcReadMifareSector(job.sector, k, u, blocks, NFC_KEY_A);
   if (!ok && wait) {
@@ -240,7 +259,7 @@ static bool overwriteFirst(const MifareWriteJob& job, const uint8_t uid[4], cons
     ok = waitAndRead(job.sector, u, k, blocks, wait);
   }
   if (ok) {
-    *out = overwriteData(job, u, uid_str, k, wait, job.is_own_record(blocks));
+    *out = overwriteData(run, job.is_own_record(blocks));
     return true;
   }
   if (!mifareWakeCard(u, uid_str, silent) || *silent) {
@@ -252,18 +271,18 @@ static bool overwriteFirst(const MifareWriteJob& job, const uint8_t uid[4], cons
 
 // The factory key refused: the tag may already carry the format. Left alone
 // unless an overwrite was asked for.
-static MifareWriteResult ownKeyInstead(const MifareWriteJob& job, const uint8_t uid_in[4],
-                                       const char* uid_str, const uint8_t key[6],
-                                       MifareWaitFn wait, bool overwrite) {
+static MifareWriteResult ownKeyInstead(const WriteRun& run) {
+  const MifareWriteJob& job = run.job;
+  const char* uid_str = run.uid_str;
   uint8_t uid[4], k[MIFARE_KEY_BYTES];
-  memcpy(uid, uid_in, 4);
-  memcpy(k, key, MIFARE_KEY_BYTES);
+  memcpy(uid, run.uid, 4);
+  memcpy(k, run.key, MIFARE_KEY_BYTES);
   bool silent = false;
   uint8_t blocks[4][MIFARE_BLOCK_BYTES];
   const int woke = mifareWakeCard(uid, uid_str, &silent);
   if (woke && !silent && nfcReadMifareSector(job.sector, k, uid, blocks, NFC_KEY_A)) {
     const bool rec = job.is_own_record(blocks);
-    if (overwrite) return overwriteData(job, uid, uid_str, k, wait, rec);
+    if (run.overwrite) return overwriteData(run, rec);
     logSDf("%s write: %s already opens with the format's key%s - not written",
            job.label, uid_str, rec ? " and holds a record" : "");
     mifareWakeCard(uid, uid_str, &silent);
@@ -306,8 +325,12 @@ static void padSector(const MifareWriteJob& job, const uint8_t uid_in[4], const 
 // Then the data, then the trailer that locks it to the new key - last, so a
 // failure before it leaves a tag that is still on the factory key and can
 // simply be written again. Finally read back the way the printer will.
-static MifareWriteResult writeBlank(const MifareWriteJob& job, const uint8_t uid[4],
-                                    const char* uid_str, const uint8_t key[6], MifareWaitFn wait) {
+static MifareWriteResult writeBlank(const WriteRun& run) {
+  const MifareWriteJob& job = run.job;
+  const char* uid_str = run.uid_str;
+  const uint8_t* key = run.key;
+  uint8_t uid[4];
+  memcpy(uid, run.uid, 4);
   bool silent = false;
   const uint8_t first = firstBlock(job.sector);
   for (uint8_t b = 0; b < MIFARE_DATA_BLOCKS_MAX; b++) {
@@ -338,7 +361,7 @@ static MifareWriteResult writeBlank(const MifareWriteJob& job, const uint8_t uid
     }
   }
   if (job.pad_sector) padSector(job, uid, uid_str);
-  return verifyWritten(job, uid, uid_str, job.set_trailer ? key : FACTORY_KEY, wait, silent);
+  return verifyWritten(run, job.set_trailer ? key : FACTORY_KEY, silent);
 }
 
 // Sector 0 holds the UID and the manufacturer block; a trailer outside the
@@ -356,24 +379,25 @@ MifareWriteResult mifareWrite(const MifareWriteJob& job, uint8_t uid_out[4],
     logSD("MIFARE write: the job names a sector or blocks it may not touch - nothing written");
     return MIFARE_WRITE_FAILED;
   }
+  WriteRun run{job, expect, wait, overwrite, {0}, "", {0}};
   uint8_t uid[NFC_UID_MAX] = {0};
   bool deferred = false;
-  if (!findCard(job, uid, expect, wait, overwrite, &deferred)) return MIFARE_WRITE_NO_TAG;
+  if (!findCard(run, uid, &deferred)) return MIFARE_WRITE_NO_TAG;
   memcpy(uid_out, uid, 4);
-  char uid_str[24];
-  snprintf(uid_str, sizeof(uid_str), "%02X:%02X:%02X:%02X", uid[0], uid[1], uid[2], uid[3]);
+  memcpy(run.uid, uid, 4);
+  const char* uid_str = run.uid_str;
+  snprintf(run.uid_str, sizeof(run.uid_str), "%02X:%02X:%02X:%02X", uid[0], uid[1], uid[2], uid[3]);
   if (tagFamilyGet(uid) == TAG_FAMILY_BAMBU) {
     logSDf("%s write: %s is a Bambu tag - never written", job.label, uid_str);
     return MIFARE_WRITE_NOT_BLANK;
   }
-  uint8_t key[MIFARE_KEY_BYTES];
-  if (!job.own_key(uid, key)) {
+  if (!job.own_key(uid, run.key)) {
     logSDf("%s write: %s no key for this UID", job.label, uid_str);
     return MIFARE_WRITE_FAILED;
   }
   bool silent = false;
   MifareWriteResult decided;
-  if (overwrite && overwriteFirst(job, uid, uid_str, key, wait, deferred, &silent, &decided)) {
+  if (overwrite && overwriteFirst(run, deferred, &silent, &decided)) {
     return decided;
   }
   bool opened = nfcAuthMifareSector(job.sector, FACTORY_KEY, uid, NFC_KEY_A);
@@ -386,8 +410,8 @@ MifareWriteResult mifareWrite(const MifareWriteJob& job, uint8_t uid_out[4],
     if (!waitForCard(got, &got_len, uid, wait)) break;
     opened = nfcAuthMifareSector(job.sector, FACTORY_KEY, uid, NFC_KEY_A);
   }
-  if (!opened) return ownKeyInstead(job, uid, uid_str, key, wait, overwrite);
-  return writeBlank(job, uid, uid_str, key, wait);
+  if (!opened) return ownKeyInstead(run);
+  return writeBlank(run);
 }
 
 int mifareProbeFactory(const uint8_t uid[4], const char* uid_str) {
