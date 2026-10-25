@@ -9,29 +9,37 @@ source = r'''
 #include <cassert>
 
 // The two floors, spelled out here on purpose: the production defines must
-// agree with this text, not with themselves. 60000 is the old single floor
-// and stays for https, where the TLS handshake runs on the worker's task.
-// 40000 is for plain http: the 16 kB stack and the sockets, with room to
-// spare below the ~58.6 kB the Waveshare 7B has free in steady state.
-static_assert(BACKEND_JOB_MIN_HEAP_TLS == 60000, "https keeps the old floor");
+// agree with this text, not with themselves. 50000 is for https. TLS lives in
+// PSRAM in this firmware (platformio.ini), and on the Waveshare 7B on
+// 24.10.2026 a GitHub request showed no internal heap use of its own. What a
+// background request takes is its stack and its connection, ~22-24 kB with
+// or without encryption, so a start at 50 kB leaves ~28 kB, as low as the 7B
+// ran without a fault. 57 064 bytes is what the 7B has free in operation
+// (25.10.2026), so it clears this floor. 40000 is for plain http: the 16 kB
+// stack and the sockets.
+static_assert(BACKEND_JOB_MIN_HEAP_TLS == 50000,
+              "https: stack and socket like http, TLS lives in PSRAM; 50000 is what the 7B measurements cover");
 static_assert(BACKEND_JOB_MIN_HEAP_PLAIN == 40000, "http needs less");
 
 int main() {
   // https, in any case of letters: the TLS floor.
-  assert(backendJobMinHeap("https://x.example") == 60000u);
-  assert(backendJobMinHeap("HTTPS://X") == 60000u);
-  assert(backendJobMinHeap("HtTpS://mixed.example:8443") == 60000u);
+  assert(backendJobMinHeap("https://x.example") == 50000u);
+  assert(backendJobMinHeap("HTTPS://X") == 50000u);
+  assert(backendJobMinHeap("HtTpS://mixed.example:8443") == 50000u);
 
   // http: the plain floor. This is the address that locked the 7B out, a
   // Bambuddy on the home network with 58 620 bytes free on the board.
   assert(backendJobMinHeap("http://192.168.10.219:8000") == 40000u);
   assert(backendJobMinHeap("HTTP://host") == 40000u);
   assert(58620u >= backendJobMinHeap("http://192.168.10.219:8000"));
-  assert(58620u <  backendJobMinHeap("https://x.example"));
+  // And the 7B, which has 57 064 bytes free in operation (25.10.2026), now
+  // clears the https floor too: the daily update check and the TLS warm-up
+  // start on it.
+  assert(57064u >= backendJobMinHeap("https://x.example"));
 
   // No address, or none given: nothing says it is plain, so the dearer floor.
-  assert(backendJobMinHeap("") == 60000u);
-  assert(backendJobMinHeap(nullptr) == 60000u);
+  assert(backendJobMinHeap("") == 50000u);
+  assert(backendJobMinHeap(nullptr) == 50000u);
 
   // An address without a scheme is http, as backendComposeBase reads it.
   assert(backendJobMinHeap("192.168.1.5:7912") == 40000u);
@@ -41,13 +49,13 @@ int main() {
   // pair counts the same either way round, and an address that says nothing
   // is TLS on whichever side it stands.
   assert(backendJobMinHeapBoth("http://192.168.10.219:8000", "http://192.168.10.178:7912") == 40000u);
-  assert(backendJobMinHeapBoth("http://192.168.10.219:8000", "https://spoolman.example") == 60000u);
-  assert(backendJobMinHeapBoth("https://bambuddy.example", "http://192.168.10.178:7912") == 60000u);
-  assert(backendJobMinHeapBoth("https://bambuddy.example", "https://spoolman.example") == 60000u);
-  assert(backendJobMinHeapBoth("http://192.168.10.219:8000", "") == 60000u);
-  assert(backendJobMinHeapBoth("http://192.168.10.219:8000", nullptr) == 60000u);
-  assert(backendJobMinHeapBoth(nullptr, "http://192.168.10.178:7912") == 60000u);
-  assert(backendJobMinHeapBoth(nullptr, nullptr) == 60000u);
+  assert(backendJobMinHeapBoth("http://192.168.10.219:8000", "https://spoolman.example") == 50000u);
+  assert(backendJobMinHeapBoth("https://bambuddy.example", "http://192.168.10.178:7912") == 50000u);
+  assert(backendJobMinHeapBoth("https://bambuddy.example", "https://spoolman.example") == 50000u);
+  assert(backendJobMinHeapBoth("http://192.168.10.219:8000", "") == 50000u);
+  assert(backendJobMinHeapBoth("http://192.168.10.219:8000", nullptr) == 50000u);
+  assert(backendJobMinHeapBoth(nullptr, "http://192.168.10.178:7912") == 50000u);
+  assert(backendJobMinHeapBoth(nullptr, nullptr) == 50000u);
 
   // "https" must be followed by "://": a host that merely starts with the
   // letters is not a TLS address.
