@@ -53,6 +53,8 @@ jobs:
         run: python3 test/test_backend_job_rules.py
       - name: Test worker heap floors
         run: python3 test/test_worker_heap_floors.py
+      - name: Test update source
+        run: python3 test/test_update_source.py
 
   build:
     name: Build ${{ matrix.env }}
