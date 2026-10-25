@@ -6,6 +6,7 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <lvgl.h>
+#include <cmath>
 #include <cstring>
 
 #include "app_config.h"
@@ -20,6 +21,7 @@
 #include "services/breadcrumb.h"
 #include "services/list_limits.h"
 #include "services/server_reach.h"
+#include "services/spool_start.h"
 #include "services/spool_cache.h"
 #include "services/spoolman_actions.h"
 #include "services/tag_field.h"
@@ -31,6 +33,9 @@
 #include "ui/spoolman_lookup.h"
 #include "services/spool_tare.h"
 #include "ui/theme.h"
+#include "ui/db_pick_screen.h"
+#include "ui/entry_tile.h"
+#include "ui/tag_create_popup.h"
 
 // From ui/spool_flow.cpp, see the same line in spoolman_lookup.cpp: what counts
 // as bound, for the spool cache a download here fills.
@@ -125,12 +130,19 @@ bool finishCopyFlow(int new_spool_id, const char* tray_uuid_override) {
 void doCopySpoolCreate(int template_spool_id, int template_filament_id,
                        float template_initial, float template_spool_w) {
   if (!wifi_ok) return;
-  float netto = scale_weight_g - template_spool_w;
-  if (netto < 0) netto = 0;
+  // The template's empty spool is one someone stored, at whichever level
+  // spoolTare() found it: the reading is weighed against it, and a full copy
+  // files what it weighs as its full weight (spool_start.h).
+  const SpoolStart start = spoolStartValues(scale_weight_g, (int)lroundf(template_spool_w),
+                                            template_spool_w > 0.0f ? TARE_Q_KNOWN : TARE_Q_NONE,
+                                            (int)lroundf(template_initial));
+  logSDf("Copy: start %s gross=%.0f tare=%.0f label=%.0f -> initial=%d remaining=%.0f",
+         spoolStartVerdictName(start.verdict), scale_weight_g, template_spool_w, template_initial,
+         start.initial_g, start.remaining_g);
 
   int new_id = 0;
   int code = serverReachNote(backendCreateSpool(cfg_spoolman_base, template_spool_id, template_filament_id,
-    template_initial, template_spool_w, netto, &new_id, 8000), true);
+    (float)start.initial_g, template_spool_w, start.remaining_g, &new_id, 8000), true);
   if ((code == 200 || code == 201) && new_id > 0) {
     Serial.printf("Copy spool created: new ID=%d\n", new_id);
     logSDf("Copy spool created: tmpl_spool=%d fid=%d new_spool_id=%d",
@@ -512,6 +524,39 @@ void showCopySpoolList() {
   }
 }
 
+// The entry popup's tiles: the active spools, the archived ones and, where
+// the tag or the backend allows it, a new spool, all alike; under them the
+// Spoolman ID and Cancel. Without a way to a new spool the two lists share
+// the row.
+static void copyEntryTiles(bool offer_from_tag, bool offer_from_db) {
+  const int n = (offer_from_tag || offer_from_db) ? 3 : 2;
+  entryTile(scr_copy_entry, entryTileRect(0, n), LV_SYMBOL_LIST, T(STR_COPY_ACTIVE_BTN),
+            [](lv_event_t *e) {
+    logSD("BTN: CopyEntry -> Active spools");
+    copy_fetch_archived = false;
+    copy_fetch_pending  = true;
+  });
+  entryTile(scr_copy_entry, entryTileRect(1, n), LV_SYMBOL_DIRECTORY, T(STR_COPY_ARCHIVED_BTN),
+            [](lv_event_t *e) {
+    logSD("BTN: CopyEntry -> Archived spools");
+    copy_fetch_archived = true;
+    copy_fetch_pending  = true;
+  });
+  if (offer_from_tag)
+    entryTile(scr_copy_entry, entryTileRect(2, n), LV_SYMBOL_PLUS, T(STR_NEWTAG_BTN), tagCreateEntryTap);
+  if (offer_from_db)
+    entryTile(scr_copy_entry, entryTileRect(2, n), LV_SYMBOL_PLUS, T(STR_DBPICK_BTN), dbPickEntryTap);
+
+  // The ID works for active and archived spools alike, the way for a
+  // library too long to scroll.
+  char id_text[40];
+  backendText(T(STR_COPY_ID_BTN), id_text, sizeof(id_text));
+  entryBottomRow(scr_copy_entry, id_text, [](lv_event_t *e) {
+    link_id_input[0] = '\0';
+    showIdInputPopup(strlen(g_tag.tray_uuid) == 32, true);
+  }, [](lv_event_t *e) { closeCopyEntryPopup(); });
+}
+
 // Entry popup: choose ID / Active spools / Archived spools
 void showCopyEntryPopup() {
   logSD("SHOW: CopyEntryPopup");
@@ -527,10 +572,9 @@ void showCopyEntryPopup() {
   lv_obj_set_style_radius(scr_copy_entry, 0, 0);
   lv_obj_clear_flag(scr_copy_entry, LV_OBJ_FLAG_SCROLLABLE);
 
-  // Title
+  // Title: named like the button that opens it, since it also offers new spools
   lv_obj_t *lbl_title = lv_label_create(scr_copy_entry);
-  char title_buf[32]; copyT(title_buf, sizeof(title_buf), STR_COPY_TITLE);
-  lv_label_set_text(lbl_title, title_buf);
+  lv_label_set_text(lbl_title, T(STR_BTN_COPY_SPOOL));
   lv_obj_set_style_text_color(lbl_title, lv_color_hex(UI_COL_ACCENT), 0);
   lv_obj_set_style_text_font(lbl_title, &lv_font_montserrat_ext_18, 0);
   lv_obj_set_style_text_align(lbl_title, LV_TEXT_ALIGN_CENTER, 0);
@@ -569,130 +613,11 @@ void showCopyEntryPopup() {
   lv_obj_set_width(lbl_ctx, 450);
   lv_obj_align(lbl_ctx, LV_ALIGN_TOP_MID, 0, 60);
 
-  // Creating from the tag needs a backend that can do it and a Bambu tag to
-  // read it from - an NTAG carries no material, and material is the one field
-  // BamBuddy insists on.
-  const bool offer_from_tag = backendCanCreateFromTag() &&
-                              strlen(g_tag.tray_uuid) == 32 &&
-                              g_tag.material[0] != '\0';
-
-  // Button layout: 3 buttons + cancel, ID= >100 recommended | List= <100
-  // recommended. A fifth row only fits if every row gives up a few pixels, so
-  // the roomier spacing stays whenever the extra button is not offered.
-  const int BTN_W = 380;
-  const int BTN_H   = offer_from_tag ? 42 : 48;
-  const int BTN_GAP = offer_from_tag ?  5 :  8;
-  const int Y1 = offer_from_tag ? 84 : 92;
-  const int Y2 = Y1+BTN_H+BTN_GAP, Y3 = Y2+BTN_H+BTN_GAP, Y4 = Y3+BTN_H+BTN_GAP;
-  const int Y5 = Y4+BTN_H+BTN_GAP;
-  const int Y_CANCEL = offer_from_tag ? Y5 : Y4;
-
-  // Button 1: Enter ID (works for active + archived, >100 spools recommended)
-  lv_obj_t *btn1 = lv_btn_create(scr_copy_entry);
-  lv_obj_set_size(btn1, BTN_W, BTN_H);
-  lv_obj_align(btn1, LV_ALIGN_TOP_MID, 0, Y1);
-  lv_obj_set_style_bg_color(btn1, lv_color_hex(UI_COL_ROW), 0);
-  lv_obj_set_style_bg_color(btn1, lv_color_hex(UI_COL_ROW_PRESS_FILL), LV_STATE_PRESSED);
-  lv_obj_set_style_radius(btn1, 10, 0);
-  lv_obj_set_style_shadow_width(btn1, 0, 0);
-  lv_obj_set_style_border_width(btn1, 1, 0);
-  lv_obj_set_style_border_color(btn1, lv_color_hex(UI_COL_LINE), 0);
-  lv_obj_add_event_cb(btn1, [](lv_event_t *e) { link_id_input[0] = '\0'; showIdInputPopup(strlen(g_tag.tray_uuid) == 32, true); }, LV_EVENT_CLICKED, NULL);
-  { lv_obj_t *l = lv_label_create(btn1);
-    char b[40]; backendText(T(STR_COPY_ID_BTN), b, sizeof(b));
-    lv_label_set_text(l, b);
-    lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_INK_2), 0);
-    lv_obj_set_style_text_font(l, &lv_font_montserrat_ext_16, 0);
-    lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(l, LV_ALIGN_CENTER, 0, 0); }
-
-  // Button 2: Active spools (<100 recommended)
-  lv_obj_t *btn2 = lv_btn_create(scr_copy_entry);
-  lv_obj_set_size(btn2, BTN_W, BTN_H);
-  lv_obj_align(btn2, LV_ALIGN_TOP_MID, 0, Y2);
-  lv_obj_set_style_bg_color(btn2, lv_color_hex(UI_COL_ROW), 0);
-  lv_obj_set_style_bg_color(btn2, lv_color_hex(UI_COL_ROW_PRESS_FILL), LV_STATE_PRESSED);
-  lv_obj_set_style_radius(btn2, 10, 0);
-  lv_obj_set_style_shadow_width(btn2, 0, 0);
-  lv_obj_set_style_border_width(btn2, 1, 0);
-  lv_obj_set_style_border_color(btn2, lv_color_hex(UI_COL_LINE), 0);
-  lv_obj_add_event_cb(btn2, [](lv_event_t *e) {
-    logSD("BTN: CopyEntry -> Active spools");
-    copy_fetch_archived = false;
-    copy_fetch_pending  = true;
-  }, LV_EVENT_CLICKED, NULL);
-  { lv_obj_t *l = lv_label_create(btn2);
-    char b[40]; copyT(b, sizeof(b), STR_COPY_ACTIVE_BTN);
-    lv_label_set_text(l, b);
-    lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_INK_2), 0);
-    lv_obj_set_style_text_font(l, &lv_font_montserrat_ext_16, 0);
-    lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(l, LV_ALIGN_CENTER, 0, 0); }
-
-  // Button 3: Archived spools (<100 recommended)
-  lv_obj_t *btn3 = lv_btn_create(scr_copy_entry);
-  lv_obj_set_size(btn3, BTN_W, BTN_H);
-  lv_obj_align(btn3, LV_ALIGN_TOP_MID, 0, Y3);
-  lv_obj_set_style_bg_color(btn3, lv_color_hex(UI_COL_ROW), 0);
-  lv_obj_set_style_bg_color(btn3, lv_color_hex(UI_COL_ROW_PRESS_FILL), LV_STATE_PRESSED);
-  lv_obj_set_style_radius(btn3, 10, 0);
-  lv_obj_set_style_shadow_width(btn3, 0, 0);
-  lv_obj_set_style_border_width(btn3, 1, 0);
-  lv_obj_set_style_border_color(btn3, lv_color_hex(UI_COL_LINE), 0);
-  lv_obj_add_event_cb(btn3, [](lv_event_t *e) {
-    logSD("BTN: CopyEntry -> Archived spools");
-    copy_fetch_archived = true;
-    copy_fetch_pending  = true;
-  }, LV_EVENT_CLICKED, NULL);
-  { lv_obj_t *l = lv_label_create(btn3);
-    char b[40]; copyT(b, sizeof(b), STR_COPY_ARCHIVED_BTN);
-    lv_label_set_text(l, b);
-    lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_INK_2), 0);
-    lv_obj_set_style_text_font(l, &lv_font_montserrat_ext_16, 0);
-    lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(l, LV_ALIGN_CENTER, 0, 0); }
-
-  // Button 4: create from the tag, only where that leads anywhere
-  if (offer_from_tag) {
-    lv_obj_t *btnt = lv_btn_create(scr_copy_entry);
-    lv_obj_set_size(btnt, BTN_W, BTN_H);
-    lv_obj_align(btnt, LV_ALIGN_TOP_MID, 0, Y4);
-    lv_obj_set_style_bg_color(btnt, lv_color_hex(UI_COL_GO_BG), 0);
-    lv_obj_set_style_bg_color(btnt, lv_color_hex(UI_COL_GO_BG_PRESSED), LV_STATE_PRESSED);
-    lv_obj_set_style_radius(btnt, 10, 0);
-    lv_obj_set_style_shadow_width(btnt, 0, 0);
-    lv_obj_set_style_border_width(btnt, 1, 0);
-    lv_obj_set_style_border_color(btnt, lv_color_hex(UI_COL_ACCENT), 0);
-    lv_obj_add_event_cb(btnt, [](lv_event_t *e) {
-      logSD("BTN: CopyEntry -> New from tag");
-      newtag_open_pending = true;
-    }, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *l = lv_label_create(btnt);
-    char b[40]; copyT(b, sizeof(b), STR_NEWTAG_BTN);
-    lv_label_set_text(l, b);
-    lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_OK_TEXT), 0);
-    lv_obj_set_style_text_font(l, &lv_font_montserrat_ext_16, 0);
-    lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(l, LV_ALIGN_CENTER, 0, 0);
-  }
-
-  // Cancel
-  lv_obj_t *btn4 = lv_btn_create(scr_copy_entry);
-  lv_obj_set_size(btn4, BTN_W, BTN_H);
-  lv_obj_align(btn4, LV_ALIGN_TOP_MID, 0, Y_CANCEL);
-  lv_obj_set_style_bg_color(btn4, lv_color_hex(UI_COL_BAD_BG), 0);
-  lv_obj_set_style_bg_color(btn4, lv_color_hex(UI_COL_BAD_BG_PRESSED), LV_STATE_PRESSED);
-  lv_obj_set_style_radius(btn4, 10, 0);
-  lv_obj_set_style_shadow_width(btn4, 0, 0);
-  lv_obj_set_style_border_width(btn4, 0, 0);
-  lv_obj_add_event_cb(btn4, [](lv_event_t *e) { closeCopyEntryPopup(); }, LV_EVENT_CLICKED, NULL);
-  { lv_obj_t *l = lv_label_create(btn4);
-    char b[16]; copyT(b, sizeof(b), STR_CANCEL);
-    lv_label_set_text(l, b);
-    lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_BAD_TEXT), 0);
-    lv_obj_set_style_text_font(l, &lv_font_montserrat_ext_16, 0);
-    lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(l, LV_ALIGN_CENTER, 0, 0); }
+  // A Bambu tag can become a spool by itself; a blank NTAG through the
+  // filament database. Never both: the one is a Bambu tag, the other not.
+  const bool offer_from_tag = tagCreateOffered();
+  const bool offer_from_db  = !offer_from_tag && dbPickOffered();
+  copyEntryTiles(offer_from_tag, offer_from_db);
 }
 
 // ============================================================

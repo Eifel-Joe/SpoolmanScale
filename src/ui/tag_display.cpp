@@ -1,5 +1,6 @@
 #include "tag_display.h"
 #include "app/app_state.h"
+#include "app/label_spool.h"
 
 #include <Arduino.h>
 #include <lvgl.h>
@@ -19,6 +20,8 @@
 void clearTagDisplay() {
   // Whatever lookup is still out, its verdict has nothing left to paint on.
   lookupAbandon();
+  // The label editor in the browser shows the last spool, not just one on the pad.
+  labelSpoolRemember();
   lv_label_set_text(lbl_nfc_dot, LV_SYMBOL_BULLET);
   lv_obj_set_style_text_color(lbl_nfc_dot, lv_color_hex(UI_COL_WARN), 0);  // yellow = kein Tag
   lv_label_set_text(lbl_status, T(STR_WAIT_SCAN));
@@ -47,6 +50,7 @@ void clearTagDisplay() {
   if (lbl_keys) lv_label_set_text(lbl_keys, "");
   if (lbl_raw_info) lv_label_set_text(lbl_raw_info, "");
   if (lbl_bag_sm_diff) lv_label_set_text(lbl_bag_sm_diff, "");
+  if (lbl_spool_tare) lv_label_set_text(lbl_spool_tare, "");
   swatchPaint(lbl_color_swatch, SpoolColor{});
   // Also reset Spoolman data
   // sm_archived belongs with sm_found: left standing it would make the next

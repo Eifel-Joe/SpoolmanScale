@@ -96,7 +96,7 @@ void buildOtaScreen() {
     showOtaGithubScreen();
   }, LV_EVENT_CLICKED, NULL);
 
-  lbl_gh_btn_badge = createUpdateBadge(scr_ota, btn_gh);
+  lbl_gh_btn_badge = createUpdateBadge(btn_gh);
 
   lv_obj_t *ver_ota = lv_label_create(scr_ota);
   char ver_buf[32]; snprintf(ver_buf, sizeof(ver_buf), T(STR_OTA_CURRENT), FW_VERSION);

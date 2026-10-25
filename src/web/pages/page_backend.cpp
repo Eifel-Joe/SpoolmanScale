@@ -28,6 +28,7 @@
 #include "services/settings_registry.h"
 #include "web/web_access.h"
 #include "web/web_jobs.h"
+#include "web/pages/page_backend_embed.h"
 #include "web/web_shell.h"
 #include "ui/theme.h"
 // Last on purpose: T() is a macro and ArduinoJson uses T as a template
@@ -252,6 +253,9 @@ static String body() {
   h += T(STR_W_LOADING);
   h += F("</p></div></div>");
 
+  // Last, because it is needed once while setting things up.
+  h += backendEmbedCard();
+
   h += F("</div>");
   if (can_restart) h += webShellRestartUi();
   // $, flash and post come from /app.js. Only the one string this page has
@@ -387,11 +391,11 @@ static String body() {
          "document.querySelectorAll('.btab').forEach(b=>{"
          "b.addEventListener('click',()=>{"
          "const n=b.textContent;"
-         "if(!confirm(M.swap.replace('%s',n)))return;"
+         "ask(M.swap.replace('%s',n)).then(ok=>{if(!ok)return;"
          "flash('bm-s',M.test,false);"
          "post('/api/backend/mode',b.dataset.m).then(r=>{"
          "if(!r.ok){flash('bm-s',WS.err,true,4000);return;}"
-         "setTimeout(()=>location.reload(),1200);});});});"
+         "setTimeout(()=>location.reload(),1200);});});});});"
 
          "function load(){getJson('/api/settings').then(d=>{"
          "const c=$('os');if(!c)return;c.textContent='';"

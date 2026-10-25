@@ -9,7 +9,10 @@ bool backendLastListPartial();
 #include <stddef.h>
 #include <stdint.h>
 #include "services/ams_slots.h"
+#include "services/backend.h"
+#include "services/filaman_labels.h"
 #include "services/spool_detail.h"
+#include "services/tag_create.h"
 
 // ============================================================
 //  BACKEND API DISPATCH
@@ -60,6 +63,27 @@ int  backendGetSpoolFieldsJson(const char* base_url, JsonDocument& doc,
        uint32_t timeout_ms = 4000, DeserializationError* out_err = nullptr);
 int  backendGetHealthCode(const char* base_url, uint32_t timeout_ms = 3000);
 bool backendGetVersion(const char* base_url, char* out_version, size_t out_size,
+       uint32_t timeout_ms = 3000);
+// The address the server's own labels link to, set by its user for that
+// purpose: Spoolman's "Base URL", BamBuddy's "External URL". In `out` as the
+// server holds it, "" when unset. Returns the HTTP code; BACKEND_NOT_SUPPORTED
+// on FilaMan, where each label design carries its own.
+int  backendGetLinkBase(char* out, size_t out_size, uint32_t timeout_ms = 3000);
+
+// Where the backend is, taken on the loop task for a request made on another
+// one: mode, address and key may change under a task while it runs, and a
+// request built from a half-written address goes to nobody. As long as the
+// buffers behind backendBaseUrl() and the keys in backend.cpp.
+#define BACKEND_TARGET_BASE_LEN 80
+#define BACKEND_TARGET_KEY_LEN  80
+struct BackendTarget {
+  BackendMode mode;
+  char base[BACKEND_TARGET_BASE_LEN];
+  char key[BACKEND_TARGET_KEY_LEN];   // FilaMan's API key, BamBuddy's, "" on Spoolman
+};
+void backendTargetSnapshot(BackendTarget* out);   // loop task
+// backendGetLinkBase() against a snapshot, from any task.
+int  backendGetLinkBaseAt(const BackendTarget& at, char* out, size_t out_size,
        uint32_t timeout_ms = 3000);
 int  backendCountActiveSpools(const char* base_url, uint32_t timeout_ms = 6000);
 
@@ -260,23 +284,61 @@ int  backendCreateSpool(const char* base_url, int template_spool_id, int filamen
        float initial_weight, float spool_weight, float remaining_weight,
        int* out_spool_id = nullptr, uint32_t timeout_ms = 8000);
 
-// Creates a spool from what a Bambu tag carries, for the case where no
-// template fits. BamBuddy only - Spoolman and FilaMan want a filament_id, and
-// a tag cannot supply one. remaining_weight is the net reading of the scale.
-int  backendCreateSpoolFromTag(const char* material, const char* subtype,
-       const char* brand, const char* rgba, const char* color_name,
-       int label_weight, int core_weight,
-       float remaining_weight, int nozzle_temp_min, int nozzle_temp_max,
-       int* out_spool_id = nullptr, uint32_t timeout_ms = 8000);
+// A new spool from a tag, on every backend (services/tag_create.h).
+// First the plan, which only reads: whether the inventory has the tag's
+// filament, or how it would be created. BamBuddy keeps no filaments; its plan
+// carries the colour's name in plan->name. Then the creation, which writes
+// what the plan says is missing - vendor, colour, filament - and the spool.
+struct TagSpoolValues {
+  int   label_weight;   // nominal filament weight, g
+  float remaining;      // what the spool starts with, g
+  float price;          // what it cost, in the backend's currency; 0: not given
+};
+struct TagCreateResult {
+  int spool_id;
+  int filament_id;   // a filament created on the way, 0 when it existed
+  // The spool request went out. With the answer lost on the way back the
+  // server may have created the spool all the same.
+  bool spool_sent;
+  // A price was given and did not reach the server; the spool exists.
+  bool price_lost;
+};
+// The values travel as one struct since v0.8.3-beta.17; the simulator's
+// fake reads this to know which signature the tree has.
+#define BACKEND_TAG_SPOOL_VALUES 1
+void backendPlanTagFilament(const TagCreateInput& in, TagFilamentPlan* plan);
+int  backendCreateFromTag(const TagCreateInput& in, const TagFilamentPlan& plan,
+       const TagSpoolValues& values, TagCreateResult* out);
 
 // Turns the colour value on a tag into a name the backend knows. Empty output
 // means "no name for this colour", which is not an error.
 void backendLookupColorName(const char* hex6, const char* material,
        char* out_name, size_t out_size);
 
-// True when backendCreateSpoolFromTag() has a path on the active backend, so
-// the UI can leave the button out instead of offering a dead end.
+// True when backendCreateFromTag() has a path on the active backend, so the
+// UI can leave the button out instead of offering a dead end.
 bool backendCanCreateFromTag();
+
+// The backend's filament database, for a spool without a maker's chip
+// (services/filament_db.h holds what these load): SpoolmanDB behind Spoolman
+// 0.27 and later, the FilamentDB behind FilaMan, the colour catalogue of a
+// BamBuddy that keeps its own inventory, and the SpoolmanDB of the Spoolman
+// server a BamBuddy keeps its inventory on. The loads block their caller and
+// run on filament_db's own task, never on the loop; base_url is the copy
+// that task took of backendFdbBaseUrl(). Each returns the HTTP code. Only
+// FilaMan needs the pairs load: its index names makers alone.
+bool backendCanBrowseFilamentDb();
+// The server the database, a tag's filament plan and the filament live on:
+// the backend itself, or the Spoolman behind a BamBuddy that keeps its
+// spools there.
+const char* backendFdbBaseUrl();
+int  backendFdbLoadIndex(const char* base_url);
+int  backendFdbLoadPairs(const char* base_url, const char* maker);
+int  backendFdbLoadEntries(const char* base_url, const char* maker, const char* material);
+// Adds to a picked entry's input what the backend's database leaves to the
+// scale (BamBuddy: the English colour name, Bambu Lab's article number from
+// the catalog on the scale). Nothing for the other two. Loop task, no HTTP.
+void backendFdbCompleteInput(TagCreateInput* in);
 
 int  backendCreateSpoolField(const char* base_url, const char* field_name,
        uint32_t timeout_ms = 3000);
@@ -360,6 +422,19 @@ int  backendPatchSpoolLastDried(const char* base_url, int spool_id, const char* 
 // such a batch never starts only to fail spool by spool.
 bool backendCanPatchLastDried();
 
+// Whether the backend keeps a drying date of its own that a date kept
+// elsewhere could be moved into: a BamBuddy that sends last_dried_at (#2863).
+bool backendHasNativeLastDried();
+// Whether the last read of this spool took its drying date from Spoolman's
+// extra behind BamBuddy, which is what the migration moves. False elsewhere.
+bool backendLastDriedFromSpoolman(int spool_id);
+
+// Moves the drying date the scale kept in a BamBuddy note, or in Spoolman's
+// extra.last_dried behind it, into BamBuddy's own field. 0 when there was
+// nothing to move, otherwise the HTTP status. BACKEND_NOT_SUPPORTED off
+// BamBuddy.
+int  backendMigrateLastDried(int spool_id, uint32_t timeout_ms);
+
 // --- ams slots -----------------------------------------------
 
 // Whether the active backend can show the AMS at all. BamBuddy reads it from
@@ -432,3 +507,19 @@ int  backendFindUnitSpools(int printer_id, int ams_id, int* out_by_tray,
 // from an LVGL event callback.
 int  backendGetSpoolDetail(int spool_id, AmsSpoolDetail& out,
        uint32_t timeout_ms = 8000);
+
+// --- labels laid out on the server ---------------------------
+// FilaMan's label presets and the label drawn from one of them, as the
+// printer's raster (services/filaman_labels.h). Spoolman and BamBuddy have
+// no such thing and answer BACKEND_NOT_SUPPORTED. The base URL and the key
+// are the active backend's; `req` brings the rest. HTTP: from the loop or a
+// worker, never from a handler.
+int  backendLabelPresets(FilamanLabelPresetList* list, uint32_t timeout_ms);
+int  backendLabelRender(FilamanLabelRequest req, LabelRaster* out,
+       char* reason, size_t reason_size);
+// A label printed on the PC instead: FilaMan files the request and a tab of
+// its own in the browser offers to print it (filamanLabelPrintRequest()).
+// `id` is the spool's, or its filament's when `filament` is set. 201 when it
+// was filed.
+int  backendLabelPrintRequest(bool filament, int id, char* reason, size_t reason_size,
+       uint32_t timeout_ms);

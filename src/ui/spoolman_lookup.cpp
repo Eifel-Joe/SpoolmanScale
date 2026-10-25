@@ -21,6 +21,7 @@
 // library's templates.
 bool spoolHasAnyTag(JsonObjectConst spool);
 
+#include "services/dried_migrate.h"
 #include "services/drying_sync.h"
 #include "services/location_state.h"
 #include "services/backend.h"
@@ -33,10 +34,12 @@ bool spoolHasAnyTag(JsonObjectConst spool);
 #include "services/spool_tare.h"
 #include "services/spoolman_actions.h"
 #include "services/spoolman_api.h"
+#include "services/last_dried.h"
 #include "services/tag_field.h"
 #include "services/tag_probe_job.h"
 #include "services/backend_job.h"
 #include "app/backend_switch.h"
+#include "app/label_spool.h"
 #include "services/tag_write.h"
 #include "services/tag_uid.h"
 #include "services/time_service.h"
@@ -530,7 +533,7 @@ float resolveInitial(JsonVariantConst spool) {
   return 1000.0f;
 }
 
-static const char* tareSourceName(uint8_t s) {
+const char* tareSourceName(uint8_t s) {
   switch (s) {
     case TARE_SPOOL:    return "spool";
     case TARE_FILAMENT: return "filament";
@@ -664,13 +667,14 @@ void querySpoolmanById(int spool_id) {
 
   // last_dried
   sm_last_dried[0] = '\0';
-  if (!spool["extra"]["last_dried"].isNull()) {
-    String dried = spool["extra"]["last_dried"].as<String>();
-    dried.replace("\"", "");
-    // The stored value is a UTC instant; the day it belongs to is the local
-    // one, exactly as for last_used above.
+  // The scale's own date or BamBuddy's next to it, whichever is later. The
+  // stored value is a UTC instant; the day it belongs to is the local one,
+  // exactly as for last_used above.
+  char dried[LAST_DRIED_ISO_MAX];
+  lastDriedNewest(spool["extra"], dried, sizeof(dried));
+  if (dried[0]) {
     char day[11];
-    isoDayLocal(dried.c_str(), day, sizeof(day));
+    isoDayLocal(dried, day, sizeof(day));
     char de_date[12];
     isoToDe(day, de_date, sizeof(de_date));
     strncpy(sm_last_dried, de_date, sizeof(sm_last_dried)-1);
@@ -700,6 +704,7 @@ void querySpoolmanById(int spool_id) {
   // After the verdict above: a tag that does not describe this spool must
   // not hand it its drying advice.
   dryingSyncNote(spool);
+  driedMigrateNote(spool);
 
   bool is_ntag = !is_bambu_tag;
   if (is_ntag) {
@@ -784,6 +789,14 @@ static char s_last_query[48] = {0};
 // failed like that, the recheck then found the spool, took the link for a
 // foreign one, and wrote the tag and asked for the second tag a second time.
 bool s_verdict_unknown = false;
+
+// Stricter than the above: "not in the inventory" from a scan whose active
+// list and archive both came in whole, or from the uid index. Only this one
+// may invite a new spool - an archive that never answered can still hold the
+// spool, and creating it again would make a duplicate.
+bool s_verdict_certain = false;
+
+bool lookupUnknownIsCertain() { return s_verdict_certain; }
 
 // Whether the last lookup ended on a server it could not reach. The status
 // line reads it: without it the resting text said "not in Spoolman" about a
@@ -1137,10 +1150,12 @@ void querySpoolman(const char* tray_uuid, LookupOrigin origin) {
   // A lookup still waiting for its inventory was for a tag that is no longer
   // the one being asked about. Its download runs on for cache and index.
   lookupAbandon();
+  labelSpoolRemember();   // the spool found before, for the label editor
   strncpy(s_last_query, tray_uuid ? tray_uuid : "", sizeof(s_last_query) - 1);
   s_last_query[sizeof(s_last_query) - 1] = '\0';
   // Only the one line below "Truly not found" sets it again.
   s_verdict_unknown = false;
+  s_verdict_certain = false;
   s_lost_connection = false;
   s_recheck_end_ms = 0;
   s_recheck_gap_ms = TAG_RECHECK_MS;
@@ -1168,6 +1183,7 @@ void querySpoolman(const char* tray_uuid, LookupOrigin origin) {
   if (lbl_keys) lv_label_set_text(lbl_keys, "");
   if (lbl_raw_info) lv_label_set_text(lbl_raw_info, "");
   if (lbl_bag_sm_diff) lv_label_set_text(lbl_bag_sm_diff, "");
+  if (lbl_spool_tare) lv_label_set_text(lbl_spool_tare, "");
   // bei Bambu kommen diese Felder aus dem Tag selbst (updateDisplay) nicht aus Spoolman
   bool is_bambu_tag = (strlen(g_tag.material) > 0);
   // An NTAG carrying a record has just put the same three fields on screen, so
@@ -1229,6 +1245,7 @@ void querySpoolman(const char* tray_uuid, LookupOrigin origin) {
   for (uint8_t i = 0; i < TAG_FIELD_EXTRA_COUNT; i++)
     filter_spool["extra"][tagFieldSpec(i).key] = true;
   filter_spool["extra"][LAST_DRIED_FIELD] = true;
+  filter_spool["extra"][BAMBU_LAST_DRIED_FIELD] = true;
   // Named rather than left to the sweep below. That one stops at
   // BACKEND_TEXT_FIELDS_MAX, and this field decides whether a uid is appended
   // or written over: arriving empty would make every placement look like the

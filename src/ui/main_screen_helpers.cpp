@@ -135,6 +135,21 @@ void updateLinkButton() {
 
   if (!btn_dried || !btn_link || !slot1 || !btn_copy) return;
 
+  // Nothing on screen: the left slot offers a spool by its id, which is the
+  // only thing it could do. Weighing needs a spool, the location one as well.
+  const bool empty = !tag_present && !sm_found;
+  if (btn_by_id) {
+    if (empty) lv_obj_clear_flag(btn_by_id, LV_OBJ_FLAG_HIDDEN);
+    else       lv_obj_add_flag(btn_by_id,   LV_OBJ_FLAG_HIDDEN);
+  }
+  if (empty) {
+    lv_obj_add_flag(slot1,             LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(btn_dried,       LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(btn_link,          LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(btn_copy,          LV_OBJ_FLAG_HIDDEN);
+    return;
+  }
+
   // Two slots, four buttons: weight and link share the left one, dried and
   // copy the right. An archived spool is the third combination of the same
   // four, not a fifth button - there is no room for one anyway.
@@ -236,9 +251,11 @@ bool amsMainCanAssign() {
   // FilaMan only opens a window through a weight report, and without a load
   // cell the stored weight is the report. It goes out gross, remaining plus
   // the empty spool, and FilaMan takes the empty spool off again - without
-  // that weight the spool would be booked lighter than it is.
+  // that weight the spool would be booked lighter than it is. A spool never
+  // weighed arrives as 0 g remaining (FilaMan has null), and the report would
+  // book it as 0 g, which FilaMan also takes for empty.
   return backendIsFilaMan() && filamanDeviceToken()[0] != '\0' &&
-         sm_spool_weight > 0.0f;
+         sm_spool_weight > 0.0f && sm_remaining > 0.0f;
 }
 
 void updateAmsMainButton() {

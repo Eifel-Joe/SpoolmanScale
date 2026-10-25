@@ -49,7 +49,11 @@ void loadPrefs() {
     prefsPutFloat("cal_factor", cal_factor);
   }
   zero_offset = prefsGetInt("zero_offset", 0);
-  bag_weight_g = prefsGetFloat("bag_weight", 50.0f);
+  // No bag until one is entered. Only a value saved on the bag screen
+  // survives this default: an installation that never opened that screen ran
+  // on the old 50 g default and starts without a bag from 0.8.3 on, which
+  // the release notes say.
+  bag_weight_g = prefsGetFloat("bag_weight", 0.0f);
 
   spool_list_limit = (int)prefsGetUChar("list_limit", 30);
   if (spool_list_limit < 5) spool_list_limit = 5;
@@ -119,6 +123,9 @@ void loadPrefs() {
   // to ask twice, and a stale "on" from before the field was switched cannot
   // leak into a write. After settingsLoadAll(), which is what loads it.
   if (!tagFieldIsList()) g_card_uids_write = false;
+  // The old extra.tag switch, once. Also after settingsLoadAll(), which would
+  // otherwise read the absent new key as "off" and keep it that way.
+  tagCompanionMigrate();
 
   g_flm_bambu_tags = prefsGetBool("flm_btags", false);
   g_flm_ext_id     = prefsGetBool("flm_extid", true);
@@ -126,6 +133,7 @@ void loadPrefs() {
   g_ams_window_s  = (int)prefsGetInt("ams_window", AMS_WINDOW_DEFAULT_S);
   g_auto_weight = prefsGetBool("auto_weight", false);
   g_auto_loc_popup = prefsGetBool("auto_loc_popup", false);
+  g_auto_tare = prefsGetBool("auto_tare", false);
   // Three states now, where this used to be a yes/no switch. Nobody loses their
   // setting: an installation that had the question turned on comes back as
   // "ask", one that had it off as "off", and the old key is left in NVS rather

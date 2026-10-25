@@ -24,7 +24,11 @@ void printCardShow();
 void printCardTick();
 
 // The answer. text_id is labelPrintResultString(result) for a failure.
-void printCardResult(LabelPrintResult result);
+// detail: a line of the server's own under it, where it gave one.
+// offer_own_layout: a second button that prints the same spool with the
+// scale's own layout (sets print_own_layout_pending).
+void printCardResult(LabelPrintResult result, const char* detail = nullptr,
+                     bool offer_own_layout = false);
 
 bool printCardOpen();
 

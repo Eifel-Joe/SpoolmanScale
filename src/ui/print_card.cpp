@@ -3,9 +3,11 @@
 #include <Arduino.h>
 #include <lvgl.h>
 
+#include "app/deferred_actions.h"
 #include "hardware/sd_logger.h"
 #include "lang.h"
 #include "services/ble_service.h"
+#include "services/text_util.h"
 #include "ui/theme.h"
 #include "ui_common.h"
 
@@ -27,6 +29,10 @@
 
 // A confirmed print closes on its own after this long; a problem waits.
 #define PC_AUTOCLOSE_MS    4000
+
+// Our line and the server's reason under it, that one cut to two lines.
+#define PC_DETAIL_LEN 200
+#define PC_DETAIL_CUT 96
 
 static lv_obj_t* s_scr    = nullptr;
 static lv_obj_t* s_box    = nullptr;
@@ -146,7 +152,31 @@ void printCardTick() {
   lv_refr_now(NULL);
 }
 
-void printCardResult(LabelPrintResult result) {
+// The answer to a label the server would not draw: the same spool with the
+// scale's own layout, on the left where the house cards put the yes.
+static void addOwnLayoutButton() {
+  lv_obj_t* btn = lv_btn_create(s_box);
+  lv_obj_set_size(btn, UI_POPUP_BTN_W, UI_POPUP_BTN_H);
+  lv_obj_set_pos(btn, UI_CARD_ROW_X, UI_CARD_ROW_Y);
+  lv_obj_set_style_bg_color(btn, lv_color_hex(UI_COL_OK_BG), 0);
+  lv_obj_set_style_bg_color(btn, lv_color_hex(UI_COL_OK_BG_PRESSED), LV_STATE_PRESSED);
+  lv_obj_set_style_radius(btn, UI_RADIUS_BTN, 0);
+  lv_obj_set_style_shadow_width(btn, 0, 0);
+  lv_obj_set_style_border_width(btn, 0, 0);
+  lv_obj_set_style_pad_all(btn, 0, 0);
+  lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_event_cb(btn, [](lv_event_t*) {
+    print_own_layout_pending = true;
+    s_close_req = true;
+  }, LV_EVENT_CLICKED, NULL);
+  lv_obj_t* l = lv_label_create(btn);
+  lv_label_set_text(l, T(STR_PRN_OWN_LAYOUT));
+  lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_OK_TEXT), 0);
+  lv_obj_set_style_text_font(l, UI_FONT_TITLE, 0);
+  lv_obj_center(l);
+}
+
+void printCardResult(LabelPrintResult result, const char* detail, bool offer_own_layout) {
   if (!s_scr) printCardShow();
   if (s_arc) { lv_obj_del(s_arc); s_arc = nullptr; }
 
@@ -175,13 +205,28 @@ void printCardResult(LabelPrintResult result) {
 
   lv_label_set_text(s_title, T(title));
   lv_obj_align(s_title, LV_ALIGN_TOP_MID, 0, UI_CARD_TITLE_Y);
-  lv_label_set_text(s_text, T(text));
+  if (detail && detail[0]) {
+    // The server's own words under ours: why it would not draw the label.
+    // Cut so the card keeps its height: two lines fit above the buttons.
+    char cut[PC_DETAIL_CUT + 1], both[PC_DETAIL_LEN];
+    utf8Cut(detail, PC_DETAIL_CUT, cut, sizeof(cut));
+    snprintf(both, sizeof(both), "%s\n%s", T(text), cut);
+    lv_label_set_text(s_text, both);
+  } else {
+    lv_label_set_text(s_text, T(text));
+  }
   lv_obj_set_style_text_color(s_text, lv_color_hex(UI_COL_INK_2), 0);
   lv_obj_align(s_text, LV_ALIGN_TOP_MID, 0, UI_CARD_TEXT_Y);
 
+  if (offer_own_layout) addOwnLayoutButton();
   lv_obj_t* btn = lv_btn_create(s_box);
-  lv_obj_set_size(btn, UI_POPUP_W - 2 * UI_CARD_ROW_X, UI_POPUP_BTN_H);
-  lv_obj_set_pos(btn, UI_CARD_ROW_X, UI_CARD_ROW_Y);
+  if (offer_own_layout) {
+    lv_obj_set_size(btn, UI_POPUP_BTN_W, UI_POPUP_BTN_H);
+    lv_obj_set_pos(btn, UI_POPUP_W - UI_POPUP_BTN_W - UI_CARD_ROW_X, UI_CARD_ROW_Y);
+  } else {
+    lv_obj_set_size(btn, UI_POPUP_W - 2 * UI_CARD_ROW_X, UI_POPUP_BTN_H);
+    lv_obj_set_pos(btn, UI_CARD_ROW_X, UI_CARD_ROW_Y);
+  }
   lv_obj_set_style_bg_color(btn, lv_color_hex(ok ? UI_COL_OK_BG : UI_COL_LINE), 0);
   lv_obj_set_style_bg_color(btn, lv_color_hex(ok ? UI_COL_OK_BG_PRESSED : UI_COL_POPUP_BORDER),
                             LV_STATE_PRESSED);

@@ -6,6 +6,7 @@
 #include <esp_partition.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <time.h>
 
 #include "hardware/flash_log.h"
@@ -31,8 +32,13 @@
 #define CAT_OFFSET        FLASH_LOG_BYTES
 #define CAT_SECTOR        4096UL
 #define CAT_MAGIC         0x54414342UL   // "BCAT"
-#define CAT_VERSION       2      // 2: the ETag the copy was downloaded under
-#define CAT_COLOURS       4      // gradients and multi colour spools carry up to four
+// 2: the ETag the copy was downloaded under. 3: how the colours of a record
+// lie on the spool. 4: the same, read for real - version 3 had dropped the
+// colour type in the download filter, so every record was single. A copy of
+// an older version counts as none, so the scale downloads the table again on
+// its own (bambu_catalog_sync.cpp).
+#define CAT_VERSION       4
+#define CAT_COLOURS       BAMBU_CATALOG_COLOURS   // gradients and multi colour spools carry up to four
 #define CAT_MAX_ENTRIES   1200
 // A stamp before this is a clock that was never set, not a date.
 #define CAT_STAMP_MIN     1700000000UL
@@ -59,7 +65,7 @@ struct CatRec {
   char     id[6];       // "GFA10"
   char     code[4];     // "B0", as the table spells it
   uint8_t  ncol;
-  uint8_t  pad;
+  uint8_t  kind;        // BambuColorKind
   char     article[8];  // "12601"
   uint32_t rgba[CAT_COLOURS];   // 0xRRGGBBAA, the first colour first
   uint16_t product, en, de, fr;         // offsets into the pool
@@ -154,6 +160,18 @@ static const char* poolStr(uint16_t off) {
   return off < s_hdr->pool_bytes ? pool + off : "";
 }
 
+// The table names how the colours lie on the spool in Chinese: 渐变色 is a
+// gradient along the filament, 多拼色 colours side by side across it (dual and
+// tri colour silk), 单色 a single colour. Compared as UTF-8 bytes.
+#define CAT_TYPE_GRADIENT  "\xE6\xB8\x90\xE5\x8F\x98\xE8\x89\xB2"
+#define CAT_TYPE_MULTI     "\xE5\xA4\x9A\xE6\x8B\xBC\xE8\x89\xB2"
+
+static uint8_t colourKind(const char* type) {
+  if (strcmp(type, CAT_TYPE_GRADIENT) == 0) return BCK_GRADIENT;
+  if (strcmp(type, CAT_TYPE_MULTI) == 0)    return BCK_DUAL;
+  return BCK_SINGLE;
+}
+
 // "B0", "B00", "G6", "G06": the tag and the table do not agree on the zeros
 // (PLA Basic Bambu Green is A00-G06 on the spool, G6 in the table), so a
 // colour code is compared as its letter and its number.
@@ -169,6 +187,20 @@ static bool codeKey(const char* s, char* letter, int* num) {
 
 static bool sameColour(uint32_t rgba, const SpoolColor& c) {
   return c.valid && (rgba >> 8) == c.rgb && (uint8_t)(rgba & 0xFF) == c.alpha;
+}
+
+// What a lookup hands back of one record, the colour's name in the UI
+// language where the table has it.
+static void fillHit(const CatRec& r, BambuCatalogHit* out) {
+  snprintf(out->article, sizeof(out->article), "%s", r.article);
+  snprintf(out->product, sizeof(out->product), "%s", poolStr(r.product));
+  const uint16_t local = g_lang == LANG_DE ? r.de : g_lang == LANG_FR ? r.fr : r.en;
+  const char* name = poolStr(local);
+  snprintf(out->color_name, sizeof(out->color_name), "%s", name[0] ? name : poolStr(r.en));
+  snprintf(out->color_name_en, sizeof(out->color_name_en), "%s", poolStr(r.en));
+  out->kind = r.kind;
+  out->ncol = r.ncol < CAT_COLOURS ? r.ncol : CAT_COLOURS;
+  for (uint8_t i = 0; i < out->ncol; i++) out->rgba[i] = r.rgba[i];
 }
 
 bool bambuCatalogFind(const char* material_id, const char* variant_id,
@@ -199,12 +231,23 @@ bool bambuCatalogFind(const char* material_id, const char* variant_id,
   }
   const CatRec* hit = by_colour ? by_colour : by_code;
   if (!hit) return false;
+  fillHit(*hit, out);
+  return true;
+}
 
-  snprintf(out->article, sizeof(out->article), "%s", hit->article);
-  snprintf(out->product, sizeof(out->product), "%s", poolStr(hit->product));
-  const uint16_t local = g_lang == LANG_DE ? hit->de : g_lang == LANG_FR ? hit->fr : hit->en;
-  const char* name = poolStr(local);
-  snprintf(out->color_name, sizeof(out->color_name), "%s", name[0] ? name : poolStr(hit->en));
+bool bambuCatalogFindByLook(const char* product, uint32_t rgb, const char* name_en,
+                            BambuCatalogHit* out) {
+  ensureLoaded();
+  if (!s_hdr || !product || !product[0] || !out) return false;
+  const CatRec* by_name = nullptr;
+  for (int i = 0; i < s_hdr->count; i++) {
+    const CatRec& r = recs()[i];
+    if (strcasecmp(poolStr(r.product), product) != 0) continue;
+    if ((r.rgba[0] >> 8) == (rgb & 0xFFFFFFUL)) { fillHit(r, out); return true; }
+    if (!by_name && name_en && name_en[0] && strcasecmp(poolStr(r.en), name_en) == 0) by_name = &r;
+  }
+  if (!by_name) return false;
+  fillHit(*by_name, out);
   return true;
 }
 
@@ -284,6 +327,7 @@ bool bambuCatalogStore(JsonArrayConst entries, uint32_t stamp, const char* etag,
       if (r.ncol >= CAT_COLOURS) break;
       r.rgba[r.ncol++] = parseRgba(c | "");
     }
+    r.kind = colourKind(e["fila_color_type"] | "");
     JsonObjectConst names = e["fila_color_name"];
     if (!poolAdd(pool, BAMBU_CATALOG_BYTES, &used, e["fila_type"] | "", &r.product) ||
         !poolAdd(pool, BAMBU_CATALOG_BYTES, &used, names["en"] | "", &r.en) ||
@@ -440,8 +484,9 @@ BambuCatalogOutcome bambuCatalogDownload(bool conditional, char* err, size_t err
   }
   raw[got] = '\0';
 
-  // Seven fields per colour of a 230 kB file. The rest - the Chinese colour
-  // type, nine more languages - is dropped while it is parsed.
+  // Eight fields per colour of a 230 kB file, the colour type among them:
+  // bambuCatalogStore() reads it for the kind. The rest - nine more
+  // languages - is dropped while it is parsed.
   JsonDocument filter;
   JsonObject f = filter["data"].to<JsonArray>().add<JsonObject>();
   f["fila_id"] = true;
@@ -449,6 +494,7 @@ BambuCatalogOutcome bambuCatalogDownload(bool conditional, char* err, size_t err
   f["fila_color_code"] = true;
   f["fila_type"] = true;
   f["fila_color"] = true;
+  f["fila_color_type"] = true;
   f["fila_color_name"]["en"] = true;
   f["fila_color_name"]["de"] = true;
   f["fila_color_name"]["fr"] = true;

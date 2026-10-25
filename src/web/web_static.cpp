@@ -83,12 +83,39 @@ static const char APP_CSS[] PROGMEM =
       "--quiet:#f3efe7;--quiet-hover:#e8e3d8;--ok-bg:#e1f3e8;"
       "--warn-line:#e2c77a;--warn-bg:#fbf3dc;"
       "--bad-line:#eaa4a4;--bad-bg:#fbe9e6;--bad-hover:#f6d6d0}"
+      // BamBuddy's own colours (frontend/src/index.css, default look):
+      // neutral grey with Bambu green, or near white with a deeper green
+      // that holds as text.
+      ":root[data-theme=bambuddy_dark]{"
+      "--ground:#1f1f1f;--surface:#252525;--surface-2:#1c1c1c;"
+      "--line:#424242;--line-soft:#333333;"
+      "--ink:#ececec;--ink-2:#c9c9c9;--ink-3:#959595;--ink-4:#3a3a3a;--ink-soft:#a7a7a7;"
+      "--accent:#00c64d;--accent-dim:#1e3a26;--accent-line:#2f6a40;"
+      "--warn:#f7c86a;--bad:#ef4444;--good:#94eda0;"
+      "--hover:#2e2e2e;--btn:#1e3a26;--btn-hover:#25492b;"
+      "--quiet:#2e2e2e;--quiet-hover:#383838;--ok-bg:#25492b;"
+      "--warn-line:#5a4f2a;--warn-bg:#2a2616;"
+      "--bad-line:#5e2424;--bad-bg:#3a1616;--bad-hover:#4a1c1c}"
+      ":root[data-theme=bambuddy_light]{"
+      "--ground:#f5f5f5;--surface:#ffffff;--surface-2:#eeeeee;"
+      "--line:#858585;--line-soft:#aeaeae;"
+      "--ink:#141414;--ink-2:#232323;--ink-3:#3f3f3f;--ink-4:#b9b9b9;--ink-soft:#3a3a3a;"
+      "--accent:#03772c;--accent-dim:#d9ecdf;--accent-line:#8fcca2;"
+      "--warn:#8a5a00;--bad:#b91c1c;--good:#227f38;"
+      "--hover:#ebebeb;--btn:#d9ecdf;--btn-hover:#c6e2cf;"
+      "--quiet:#eeeeee;--quiet-hover:#e3e3e3;--ok-bg:#d9ecdf;"
+      "--warn-line:#e2c77a;--warn-bg:#fbf3dc;"
+      "--bad-line:#eaa4a4;--bad-bg:#fbe9e6;--bad-hover:#f6d6d0}"
       "*{box-sizing:border-box;margin:0;padding:0}"
       "body{background:var(--ground);color:var(--ink);font-family:var(--sans);"
       "font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;"
       "padding:28px 20px 40px;display:flex;flex-direction:column;align-items:center;"
       "gap:20px;min-height:100vh}"
       ".wrap{width:100%;max-width:var(--w);display:flex;flex-direction:column;gap:18px}"
+      // Inside a backend's frame the host already draws its own margin and
+      // its content area is wide: 860 px left a quarter of a 1300 px frame
+      // empty on each side. app.js sets the class before the body is drawn.
+      "html.framed{--w:1180px}html.framed body{padding:16px 16px 28px}"
       // header
       ".head{display:grid;grid-template-columns:52px 1fr auto;align-items:center;gap:16px}"
       ".mark{width:52px;height:52px;border-radius:13px;overflow:hidden;"
@@ -120,6 +147,25 @@ static const char APP_CSS[] PROGMEM =
       ".card h2{font-size:11px;font-weight:650;letter-spacing:.1em;text-transform:uppercase;"
       "color:var(--ink-3);margin-bottom:14px}"
       ".note{font-size:12.5px;color:var(--ink-soft);line-height:1.55;margin-top:12px}"
+      // A card that folds away: the whole heading is the handle, a chevron
+      // on the right says which way it goes.
+      "details.card>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between}"
+      "details.card>summary::-webkit-details-marker{display:none}"
+      "details.card>summary h2{margin-bottom:0}"
+      "details.card[open]>summary{margin-bottom:14px}"
+      "details.card>summary::after{content:'';width:7px;height:7px;margin:-4px 4px 0 0;"
+      "border-right:2px solid var(--ink-3);border-bottom:2px solid var(--ink-3);transform:rotate(45deg)}"
+      "details.card[open]>summary::after{transform:rotate(-135deg);margin-top:4px}"
+      // A list's tail that folds away under one quiet line.
+      "details.more>summary{cursor:pointer;color:var(--ink-soft);padding:8px 0}"
+      // Numbered steps, the number in a round badge instead of a list marker.
+      ".steps{list-style:none;counter-reset:s;display:flex;flex-direction:column;gap:12px;margin-top:14px}"
+      ".steps>li{counter-increment:s;display:grid;grid-template-columns:26px 1fr;gap:10px;align-items:start}"
+      ".steps>li::before{content:counter(s);width:26px;height:26px;border-radius:50%;display:grid;place-items:center;"
+      "background:var(--accent-dim);color:var(--accent);font-size:13px;font-weight:600}"
+      ".steps>li>div{padding-top:3px}.steps a{color:var(--accent)}.steps p.hint{margin-top:6px}"
+      ".addrline{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px}"
+      ".addrline .mono{background:var(--quiet);border:1px solid var(--line);border-radius:8px;padding:5px 10px;color:var(--ink)}"
       ".note b{color:var(--ink-2);font-weight:500}"
       // data rows: mono only for machine strings
       ".rows{display:flex;flex-direction:column}"
@@ -301,6 +347,21 @@ static const char APP_CSS[] PROGMEM =
       ".btab:hover{background:var(--quiet-hover)}"
       ".btab.on{background:var(--btn);color:var(--accent);"
       "border-color:var(--accent-line);opacity:1;cursor:default}"
+      // The question ask() puts, in the page's own look instead of the
+      // browser's box at the top of the window. Centred in the part of the
+      // page that is on screen: inside a backend's frame --vis-top and
+      // --vis-bot cut off what the host has scrolled away (app.js).
+      ".ask{display:none;position:fixed;left:0;right:0;top:var(--vis-top,0px);"
+      "bottom:var(--vis-bot,0px);z-index:100;align-items:center;justify-content:center;"
+      "padding:16px;background:var(--ground);"
+      "background:color-mix(in srgb,var(--ground) 80%,transparent)}"
+      ".ask.open{display:flex}"
+      ".ask .ac{width:100%;max-width:400px;max-height:100%;overflow:auto;"
+      "background:var(--surface);border:1px solid var(--line);border-radius:14px;"
+      "padding:24px}"
+      ".ask p{color:var(--ink);font-size:15px;line-height:1.5;white-space:pre-line;"
+      "overflow-wrap:anywhere;margin-bottom:20px}"
+      ".ask .inrow{justify-content:flex-end}"
 ;
 
 const char* webStaticVersion() { return FW_VERSION; }
@@ -319,7 +380,7 @@ const char* webStaticVersion() { return FW_VERSION; }
 // language it is set to, and this file is cached across both - so the strings
 // stay in the page and are assigned into WS.
 static const char APP_JS[] PROGMEM =
-  "var WS={ok:'OK',err:'Error'};\n"
+  "var WS={ok:'OK',err:'Error',yes:'OK',no:'Cancel'};\n"
 
   "function $(i){return document.getElementById(i);}\n"
 
@@ -363,6 +424,39 @@ static const char APP_JS[] PROGMEM =
   "function getJson(u){"
   "return fetch(u,{cache:'no-store'}).then(function(r){"
   "if(!r.ok)throw 0;return r.json();}).catch(function(){return null;});}\n"
+
+  // A yes/no question in the page's own look, resolving true or false.
+  // confirm() drew the browser's box at the top of the window, and inside a
+  // backend's frame it even named the scale's address as "an embedded page".
+  // yes names the action ("Delete"), WS.yes stands in; danger paints it red
+  // and puts the focus on Cancel. The text goes in as text: a tag's contents
+  // can be part of it. Built on the first question, so a page that never
+  // asks carries nothing; a second question answers the first with no.
+  "var ASK=null;\n"
+  "function ask(text,yes,danger){"
+  "if(ASK&&ASK.done)ASK.done(false);"
+  "if(!ASK){var b=document.createElement('div');b.className='ask';"
+  "b.innerHTML='<div class=\"ac\" role=\"dialog\" aria-modal=\"true\" aria-describedby=\"askt\">'"
+  "+'<p id=\"askt\"></p><div class=\"inrow\"><button type=\"button\" class=\"quiet\"></button>'"
+  "+'<button type=\"button\"></button></div></div>';"
+  "document.body.appendChild(b);var bs=b.querySelectorAll('button');"
+  "ASK={box:b,txt:b.querySelector('p'),no:bs[0],yes:bs[1],done:null};"
+  "b.addEventListener('click',function(e){if(!ASK.done)return;"
+  "if(e.target===b)ASK.done(false);else if(e.target===ASK.no)ASK.done(false);"
+  "else if(e.target===ASK.yes)ASK.done(true);});"
+  // Esc says no; Tab stays on the two buttons instead of wandering into
+  // the page behind the scrim.
+  "b.addEventListener('keydown',function(e){if(!ASK.done)return;"
+  "if(e.key==='Escape'){e.preventDefault();ASK.done(false);}"
+  "else if(e.key==='Tab'){e.preventDefault();"
+  "(document.activeElement===ASK.yes?ASK.no:ASK.yes).focus();}});}"
+  "var prev=document.activeElement;"
+  "ASK.txt.textContent=text;ASK.yes.textContent=yes||WS.yes;ASK.no.textContent=WS.no;"
+  "ASK.yes.className=danger?'danger':'';"
+  "ASK.box.classList.add('open');(danger?ASK.no:ASK.yes).focus();"
+  "return new Promise(function(res){ASK.done=function(v){ASK.done=null;"
+  "ASK.box.classList.remove('open');"
+  "if(prev&&prev.focus){try{prev.focus();}catch(x){}}res(v);};});}\n"
 
   // Own colours (ui/theme_custom.cpp), the same sums in the browser: TC.apply
   // for the preview on the design page, TC.page() for every page, run here in
@@ -415,19 +509,50 @@ static const char APP_JS[] PROGMEM =
   "if(tinting(c))WEB_TINT.forEach(function(r){var v=get(r[0]);if(v)d.style.setProperty(r[0],'#'+tint(v,c.tone,c.strength/50,r[1]));});\n"
   "if(c.accent){d.style.setProperty('--accent','#'+readable(c.accent,get('--ground')));WEB_ACC.forEach(function(v){var x=get(v);if(x)d.style.setProperty(v,'#'+toward(x,c.accent));});}}\n"
   "return{apply:apply,contrast:contrast,page:page};})();\n"
-  // Light or dark from the browser, when the scale says so: data-tdark and
-  // data-tlight name the family's two palettes, data-theme the scale's own.
-  // Set before the body is drawn, and again when the system switches, with
-  // the own colours laid over the new palette.
+  // Light or dark: data-tdark and data-tlight name the family's two palettes,
+  // data-theme the scale's own. Inside a backend's frame the backend's mode
+  // wins, posted to the frame as bambuddy:theme by BamBuddy itself or as
+  // spoolmanscale:theme by anyone else (the FilaMan plugin page), and kept in
+  // sessionStorage so the next page of the scale starts in it instead of
+  // flashing; otherwise the
+  // browser's, when data-tsys says so. Only the parent may set it, and that
+  // is the backend: the page's frame-ancestors lets nobody else frame it.
+  // Set before the body is drawn, and again on every change, with the own
+  // colours laid over the new palette.
   "var SCH=(function(){var d=document.documentElement,own=d.getAttribute('data-theme'),"
-  "mq=window.matchMedia?window.matchMedia('(prefers-color-scheme: light)'):null;\n"
-  "function want(){var k=d.getAttribute('data-tdark'),l=d.getAttribute('data-tlight');"
-  "return k&&l&&mq?(mq.matches?l:k):own;}\n"
+  "mq=window.matchMedia?window.matchMedia('(prefers-color-scheme: light)'):null,"
+  "framed=window.parent!==window,host=null,vt='',vb='';\n"
+  "function mode(m){return m==='light'||m==='dark'?m:null;}\n"
+  // The part of the frame that is on screen. Both backends give the frame a
+  // fixed height inside a page that scrolls on its own, and neither tells
+  // the frame how far: a bar stuck to the frame's bottom edge, or a dialog
+  // centred in it, ended up half or wholly out of view. In a frame from
+  // another origin the browser intersects with the top window, through
+  // every frame in between, so an invisible full-frame box tells what is
+  // visible. 200 steps are a few pixels. Kept in vt/vb because apply()
+  // clears the style attribute these live in.
+  "function put(){if(vt){d.style.setProperty('--vis-top',vt);d.style.setProperty('--vis-bot',vb);}}\n"
+  "function vis(){if(!window.IntersectionObserver)return;"
+  "var s=document.createElement('div'),t=[],i;"
+  "s.style.cssText='position:fixed;left:0;top:0;width:100%;height:100%;visibility:hidden;pointer-events:none';"
+  "document.body.appendChild(s);for(i=0;i<=200;i++)t.push(i/200);"
+  "new IntersectionObserver(function(es){var e=es[es.length-1],r=e.intersectionRect;"
+  "if(!e.isIntersecting||r.height<=0)return;"
+  "vt=Math.max(0,Math.round(r.top))+'px';vb=Math.max(0,Math.round(window.innerHeight-r.bottom))+'px';"
+  "put();},{threshold:t}).observe(s);}\n"
+  "if(framed)document.addEventListener('DOMContentLoaded',vis);\n"
+  "if(framed){d.classList.add('framed');try{host=mode(sessionStorage.getItem('host_mode'));}catch(x){}}\n"
+  "function want(){var k=d.getAttribute('data-tdark'),l=d.getAttribute('data-tlight');if(!k||!l)return own;"
+  "if(host)return host==='light'?l:k;"
+  "return d.getAttribute('data-tsys')&&mq?(mq.matches?l:k):own;}\n"
   "function apply(){var t=want();if(d.getAttribute('data-theme')===t)return;"
-  "d.setAttribute('data-theme',t);d.removeAttribute('style');TC.page();}\n"
-  "function set(on,k,l){if(on){d.setAttribute('data-tdark',k);d.setAttribute('data-tlight',l);}"
-  "else{d.removeAttribute('data-tdark');d.removeAttribute('data-tlight');}apply();}\n"
+  "d.setAttribute('data-theme',t);d.removeAttribute('style');put();TC.page();}\n"
+  "function set(on,k,l){d.setAttribute('data-tdark',k);d.setAttribute('data-tlight',l);"
+  "if(on)d.setAttribute('data-tsys','1');else d.removeAttribute('data-tsys');apply();}\n"
   "if(mq){if(mq.addEventListener)mq.addEventListener('change',apply);else if(mq.addListener)mq.addListener(apply);}\n"
+  "if(framed)window.addEventListener('message',function(e){var m=e.data;"
+  "if(e.source!==window.parent||!m||(m.type!=='bambuddy:theme'&&m.type!=='spoolmanscale:theme')||!mode(m.mode))return;"
+  "host=m.mode;try{sessionStorage.setItem('host_mode',host);}catch(x){}apply();});\n"
   "d.setAttribute('data-theme',want());\n"
   "return{set:set};})();\n"
   "TC.page();\n"

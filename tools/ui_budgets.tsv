@@ -44,7 +44,8 @@
 # src/ui/main_screen.cpp:258, LV_LABEL_LONG_DOT. The narrow value is the one to
 # respect: header_status.cpp:153 narrows it when the address shows a port.
 # Only the ids really written to lbl_status are listed here.
-STR_WAIT_SCAN	14	262	NEVER	src/app/app_loop.cpp:960 lbl_status, HDR_STATUS_W_NARROW
+# 214: a lifted spool still on screen gets the clear button (40 + 8) behind this text.
+STR_WAIT_SCAN	14	214	NEVER	src/app/app_loop.cpp lbl_status, HDR_STATUS_W_NARROW minus the clear button
 STR_TAG_FOUND	14	262	NEVER	src/app/app_loop.cpp:1723 lbl_status
 STR_READING_TAG	14	262	NEVER	src/app/app_loop.cpp:1533 lbl_status
 STR_NOT_IN_SPOOLMAN	14	262	NEVER	src/app/app_loop.cpp:1597 lbl_status
@@ -218,6 +219,14 @@ STR_PRN_UNCONF_TITLE	20	360	NEVER	src/ui/print_card.cpp result title
 STR_PRN_FAIL_TITLE	20	360	NEVER	src/ui/print_card.cpp result title
 STR_PRN_DONE_MSG	16	360	WRAP:3	src/ui/print_card.cpp result text
 STR_PRN_UNCONF_MSG	16	360	WRAP:3	src/ui/print_card.cpp result text
+STR_PRN_ERR_NOT_NIIMBOT	16	360	WRAP:3	src/ui/print_card.cpp result text
+STR_PRN_ERR_COVER	16	360	WRAP:3	src/ui/print_card.cpp result text
+STR_PRN_ERR_NO_PAPER	16	360	WRAP:3	src/ui/print_card.cpp result text
+STR_PRN_ERR_NO_RIBBON	16	360	WRAP:3	src/ui/print_card.cpp result text
+STR_PRN_ERR_BUSY	16	360	WRAP:3	src/ui/print_card.cpp result text
+STR_PRN_ERR_PRINTER	16	360	WRAP:3	src/ui/print_card.cpp result text
+STR_PRN_ERR_MODEL_MISMATCH	16	360	WRAP:3	src/ui/print_card.cpp result text
+STR_PRN_ERR_MODEL_UNKNOWN	16	360	WRAP:3	src/ui/print_card.cpp result text
 # The Bluetooth device list's filter (src/ui/ble_devices_screen.cpp).
 STR_BT_FILTER_NOTE	14	440	WRAP:3	src/ui/ble_devices_screen.cpp note under the list
 STR_BT_SHOW_ALL_FMT	16	320	NEVER	src/ui/ble_devices_screen.cpp list row title
@@ -238,3 +247,151 @@ STR_TARE_ENTER_RANGE	12	168	WRAP:4	src/ui/tare_entry.cpp s_lbl_info, COL_W = 168
 STR_TARE_ENTER_OVER	12	168	WRAP:3	src/ui/tare_entry.cpp s_lbl_info, COL_W = 168
 STR_LBL_CAL_EDGE	16	289	NEVER	src/services/label_render.cpp calibration page, 40 mm label less frame and margins, one bold dot
 STR_AMS_MAIN_ASSIGN	16	190	NEVER	src/ui/main_screen.cpp zone 4 AMS button 254 px, -8 air, -56 for the window countdown
+STR_TAGNEW_SEARCHING	16	360	NEVER	src/ui/tag_create_popup.cpp status line of the card, UI_POPUP_W - UI_CARD_TEXT_PAD
+STR_TAGNEW_FOUND	16	360	NEVER	src/ui/tag_create_popup.cpp status line of the card, UI_POPUP_W - UI_CARD_TEXT_PAD
+STR_TAGNEW_FROM_DB	16	360	NEVER	src/ui/tag_create_popup.cpp status line of the card, UI_POPUP_W - UI_CARD_TEXT_PAD
+STR_TAGNEW_FROM_TAG	16	360	NEVER	src/ui/tag_create_popup.cpp status line of the card, UI_POPUP_W - UI_CARD_TEXT_PAD
+STR_TAGNEW_BAMBUDDY	16	360	NEVER	src/ui/tag_create_popup.cpp status line of the card, UI_POPUP_W - UI_CARD_TEXT_PAD
+STR_TAGNEW_NEEDS_CATALOG	16	360	NEVER	src/ui/tag_create_popup.cpp status line of the card, UI_POPUP_W - UI_CARD_TEXT_PAD
+STR_TAGNEW_FAILED	16	360	NEVER	src/ui/tag_create_popup.cpp status line of the card, UI_POPUP_W - UI_CARD_TEXT_PAD
+STR_TAGNEW_CREATING	16	360	NEVER	src/ui/tag_create_popup.cpp status line of the card, UI_POPUP_W - UI_CARD_TEXT_PAD
+STR_TAGNEW_CREATE_FAIL	16	360	NEVER	src/ui/tag_create_popup.cpp status line of the card, UI_POPUP_W - UI_CARD_TEXT_PAD
+STR_TAGNEW_FILAMENT_ONLY	16	360	NEVER	src/ui/tag_create_popup.cpp status line of the card, UI_POPUP_W - UI_CARD_TEXT_PAD
+STR_TAGNEW_SPOOL_UNSURE	16	360	NEVER	src/ui/tag_create_popup.cpp status line of the card, UI_POPUP_W - UI_CARD_TEXT_PAD
+STR_TAGNEW_PRICE_BTN	14	64	NEVER	src/ui/tag_create_popup.cpp 80 px price button, 8 px air each side
+STR_PRICE_PAD_TITLE	14	460	NEVER	src/ui/price_pad.cpp title above the keypad
+STR_PRICE_PAD_INFO	12	168	WRAP:3	src/ui/price_pad.cpp right column, PP_COL_W
+
+# --- the database picker (db_pick_screen.cpp), widths read off its constants ----
+# The copy popup's tiles (src/ui/entry_tile.cpp): three of 144 px, the caption
+# 12 px narrower, wrapped under the symbol to two lines at most.
+STR_DBPICK_BTN	16	132	WRAP:2	src/ui/copy_flow.cpp copyEntryTiles, tile caption
+STR_NEWTAG_BTN	16	132	WRAP:2	src/ui/copy_flow.cpp copyEntryTiles, tile caption
+STR_COPY_ACTIVE_BTN	16	132	WRAP:2	src/ui/copy_flow.cpp copyEntryTiles, tile caption
+STR_COPY_ARCHIVED_BTN	16	132	WRAP:2	src/ui/copy_flow.cpp copyEntryTiles, tile caption
+STR_DBPICK_LOADING	20	360	WRAP:2	src/ui/db_pick_screen.cpp:597 wait card title, UI_POPUP_W - UI_CARD_TEXT_PAD
+STR_DBPICK_MAKER_TITLE	16	376	NEVER	src/ui/db_pick_screen.cpp:341 header title, 480 - 2 * (44 + 2 * 4)
+STR_DBPICK_OWNED	14	452	NEVER	src/ui/db_pick_screen.cpp caption, DBP_ROW_W
+STR_DBPICK_OTHER_MAKERS	14	452	NEVER	src/ui/db_pick_screen.cpp caption, DBP_ROW_W
+STR_DBPICK_COLOR_TITLE	14	452	NEVER	src/ui/db_pick_screen.cpp caption, DBP_ROW_W
+STR_DBPICK_NOT_LISTED	14	452	WRAP:2	src/ui/db_pick_screen.cpp:354 caption, DBP_ROW_W
+STR_DBPICK_ALL	14	102	NEVER	src/ui/db_pick_screen.cpp:436 family tile, 110 - 2 * 4
+STR_DBPICK_FAM_RED	14	102	NEVER	src/ui/db_pick_screen.cpp:418 family tile, 110 - 2 * 4
+STR_DBPICK_FAM_ORANGE	14	102	NEVER	src/ui/db_pick_screen.cpp:418 family tile, 110 - 2 * 4
+STR_DBPICK_FAM_YELLOW	14	102	NEVER	src/ui/db_pick_screen.cpp:418 family tile, 110 - 2 * 4
+STR_DBPICK_FAM_GREEN	14	102	NEVER	src/ui/db_pick_screen.cpp:418 family tile, 110 - 2 * 4
+STR_DBPICK_FAM_BLUE	14	102	NEVER	src/ui/db_pick_screen.cpp:418 family tile, 110 - 2 * 4
+STR_DBPICK_FAM_PURPLE	14	102	NEVER	src/ui/db_pick_screen.cpp:418 family tile, 110 - 2 * 4
+STR_DBPICK_FAM_PINK	14	102	NEVER	src/ui/db_pick_screen.cpp:418 family tile, 110 - 2 * 4
+STR_DBPICK_FAM_BROWN	14	102	NEVER	src/ui/db_pick_screen.cpp:418 family tile, 110 - 2 * 4
+STR_DBPICK_FAM_BLACK	14	102	NEVER	src/ui/db_pick_screen.cpp:418 family tile, 110 - 2 * 4
+STR_DBPICK_FAM_GREY	14	102	NEVER	src/ui/db_pick_screen.cpp:418 family tile, 110 - 2 * 4
+STR_DBPICK_FAM_WHITE	14	102	NEVER	src/ui/db_pick_screen.cpp:418 family tile, 110 - 2 * 4
+STR_DBPICK_FAM_MULTI	14	102	NEVER	src/ui/db_pick_screen.cpp:418 family tile, 110 - 2 * 4
+STR_DBPICK_FAM_CLEAR	14	102	NEVER	src/ui/db_pick_screen.cpp:418 family tile, 110 - 2 * 4
+STR_DBPICK_SIZE_TITLE	20	376	NEVER	src/ui/db_pick_screen.cpp:559 size question, UI_POPUP_W - 2 * UI_CARD_ROW_X
+STR_DBPICK_NEEDS_NEWER	16	452	WRAP:3	src/ui/db_pick_screen.cpp message, DBP_ROW_W
+STR_DBPICK_FAILED	16	452	WRAP:3	src/ui/db_pick_screen.cpp message, DBP_ROW_W
+STR_DBPICK_EMPTY	16	452	WRAP:3	src/ui/db_pick_screen.cpp message, DBP_ROW_W
+STR_DBPICK_LINE_TITLE	14	452	NEVER	src/ui/db_pick_screen.cpp caption, DBP_ROW_W
+STR_DBPICK_LINE_OTHER	16	140	NEVER	src/ui/db_pick_screen.cpp line tile, 148 - 2 * (2 + 1) - 2
+STR_DBPICK_PICK_LETTER	14	452	WRAP:2	src/ui/db_pick_screen.cpp caption, DBP_ROW_W
+STR_DBPICK_FM_NO_PLUGIN	16	452	WRAP:3	src/ui/db_pick_screen.cpp message, DBP_ROW_W
+STR_DBPICK_SM_UNREACHABLE	16	452	WRAP:3	src/ui/db_pick_screen.cpp message, DBP_ROW_W
+STR_TAGNEW_FROM_FDB	16	360	NEVER	src/ui/tag_create_popup.cpp status line of the card, UI_POPUP_W - UI_CARD_TEXT_PAD
+STR_TAGDB_TITLE	20	400	NEVER	src/ui/tag_db_diff_popup.cpp title, UI_POPUP_W
+STR_TAGDB_TAG	14	116	NEVER	src/ui/tag_db_diff_popup.cpp column head, TDP_VALUE_W
+STR_TAGDB_DB	14	116	NEVER	src/ui/tag_db_diff_popup.cpp column head, TDP_VALUE_W
+STR_TAGDB_COLOR	16	120	NEVER	src/ui/tag_db_diff_popup.cpp row label, TDP_LABEL_W
+STR_TAGDB_NOZZLE_MIN	16	120	NEVER	src/ui/tag_db_diff_popup.cpp row label, TDP_LABEL_W
+STR_TAGDB_NOZZLE_MAX	16	120	NEVER	src/ui/tag_db_diff_popup.cpp row label, TDP_LABEL_W
+STR_TAGDB_WEIGHT	16	120	NEVER	src/ui/tag_db_diff_popup.cpp row label, TDP_LABEL_W
+STR_TAGDB_KEEP	16	184	NEVER	src/ui/tag_db_diff_popup.cpp button, TDP_BTN_W
+STR_TAGDB_TAKE	16	184	NEVER	src/ui/tag_db_diff_popup.cpp button, TDP_BTN_W
+STR_DBPICK_CORE_TITLE	20	376	NEVER	src/ui/db_pick_core_popup.cpp title, UI_POPUP_W - 2 * UI_CARD_ROW_X
+STR_DBPICK_CORE_NONE	16	184	NEVER	src/ui/db_pick_core_popup.cpp bottom button, DBC_BTN_W
+STR_TAGNEW_TAG_PLUS_DB	16	360	NEVER	src/ui/tag_create_popup.cpp status line of the card, UI_POPUP_W - UI_CARD_TEXT_PAD
+STR_BB_DRIED_NATIVE	16	320	NEVER	src/ui/bambuddy_options_screen.cpp makeListBtn title, text_w 320
+STR_BB_DRIED_NATIVE_SUB	12	320	NEVER	src/ui/bambuddy_options_screen.cpp makeListBtn sub, text_w 320
+STR_BB_DRIED_OLDER_ONLY	12	320	NEVER	src/ui/bambuddy_options_screen.cpp makeListBtn sub, text_w 320
+STR_PRN_OWN_LAYOUT	18	154	NEVER	src/ui/print_card.cpp:171 170 px button, -16 air
+STR_LBL_SPOOL_TARE_CAP	12	60	NEVER	src/ui/live_zone.cpp:55 caption at x=344, the column ends at 404
+STR_TILE_SYSTEM_SUB	12	206	NEVER	src/ui/settings_screen.cpp:95 tile subtitle, 226 px tile
+STR_TILE_DISPLAY_SUB	12	206	NEVER	src/ui/settings_screen.cpp:95 tile subtitle, 226 px tile
+STR_SCALE_TITLE	18	376	NEVER	src/ui/ui_common.cpp:259 sub header title, 480 - 2 * (44 + 2 * 4)
+STR_PS_PRINT	20	204	NEVER	src/ui/print_sheet.cpp:246 220 px print button, -16 air
+STR_PS_SERVER	16	320	NEVER	src/ui/print_sheet.cpp:313 list row title, makeListBtn text_w 320
+STR_LBL_FACT_FMT	16	304	NEVER	src/services/label_facts.cpp:56 format of a printed fact line, drawLine cuts it to the label
+STR_BT_REC_NONE	16	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn title, text_w 320
+STR_BT_REC_NONE_SUB	12	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn sub, text_w 320
+STR_BT_REC_OTHER	16	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn title, text_w 320
+STR_BT_REC_OTHER_SUB	12	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn sub, text_w 320
+STR_BT_REC_LABELS	16	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn title, text_w 320
+STR_BT_REC_RIBBON	16	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn title, text_w 320
+STR_BT_REC_SUPPLY_SUB	12	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn sub, text_w 320
+STR_PRN_TAG_RECOMMENDED	12	136	NEVER	src/ui/choice_grid.cpp card tag, 3 columns, text_w 136
+STR_PRN_TAG_EXPERIMENTAL	12	136	NEVER	src/ui/choice_grid.cpp card tag, 3 columns, text_w 136
+STR_PRN_MEDIA_NO_LAYOUT	12	136	NEVER	src/ui/choice_grid.cpp card tag, 3 columns, text_w 136
+STR_TAG_COMP	16	290	NEVER	src/ui/ui_common.cpp addSettingRow title, makeListBtn text_w 290 beside the help circle
+STR_TAG_COMP	18	376	NEVER	src/ui/tag_companion_screen.cpp sub header title, 480 - 2 * (44 + 2 * 4)
+STR_TAG_COMP_OFF	16	320	NEVER	src/ui/tag_companion_screen.cpp makeListBtn title, text_w 320
+STR_TAG_COMP_OFF	12	290	NEVER	src/ui/ui_common.cpp addSettingRow sub, text_w 290 beside the help circle
+STR_TAG_COMP_OFF_SUB	12	320	NEVER	src/ui/tag_companion_screen.cpp makeListBtn sub, text_w 320
+STR_TAG_COMP_TAG_SUB	12	320	NEVER	src/ui/tag_companion_screen.cpp makeListBtn sub, text_w 320
+STR_TAG_COMP_NFCID_SUB	12	320	NEVER	src/ui/tag_companion_screen.cpp makeListBtn sub, text_w 320
+
+# --- the card for an unknown spool (unknown_spool_popup.cpp) ----------------
+# Centred lines UNK_TEXT_W 400; answers 132 px, -8 air; the row's weight line
+# from x 56 to the end, 412 - 56 - 12 = 344, -20 for the tick; chips and tiles
+# 132 px with 12 px air.
+STR_UNK_ASK	16	290	NEVER	src/ui/ui_common.cpp addSettingRow title with help
+STR_UNK_SUGGEST_ONE	14	400	NEVER	src/ui/unknown_spool_popup.cpp caption, UNK_TEXT_W
+STR_UNK_SUGGEST_MANY	14	400	NEVER	src/ui/unknown_spool_popup.cpp caption, UNK_TEXT_W
+STR_UNK_SUGGEST_NEW	14	400	NEVER	src/ui/unknown_spool_popup.cpp caption, UNK_TEXT_W
+STR_UNK_STORED_HIT	14	324	NEVER	src/ui/unknown_spool_popup.cpp row line 2 beside the tick
+STR_UNK_NONE_LINE	16	344	NEVER	src/ui/unknown_spool_popup.cpp create note line 1, 412 - 56 - 12
+STR_UNK_NONE_SUB	14	344	NEVER	src/ui/unknown_spool_popup.cpp create note line 2
+STR_UNK_MORE	16	120	NEVER	src/ui/unknown_spool_popup.cpp last chip
+STR_UNK_BTN_ALL	18	124	NEVER	src/ui/unknown_spool_popup.cpp 132 px answer, -8 air
+STR_UNK_BTN_OTHER	16	124	NEVER	src/ui/unknown_spool_popup.cpp 132 px answer, -8 air
+STR_UNK_BTN_WEIGH	16	124	NEVER	src/ui/unknown_spool_popup.cpp 132 px answer, -8 air
+STR_UNK_TILE_COPY	16	120	NEVER	src/ui/unknown_spool_popup.cpp tile caption
+
+# --- what a spool created off the pad starts with (ui_common.cpp spoolStartText) ---
+# Line 2 of the tag card at 14 px and line 3 of the copy card at 16 px share
+# the six; measured at the larger font, UI_POPUP_W - UI_CARD_TEXT_PAD.
+STR_TAGNEW_W_OF	16	360	NEVER	src/ui/tag_create_popup.cpp line 2, src/ui/copy_confirm_popup.cpp line 3
+STR_TAGNEW_W_FULL	16	360	NEVER	src/ui/tag_create_popup.cpp line 2, src/ui/copy_confirm_popup.cpp line 3
+STR_TAGNEW_W_NOT	16	360	NEVER	src/ui/tag_create_popup.cpp line 2, src/ui/copy_confirm_popup.cpp line 3
+STR_TAGNEW_W_NO_TARE	16	360	NEVER	src/ui/tag_create_popup.cpp line 2, src/ui/copy_confirm_popup.cpp line 3
+STR_TAGNEW_W_OVER	16	360	NEVER	src/ui/tag_create_popup.cpp line 2, src/ui/copy_confirm_popup.cpp line 3
+STR_TAGNEW_W_OVER_TARE	14	360	NEVER	src/ui/tag_create_popup.cpp line 2 of the card
+STR_COPY_CARD_TARE	16	360	NEVER	src/ui/copy_confirm_popup.cpp line 3 of the card
+
+# --- printing on the PC through FilaMan (src/ui/pc_print_popup.cpp) -----------
+# The house card, UI_POPUP_W - UI_CARD_TEXT_PAD = 360 px for the text lines.
+# The answer text has UI_CARD_TEXT_Y 98 to the button row at 186: four lines
+# of 16 px. The two kinds share the answer row: (376 - 8) / 2 = 184 px each,
+# by the button rule 176.
+STR_PCP_TITLE	20	360	NEVER	src/ui/pc_print_popup.cpp question title
+STR_PCP_SUB	14	360	WRAP:2	src/ui/pc_print_popup.cpp question line under the title
+STR_PCP_SPOOL	18	176	NEVER	src/ui/pc_print_popup.cpp kind button, 184 px
+STR_PCP_FILAMENT	18	176	NEVER	src/ui/pc_print_popup.cpp kind button, 184 px
+STR_PCP_SENDING	20	360	NEVER	src/ui/pc_print_popup.cpp busy card
+STR_PCP_SENT_TITLE	20	360	NEVER	src/ui/pc_print_popup.cpp answer title
+STR_PCP_FAIL_TITLE	20	360	NEVER	src/ui/pc_print_popup.cpp answer title
+STR_PCP_SENT_TEXT	16	360	WRAP:4	src/ui/pc_print_popup.cpp answer text
+STR_PCP_NO_ROUTE	16	360	WRAP:4	src/ui/pc_print_popup.cpp answer text
+# --- spool by id (ui/spool_id_pad.cpp, app/id_spool.cpp) ---------------------
+# Main screen button 202 px, the label carries the keyboard icon and two spaces.
+STR_BTN_SPOOL_BY_ID	16	166	NEVER	src/ui/spool_id_pad.cpp buildSpoolByIdButton, 202 px minus icon
+STR_BTN_SPOOL_BY_ID	14	460	NEVER	src/ui/spool_id_pad.cpp pad title, centred
+# The answer column is 168 px, its texts sit 10 px in from either side.
+STR_IDPAD_INFO	12	148	WRAP:8	src/ui/spool_id_pad.cpp answer column above the action button
+STR_IDPAD_SEARCH	16	160	NEVER	src/ui/spool_id_pad.cpp action button, 168 px
+STR_IDPAD_THIS_SPOOL	16	160	NEVER	src/ui/spool_id_pad.cpp action button, 168 px
+STR_IDPAD_SEARCHING	14	148	NEVER	src/ui/spool_id_pad.cpp answer card
+STR_IDPAD_NOT_FOUND	14	148	WRAP:3	src/ui/spool_id_pad.cpp answer card, %d up to six digits
+STR_IDPAD_NOT_FOUND_HINT	12	148	WRAP:5	src/ui/spool_id_pad.cpp answer card under the verdict
+# Status line, narrow variant 262, minus the clear button (40) and its gap (8).
+STR_ID_SPOOL_STATUS	14	214	NEVER	src/app/id_spool.cpp lbl_status, clear button behind it

@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+#include "app_config.h"
+
 // ============================================================
 //  AUTO AMS ASSIGNMENT
 //
@@ -42,15 +44,12 @@ extern int     g_ams_window_s;   // NVS "ams_window",  cached copy of the server
 // it - the weight was written when it was measured.
 #define AMS_PENDING_MAX_MS     120000
 
-// How still the pad has to be before a reading counts as the spool's weight,
-// for the case where nothing was weighed on purpose. Deliberately looser and
-// far shorter than the auto weight criterion (0.5 g over 3 s): there the user
-// is waiting for a countdown, here they are putting a spool down and picking
-// it up again. With the 1.6 s moving average in front of it, this settles
-// about 2.4 s after the spool lands instead of the 5 s the strict values
-// needed - which is why the question never appeared for a short placement.
-#define AMS_SETTLE_TOL_G       2.0f
-#define AMS_SETTLE_MS          800
+// How still the pad has to be before a reading counts as the spool's weight:
+// the pad's one criterion in app_config.h, shared with the card for an
+// unknown spool. The strict values made the question never appear for a
+// short placement.
+#define AMS_SETTLE_TOL_G       PAD_SETTLE_TOL_G
+#define AMS_SETTLE_MS          PAD_SETTLE_MS
 
 // Bounds for the server side auto_assign_timeout.
 #define AMS_WINDOW_MIN_S       5
@@ -91,6 +90,21 @@ int  amsWindowRemainingS();
 // one-second steps. Zero when none is running.
 unsigned long amsWindowRemainingMs();
 
+// The spool the running window was opened for, 0 when none runs.
+int amsWindowSpoolId();
+
+// Whether the running window opened only a moment ago. A tap then is the
+// second half of an impatient double tap on "Assign", not a stop; false when
+// no window runs.
+bool amsWindowJustOpened();
+
+// Ends the countdown on the scale only. FilaMan has no way to cancel a
+// window: the driver drops it by itself the moment a tray is loaded, and a
+// new window replaces it. So once the spool is in, only this countdown was
+// still running. If it was not loaded yet, the driver keeps waiting for it
+// until its own timeout or the next window. No HTTP, safe in a handler.
+void amsWindowEnd(const char* why);
+
 // Writes auto_assign_enabled on this device. Returns the HTTP status, or a
 // negative sentinel from the filaman layer.
 int amsWriteEnabled(bool enabled);
@@ -101,7 +115,7 @@ int amsWriteWindow(int seconds);
 // Reads both fields off the server into g_ams_window_s and out_enabled.
 int amsReadServer(bool* out_enabled);
 
-// One corrective PUT false after boot. Without it a crash between the two
-// PUTs of a commit would leave the flag standing, and "ask" would silently
-// behave like "always".
+// One corrective PUT false after boot, in every mode but "always". Without it
+// a crash or a failed PUT between the two PUTs of a commit would leave the
+// flag standing, and "ask" or "off" would silently behave like "always".
 void amsBootReconcile();

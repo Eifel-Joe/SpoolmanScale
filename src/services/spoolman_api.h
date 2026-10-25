@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Arduino.h>
 #include <ArduinoJson.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -10,6 +11,18 @@
 
 int spoolmanGetJson(const char* base_url, const char* path, JsonDocument& doc,
   uint32_t timeout_ms = 8000, JsonDocument* filter = nullptr, DeserializationError* out_err = nullptr);
+// GET of an answer too large to hold as one document: read() gets the body
+// and reads it as it comes, false when it could not. Returns the HTTP code,
+// -2 when read() said false.
+typedef bool (*SpoolmanBodyReader)(Stream& body, void* ctx);
+int spoolmanGetStreamed(const char* base_url, const char* path, uint32_t timeout_ms,
+                        SpoolmanBodyReader read, void* ctx);
+// POST with the server's answer kept in `answer`. The status decides; an
+// answer that does not parse leaves `answer` empty.
+int spoolmanPostJson(const char* base_url, const char* path, const String& body,
+  JsonDocument& answer, uint32_t timeout_ms = 8000);
+// Percent-encodes a value for a query string: everything but [A-Za-z0-9].
+String spoolmanUrlEncode(const char* s);
 int spoolmanGetSpoolJson(const char* base_url, int spool_id, JsonDocument& doc,
   uint32_t timeout_ms = 8000, DeserializationError* out_err = nullptr);
 int spoolmanGetSpoolListJson(const char* base_url, bool allow_archived, JsonDocument& doc,
@@ -21,6 +34,11 @@ int spoolmanGetSpoolFieldsJson(const char* base_url, JsonDocument& doc,
 int spoolmanGetHealthCode(const char* base_url, uint32_t timeout_ms = 3000);
 bool spoolmanIsReachable(const char* base_url, uint32_t timeout_ms = 3000);
 bool spoolmanGetVersion(const char* base_url, char* out_version, size_t out_size, uint32_t timeout_ms = 3000);
+// Spoolman's "Base URL" (Settings > General), the address its own label
+// dialog puts in a QR code: in `out` as stored, "" when unset. Returns the
+// HTTP code, 404 on a Spoolman older than the setting.
+int spoolmanGetBaseUrlSetting(const char* base_url, char* out, size_t out_size,
+                              uint32_t timeout_ms = 3000);
 int spoolmanCountActiveSpools(const char* base_url, uint32_t timeout_ms = 6000);
 // Count of the active spools and the highest id among them, from one request
 // of under a kilobyte. Returns the HTTP code as it came, -2 for a body that
@@ -136,6 +154,8 @@ int spoolmanMeasureSpool(const char* base_url, int spool_id, float gross_weight,
 int spoolmanPatchInitialWeight(const char* base_url, int spool_id, float initial_weight, uint32_t timeout_ms = 5000);
 int spoolmanPatchArchiveSpool(const char* base_url, int spool_id, uint32_t timeout_ms = 5000);
 int spoolmanPatchSpoolWeight(const char* base_url, int spool_id, float spool_weight, uint32_t timeout_ms = 5000);
+// What the spool cost, in Spoolman's configured currency.
+int spoolmanPatchSpoolPrice(const char* base_url, int spool_id, float price, uint32_t timeout_ms = 5000);
 int spoolmanPatchFilamentSpoolWeight(const char* base_url, int filament_id, float spool_weight, uint32_t timeout_ms = 5000);
 int spoolmanPatchVendorEmptySpoolWeight(const char* base_url, int vendor_id, float spool_weight, uint32_t timeout_ms = 5000);
 int spoolmanPatchSpoolLocation(const char* base_url, int spool_id, const char* location_name = nullptr, uint32_t timeout_ms = 8000);

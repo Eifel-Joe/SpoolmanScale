@@ -15,8 +15,11 @@
 #include "services/auto_weight_state.h"
 #include "services/prefs_store.h"
 #include "services/spoolman_actions.h"
+#include "services/tag_write.h"
 #include "dried_action.h"
+#include "more_info_screen.h"
 #include "app/deferred_actions.h"
+#include "app/id_spool.h"
 #include "spoolman_screen.h"
 #include "tare_entry.h"
 #include "lang.h"
@@ -85,8 +88,17 @@ static int        s_job_spool_id  = 0;  // ... carried with the parked write
 
 static void tareFollowUp();
 static void tareDropFollowUp();
+static void askFreeTag();
+// The question follows the archive a pass later: the popup that asked for
+// the archive is deleted at the end of its pass, and the pool holds one
+// question at a time.
+static bool s_ask_free_tag_pending = false;
 
 void handleConfirmPopupDeferredActions() {
+  if (s_ask_free_tag_pending) {
+    s_ask_free_tag_pending = false;
+    askFreeTag();
+  }
   if (s_job == CJ_NONE) return;
   const ConfirmJob job = s_job;
   s_job = CJ_NONE;
@@ -115,7 +127,7 @@ void handleConfirmPopupDeferredActions() {
     case CJ_TARE_FILAMENT: patchFilamentSpoolWeight(s_job_value); tareFollowUp(); break;
     case CJ_TARE_VENDOR:   patchVendorSpoolWeight(s_job_value);   tareFollowUp(); break;
     case CJ_ARCHIVE:
-      patchArchiveSpool();
+      if (patchArchiveSpool()) s_ask_free_tag_pending = true;
       break;
     case CJ_CAP_RAISE:
       // Order matters: the label first, so the weight that follows has room.
@@ -134,6 +146,42 @@ void handleConfirmPopupDeferredActions() {
   }
 }
 
+
+// The spool "release the tag" was asked for. The answer comes a touch later,
+// and a spool lifted off meanwhile clears sm_id, so the unlink is dropped
+// rather than sent to whatever lies there then.
+static int s_free_tag_spool_id = 0;
+// The tag the erase line was about, as the cache spelt it; empty when the
+// question had no erase line.
+static char s_free_tag_uid[26] = "";
+
+// Asked once the archive is through, never before: a failed archive must not
+// leave a spool that is still active without its tag. Only for a spool that
+// has a binding, and the erase line only when the tag on the reader is one
+// requestTagEraseNow() would actually erase.
+static void askFreeTag() {
+  if (!sm_found || sm_id <= 0) return;
+  if (smBoundUidCount() == 0 && !tag_present) return;
+  s_free_tag_spool_id = sm_id;
+  char msg[224];
+  const bool erase = tagIsWritableNtag() && tagCachedHasRecord();
+  snprintf(s_free_tag_uid, sizeof(s_free_tag_uid), "%s", erase ? tagCachedUid() : "");
+  snprintf(msg, sizeof(msg), erase ? "%s\n\n%s" : "%s", T(STR_FREE_TAG_ASK),
+           T(STR_FREE_TAG_ERASE_LINE));
+  logSDf("Archive: asking to release the tag of spool %d (erase=%d)", sm_id, erase ? 1 : 0);
+  showConfirmPopup(msg, 7);
+}
+
+static void freeTagConfirmed() {
+  if (sm_id != s_free_tag_spool_id || sm_id <= 0) {
+    logSDf("Release tag: was for spool %d, spool %d is loaded now - not sent",
+           s_free_tag_spool_id, sm_id);
+    return;
+  }
+  // Every tag of the spool, the other flange too: an archived spool keeps
+  // none. Only the one on the reader can be erased, the other keeps its data.
+  requestSpoolUnlink(s_free_tag_spool_id, true, true, s_free_tag_uid);
+}
 
 // The weight the scope buttons below will store. Normally whatever is on the
 // pad, but a brand new spool can derive it instead -- see the New spool button.
@@ -341,7 +389,7 @@ void showConfirmPopup(const char* msg, int action) {
   lv_obj_set_size(confirm_popup, 480, 320);
   lv_obj_set_pos(confirm_popup, 0, 0);
   lv_obj_set_style_bg_color(confirm_popup, lv_color_hex(UI_COL_SCRIM), 0);
-  lv_obj_set_style_bg_opa(confirm_popup, LV_OPA_70, 0);
+  lv_obj_set_style_bg_opa(confirm_popup, UI_OPA_SCRIM, 0);
   lv_obj_set_style_border_width(confirm_popup, 0, 0);
   lv_obj_set_style_radius(confirm_popup, 0, 0);
   lv_obj_set_style_pad_all(confirm_popup, 0, 0);  // KRITISCH: kein Default-Padding!
@@ -400,13 +448,12 @@ void showConfirmPopup(const char* msg, int action) {
     // Settled here, with the same arithmetic the weight buttons use, so the
     // reactivate button below can name the number it will write.
     s_reactivate_g = (netto_plain < 0) ? 0.0f : netto_plain;
-    float netto_bag   = netto_plain - bag_weight_g;
     if (netto_plain < 0) netto_plain = 0;
-    if (netto_bag   < 0) netto_bag   = 0;
 
-    // ── Zeile 1 Links: Ohne Beutel ──
+    // ── Row 1 left: without bag ──
     lv_obj_t *btn1 = lv_btn_create(box);
-    lv_obj_set_size(btn1, BW2, H_ROW1);
+    // Without a bag this is the only weight button and takes the whole row.
+    lv_obj_set_size(btn1, bagInUse() ? BW2 : BOX_W - 2*EDGE, H_ROW1);
     lv_obj_set_pos(btn1, XL, Y1);
     lv_obj_set_style_bg_color(btn1, lv_color_hex(UI_COL_OK_BG), 0);
     lv_obj_set_style_bg_color(btn1, lv_color_hex(UI_COL_OK_BG_PRESSED), LV_STATE_PRESSED);
@@ -421,37 +468,39 @@ void showConfirmPopup(const char* msg, int action) {
     }, LV_EVENT_CLICKED, NULL);
     lv_obj_t *l1 = lv_label_create(btn1);
     char buf1[48];
-    snprintf(buf1, sizeof(buf1), T(STR_BTN_NO_BAG_VAL), netto_plain);
+    snprintf(buf1, sizeof(buf1), T(bagInUse() ? STR_BTN_NO_BAG_VAL : STR_BTN_WEIGHT_VAL), netto_plain);
     lv_label_set_text(l1, buf1);
     lv_obj_set_style_text_color(l1, lv_color_hex(UI_COL_OK_TEXT), 0);
     lv_obj_set_style_text_font(l1, &lv_font_montserrat_ext_16, 0);
     lv_obj_set_style_text_align(l1, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_center(l1);
 
-    // ── Zeile 1 Rechts: Mit Beutel ──
-    lv_obj_t *btn2 = lv_btn_create(box);
-    lv_obj_set_size(btn2, BW2, H_ROW1);
-    lv_obj_set_pos(btn2, XR, Y1);
-    lv_obj_set_style_bg_color(btn2, lv_color_hex(UI_COL_OK_BG), 0);
-    lv_obj_set_style_bg_color(btn2, lv_color_hex(UI_COL_BAG_BG_PRESSED), LV_STATE_PRESSED);
-    lv_obj_set_style_radius(btn2, 8, 0);
-    lv_obj_set_style_shadow_width(btn2, 0, 0);
-    lv_obj_add_event_cb(btn2, [](lv_event_t *e) {
-      closeConfirmPopup();
-      float r = scale_weight_g - (float)sm_spool_weight - bag_weight_g;
-      if (r < 0) r = 0;
-      // Gross without the bag: that is what the scale would have shown had
-      // the spool been weighed bare, and it is what FilaMan has to be told.
-      s_job = CJ_WEIGHT; s_job_value = r; s_job_gross = scale_weight_g - bag_weight_g;
-    }, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *l2 = lv_label_create(btn2);
-    char buf2[56];
-    snprintf(buf2, sizeof(buf2), T(STR_BTN_WITH_BAG_VAL), netto_plain, bag_weight_g);
-    lv_label_set_text(l2, buf2);
-    lv_obj_set_style_text_color(l2, lv_color_hex(UI_COL_OK_TEXT), 0);
-    lv_obj_set_style_text_font(l2, &lv_font_montserrat_ext_16, 0);
-    lv_obj_set_style_text_align(l2, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_center(l2);
+    if (bagInUse()) {
+      // ── Row 1 right: with bag ──
+      lv_obj_t *btn2 = lv_btn_create(box);
+      lv_obj_set_size(btn2, BW2, H_ROW1);
+      lv_obj_set_pos(btn2, XR, Y1);
+      lv_obj_set_style_bg_color(btn2, lv_color_hex(UI_COL_OK_BG), 0);
+      lv_obj_set_style_bg_color(btn2, lv_color_hex(UI_COL_BAG_BG_PRESSED), LV_STATE_PRESSED);
+      lv_obj_set_style_radius(btn2, 8, 0);
+      lv_obj_set_style_shadow_width(btn2, 0, 0);
+      lv_obj_add_event_cb(btn2, [](lv_event_t *e) {
+        closeConfirmPopup();
+        float r = scale_weight_g - (float)sm_spool_weight - bag_weight_g;
+        if (r < 0) r = 0;
+        // Gross without the bag: that is what the scale would have shown had
+        // the spool been weighed bare, and it is what FilaMan has to be told.
+        s_job = CJ_WEIGHT; s_job_value = r; s_job_gross = scale_weight_g - bag_weight_g;
+      }, LV_EVENT_CLICKED, NULL);
+      lv_obj_t *l2 = lv_label_create(btn2);
+      char buf2[56];
+      snprintf(buf2, sizeof(buf2), T(STR_BTN_WITH_BAG_VAL), netto_plain, bag_weight_g);
+      lv_label_set_text(l2, buf2);
+      lv_obj_set_style_text_color(l2, lv_color_hex(UI_COL_OK_TEXT), 0);
+      lv_obj_set_style_text_font(l2, &lv_font_montserrat_ext_16, 0);
+      lv_obj_set_style_text_align(l2, LV_TEXT_ALIGN_CENTER, 0);
+      lv_obj_center(l2);
+    }
 
     // ── Zeile 2 Links: Neue Spule ──
     lv_obj_t *btn3 = lv_btn_create(box);
@@ -561,7 +610,7 @@ void showConfirmPopup(const char* msg, int action) {
         lv_obj_set_size(apop, 480, 320);
         lv_obj_set_pos(apop, 0, 0);
         lv_obj_set_style_bg_color(apop, lv_color_hex(UI_COL_SCRIM), 0);
-        lv_obj_set_style_bg_opa(apop, LV_OPA_70, 0);
+        lv_obj_set_style_bg_opa(apop, UI_OPA_SCRIM, 0);
         lv_obj_set_style_border_width(apop, 0, 0);
         lv_obj_set_style_radius(apop, 0, 0);
         lv_obj_set_style_pad_all(apop, 0, 0);
@@ -728,6 +777,14 @@ void showConfirmPopup(const char* msg, int action) {
     lv_obj_set_style_text_align(l6, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_center(l6);
 
+    // A spool shown by its id is never weighed on its own, so the switch has
+    // nothing to switch here; the right-hand button takes the row.
+    if (idSpoolActive()) {
+      lv_obj_add_flag(btn5, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_set_width(btn6, BOX_W - 2*EDGE);
+      lv_obj_set_x(btn6, XL);
+    }
+
     // ── Row 4: cancel (full width) ──
     const int BW_FULL = BOX_W - 2*EDGE;
     lv_obj_t *btn7 = lv_btn_create(box);
@@ -802,6 +859,8 @@ void showConfirmPopup(const char* msg, int action) {
       closeConfirmPopup();
       if (act == 1) btn_dried_cb(nullptr);
       if (act == 3) s_job = CJ_ARCHIVE;
+      // 7 = release the tag of the spool just archived. Flags only.
+      if (act == 7) freeTagConfirmed();
       if (act == 4) spoolmanClearHost();
       // 5 = downgrade confirmed on the OTA screen. Only the flag here; the
       // download runs from appLoop().
@@ -811,7 +870,7 @@ void showConfirmPopup(const char* msg, int action) {
       if (act == 6) cal_reset_pending = true;
     }, LV_EVENT_CLICKED, NULL);
     lv_obj_t *lbl_ja = lv_label_create(btn_ja);
-    lv_label_set_text(lbl_ja, T(STR_BTN_CONFIRMED));
+    lv_label_set_text(lbl_ja, T(action == 7 ? STR_BTN_FREE_TAG : STR_BTN_CONFIRMED));
     lv_obj_set_style_text_font(lbl_ja, &lv_font_montserrat_ext_18, 0);
     lv_obj_set_style_text_color(lbl_ja, lv_color_hex(UI_COL_OK_TEXT), 0);
     lv_obj_center(lbl_ja);
@@ -825,7 +884,8 @@ void showConfirmPopup(const char* msg, int action) {
     lv_obj_set_style_shadow_width(btn_nein, 0, 0);
     lv_obj_add_event_cb(btn_nein, [](lv_event_t *e){ closeConfirmPopup(); }, LV_EVENT_CLICKED, NULL);
     lv_obj_t *lbl_nein = lv_label_create(btn_nein);
-    lv_label_set_text(lbl_nein, T(STR_CANCEL));
+    // Keeping the tag is a fine answer after an archive, not a cancel.
+    lv_label_set_text(lbl_nein, T(action == 7 ? STR_TW_BTN_KEEP : STR_CANCEL));
     lv_obj_set_style_text_font(lbl_nein, &lv_font_montserrat_ext_18, 0);
     lv_obj_set_style_text_color(lbl_nein, lv_color_hex(UI_COL_BAD_TEXT), 0);
     lv_obj_center(lbl_nein);

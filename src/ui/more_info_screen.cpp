@@ -71,6 +71,8 @@ static int  status_pick_id            = 0;   // 1..6, or 0 for "cancelled"
 static bool unlink_pending  = false;
 static bool unlink_all      = false;
 static int  unlink_spool_id = 0;
+static bool unlink_erase_now = false;   // the erase was agreed to with the unlink
+static char unlink_erase_uid[26] = "";  // ... and for this tag, as the question saw it
 static bool loc_patch_pending  = false;
 static char loc_patch_name[LOCATION_NAME_MAX] = "";   // empty: clear the location
 // The picker row is 370 px wide; its label keeps 10 px off each edge.
@@ -104,11 +106,21 @@ static void unlinkConfirmCb(lv_event_t *e) {
   lv_obj_t *btn = lv_event_get_target(e);
   unlink_all      = (bool)(intptr_t)lv_obj_get_user_data(btn);
   unlink_spool_id = sm_id;
+  unlink_erase_now = false;
+  unlink_erase_uid[0] = 0;
   // Read out of the button before the popup goes. The popup is this button's
   // grandparent, so it is released asynchronously; the unlink itself runs from
   // the loop a pass later.
   releaseScreen(&s_unlink_popup);
   unlink_pending = true;
+}
+
+void requestSpoolUnlink(int spool_id, bool all, bool erase_now, const char* erase_uid) {
+  unlink_all       = all;
+  unlink_spool_id  = spool_id;
+  unlink_erase_now = erase_now;
+  snprintf(unlink_erase_uid, sizeof(unlink_erase_uid), "%s", erase_uid ? erase_uid : "");
+  unlink_pending   = true;
 }
 
 static void runUnlink() {
@@ -167,8 +179,9 @@ static void runUnlink() {
   // data - the next reader to see it would still name a spool this one no
   // longer knows. Asked rather than done: the tag may be somebody else's, and
   // the question only appears when one is actually lying there with something
-  // on it.
-  requestTagEraseAsk();
+  // on it. "Release the tag" after an archive has asked it already.
+  if (unlink_erase_now) requestTagEraseNow(unlink_erase_uid);
+  else                  requestTagEraseAsk();
 
   // Close More Info and reset display - NFC will re-scan and find no match
   if (scr_more_info) { lv_obj_del(scr_more_info); scr_more_info = nullptr; }
@@ -372,7 +385,7 @@ void showLocationPicker() {
   lv_obj_set_size(scr_location_picker, 480, 320);
   lv_obj_set_pos(scr_location_picker, 0, 0);
   lv_obj_set_style_bg_color(scr_location_picker, lv_color_hex(UI_COL_SCRIM), 0);
-  lv_obj_set_style_bg_opa(scr_location_picker, LV_OPA_70, 0);
+  lv_obj_set_style_bg_opa(scr_location_picker, UI_OPA_SCRIM, 0);
   lv_obj_set_style_border_width(scr_location_picker, 0, 0);
   lv_obj_set_style_radius(scr_location_picker, 0, 0);
   lv_obj_set_style_pad_all(scr_location_picker, 0, 0);
@@ -708,9 +721,10 @@ static void applyPickedStatus(int status_id) {
 // the archive branch in particular, which tears this screen down first.
 static void onStatusPicked(int status_id) {
   if (status_id == FILAMAN_STATUS_ARCHIVED) {
-    // Archiving empties the spool and unlinks it, so the detail view behind
-    // the picker is about to be wrong either way. patchArchiveSpool() writes
-    // its result onto the main screen.
+    // Archiving empties the spool, so the detail view behind the picker is
+    // about to be wrong either way. patchArchiveSpool() writes its result onto
+    // the main screen. FilaMan keeps the tag on an archived spool; releasing
+    // it is the question that follows the archive.
     releaseScreen(&scr_more_info);
     status_archive_pending = true;
   } else if (status_id > 0 && status_id != sm_status_id) {
@@ -736,7 +750,7 @@ void buildMoreInfoScreen() {
   lv_obj_set_size(scr_more_info, 480, 320);
   lv_obj_set_pos(scr_more_info, 0, 0);
   lv_obj_set_style_bg_color(scr_more_info, lv_color_hex(UI_COL_SCRIM), 0);
-  lv_obj_set_style_bg_opa(scr_more_info, LV_OPA_50, 0);
+  lv_obj_set_style_bg_opa(scr_more_info, UI_OPA_SCRIM, 0);
   lv_obj_set_style_border_width(scr_more_info, 0, 0);
   lv_obj_set_style_radius(scr_more_info, 0, 0);
   lv_obj_set_style_pad_all(scr_more_info, 0, 0);
@@ -792,10 +806,13 @@ void buildMoreInfoScreen() {
     });
   }
 
-  // Print label, left of the X. Only when it can do anything: Bluetooth on,
-  // a printer picked, a spool the backend knows. The print itself runs from
-  // the loop; it starts the BLE stack and blocks for seconds.
-  if (bleEnabled() && labelPrinterConfigured(labelPrinterLoadConfig()) && sm_found && sm_id > 0) {
+  // Print label, left of the X. Only when it can do anything: a spool the
+  // backend knows, and Bluetooth on with a printer picked - or, without one,
+  // FilaMan, which prints on the PC instead (ui/pc_print_popup.h). The print
+  // itself runs from the loop; it starts the BLE stack and blocks for seconds.
+  const bool bt_print = bleEnabled() && labelPrinterConfigured(labelPrinterLoadConfig());
+  const bool pc_print = !bt_print && backendIsFilaMan();
+  if ((bt_print || pc_print) && sm_found && sm_id > 0) {
     lv_obj_t *btn_print = lv_btn_create(hdr);
     lv_obj_set_size(btn_print, 116, 34);
     lv_obj_set_pos(btn_print, 282, 9);
@@ -805,10 +822,17 @@ void buildMoreInfoScreen() {
     lv_obj_set_style_border_width(btn_print, 1, 0);
     lv_obj_set_style_radius(btn_print, UI_RADIUS_BTN, 0);
     lv_obj_set_style_shadow_width(btn_print, 0, 0);
+    // Read here, so the tap below finds it cached and never opens NVS itself.
+    labelPrinterAskFirst();
     lv_obj_add_event_cb(btn_print, [](lv_event_t *e) {
-      logSD("BTN: MoreInfo -> print label");
-      print_spool_label_pending = true;
-    }, LV_EVENT_CLICKED, NULL);
+      const bool on_pc = (bool)(intptr_t)lv_event_get_user_data(e);
+      logSD(on_pc ? "BTN: MoreInfo -> print label on the PC" : "BTN: MoreInfo -> print label");
+      // Over Bluetooth the print sheet first, unless the printer screen
+      // switched it off.
+      if (on_pc) show_pc_print_pending = true;
+      else if (labelPrinterAskFirst()) show_print_sheet_pending = true;
+      else print_spool_label_pending = true;
+    }, LV_EVENT_CLICKED, (void*)(intptr_t)pc_print);
     lv_obj_t *lbl_print = lv_label_create(btn_print);
     lv_label_set_text(lbl_print, T(STR_PRN_LABEL_PRINT));
     lv_obj_set_style_text_color(lbl_print, lv_color_hex(UI_COL_ACCENT), 0);
@@ -1139,7 +1163,7 @@ void buildMoreInfoScreen() {
       lv_obj_set_size(pop, 480, 320);
       lv_obj_set_pos(pop, 0, 0);
       lv_obj_set_style_bg_color(pop, lv_color_hex(UI_COL_SCRIM), 0);
-      lv_obj_set_style_bg_opa(pop, LV_OPA_80, 0);
+      lv_obj_set_style_bg_opa(pop, UI_OPA_SCRIM, 0);
       lv_obj_set_style_border_width(pop, 0, 0);
       lv_obj_set_style_radius(pop, 0, 0);
       lv_obj_set_style_pad_all(pop, 0, 0);

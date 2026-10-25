@@ -26,11 +26,14 @@
 #include "ui/diag_banner.h"
 #include "ui/dried_action.h"
 #include "ui/update_badges.h"
+#include "ui/tare_mark.h"
+#include "ui/live_zone.h"
 #include "ui/header_status.h"
 #include "ui/main_screen_helpers.h"
 #include "ui/more_info_screen.h"
 #include "ui/settings_screen.h"
 #include "ui/spool_flow.h"
+#include "ui/spool_id_pad.h"
 #include "ui/theme.h"
 #include "ui_common.h"
 
@@ -607,69 +610,7 @@ void buildUI() {
   // which is the whole reason the switch asks for a restart instead of
   // rearranging this zone while the user is looking at it.
   if (g_scale_fitted) {
-    // Scale filament netto caption - "Waage - Spule" / "Scale - Spool"
-    lv_obj_t *lbl_sc_cap = lv_label_create(lv_scr_act());
-    char sc_cap_buf[24]; copyT(sc_cap_buf, sizeof(sc_cap_buf), STR_LBL_SCALE_SPOOL_CAP);
-    lv_label_set_text(lbl_sc_cap, sc_cap_buf);
-    lv_obj_set_style_text_color(lbl_sc_cap, lv_color_hex(UI_COL_CAPTION), 0);
-    lv_obj_set_style_text_font(lbl_sc_cap, &lv_font_montserrat_ext_12, 0);
-    lv_obj_set_pos(lbl_sc_cap, 218, 189);
-
-    // Scale filament netto - BIG
-    lbl_scale_weight = lv_label_create(lv_scr_act());
-    lv_label_set_text(lbl_scale_weight, scale_ready ? "0 g" : "---");
-    lv_obj_set_style_text_color(lbl_scale_weight, lv_color_hex(UI_COL_WARN), 0);
-    lv_obj_set_style_text_font(lbl_scale_weight, &lv_font_montserrat_ext_20, 0);
-    lv_obj_set_pos(lbl_scale_weight, 218, 201);
-
-    // SM diff caption + value - both diffs stacked on right side (Fix 3)
-    lv_obj_t *lbl_diff_cap = lv_label_create(lv_scr_act());
-    lv_label_set_text(lbl_diff_cap, T(STR_LBL_DIFF_CAP));
-    lv_obj_set_style_text_color(lbl_diff_cap, lv_color_hex(UI_COL_CAPTION), 0);
-    lv_obj_set_style_text_font(lbl_diff_cap, &lv_font_montserrat_ext_12, 0);
-    lv_obj_set_pos(lbl_diff_cap, 344, 189);
-
-    lbl_raw_info = lv_label_create(lv_scr_act());
-    lv_label_set_text(lbl_raw_info, "");
-    lv_obj_set_style_text_color(lbl_raw_info, lv_color_hex(UI_COL_CAPTION), 0);
-    lv_obj_set_style_text_font(lbl_raw_info, &lv_font_montserrat_ext_16, 0);
-    lv_obj_set_pos(lbl_raw_info, 344, 205);  // shares baseline 220
-
-    // "Gesamt" / "Total" - caption and value share baseline 238
-    lv_obj_t *lbl_live_cap = lv_label_create(lv_scr_act());
-    char live_cap_buf[16]; copyT(live_cap_buf, sizeof(live_cap_buf), STR_LBL_TOTAL_CAP);
-    lv_label_set_text(lbl_live_cap, live_cap_buf);
-    lv_obj_set_style_text_color(lbl_live_cap, lv_color_hex(UI_COL_CAPTION), 0);
-    lv_obj_set_style_text_font(lbl_live_cap, &lv_font_montserrat_ext_12, 0);
-    lv_obj_set_pos(lbl_live_cap, 218, 225);
-
-    lbl_spoolman_dried = lv_label_create(lv_scr_act());
-    lv_label_set_text(lbl_spoolman_dried, "");
-    lv_obj_set_style_text_color(lbl_spoolman_dried, lv_color_hex(UI_COL_VALUE_BLUE), 0);
-    lv_obj_set_style_text_font(lbl_spoolman_dried, &lv_font_montserrat_ext_14, 0);
-    lv_obj_set_pos(lbl_spoolman_dried, 286, 225);
-
-    // "o. Beutel" / "w/o Bag" - caption and value share baseline 256
-    lv_obj_t *lbl_bag_cap = lv_label_create(lv_scr_act());
-    char bag_cap_buf[16]; copyT(bag_cap_buf, sizeof(bag_cap_buf), STR_LBL_WO_BAG_CAP);
-    lv_label_set_text(lbl_bag_cap, bag_cap_buf);
-    lv_obj_set_style_text_color(lbl_bag_cap, lv_color_hex(UI_COL_CAPTION), 0);
-    lv_obj_set_style_text_font(lbl_bag_cap, &lv_font_montserrat_ext_12, 0);
-    lv_obj_set_pos(lbl_bag_cap, 218, 243);
-
-    lv_obj_t *lbl_bag_diff = lv_label_create(lv_scr_act());
-    lv_label_set_text(lbl_bag_diff, "");
-    lv_obj_set_style_text_color(lbl_bag_diff, lv_color_hex(UI_COL_WARN), 0);
-    lv_obj_set_style_text_font(lbl_bag_diff, &lv_font_montserrat_ext_14, 0);
-    lv_obj_set_pos(lbl_bag_diff, 286, 243);
-    lbl_keys = lbl_bag_diff;
-
-    // bag diff - stacked below the netto diff, sharing baseline 256
-    lbl_bag_sm_diff = lv_label_create(lv_scr_act());
-    lv_label_set_text(lbl_bag_sm_diff, "");
-    lv_obj_set_style_text_color(lbl_bag_sm_diff, lv_color_hex(UI_COL_CAPTION), 0);
-    lv_obj_set_style_text_font(lbl_bag_sm_diff, &lv_font_montserrat_ext_16, 0);
-    lv_obj_set_pos(lbl_bag_sm_diff, 344, 241);
+    buildLiveZone();
 
     // Vertical divider, column 2 / TARE. This was a 0 x 0 object for a while,
     // which drew nothing and left the zone looking open to the right.
@@ -719,6 +660,7 @@ void buildUI() {
     lv_obj_set_style_text_color(lbl_tare_txt, lv_color_hex(UI_COL_WARN), 0);
     lv_obj_set_style_text_font(lbl_tare_txt, &lv_font_montserrat_ext_10, 0);
     lv_obj_align(lbl_tare_txt, LV_ALIGN_CENTER, 0, 12);
+    tareMarkCreate(btn_tare);   // the "A" while auto-tare is on
   } else {
     // The right half of the zone. Left half untouched: remaining, percent and
     // the bar come out of the database and are just as true without a load
@@ -756,10 +698,23 @@ void buildUI() {
     lv_obj_set_style_shadow_width(btn_ams_main, 0, 0);
     lv_obj_add_flag(btn_ams_main, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_event_cb(btn_ams_main, [](lv_event_t *e) {
+      // A tap on a running countdown ends it. FilaMan closes the window by
+      // itself once the spool is loaded, so after that only this countdown
+      // stood between the user and the next spool. The view stays one tap
+      // away on the header chip. A tap right after the window opened belongs
+      // to the tap that opened it and is ignored.
+      if (amsWindowOpen()) {
+        if (amsWindowJustOpened()) {
+          logSD("UI: Button -> AMS tap ignored, window just opened (main)");
+          return;
+        }
+        logSD("UI: Button -> AMS countdown stopped (main)");
+        amsWindowEnd("tap");
+        return;
+      }
       // The same test the caption was written from, so a tap does what the
-      // button says. While a window runs the spool is already on its way and
-      // the view is the useful answer: it shows the bay being taken.
-      if (amsMainCanAssign() && !amsWindowOpen()) {
+      // button says.
+      if (amsMainCanAssign()) {
         logSDf("UI: Button -> AMS assign (main), id=%d", sm_id);
         ams_main_assign_pending = true;
         return;
@@ -950,6 +905,8 @@ void buildUI() {
   lv_obj_set_style_text_align(lbl_cp, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(lbl_cp, LV_ALIGN_CENTER, 0, 0);
 
+  btn_by_id = buildSpoolByIdButton(btn_bar);
+
   // Settings/Burger button (x=428, w=44)
   lv_obj_t *btn_menu = lv_btn_create(btn_bar);
   lv_obj_set_size(btn_menu, 44, 39);
@@ -967,10 +924,11 @@ void buildUI() {
   lv_obj_set_style_text_font(lbl_menu, &lv_font_montserrat_ext_16, 0);
   lv_obj_center(lbl_menu);
 
-  // Notification dot on the burger button. It hangs on the screen rather than
-  // on the button bar, because a child of the bar would be clipped at the bar's
-  // edge and half of this dot sits outside it.
-  lbl_burger_badge = createUpdateBadge(lv_scr_act(), btn_menu);
+  // Notification dot on the burger button, a child of the button itself:
+  // createUpdateBadge() lets the button stop clipping, and the dot's centre
+  // on the button's corner still lies inside the button bar, so the bar's own
+  // clipping never reaches it.
+  lbl_burger_badge = createUpdateBadge(btn_menu);
 
   // Header chips and the status bar address are packed from their real
   // widths, so this has to run after every label above exists.

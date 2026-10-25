@@ -16,7 +16,7 @@ If a tool writes code for you, point it at this file and let it run
 
 - **Small fix** (a typo, an obvious bug, a few lines): open a pull request directly.
 - **Anything bigger** (a feature, a new screen, a change to NFC, the scale or a
-  backend): open an issue or ask in the [Discord](https://discord.gg/xadskCrPFu)
+  backend): open an issue or ask in the [Discord](https://discord.gg/K3KmKnrWhP)
   first and wait for a short OK. It saves you work: sometimes the problem is
   already being solved on `dev`, or it needs a different layer than it seems.
 
@@ -71,10 +71,11 @@ most of them.
 - Every text on the display or in the web interface goes through
   `T(STR_XXX)`, also one that reads the same in every language. No literals.
 - A new text is a new row **at the end** of `src/lang.h` and `src/lang.cpp`,
-  with German and English, then a French draft:
-  `python3 tools/lang_fr.py seed`, `apply --draft`, `emit`. The steps are in
+  with German, English and French:
+  `python3 tools/lang_fr.py seed`, `apply`, `emit`. The steps are in
   [tools/FRENCH_TRANSLATION.md](../tools/FRENCH_TRANSLATION.md#add-a-new-text).
-  The owner of the French column reviews drafts later.
+  There is no later review, so translate from where the text sits in the
+  code, not word by word, and keep it no wider than German and English.
 - German uses real umlauts (`ä ö ü ß`), not `ae oe ue ss`.
 - A conflict in `src/lang.cpp` is never resolved by keeping both sides: that
   duplicates rows. Take `dev`'s version and re-add your rows.
@@ -151,8 +152,8 @@ request there is welcome but not required.
 
 ## License
 
-SpoolmanScale is licensed under GPL-3.0-or-later (the `LICENSE` file follows
-with [issue #45](https://github.com/Niko11111/SpoolmanScale/issues/45)). By
+SpoolmanScale is licensed under GPL-3.0-or-later, see [`LICENSE`](../LICENSE)
+and [issue #45](https://github.com/Niko11111/SpoolmanScale/issues/45). By
 submitting a contribution you agree to license it under GPL-3.0-or-later, and
 you grant Nikolai Herrmann the right to also license it under other terms, so
 the project is not locked into one license for good. The GPL version stays free

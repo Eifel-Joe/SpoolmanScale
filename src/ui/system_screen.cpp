@@ -36,7 +36,7 @@ static void showFactoryResetPopup() {
   lv_obj_set_size(pop, 480, 320);
   lv_obj_set_pos(pop, 0, 0);
   lv_obj_set_style_bg_color(pop, lv_color_hex(UI_COL_SCRIM), 0);
-  lv_obj_set_style_bg_opa(pop, LV_OPA_80, 0);
+  lv_obj_set_style_bg_opa(pop, UI_OPA_SCRIM, 0);
   lv_obj_set_style_border_width(pop, 0, 0);
   lv_obj_set_style_radius(pop, 0, 0);
   lv_obj_set_style_pad_all(pop, 0, 0);
@@ -251,7 +251,7 @@ void buildSystemScreen() {
   // computed until the layout runs, so without this the dot would sit at the
   // list's origin instead of on the firmware row.
   lv_obj_update_layout(list);
-  lbl_fw_badge = createUpdateBadge(list, row_fw);
+  lbl_fw_badge = createUpdateBadge(row_fw);
 
   if (sd_verbose) logSD("[verbose] buildSystemScreen: done");
 }

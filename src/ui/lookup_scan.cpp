@@ -43,6 +43,7 @@
 bool spoolHasAnyTag(JsonObjectConst spool);
 
 #include "app/backend_switch.h"
+#include "services/dried_migrate.h"
 #include "services/drying_sync.h"
 #include "services/backend.h"
 #include "services/backend_api.h"
@@ -52,6 +53,7 @@ bool spoolHasAnyTag(JsonObjectConst spool);
 #include "services/location_state.h"
 #include "services/spool_cache.h"
 #include "services/spoolman_actions.h"
+#include "services/last_dried.h"
 #include "services/tag_field.h"
 #include "services/user_options.h"
 #include "services/tag_uid.h"
@@ -63,6 +65,7 @@ bool spoolHasAnyTag(JsonObjectConst spool);
 #include "ui/main_screen_helpers.h"
 #include "ui/spool_flow.h"
 #include "ui/theme.h"
+#include "ui/unknown_spool_popup.h"
 #include "ui_common.h"
 
 // The inventory: 20 s for large Spoolman datasets over WiFi (200+ spools),
@@ -157,6 +160,9 @@ void lookupFollowUp(LookupOrigin origin, const char* uid) {
     default:
       break;
   }
+  // The card for it, opened by the loop once nothing else is in the way.
+  if (!sm_found && s_verdict_certain && origin != LOOKUP_FROM_OTHER)
+    unknownSpoolOffer(origin == LOOKUP_FROM_BAMBU, uid);
 }
 
 // The verdict is in. A lookup that went through the worker has nobody waiting
@@ -615,11 +621,11 @@ LookupStep lookupResolveActive(const LookupCtx& c, JsonDocument& doc,
 
     // Spool status. Only FilaMan maps it, the others leave the key unset.
     sm_status_id = spool["status_id"] | 0;
-    if (!extra["last_dried"].isNull()) {
-      String dried = extra["last_dried"].as<String>();
-      dried.replace("\"", "");
+    char dried[LAST_DRIED_ISO_MAX];
+    lastDriedNewest(extra, dried, sizeof(dried));
+    if (dried[0]) {
       char day[11];
-      isoDayLocal(dried.c_str(), day, sizeof(day));
+      isoDayLocal(dried, day, sizeof(day));
       char de_date[12];
       isoToDe(day, de_date, sizeof(de_date));
       strncpy(sm_last_dried, de_date, sizeof(sm_last_dried)-1);
@@ -652,6 +658,7 @@ LookupStep lookupResolveActive(const LookupCtx& c, JsonDocument& doc,
     // After the verdict above: a tag that does not describe this spool must
     // not hand it its drying advice.
     dryingSyncNote(spool);
+    driedMigrateNote(spool);
 
     bool is_ntag = !is_bambu_tag;
     logSDf("Spool %d identified: %s %s, %.0fg of %.0fg", sm_id,
@@ -667,6 +674,13 @@ LookupStep lookupResolveActive(const LookupCtx& c, JsonDocument& doc,
       setFromServerOrTag(lbl_vendor, sm_vendor_name.c_str(), from_tag ? ti->brand : "");
       strncpy(sm_material_global, sm_material.c_str(), sizeof(sm_material_global)-1);
       sm_material_global[sizeof(sm_material_global)-1] = '\0';
+    } else {
+      // A Bambu tag needs it too: the drying traffic light in per-material
+      // mode reads its thresholds off sm_material_global, and left empty it
+      // stays neutral for every Bambu spool. The tag's material first, as
+      // querySpoolmanById() does, the server's when the tag carries none.
+      snprintf(sm_material_global, sizeof(sm_material_global), "%s",
+               g_tag.material[0] ? g_tag.material : sm_material.c_str());
     }
     applyServerColor(sm_color, is_bambu_tag);
     if (tagSpoolLookupShowsSpool()) applyTagSpoolView();
@@ -796,33 +810,34 @@ LookupStep lookupResolveActive(const LookupCtx& c, JsonDocument& doc,
         }
       }
 
-      // OpenSpoolman reads a spool's tray uuid out of extra.tag and knows
-      // nothing about Spoolman's relation yet. A spool that migrates over
-       // through this path - found by a chip uid in card_uids, say - would
-      // otherwise drop out of its view, and this is the very path a whole
-      // library gets adopted through. The explicit link in patchSpoolTag()
-      // does the same thing for the same reason.
+      // Tools that read a field know nothing about Spoolman's relation -
+      // OpenSpoolman reads the tray uuid out of extra.tag, other setups read
+      // extra.nfc_id. A spool that migrates over through this path - found by
+      // a chip uid in card_uids, say - would otherwise drop out of their view,
+      // and this is the very path a whole library gets adopted through. The
+      // explicit link in patchSpoolTag() does the same thing for the same
+      // reason.
       //
       // Only into an empty field. Filling a blank is an addition; overwriting
       // a value somebody put there would be an opinion, and this runs without
       // anybody asking for it.
-      // Behind its switch, and created on the first write when missing.
-      if (g_osm_tag && tagIsBambu(tray_uuid) && !sm_tag_values[TAG_FIELD_TAG][0]) {
-        const TagFieldSpec& companion = tagFieldSpec(TAG_FIELD_TAG);
-        {
-          char val[40];
-          tagFieldFormat(companion, tray_uuid, val, sizeof(val));
-          int c = backendPatchExtraField(cfg_spoolman_base, sm_id,
-                                         companion.key, val);
-          logSDf("Auto-link: kept tray uuid in %s='%s' of spool %d HTTP %d",
-                 companion.key, val, sm_id, c);
-          if (c >= 200 && c < 300) {
-            strncpy(sm_tag_values[TAG_FIELD_TAG], val, CARD_UIDS_MAX - 1);
-            sm_tag_values[TAG_FIELD_TAG][CARD_UIDS_MAX - 1] = '\0';
-            // Spoolman's own relation does not count as bound in the link
-            // list, a value in extra.tag does.
-            spoolCacheSetBound(sm_id, true);
-          }
+      // Behind its choice (g_tag_comp), and created on the first write when
+      // missing.
+      const int comp = tagCompanionField();
+      char comp_val[40];
+      if (comp >= 0 && !sm_tag_values[comp][0] &&
+          tagCompanionValue(tray_uuid, comp_val, sizeof(comp_val))) {
+        const TagFieldSpec& companion = tagFieldSpec((uint8_t)comp);
+        int c = backendPatchExtraField(cfg_spoolman_base, sm_id,
+                                       companion.key, comp_val);
+        logSDf("Auto-link: kept uid in companion %s='%s' of spool %d HTTP %d",
+               companion.key, comp_val, sm_id, c);
+        if (c >= 200 && c < 300) {
+          strncpy(sm_tag_values[comp], comp_val, CARD_UIDS_MAX - 1);
+          sm_tag_values[comp][CARD_UIDS_MAX - 1] = '\0';
+          // Spoolman's own relation does not count as bound in the link
+          // list, a value in an extra field does.
+          spoolCacheSetBound(sm_id, true);
         }
       }
 
@@ -905,5 +920,6 @@ void lookupResolveArchive(const LookupCtx& c, JsonDocument* doc2p,
   lv_obj_set_style_text_color(lbl_spoolman_weight, lv_color_hex(UI_COL_GOOD), 0);
   sm_found = false;
   s_verdict_unknown = true;
+  s_verdict_certain = c.index_unknown || (scanned_inventory && archive_whole);
   updateLinkButton();
 }

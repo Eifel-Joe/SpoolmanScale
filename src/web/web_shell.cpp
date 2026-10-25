@@ -103,14 +103,14 @@ String webShellDocOpen() {
   // on the next page load without a new firmware.
   h += F("<!DOCTYPE html><html data-theme='");
   h += uiThemeKey(uiThemeActive());
-  // Light or dark from the browser instead: both palettes of the family the
-  // scale runs, app.js picks one before the body is drawn.
-  if (uiWebFollowsSystem()) {
-    h += F("' data-tdark='");
-    h += uiThemeKey(uiThemeInFamily(uiThemeActive(), true));
-    h += F("' data-tlight='");
-    h += uiThemeKey(uiThemeInFamily(uiThemeActive(), false));
-  }
+  // Both palettes of the family the scale runs, so app.js can pick light or
+  // dark before the body is drawn: from the browser when data-tsys says so,
+  // or from the backend page the scale sits in as a frame.
+  h += F("' data-tdark='");
+  h += uiThemeKey(uiThemeInFamily(uiThemeActive(), true));
+  h += F("' data-tlight='");
+  h += uiThemeKey(uiThemeInFamily(uiThemeActive(), false));
+  if (uiWebFollowsSystem()) h += F("' data-tsys='1");
   // Own colours ride along as attributes; app.js lays them over the palette.
   const UiThemeCustom own = uiThemeCustomActive();
   char attr[48];
@@ -136,7 +136,13 @@ String webShellAssets() {
   // page's own script runs at the end of the body.
   h += F("'><script src='/app.js?v=");
   h += webStaticVersion();
-  h += F("'></script>");
+  // The two buttons of ask(), on every page: app.js is cached across
+  // languages, so its own words stay English fallbacks.
+  h += F("'></script><script>WS.yes=");
+  h += jsStr(T(STR_CONFIRM));
+  h += F(";WS.no=");
+  h += jsStr(T(STR_CANCEL));
+  h += F(";</script>");
   return h;
 }
 
@@ -241,7 +247,7 @@ String webShellLinks() {
   // The name leaves the label on wide screens, so it stays reachable on hover.
   h += F("</span><span class='sm'>Ko-fi</span></a>"
 
-    "<a href='https://discord.gg/xadskCrPFu' target='_blank' rel='noopener'>"
+    "<a href='https://discord.gg/K3KmKnrWhP' target='_blank' rel='noopener'>"
     SVG_OPEN
     "M20.3 4.4a19.8 19.8 0 00-4.9-1.5l-.6 1.2a18.3 18.3 0 00-5.5 0l-.6-1.2a19.7 "
     "19.7 0 00-4.9 1.5C.5 9 -.3 13.6.1 18a19.9 19.9 0 006 3l1.2-2a13.1 13.1 0 01"
@@ -343,7 +349,10 @@ String webShellRestartUi() {
   h += F("<style>"
          // The page's own ground, nearly opaque: the scrim follows the
          // palette. A browser without color-mix() keeps the solid ground.
-         "#rbox{display:none;position:fixed;inset:0;background:var(--ground);"
+         // Top and bottom follow the part of a backend's frame on screen,
+         // like ask() (app.js).
+         "#rbox{display:none;position:fixed;left:0;right:0;top:var(--vis-top,0px);"
+         "bottom:var(--vis-bot,0px);background:var(--ground);"
          "background:color-mix(in srgb,var(--ground) 92%,transparent);z-index:99;"
          "align-items:center;justify-content:center}"
          "#rbox .rc{background:var(--surface);border:1px solid var(--line);border-radius:14px;"
@@ -362,6 +371,7 @@ String webShellRestartUi() {
   h += F("</div></div></div><script>"
          "const RT={ask:");
   h += jsStr(T(STR_W_RESTART_ASK));
+  h += F(",go:");     h += jsStr(T(STR_W_RESTART));
   h += F(",wait:");   h += jsStr(T(STR_W_RESTART_WAIT));
   h += F(",sd:");     h += jsStr(T(STR_W_RESTART_SD));
   h += F(",still:");  h += jsStr(T(STR_W_RESTART_LONG));
@@ -369,7 +379,7 @@ String webShellRestartUi() {
   h += F(",reload:"); h += jsStr(T(STR_W_RELOAD));
   h += F("};"
          "async function doRestart(){"
-         "if(!confirm(RT.ask))return;"
+         "if(!await ask(RT.ask,RT.go))return;"
          "let sd=false;"
          "try{sd=(await(await fetch('/status.json',{cache:'no-store'})).json()).sd}catch(e){}"
          "try{await fetch('/api/restart',{method:'POST'})}catch(e){}"

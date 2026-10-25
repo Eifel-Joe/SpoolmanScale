@@ -142,6 +142,40 @@ static bool serverShouldRun() {
 
 static void registerRoutes();
 
+// The origin the configured backend is served from: scheme, host and port,
+// no path, the only form frame-ancestors accepts. Only FilaMan and BamBuddy
+// get one, the two that can show the scale in a frame and the condition the
+// card on the backend page uses: in Spoolman mode nothing embeds, so nothing
+// is allowed to. Empty when the host holds anything a host and port are not
+// made of: the value goes into a response header, where a space or a
+// semicolon would change the policy.
+static String backendFrameOrigin() {
+  if (!backendIsFilaMan() && !backendIsBamBuddy()) return "";
+  String base = backendBaseUrl();
+  base.toLowerCase();
+  String origin;
+  if (base.startsWith("http://") || base.startsWith("https://")) {
+    const int host_start = base.indexOf("://") + 3;   // past "://"
+    const int path_start = base.indexOf('/', host_start);
+    origin = (path_start < 0) ? base : base.substring(0, path_start);
+    if ((int)origin.length() == host_start) origin = "";
+    for (size_t i = host_start; i < origin.length(); i++) {
+      const char c = origin[i];
+      if (!isalnum((unsigned char)c) && c != '.' && c != ':' && c != '-') { origin = ""; break; }
+    }
+  }
+  // Said once per address, not per request: the card on the backend page
+  // promises that exactly this address embeds, so a refused one (an IPv6
+  // literal, an underscore in the name) has to show up in the log.
+  static String refused;
+  if (!origin.length() && base.length() && base != refused) {
+    refused = base;
+    Serial.printf("Frame origin refused, backend address is not host:port: %s\n", base.c_str());
+    logSDf("Frame origin refused, backend address is not host:port: %s", base.c_str());
+  }
+  return origin;
+}
+
 static void serverEnsureRunning() {
   if (ota_server_running) return;
   registerRoutes();
@@ -237,6 +271,14 @@ static void registerRoutes() {
       // same network could otherwise lay its own buttons over Flash, Erase or
       // Restart and have a visitor click them.
       ota_server.sendHeader("X-Frame-Options", "DENY");
+      // The one exception is a FilaMan or BamBuddy backend set on the scale,
+      // so its sidebar link or plugin page can show it. A browser that
+      // knows frame-ancestors follows it and skips the DENY above; an older
+      // one keeps refusing every frame.
+      const String frame_origin = backendFrameOrigin();
+      if (frame_origin.length()) {
+        ota_server.sendHeader("Content-Security-Policy", "frame-ancestors " + frame_origin);
+      }
       ota_server.send(200, "text/html", html);
     });
     if (pg->routes) pg->routes(ota_server);

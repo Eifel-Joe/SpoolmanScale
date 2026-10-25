@@ -5,15 +5,23 @@
 #include <string.h>
 
 #include "app/app_state.h"
+#include "app_config.h"
 #include "hardware/sd_logger.h"
 #include "services/backend.h"
 #include "services/bambuddy_api.h"
 #include "services/bambuddy_device.h"
+#include "services/bambuddy_filament_db.h"
 #include "services/filaman_api.h"
+#include "services/filaman_filament.h"
+#include "services/filaman_filament_db.h"
+#include "services/filaman_labels.h"
 #include "services/http_progress.h"
+#include "services/last_dried.h"
 #include "services/list_limits.h"
 #include "services/device_name.h"
 #include "services/spoolman_api.h"
+#include "services/spoolman_filament.h"
+#include "services/spoolman_filament_db.h"
 #include "services/tag_field.h"
 #include "services/tag_uid.h"
 #include "services/text_util.h"
@@ -69,6 +77,9 @@ void backendAfterConnect() {
   // The server on the other end may be a different one than before, so the
   // device presence starts over rather than heartbeating at a stale id.
   bambuddyDeviceReset();
+  // Same for the drying date field: the next spool read tells again. Here and
+  // not in bbDetectInventoryMode(), which the health check runs every 30 s.
+  bbForgetDriedField();
   // Deliberately not cached behind a "done" flag: the address or the key can
   // change between two calls, and the answer is one small request.
   bbDetectInventoryMode(backendBaseUrl(), bambuddyApiKey());
@@ -586,6 +597,32 @@ bool backendGetVersion(const char* base_url, char* out_version, size_t out_size,
   }
 }
 
+void backendTargetSnapshot(BackendTarget* out) {
+  out->mode = backendMode();
+  snprintf(out->base, sizeof(out->base), "%s", backendBaseUrl());
+  const char* key = out->mode == BACKEND_FILAMAN  ? filamanApiKey()
+                  : out->mode == BACKEND_BAMBUDDY ? bambuddyApiKey() : "";
+  snprintf(out->key, sizeof(out->key), "%s", key);
+}
+
+int backendGetLinkBaseAt(const BackendTarget& at, char* out, size_t out_size, uint32_t timeout_ms) {
+  switch (at.mode) {
+    case BACKEND_FILAMAN:
+      return notSupported(__func__);
+    case BACKEND_BAMBUDDY:
+      return bbGetExternalUrl(at.base, at.key, out, out_size, timeout_ms);
+    default:
+      return spoolmanGetBaseUrlSetting(at.base, out, out_size, timeout_ms);
+  }
+}
+
+int backendGetLinkBase(char* out, size_t out_size, uint32_t timeout_ms) {
+  HttpStallTime stall(__func__);   // the loop stands still for this call
+  BackendTarget at;
+  backendTargetSnapshot(&at);
+  return backendGetLinkBaseAt(at, out, out_size, timeout_ms);
+}
+
 int backendCountActiveSpools(const char* base_url, uint32_t timeout_ms) {
   HttpStallTime stall(__func__);   // the loop stands still for this call
   switch (backendMode()) {
@@ -735,7 +772,58 @@ int backendCreateSpool(const char* base_url, int template_spool_id, int filament
 }
 
 bool backendCanCreateFromTag() {
-  return backendMode() == BACKEND_BAMBUDDY;
+  return true;
+}
+
+// BamBuddy's colour catalogue is the database of its own inventory only.
+static bool bambuddyHasColorCatalog() {
+  return backendMode() == BACKEND_BAMBUDDY && bbInventoryMode() == BB_INV_LOCAL;
+}
+
+// A BamBuddy that keeps its spools on a Spoolman server, whose address it
+// told the scale. That server's own database and filaments are used
+// directly, the way the drying date side channel does: the proxy would
+// rebuild a picked entry as "Material Subtype" without temperatures, article
+// number or external_id, next to the filaments SpoolmanDB already made.
+static bool bambuddyBehindSpoolman() {
+  return backendMode() == BACKEND_BAMBUDDY && bbInventoryMode() == BB_INV_SPOOLMAN &&
+         bbSpoolmanUrl()[0] != '\0';
+}
+
+const char* backendFdbBaseUrl() {
+  return bambuddyBehindSpoolman() ? bbSpoolmanUrl() : backendBaseUrl();
+}
+
+bool backendCanBrowseFilamentDb() {
+  return backendMode() == BACKEND_SPOOLMAN || backendMode() == BACKEND_FILAMAN ||
+         bambuddyHasColorCatalog() || bambuddyBehindSpoolman();
+}
+
+int backendFdbLoadIndex(const char* base_url) {
+  if (backendIsFilaMan()) return filamanFdbLoadIndex(base_url, filamanApiKey());
+  if (bambuddyHasColorCatalog()) return bambuddyFdbLoadIndex(base_url, bambuddyApiKey());
+  if (bambuddyBehindSpoolman()) return spoolmanFdbLoadIndex(base_url);
+  if (backendMode() != BACKEND_SPOOLMAN) return notSupported("FdbLoadIndex");
+  return spoolmanFdbLoadIndex(base_url);
+}
+
+int backendFdbLoadPairs(const char* base_url, const char* maker) {
+  if (!backendIsFilaMan()) return notSupported("FdbLoadPairs");
+  return filamanFdbLoadPairs(base_url, filamanApiKey(), maker);
+}
+
+int backendFdbLoadEntries(const char* base_url, const char* maker, const char* material) {
+  if (backendIsFilaMan()) return filamanFdbLoadEntries(base_url, filamanApiKey(), maker, material);
+  if (bambuddyHasColorCatalog()) return bambuddyFdbLoadEntries(base_url, bambuddyApiKey(), maker, material);
+  if (bambuddyBehindSpoolman()) return spoolmanFdbLoadEntries(base_url, maker, material);
+  if (backendMode() != BACKEND_SPOOLMAN) return notSupported("FdbLoadEntries");
+  return spoolmanFdbLoadEntries(base_url, maker, material);
+}
+
+void backendFdbCompleteInput(TagCreateInput* in) {
+  // A SpoolmanDB entry brings its own names; only the colour catalogue
+  // leaves them to the scale.
+  if (bambuddyHasColorCatalog()) bambuddyFdbCompleteInput(in);
 }
 
 void backendLookupColorName(const char* hex6, const char* material,
@@ -748,30 +836,169 @@ void backendLookupColorName(const char* hex6, const char* material,
                     out_name, out_size);
 }
 
-int backendCreateSpoolFromTag(const char* material, const char* subtype,
-                              const char* brand, const char* rgba,
-                              const char* color_name,
-                              int label_weight, int core_weight, float remaining_weight,
-                              int nozzle_temp_min, int nozzle_temp_max,
-                              int* out_spool_id, uint32_t timeout_ms) {
-  HttpStallTime stall(__func__);   // the loop stands still for this call
-  if (out_spool_id) *out_spool_id = 0;
-  if (backendMode() != BACKEND_BAMBUDDY) return notSupported("CreateSpoolFromTag");
-
+// A spool is material, brand and colour as strings in BamBuddy, nothing to
+// look up first. An empty spool of 0 is left out and BamBuddy keeps its own
+// default; the price goes in per kilogram, the way BamBuddy keeps it.
+static int bambuddyCreateFromTag(const TagCreateInput& in, const TagFilamentPlan& plan,
+                                 const TagSpoolValues& v, TagCreateResult* out) {
+  char colors[TAG_CREATE_COLOURS * 7 + 1] = "";
+  if (in.color_count >= 2) tagCreateColorList(in, colors, sizeof(colors));
   BbNewSpool ns;
-  ns.material        = material;
-  ns.subtype         = subtype;
-  ns.brand           = brand;
-  ns.rgba            = rgba;
-  ns.color_name      = color_name;
-  ns.label_weight    = label_weight;
-  ns.core_weight     = core_weight;
-  ns.nozzle_temp_min = nozzle_temp_min;
-  ns.nozzle_temp_max = nozzle_temp_max;
-  ns.weight_used = (float)label_weight - remaining_weight;
+  ns.material        = in.material;
+  ns.subtype         = in.subtype;
+  ns.brand           = in.vendor;
+  ns.rgba            = in.rgba;
+  ns.color_name      = plan.name;
+  ns.label_weight    = v.label_weight;
+  // BamBuddy subtracts the spool's own core on its side, so the spool gets it.
+  ns.core_weight     = tagCreateTare(in, plan, nullptr, nullptr);
+  ns.core_weight_catalog_id = in.spool_catalog_id;
+  ns.nozzle_temp_min = in.temp_min;
+  ns.nozzle_temp_max = in.temp_max;
+  ns.extra_colors    = colors;
+  ns.effect_type     = in.color_count < 2 ? "" : in.color_kind == TCK_DUAL ? "dual-color" : "gradient";
+  ns.material_number = in.article;
+  if (v.price > 0.0f && v.label_weight > 0) ns.cost_per_kg = v.price * 1000.0f / (float)v.label_weight;
+  ns.weight_used = (float)v.label_weight - v.remaining;
   if (ns.weight_used < 0.0f) ns.weight_used = 0.0f;
+  out->spool_sent = true;
+  return bbCreateSpool(backendBaseUrl(), bambuddyApiKey(), ns, &out->spool_id);
+}
 
-  return bbCreateSpool(backendBaseUrl(), bambuddyApiKey(), ns, out_spool_id, timeout_ms);
+// BamBuddy names the colour on the spool itself: the catalog's English
+// name, which is how BamBuddy names Bambu's colours too, or BamBuddy's own
+// when the catalog does not know the colour.
+static void planBamBuddyColor(const TagCreateInput& in, TagFilamentPlan* plan) {
+  plan->state = TFS_NOT_NEEDED;
+  if (in.color_name_en[0]) {
+    snprintf(plan->name, sizeof(plan->name), "%s", in.color_name_en);
+    return;
+  }
+  // A clear filament has no hue to name; BamBuddy would answer "Black".
+  if (in.color_hex[0])
+    bbLookupColorName(backendBaseUrl(), bambuddyApiKey(), in.rgba, in.material,
+                      plan->name, sizeof(plan->name));
+}
+
+void backendPlanTagFilament(const TagCreateInput& in, TagFilamentPlan* plan) {
+  HttpStallTime stall(__func__);   // the loop stands still for this call
+  tagFilamentPlanClear(plan);
+  switch (backendMode()) {
+    case BACKEND_FILAMAN:
+      filamanPlanTagFilament(backendBaseUrl(), filamanApiKey(), in, plan);
+      break;
+    case BACKEND_BAMBUDDY:
+      if (bambuddyBehindSpoolman()) spoolmanPlanTagFilament(backendFdbBaseUrl(), in, plan);
+      else                          planBamBuddyColor(in, plan);
+      break;
+    default:
+      spoolmanPlanTagFilament(backendBaseUrl(), in, plan);
+      break;
+  }
+  // A maker's fixed core gives way to an empty spool the brand has on file:
+  // the filament is then created without one and inherits the brand's, the
+  // way the lookup's chain reads it (spoolTare()).
+  if (in.spool_weight_default && plan->vendor_spool_weight_g > 0) plan->spool_weight_g = 0;
+  logSDf("Tag create plan: %s %s %s art=%s -> state %d, filament %d \"%s\", tare %d/%d/%d g",
+         in.vendor, in.material, in.subtype, in.article, (int)plan->state,
+         plan->filament_id, plan->name, plan->found_spool_weight_g,
+         plan->vendor_spool_weight_g, plan->spool_weight_g);
+}
+
+// The filament the new spool goes under: the one the plan found, or a new
+// one. 200 with *out_id set, or the failing request's code.
+static int filamentForSpool(const TagCreateInput& in, const TagFilamentPlan& plan,
+                            TagCreateResult* out, int* out_id) {
+  *out_id = plan.filament_id;
+  if (plan.state == TFS_FOUND) return 200;
+  if (plan.state != TFS_CREATE_DB && plan.state != TFS_CREATE_TAG) return -1;
+  const int code = backendIsFilaMan()
+    ? filamanCreateTagFilament(backendBaseUrl(), filamanApiKey(), in, plan, out_id)
+    : spoolmanCreateTagFilament(backendFdbBaseUrl(), in, plan, out_id);
+  out->filament_id = *out_id;
+  if (*out_id > 0) return 200;
+  // A success without an id is no filament either.
+  return (code == 200 || code == 201) ? -1 : code;
+}
+
+// The price on a spool that exists now. Its own request: the create calls
+// are shared with the copy flow, which has no price.
+static void patchSpoolPrice(int spool_id, float price, TagCreateResult* out) {
+  if (price <= 0.0f || spool_id <= 0) return;
+  const int code = backendIsFilaMan()
+    ? filamanPatchSpoolPrice(backendBaseUrl(), filamanApiKey(), spool_id, price)
+    : spoolmanPatchSpoolPrice(backendBaseUrl(), spool_id, price);
+  out->price_lost = !backendWriteOk(code);
+  if (out->price_lost) logSDf("Tag create: price %.2f for spool %d -> HTTP %d", price, spool_id, code);
+}
+
+// The filament on the Spoolman server behind BamBuddy, found or made there
+// as in Spoolman mode; then the spool through BamBuddy under that filament's
+// id. BamBuddy keeps doing what it does for its own spools (the price, the
+// colour name in extra), and the tag link afterwards stays the proxy's.
+static int bambuddyCreateUnderSpoolman(const TagCreateInput& in, const TagFilamentPlan& plan,
+                                       const TagSpoolValues& v, TagCreateResult* out) {
+  int filament_id = 0;
+  const int code = filamentForSpool(in, plan, out, &filament_id);
+  if (code != 200) return code;
+  BbNewSpool ns;
+  ns.spoolman_filament_id = filament_id;
+  // Ignored by BamBuddy once the id is set, but the request insists on one.
+  ns.material     = in.material;
+  ns.brand        = in.vendor;
+  // Only a real colour name (a Bambu tag's, from the catalog): a SpoolmanDB
+  // entry names no colour of its own, and BamBuddy derives the display from
+  // the Spoolman filament anyway, as it does for every other spool there.
+  ns.color_name   = in.color_name_en;
+  ns.label_weight = v.label_weight;
+  // BamBuddy subtracts the spool's own core on its side, so the spool gets
+  // what it is weighed against, whichever level it came from.
+  ns.core_weight  = tagCreateTare(in, plan, nullptr, nullptr);
+  if (v.price > 0.0f && v.label_weight > 0) ns.cost_per_kg = v.price * 1000.0f / (float)v.label_weight;
+  ns.weight_used  = (float)v.label_weight - v.remaining;
+  if (ns.weight_used < 0.0f) ns.weight_used = 0.0f;
+  out->spool_sent = true;
+  bool warned = false;
+  const int sc = bbCreateSpool(backendBaseUrl(), bambuddyApiKey(), ns, &out->spool_id,
+                               BB_CREATE_TIMEOUT_MS, &warned);
+  // The proxy's one step after the spool is the price: a warning with a
+  // price given is that step.
+  out->price_lost = warned && v.price > 0.0f;
+  return sc;
+}
+
+int backendCreateFromTag(const TagCreateInput& in, const TagFilamentPlan& plan,
+                         const TagSpoolValues& v, TagCreateResult* out) {
+  HttpStallTime stall(__func__);   // the loop stands still for this call
+  *out = TagCreateResult{};
+  if (backendIsBamBuddy()) {
+    // A plan from the colour catalogue has nothing to make first, and a mode
+    // that moved between plan and create is served by the path that works
+    // in both: the proxy's own create.
+    const bool proxy = plan.state == TFS_NOT_NEEDED || !bambuddyBehindSpoolman();
+    return proxy ? bambuddyCreateFromTag(in, plan, v, out)
+                 : bambuddyCreateUnderSpoolman(in, plan, v, out);
+  }
+  int filament_id = 0;
+  int code = filamentForSpool(in, plan, out, &filament_id);
+  if (code != 200) return code;
+  // What the new spool is weighed against. Spoolman keeps the chain itself
+  // (spoolTare()): a tare inherited from the filament or the brand is not
+  // copied onto the spool, so a later correction there still reaches it.
+  // FilaMan subtracts the spool's own empty weight on its side, so it gets
+  // the value whichever level it came from.
+  uint8_t tare_from = TARE_NONE;
+  const int tare = tagCreateTare(in, plan, &tare_from, nullptr);
+  const bool inherited = tare_from == TARE_FILAMENT || tare_from == TARE_VENDOR;
+  const float spool_w = (inherited && !backendIsFilaMan()) ? 0.0f : (float)tare;
+  out->spool_sent = true;
+  code = backendIsFilaMan()
+    ? filamanCreateSpool(backendBaseUrl(), filamanApiKey(), filament_id, (float)v.label_weight,
+                         spool_w, v.remaining, nullptr, &out->spool_id)
+    : spoolmanCreateSpool(backendBaseUrl(), filament_id, (float)v.label_weight,
+                          spool_w, v.remaining, &out->spool_id);
+  if (backendWriteOk(code)) patchSpoolPrice(out->spool_id, v.price, out);
+  return code;
 }
 
 int backendCreateSpoolField(const char* base_url, const char* field_name,
@@ -1111,8 +1338,13 @@ int backendPatchSpoolLastDried(const char* base_url, int spool_id, const char* i
       return filamanPatchCustomField(backendBaseUrl(), filamanApiKey(), spool_id,
                                      "last_dried", iso_datetime, timeout_ms);
     case BACKEND_BAMBUDDY:
-      // BamBuddy has no field for this at all - upstream issues #2863 and
-      // #1754 are open. The user picks where it goes instead.
+      // A BamBuddy with its own field (#2863) takes the date there, whatever
+      // the setting says. Older ones have none, so the user picks where it
+      // goes instead. Asked of the server when nothing was read from it yet.
+      if (bbProbeDriedField(backendBaseUrl(), bambuddyApiKey(), spool_id, timeout_ms)) {
+        return bbPatchLastDried(backendBaseUrl(), bambuddyApiKey(), spool_id,
+                                iso_datetime, timeout_ms);
+      }
       switch (g_bb_dried_target) {
         case BB_DRIED_SPOOLMAN:
           // Past BamBuddy, straight into the Spoolman database behind it.
@@ -1166,10 +1398,25 @@ int backendPatchFilamentDrying(int filament_id, int spool_id, const char* value,
   }
 }
 
+bool backendHasNativeLastDried() {
+  return backendMode() == BACKEND_BAMBUDDY && bbHasDriedField();
+}
+
+bool backendLastDriedFromSpoolman(int spool_id) {
+  return backendMode() == BACKEND_BAMBUDDY && bbLastDriedFromSpoolman(spool_id);
+}
+
+int backendMigrateLastDried(int spool_id, uint32_t timeout_ms) {
+  HttpStallTime stall(__func__);   // the loop stands still for this call
+  if (backendMode() != BACKEND_BAMBUDDY) return notSupported("MigrateLastDried");
+  return bbMigrateDried(backendBaseUrl(), bambuddyApiKey(), spool_id, timeout_ms);
+}
+
 // Mirrors the switch above, branch for branch, minus the request.
 bool backendCanPatchLastDried() {
   switch (backendMode()) {
     case BACKEND_BAMBUDDY:
+      if (bbHasDriedField()) return true;
       switch (g_bb_dried_target) {
         case BB_DRIED_SPOOLMAN:
           return bbInventoryMode() == BB_INV_SPOOLMAN && bbSpoolmanUrl()[0];
@@ -1395,8 +1642,8 @@ int backendGetSpoolDetail(int spool_id, AmsSpoolDetail& out, uint32_t timeout_ms
     }
   }
 
-  char iso[32];
-  extraText(sp["extra"]["last_dried"], iso, sizeof(iso));
+  char iso[LAST_DRIED_ISO_MAX];
+  lastDriedNewest(sp["extra"], iso, sizeof(iso));
   if (iso[0]) isoDayLocal(iso, out.last_dried, sizeof(out.last_dried));
   // The same three step rule applyLastUsed() follows on the main screen, and
   // it has to be the same: a card that showed a dash where the screen behind
@@ -1443,4 +1690,27 @@ int backendGetSpoolDetail(int spool_id, AmsSpoolDetail& out, uint32_t timeout_ms
 
   out.found = true;
   return 200;
+}
+
+int backendLabelPresets(FilamanLabelPresetList* list, uint32_t timeout_ms) {
+  HttpStallTime stall(__func__);
+  if (backendMode() != BACKEND_FILAMAN) return notSupported(__func__);
+  return filamanLabelPresets(backendBaseUrl(), filamanApiKey(), list, timeout_ms);
+}
+
+int backendLabelRender(FilamanLabelRequest req, LabelRaster* out,
+                       char* reason, size_t reason_size) {
+  HttpStallTime stall(__func__);
+  if (backendMode() != BACKEND_FILAMAN) return notSupported(__func__);
+  req.base_url = backendBaseUrl();
+  req.api_key = filamanApiKey();
+  return filamanLabelRender(req, out, reason, reason_size);
+}
+
+int backendLabelPrintRequest(bool filament, int id, char* reason, size_t reason_size,
+                             uint32_t timeout_ms) {
+  HttpStallTime stall(__func__);
+  if (backendMode() != BACKEND_FILAMAN) return notSupported(__func__);
+  return filamanLabelPrintRequest(backendBaseUrl(), filamanApiKey(), filament, id,
+                                  reason, reason_size, timeout_ms);
 }

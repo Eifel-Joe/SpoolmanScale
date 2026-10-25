@@ -12,21 +12,14 @@
 #include "services/user_options.h"
 #include "services/backend.h"
 #include "services/http_progress.h"
+#include "services/json_util.h"
 #include "services/loop_task.h"
 #include "services/spool_color.h"
 #include "services/tag_uid.h"
 #include "services/text_util.h"
 
-// Whether an object carries the key at all, a null value included. This is
-// what containsKey() answered; obj[key].isNull() also says "absent" for a key
-// that is present and null, and here the key's presence is the whole question:
-// a FilaMan that has the second rfid column answers null for a spool without
-// a second chip.
-static bool jsonHasKey(JsonObjectConst obj, const char* key) {
-  for (JsonPairConst kv : obj)
-    if (strcmp(kv.key().c_str(), key) == 0) return true;
-  return false;
-}
+// jsonHasKey() matters here because a FilaMan that has the second rfid column
+// answers null for a spool without a second chip: presence, not value.
 
 namespace {
 
@@ -397,6 +390,8 @@ static void addApiKey(HTTPClient& http, const char* api_key) {
     http.addHeader("Authorization", String("ApiKey ") + api_key);
   }
 }
+
+void filamanAddApiKey(HTTPClient& http, const char* api_key) { addApiKey(http, api_key); }
 
 int filamanRegisterDevice(const char* base_url, const char* device_code,
                           char* out_token, size_t out_size,
@@ -1343,6 +1338,18 @@ int filamanPatchSpoolFloat(const char* base_url, const char* api_key, int spool_
                     payload, timeout_ms);
 }
 
+int filamanPatchSpoolPrice(const char* base_url, const char* api_key, int spool_id,
+                           float price, uint32_t timeout_ms) {
+  if (spool_id <= 0 || price < 0.0f) return -1;
+  // To the cent, not through roundGrams(): a price is not a weight.
+  JsonDocument body;
+  body["purchase_price"] = roundf(price * 100.0f) / 100.0f;
+  String payload;
+  serializeJson(body, payload);
+  return patchSpool(base_url, api_key, (String("/api/v1/spools/") + spool_id).c_str(),
+                    payload, timeout_ms);
+}
+
 int filamanPatchSpoolFloat2(const char* base_url, const char* api_key, int spool_id,
                             const char* field_a, float value_a,
                             const char* field_b, float value_b, uint32_t timeout_ms) {
@@ -1778,11 +1785,57 @@ static int getDisplay(const char* base_url, const char* api_key, const char* pat
     deserializeJson(doc, http.getStream(), DeserializationOption::Filter(filter));
   http.end();
   if (err) {
-    logSDf("FilaMan: display JSON parse failed (%s)", err.c_str());
+    logSDf("FilaMan: answer of %s did not parse (%s)", path, err.c_str());
     return -2;
   }
   return 200;
 }
+
+int filamanGetJson(const char* base_url, const char* api_key, const char* path,
+                   JsonDocument& doc, JsonDocument& filter, uint32_t timeout_ms) {
+  if (!hasBaseUrl(base_url) || !path) return -1;
+  return getDisplay(base_url, api_key, path, doc, filter, timeout_ms);
+}
+
+int filamanPostJson(const char* base_url, const char* api_key, const char* path,
+                    const String& body, JsonDocument& answer, uint32_t timeout_ms) {
+  if (!hasBaseUrl(base_url) || !path) return -1;
+  BackendHttp http;
+  http.begin(String(base_url) + path);
+  http.setTimeout(timeout_ms);
+  addApiKey(http, api_key);
+  http.addHeader("Content-Type", "application/json");
+  const int code = http.POST(body);
+  const String resp = http.getString();
+  http.end();
+  if (code < 200 || code >= 300) {
+    logSDf("FilaMan: POST %s -> HTTP %d: %s", path, code, resp.substring(0, 120).c_str());
+    return code;
+  }
+  deserializeJson(answer, resp);
+  return 200;
+}
+
+int filamanGetStreamed(const char* base_url, const char* api_key, const char* path,
+                       uint32_t timeout_ms, FilamanBodyReader read, void* ctx) {
+  if (!hasBaseUrl(base_url) || !path || !read) return -1;
+  BackendHttp http;
+  if (!http.begin(String(base_url) + path)) return -1;
+  http.setTimeout(timeout_ms);
+  addApiKey(http, api_key);
+  const int code = http.GET();
+  if (code != 200) {
+    http.end();
+    return code;
+  }
+  const bool ok = read(*http.getStreamPtr(), ctx);
+  http.end();
+  return ok ? 200 : -2;
+}
+
+String filamanUrlEncode(const char* s) { return urlEncodeQuery(s); }
+
+const char* filamanFilamentArticle(JsonObjectConst fil) { return articleNumber(fil); }
 
 int filamanGetAmsState(const char* base_url, const char* api_key, int printer_id,
                        AmsSlotState& out, uint32_t timeout_ms) {

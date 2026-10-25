@@ -61,6 +61,31 @@ const char* bbInventoryBase();
 // Spoolman because BamBuddy has no field for it.
 const char* bbSpoolmanUrl();
 
+// Whether this BamBuddy keeps a drying date of its own (#2863, from
+// v1.2.6b1-daily.20261006): the last spool it sent carried last_dried_at,
+// null included. Taken from reads only, because an older server answers a
+// PATCH with that key with 200 and ignores it. False until a spool was read.
+bool bbHasDriedField();
+
+// Whether the last bbGetSpoolJson() of this spool filled extra.last_dried
+// from Spoolman's extra rather than from BamBuddy's own field: the one case
+// dried_migrate.cpp moves a date over.
+bool bbLastDriedFromSpoolman(int spool_id);
+
+// Back to "not known yet", for when the server on the other end may be a
+// different one. The answer belongs to the server it was read from: kept
+// across a switch to an older BamBuddy, a drying date would go out as
+// last_dried_at and be dropped with a 200.
+void bbForgetDriedField();
+
+// bbHasDriedField() for a write: while nothing was read from this server
+// since boot or a switch, it reads the spool first and remembers the answer.
+// Without it, a date set on a spool still on screen from the server before
+// went to the note although the new server has the field. False when the
+// read fails, so the write falls back to the user's choice.
+bool bbProbeDriedField(const char* base_url, const char* api_key, int spool_id,
+                       uint32_t timeout_ms);
+
 // Stable device id derived from the MAC, "ssc-<12 hex>", mirroring the
 // "sb-<mac>" of BamBuddy's own daemon. Needs no NVS entry.
 const char* bbDeviceId();
@@ -79,6 +104,12 @@ int  bbGetHealthCode(const char* base_url, const char* api_key,
 
 bool bbGetVersion(const char* base_url, const char* api_key,
        char* out_version, size_t out_size, uint32_t timeout_ms = 4000);
+
+// BamBuddy's "External URL" (Settings > General), the address its own labels
+// link to: in `out` as stored, "" when unset. Returns the HTTP code; the key
+// needs the read scope it holds for the inventory anyway.
+int  bbGetExternalUrl(const char* base_url, const char* api_key,
+       char* out, size_t out_size, uint32_t timeout_ms = 4000);
 
 // Reads a spool exactly as BamBuddy stores it, skipping the Spoolman shaping
 // mapSpool() applies. Only spool creation needs this: subtype and color_name
@@ -104,6 +135,14 @@ int  bbGetSpoolListJson(const char* base_url, const char* api_key,
 int  bbGetLocationsJson(const char* base_url, const char* api_key,
        JsonDocument& doc, uint32_t timeout_ms = 8000,
        DeserializationError* out_err = nullptr);
+
+// GET of any path under the base url, the body handed to read() as it
+// comes, as filamanGetStreamed() does it: for the filament database loader
+// (bambuddy_filament_db.cpp), which parses with its own filter. The HTTP
+// code, -2 when read() said false.
+typedef bool (*BbBodyReader)(Stream& body, void* ctx);
+int  bbGetStreamed(const char* base_url, const char* api_key, const char* path,
+       uint32_t timeout_ms, BbBodyReader read, void* ctx);
 
 // Counts active spools by fetching the list with a filter that keeps only
 // the ids. Returns the count, or a negative HTTP/parse error.
@@ -171,10 +210,25 @@ int  bbPatchDryingNote(const char* base_url, const char* api_key, int spool_id,
 int  bbPatchDriedNote(const char* base_url, const char* api_key, int spool_id,
        const char* iso, uint32_t timeout_ms = 8000);
 
+// Writes BamBuddy's own drying date, last_dried_at (#2863). Only for a server
+// where bbHasDriedField() said yes; BamBuddy clears the temperature and
+// hours of an AMS drying with it, as its own spool form does.
+int  bbPatchLastDried(const char* base_url, const char* api_key, int spool_id,
+       const char* iso, uint32_t timeout_ms = 8000);
+
 // Reads extra.last_dried straight from the Spoolman server behind BamBuddy.
 // Needed because the proxy does not pass extra through, and possible because
 // the spool id is the same on both sides. Empty when there is none.
 bool bbGetDriedFromSpoolman(int spool_id, char* out_iso, size_t out_size,
+       uint32_t timeout_ms = 6000);
+
+// Moves a drying date the scale kept outside BamBuddy into its own field
+// (#2863): a note marker always (the marker leaves the note, the date goes
+// in when it is later than the field's), Spoolman's extra.last_dried while
+// the field is empty and the user had picked that route. Reads the spool
+// first. 0 when there was nothing to move or the server has no such field,
+// otherwise the HTTP status of the PATCH, negative when the read failed.
+int  bbMigrateDried(const char* base_url, const char* api_key, int spool_id,
        uint32_t timeout_ms = 6000);
 
 // Generic PATCH on the spool for the plain fields. Pass nullptr / a negative
@@ -193,17 +247,27 @@ int  bbLookupColorName(const char* base_url, const char* api_key, const char* he
 
 // Fields for a new spool. material is the only one BamBuddy insists on;
 // everything else may stay empty or zero and is then left off the request.
+// Behind the Spoolman proxy, spoolman_filament_id puts the spool under a
+// filament that already exists on that server: BamBuddy then skips its own
+// find-or-create, which only knows material, name part, colour and brand.
 struct BbNewSpool {
-  const char* material        = nullptr;  // required
+  const char* material        = nullptr;  // required, even next to a filament id
+  int         spoolman_filament_id = 0;   // Spoolman proxy only, 0: none
   const char* subtype         = nullptr;
   const char* brand           = nullptr;
   const char* color_name      = nullptr;
   const char* rgba            = nullptr;  // RRGGBBAA
   int         label_weight    = 0;
   int         core_weight     = 0;
+  int         core_weight_catalog_id = 0;   // the spool catalog entry core_weight came from, 0: none
   float       weight_used     = 0.0f;     // consumption, not remaining
   int         nozzle_temp_min = 0;
   int         nozzle_temp_max = 0;
+  // Built-in inventory only, like the temperatures.
+  const char* extra_colors    = nullptr;  // every colour of a multi colour spool, "aabbcc,ddeeff"
+  const char* effect_type     = nullptr;  // "gradient", "dual-color"
+  const char* material_number = nullptr;  // the article number
+  float       cost_per_kg     = 0.0f;     // 0: no price given
 };
 
 // Creates a spool in whichever inventory is active.
@@ -213,9 +277,14 @@ struct BbNewSpool {
 // create schema and drops them without an error - the spool would come back
 // with HTTP 200 and no tag at all. Both modes therefore link afterwards
 // through bbLinkTag(), the one place that already tells them apart.
+//
+// Every 2xx counts as created. The Spoolman proxy answers 207 when the spool
+// exists but a step after it (the price) was refused; out_warned, when
+// given, says so.
+#define BB_CREATE_TIMEOUT_MS  8000
 int  bbCreateSpool(const char* base_url, const char* api_key,
        const BbNewSpool& spool, int* out_spool_id,
-       uint32_t timeout_ms = 8000);
+       uint32_t timeout_ms = BB_CREATE_TIMEOUT_MS, bool* out_warned = nullptr);
 
 // --- ams slots -----------------------------------------------
 

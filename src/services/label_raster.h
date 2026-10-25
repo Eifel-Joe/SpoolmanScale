@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 // ============================================================
 //  A LABEL AS THE PRINTER TAKES IT
@@ -16,7 +17,9 @@
 //  gives them back.
 // ============================================================
 
-#define LABEL_RASTER_MIN_W  384
+// The narrowest label any profile takes, 20 mm at 203 dpi: the M110S sends a
+// row as wide as the label, not the head's 384 dots (issue #55).
+#define LABEL_RASTER_MIN_W  160
 #define LABEL_RASTER_MAX_W  1024
 #define LABEL_RASTER_MAX_BYTES (256u * 1024u)
 
@@ -44,6 +47,47 @@ inline bool labelRasterValid(const LabelRaster& image) {
   const uint8_t mask = (1u << unused) - 1;
   for (uint16_t y = 0; y < image.height; ++y)
     if (image.pixels[size_t(y + 1) * image.row_bytes - 1] & mask) return false;
+  return true;
+}
+
+// Moves every row `dots` to the right in place, white coming in from the
+// left and whatever passes the row's end dropped. A raster drawn at the row's
+// left edge, as a server sends it, lands where the stock runs. The unused low
+// bits stay zero, so a valid raster stays valid.
+inline void labelRasterShiftRight(LabelRaster* image, uint16_t dots) {
+  if (!image || !image->pixels || dots == 0) return;
+  const int bytes = dots / 8, bits = dots % 8;
+  const unsigned unused = (8 - image->width % 8) % 8;
+  const uint8_t tail = (uint8_t)~((1u << unused) - 1);
+  for (uint16_t y = 0; y < image->height; ++y) {
+    uint8_t* row = image->pixels + size_t(y) * image->row_bytes;
+    for (int i = image->row_bytes - 1; i >= 0; --i) {
+      const int src = i - bytes;
+      uint8_t v = src >= 0 ? (uint8_t)(row[src] >> bits) : 0;
+      if (bits && src - 1 >= 0) v |= (uint8_t)(row[src - 1] << (8 - bits));
+      row[i] = v;
+    }
+    row[image->row_bytes - 1] &= tail;
+  }
+}
+
+// Keeps the leftmost `width` dots of every row, in place: a raster drawn for
+// a wider row with its label at the left edge becomes one `width` wide. False,
+// and nothing changed, when the label itself is wider than that.
+inline bool labelRasterCropWidth(LabelRaster* image, uint16_t width) {
+  if (!image || !image->pixels || width < LABEL_RASTER_MIN_W || width > image->width ||
+      image->content_width > width) return false;
+  const uint16_t row_bytes = (width + 7) / 8;
+  const unsigned unused = (8 - width % 8) % 8;
+  const uint8_t tail = (uint8_t)~((1u << unused) - 1);
+  for (uint16_t y = 0; y < image->height; ++y) {
+    uint8_t* row = image->pixels + size_t(y) * row_bytes;
+    memmove(row, image->pixels + size_t(y) * image->row_bytes, row_bytes);
+    row[row_bytes - 1] &= tail;
+  }
+  image->width = width;
+  image->row_bytes = row_bytes;
+  image->length = size_t(row_bytes) * image->height;
   return true;
 }
 

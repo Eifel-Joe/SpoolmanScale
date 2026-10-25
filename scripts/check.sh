@@ -126,13 +126,13 @@ fi
 #     how much is translated: an untranslated row is written with its English
 #     text in the French cell, and only tools/lang_fr.jsonl knows the difference.
 LVGL_SYMBOLS=.pio/libdeps/wt32-sc01-plus/lvgl/src/font/lv_symbol_def.h
-# Coverage first and always: it needs no fonts. A new text comes with a French
-# draft (lang_fr.py apply --draft); left out, the gap grew to 71 rows between
-# two reviews without anyone noticing. Drafts ship and are counted, not failed.
+# Coverage first and always: it needs no fonts. A new text comes with its
+# French (lang_fr.py apply); left out, the gap grew to 71 rows without anyone
+# noticing.
 if [ -f tools/lang_fr.py ]; then
   out=$(python3 tools/lang_fr.py coverage 2>&1); rc=$?
   sum=$(echo "$out" | grep -E '^[[:space:]]*[0-9]+ rows, ' | tail -1 | sed 's/^[[:space:]]*//')
-  if [ "$rc" -ne 0 ]; then bad "French coverage: ${sum:-failed} - add drafts with tools/lang_fr.py apply --draft"; echo "$out" | grep -E '^[[:space:]]+E ' | head -20 | sed 's/^/      /';
+  if [ "$rc" -ne 0 ]; then bad "French coverage: ${sum:-failed} - add the French with tools/lang_fr.py apply"; echo "$out" | grep -E '^[[:space:]]+E ' | head -20 | sed 's/^/      /';
   else ok "French coverage: ${sum:-checked}"; fi
 fi
 if [ ! -f tools/lang_fr.py ]; then
@@ -172,18 +172,19 @@ else
   fi
 fi
 
-# 12. The binary fits the app slot of every installed device. OTA never
-#     rewrites the partition table, so whatever table new devices get, a
-#     device flashed before it keeps its 3 MB slot and esp_ota_begin() refuses
-#     anything larger. Only checkable once the firmware has been built.
+# 12. The binary fits the 6 MB app slot of partitions.csv. Since v0.8.3 it
+#     may outgrow the 3 MB slots of devices flashed before September 2026:
+#     OTA never rewrites the partition table, so such a device reads the size
+#     from version.json and offers the web flasher instead of the update
+#     (partition_layout.h). Only checkable once the firmware has been built.
 FW_BIN=.pio/build/wt32-sc01-plus/firmware.bin
-OTA_MAX_APP_BYTES=3145728
+OTA_MAX_APP_BYTES=6291456
 if [ ! -f "$FW_BIN" ]; then
   warnf "binary size skipped: $FW_BIN is missing, build the firmware once"
 else
   size=$(wc -c < "$FW_BIN" | tr -d ' ')
   if [ "$size" -gt "$OTA_MAX_APP_BYTES" ]; then
-    bad "firmware.bin is $size bytes, more than the $OTA_MAX_APP_BYTES byte app slot of installed devices"
+    bad "firmware.bin is $size bytes, more than the $OTA_MAX_APP_BYTES byte app slot"
   else
     ok "firmware.bin: $size of $OTA_MAX_APP_BYTES bytes ($(( size * 100 / OTA_MAX_APP_BYTES )) %)"
   fi

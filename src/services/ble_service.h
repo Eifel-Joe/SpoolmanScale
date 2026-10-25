@@ -24,6 +24,7 @@ struct BleDevice {
   char   name[BLE_NAME_LEN];      // empty when the device did not say
   char   address[BLE_ADDR_LEN];
   int8_t rssi;
+  uint8_t address_type;
 };
 
 typedef void (*BleProgressFn)();
@@ -39,11 +40,12 @@ bool bleStackAvailable();
 void bleSetEnabled(bool on);
 
 // Blocking, from appLoop() only: starts the stack, scans for duration_ms,
-// copies what it saw into out (named devices first) and releases the stack
+// keeps the strongest candidates (preferred device first) and releases the stack
 // again. progress, when given, is called about once a second so an overlay
 // can keep moving. Returns the number of devices written, or -1 when the
 // stack could not be started; the SD log says why.
-int bleScan(BleDevice* out, int capacity, uint32_t duration_ms, BleProgressFn progress);
+int bleScan(BleDevice* out, int capacity, uint32_t duration_ms, BleProgressFn progress,
+            const char* preferred = "");
 
 // A write session to one characteristic of one device: start the stack,
 // connect, negotiate the MTU, write the blocks in order and in chunks the
@@ -89,3 +91,41 @@ void bleSessionBytes(size_t* sent, size_t* total);
 // it, and the stack stays up until the next restart: nothing else may start
 // or stop it in that state.
 bool bleStackStuck();
+
+// ---- A talk session, for a device that answers --------------------------
+//
+// A NIIMBOT printer takes one packet per write and replies by notification
+// on the same characteristic, so its driver has to send, wait, read and
+// decide. The session carries bytes both ways and knows nothing of the
+// packets: the driver frames them. One session at a time, blocking, from
+// appLoop() only. bleTalkClose() always follows an open, a failed one too
+// (it is a no-op then). The write session above is untouched by all this.
+
+// What the characteristic must be able to do, OR-ed.
+#define BLE_PROP_WRITE    0x01
+#define BLE_PROP_WRITE_NR 0x02
+#define BLE_PROP_NOTIFY   0x04
+
+// Where the device is spoken to: a service by UUID, "ff00" or the dashed
+// 128-bit form, and the first characteristic in it with all of need_props.
+// NIIMBOT names no characteristic UUID; it is found by shape.
+struct BleTalkEndpoint { const char* service_uuid; uint8_t need_props; };
+
+// Stack up, find, connect, subscribe. BLE_WRITE_NO_CHARACTERISTIC when the
+// device has nothing of that shape; the log then lists what it has.
+BleWriteResult bleTalkOpen(const char* address, const BleTalkEndpoint& ep, BleProgressFn progress);
+// One packet in one write, without response where the characteristic takes
+// that. More than bleTalkMaxWrite() bytes go in pieces, which is logged:
+// whether the device joins them is its business.
+bool   bleTalkSend(const uint8_t* data, size_t n);
+size_t bleTalkMaxWrite();   // the MTU minus the ATT header; 0 outside a session
+// What the device sent since the last read, in order, up to max bytes; waits
+// up to wait_ms for the first byte. 0 on timeout or when the link is gone.
+size_t bleTalkRead(uint8_t* out, size_t max, uint32_t wait_ms);
+bool   bleTalkConnected();
+// The driver says where it stands, for the card over the session.
+void   bleTalkSetPhase(BleSessionPhase phase);
+void   bleTalkSetProgress(size_t done, size_t total);
+// Disconnect, delete the client, release the stack. BLE_WRITE_STUCK when the
+// link would not close; bleStackStuck() is then set, as after a write session.
+BleWriteResult bleTalkClose();

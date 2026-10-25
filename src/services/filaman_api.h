@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Arduino.h>
 #include <ArduinoJson.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -17,6 +18,12 @@
 //  Only the pieces needed for setup exist so far. The read and
 //  write paths follow in later stages.
 // ============================================================
+
+class HTTPClient;
+
+// The Authorization header for the API key, for the FilaMan calls that live
+// in files of their own (services/filaman_labels.cpp).
+void filamanAddApiKey(HTTPClient& http, const char* api_key);
 
 // Exchanges the 6 character code from the FilaMan admin for a device
 // token. Returns the HTTP status code, 200 on success, and copies the
@@ -282,6 +289,9 @@ int filamanPatchSpoolFloat(const char* base_url, const char* api_key, int spool_
 // behind, an archived spool leaves a stale remaining behind. Spoolman writes
 // both in a single request and FilaMan has to as well, or the two disagree for
 // as long as it takes the next scan to overwrite the display.
+// What the spool cost (purchase_price), to the cent.
+int filamanPatchSpoolPrice(const char* base_url, const char* api_key, int spool_id,
+                           float price, uint32_t timeout_ms = 5000);
 int filamanPatchSpoolFloat2(const char* base_url, const char* api_key, int spool_id,
                             const char* field_a, float value_a,
                             const char* field_b, float value_b,
@@ -299,6 +309,24 @@ int filamanPatchManufacturerFloat(const char* base_url, const char* api_key, int
 // Creates a spool. Only filament_id is mandatory. The new id is written to
 // out_spool_id, which the copy flow needs in order to link the tag right
 // afterwards. rfid_uid may be passed to create and link in one request.
+// Plain requests for callers outside this file (filaman_filament.cpp). The
+// GET parses through filter; the POST maps any 2xx to 200 and keeps the
+// answer, and logs the start of an error body.
+int filamanGetJson(const char* base_url, const char* api_key, const char* path,
+                   JsonDocument& doc, JsonDocument& filter, uint32_t timeout_ms);
+int filamanPostJson(const char* base_url, const char* api_key, const char* path,
+                    const String& body, JsonDocument& answer, uint32_t timeout_ms);
+// GET of an answer too large to hold as one document, as spoolmanGetStreamed()
+// does it: read() gets the body as it comes. The HTTP code, -2 when read()
+// said false.
+typedef bool (*FilamanBodyReader)(Stream& body, void* ctx);
+int filamanGetStreamed(const char* base_url, const char* api_key, const char* path,
+                       uint32_t timeout_ms, FilamanBodyReader read, void* ctx);
+// Percent-encodes a value for a query string.
+String filamanUrlEncode(const char* s);
+// A filament's article number wherever FilaMan keeps one, "" when none.
+const char* filamanFilamentArticle(JsonObjectConst fil);
+
 int filamanCreateSpool(const char* base_url, const char* api_key, int filament_id,
                        float initial_weight, float spool_weight, float remaining_weight,
                        const char* rfid_uid = nullptr, int* out_spool_id = nullptr,

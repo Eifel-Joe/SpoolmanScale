@@ -32,11 +32,26 @@
 // Where the catalog lives: straight after the log ring's 512 kB.
 #define BAMBU_CATALOG_BYTES   (64UL * 1024UL)
 
+// How the colours of a spool lie on it.
+enum BambuColorKind : uint8_t {
+  BCK_SINGLE = 0,
+  BCK_GRADIENT,   // one colour turning into the next along the filament
+  BCK_DUAL        // two or three colours side by side across it
+};
+
+// The most colours one entry of the table names.
+#define BAMBU_CATALOG_COLOURS  4
+
 // What the catalog knows about one colour of one product.
 struct BambuCatalogHit {
   char article[8];      // "12601"
   char product[24];     // "PLA Tough+"
   char color_name[48];  // in the UI language, English where the table has none
+  // English always: what Spoolman's and FilaMan's filament databases call it.
+  char color_name_en[48];
+  uint8_t  kind;                            // BambuColorKind
+  uint8_t  ncol;                            // 1 for a plain colour
+  uint32_t rgba[BAMBU_CATALOG_COLOURS];     // 0xRRGGBBAA, the first colour first
 };
 
 // Looks the tag's two codes up, and its colour where the codes alone do not
@@ -44,6 +59,13 @@ struct BambuCatalogHit {
 // Loop task only.
 bool bambuCatalogFind(const char* material_id, const char* variant_id,
                       const SpoolColor& color, BambuCatalogHit* out);
+
+// The other way round, for a spool picked from a database rather than read
+// off a tag: one colour of one product ("PLA Matte"), by its first colour
+// (0xRRGGBB) and, where no entry has exactly that, by its English name. Case
+// aside. False when there is no catalog or no entry fits. Loop task only.
+bool bambuCatalogFindByLook(const char* product, uint32_t rgb, const char* name_en,
+                            BambuCatalogHit* out);
 
 // The installed catalog: how many colours, and when it was downloaded (UTC
 // seconds, 0 when the clock was not set). Count 0 when there is none.

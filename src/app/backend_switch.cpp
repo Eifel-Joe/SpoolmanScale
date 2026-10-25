@@ -15,6 +15,8 @@
 
 #include "app/app_state.h"
 #include "app/deferred_actions.h"
+#include "app/label_server.h"
+#include "app/label_spool.h"
 #include "hardware/sd_logger.h"
 #include "services/ams_assign.h"
 #include "services/ams_pick.h"
@@ -41,6 +43,8 @@ void backendApplyHost(const char *host) {
   backendInvalidateExtraFieldCache();
   amsPresenceForget();
   spoolCacheForget("host changed");
+  labelSpoolForget();            // the label editor's spool is the old server's
+  labelServerForget();           // and so are its presets and preview
   sm_reachable = false;          // unknown until the new address answers
 }
 
@@ -59,8 +63,9 @@ void backendApplyMode(BackendMode mode) {
   // An armed AMS window belongs to the server the scale is about to stop
   // talking to. Switching away would leave auto_assign_enabled set on it
   // until the next boot, because amsBootReconcile() runs once per boot behind
-  // a function static and nothing else ever turns it off.
-  if (backendIsFilaMan() && g_ams_mode != AMS_OFF) {
+  // a function static and nothing else ever turns it off. Under "off" too:
+  // the AMS button on a scale without a load cell arms it in every mode.
+  if (backendIsFilaMan()) {
     amsWriteEnabled(false);
   }
   amsDropPending();
@@ -122,6 +127,10 @@ void backendApplyMode(BackendMode mode) {
   // the tag on the pad as new: it reads it again and asks the new backend
   // about it, without anyone having to lift the spool off.
   clearTagDisplay();
+  // It hands the spool to the label editor on its way out; that one is the
+  // old backend's too, and so are the presets and preview from its server.
+  labelSpoolForget();
+  labelServerForget();
 
   // What clearTagDisplay() leaves behind. It is written for a spool being
   // taken off the pad, where these stay true for the 60 seconds the display

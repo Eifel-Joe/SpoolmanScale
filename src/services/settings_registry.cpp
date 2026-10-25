@@ -38,9 +38,15 @@ static bool appliesCardUids() { return tagFieldIsList(); }
 // backendCanHoldSecondTag(), at the moment the question would be asked.
 static bool appliesSecondTag() { return tagFieldHoldsSeveral(); }
 
-// extra.tag for OpenSpoolman is a question only beside the native tags: on
-// extra.tag itself the tray uuid is the binding and always written.
-static bool appliesOsmTag() { return tagFieldIsNative(); }
+// A companion field is a question only beside the native tags: on an extra
+// field as the tag field, that field is the binding and always written.
+static bool appliesTagComp() { return tagFieldIsNative(); }
+
+// Indexed by TagCompanion. The field names are what the user sees on the
+// Spoolman side and read the same in every language.
+static const uint16_t OPT_TAG_COMP[] = {
+  STR_TAG_COMP_OFF, STR_TAG_COMP_TAG, STR_TAG_COMP_NFCID
+};
 
 // The two fields the scale needs, named rather than described: the field names
 // are what the user sees on the Spoolman side and are not translated. The tag
@@ -58,10 +64,13 @@ static const char* subExtraFields() {
   return buf;
 }
 
-// BamBuddy has no field for a drying date at all, so the scale needs somewhere
-// to put one. The Spoolman route only exists while BamBuddy is actually
-// proxying to a Spoolman server - past BamBuddy, into the same database.
+// An older BamBuddy has no field for a drying date, so the scale needs
+// somewhere to put one. A newer one has its own (#2863) and the date goes
+// there whatever is set here, so none of the three can be picked then. The
+// Spoolman route only exists while BamBuddy is actually proxying to a
+// Spoolman server - past BamBuddy, into the same database.
 static bool bbDriedOptOk(uint8_t value) {
+  if (bbHasDriedField()) return false;
   if (value != BB_DRIED_SPOOLMAN) return true;
   return (bbInventoryMode() == BB_INV_SPOOLMAN) && bbSpoolmanUrl()[0];
 }
@@ -69,6 +78,13 @@ static bool bbDriedOptOk(uint8_t value) {
 static const uint16_t OPT_BB_DRIED[] = {
   STR_BB_DRIED_OFF, STR_BB_DRIED_SPOOLMAN, STR_BB_DRIED_NOTE
 };
+
+// The row names where the date really goes: BamBuddy's own field when the
+// server has one, otherwise the route chosen here.
+static const char* bbDriedSub() {
+  if (bbHasDriedField()) return T(STR_BB_DRIED_NATIVE);
+  return T((StringID)OPT_BB_DRIED[g_bb_dried_target < BB_DRIED_COUNT ? g_bb_dried_target : BB_DRIED_NOTE]);
+}
 
 static const uint16_t OPT_AMS_MODE[] = {
   STR_AMS_MODE_OFF, STR_AMS_MODE_ASK, STR_AMS_MODE_ALWAYS
@@ -94,13 +110,15 @@ const SettingDesc SETTINGS[] = {
     0, 0, nullptr,
     nullptr, subExtraFields, nullptr, OPEN_SP_EXTRA_FIELDS, nullptr, false },
 
-  // The tray uuid in extra.tag as well, for OpenSpoolman. Right under the
-  // fields because it is one more field the scale may write. The id is the
-  // NVS key tagFieldAutoSelect() decides the default under (OSM_TAG_KEY).
-  { OSM_TAG_KEY, SET_BOOL, SC_SPOOLMAN, &g_osm_tag,
-    STR_OSM_TAG, STR_OSM_TAG_SUB, STR_OSM_TAG_INFO, LV_SYMBOL_SHUFFLE,
-    0, 0, nullptr,
-    appliesOsmTag, nullptr, nullptr, OPEN_NONE, nullptr, false },
+  // The companion field beside the native tags: extra.tag for OpenSpoolman
+  // or extra.nfc_id for tools of one's own. Right under the fields because it
+  // is one more field the scale may write. The id is the NVS key
+  // tagFieldAutoSelect() decides the default under (TAG_COMP_KEY). A screen of
+  // its own on the device, a plain choice on the web.
+  { TAG_COMP_KEY, SET_ENUM, SC_SPOOLMAN, &g_tag_comp,
+    STR_TAG_COMP, 0, STR_TAG_COMP_INFO, LV_SYMBOL_SHUFFLE,
+    TAG_COMP_OFF, TAG_COMP_COUNT, OPT_TAG_COMP,
+    appliesTagComp, nullptr, nullptr, OPEN_TAG_COMP, nullptr, true },
 
   // Linking more than one tag to a spool. Below the extra fields because it
   // depends on one of them being selected, and because it is the rarer setting.
@@ -118,6 +136,13 @@ const SettingDesc SETTINGS[] = {
     STR_TAG2_ASK, STR_TAG2_ASK_SUB, STR_TAG2_ASK_INFO, LV_SYMBOL_COPY,
     0, 0, nullptr,
     appliesSecondTag, nullptr, nullptr, OPEN_NONE, nullptr, false },
+
+  // The card for a spool the inventory does not know. Beside the second tag
+  // because both are questions the scale asks on its own around a link.
+  { "unk_ask", SET_BOOL, SC_ALL, &g_unk_ask,
+    STR_UNK_ASK, STR_UNK_ASK_SUB, STR_UNK_ASK_INFO, LV_SYMBOL_BELL,
+    1, 0, nullptr,
+    nullptr, nullptr, nullptr, OPEN_NONE, nullptr, false },
 
   // Copying the hardware uid into the field Happy Hare reads. Always offered
   // on Spoolman, unlike the row above: it hangs on no tag field, because it
@@ -185,7 +210,7 @@ const SettingDesc SETTINGS[] = {
   { "bb_dried", SET_ENUM, SC_BAMBUDDY, &g_bb_dried_target,
     STR_BB_DRIED_TITLE, 0, STR_BB_DRIED_INFO, LV_SYMBOL_TINT,
     BB_DRIED_NOTE, BB_DRIED_COUNT, OPT_BB_DRIED,
-    nullptr, nullptr, nullptr, OPEN_BB_DRIED, bbDriedOptOk, false },
+    nullptr, bbDriedSub, nullptr, OPEN_BB_DRIED, bbDriedOptOk, false },
 
   // The bay picker after weighing. A plain switch: BamBuddy knows only "ask"
   // and "off" here, because without a time window there is no third thing an

@@ -146,6 +146,22 @@ static int getJson(const String& url, JsonDocument& doc, uint32_t timeout_ms,
   return err ? -2 : 200;
 }
 
+int spoolmanGetStreamed(const char* base_url, const char* path, uint32_t timeout_ms,
+                        SpoolmanBodyReader read, void* ctx) {
+  if (!hasBaseUrl(base_url) || !path || !read) return -1;
+  BackendHttp http;
+  smBegin(http, String(base_url) + path);
+  http.setTimeout(timeout_ms);
+  const int code = http.GET();
+  if (code != 200) {
+    http.end();
+    return code;
+  }
+  const bool ok = read(*http.getStreamPtr(), ctx);
+  http.end();
+  return ok ? 200 : -2;
+}
+
 int spoolmanGetJson(const char* base_url, const char* path, JsonDocument& doc,
                     uint32_t timeout_ms, JsonDocument* filter, DeserializationError* out_err) {
   if (!hasBaseUrl(base_url) || !path) {
@@ -174,6 +190,16 @@ int spoolmanGetSpoolListJson(const char* base_url, bool allow_archived, JsonDocu
 // Percent-encodes everything outside [A-Za-z0-9]. Tag UIDs are hex in
 // practice, but the value ends up in a URL and a stray character there would
 // break the query rather than just miss.
+static String urlEncode(const char* s);
+
+String spoolmanUrlEncode(const char* s) { return urlEncode(s ? s : ""); }
+
+int spoolmanPostJson(const char* base_url, const char* path, const String& body,
+                     JsonDocument& answer, uint32_t timeout_ms) {
+  if (!hasBaseUrl(base_url) || !path) return -1;
+  return postJsonDoc(String(base_url) + path, body, answer, timeout_ms, nullptr);
+}
+
 static String urlEncode(const char* s) {
   String out;
   for (const char* p = s; *p; p++) {
@@ -353,6 +379,21 @@ bool spoolmanGetVersion(const char* base_url, char* out_version, size_t out_size
   return true;
 }
 
+int spoolmanGetBaseUrlSetting(const char* base_url, char* out, size_t out_size,
+                              uint32_t timeout_ms) {
+  if (!out || out_size == 0) return -1;
+  out[0] = '\0';
+  JsonDocument doc;
+  const int code = spoolmanGetJson(base_url, "/api/v1/setting/base_url", doc, timeout_ms);
+  if (code != 200) return code;
+  // A setting's value is JSON text of its own: the address arrives as
+  // "\"https://...\"", an unset one as "\"\"".
+  JsonDocument value;
+  if (deserializeJson(value, doc["value"] | "") != DeserializationError::Ok) return -2;
+  snprintf(out, out_size, "%s", value.as<const char*>() ? value.as<const char*>() : "");
+  return code;
+}
+
 int spoolmanCountActiveSpools(const char* base_url, uint32_t timeout_ms) {
   if (!hasBaseUrl(base_url)) return -1;
 
@@ -437,10 +478,17 @@ int spoolmanCreateSpool(const char* base_url, int filament_id, float initial_wei
   http.addHeader("Content-Type", "application/json");
   http.setTimeout(timeout_ms);
 
+  // Without a spool weight the field stays out: a 0 would stand for a weighed
+  // nothing, and Spoolman would not walk up to the filament's or the brand's.
   char body[256];
-  snprintf(body, sizeof(body),
-    "{\"filament_id\":%d,\"initial_weight\":%.0f,\"spool_weight\":%.0f,\"remaining_weight\":%.0f}",
-    filament_id, initial_weight, spool_weight, remaining_weight);
+  if (spool_weight > 0.0f)
+    snprintf(body, sizeof(body),
+      "{\"filament_id\":%d,\"initial_weight\":%.0f,\"spool_weight\":%.0f,\"remaining_weight\":%.0f}",
+      filament_id, initial_weight, spool_weight, remaining_weight);
+  else
+    snprintf(body, sizeof(body),
+      "{\"filament_id\":%d,\"initial_weight\":%.0f,\"remaining_weight\":%.0f}",
+      filament_id, initial_weight, remaining_weight);
   int code = http.POST(body);
   if ((code == 200 || code == 201) && out_spool_id) {
     JsonDocument doc;
@@ -567,6 +615,14 @@ int spoolmanPatchSpoolWeight(const char* base_url, int spool_id, float spool_wei
   if (!hasBaseUrl(base_url) || spool_id <= 0) return -1;
   char body[64];
   snprintf(body, sizeof(body), "{\"spool_weight\": %.0f}", spool_weight);
+  return patchJson(String(base_url) + "/api/v1/spool/" + spool_id, String(body), timeout_ms);
+}
+
+// Cents, unlike every weight in this file: a price is not a gram.
+int spoolmanPatchSpoolPrice(const char* base_url, int spool_id, float price, uint32_t timeout_ms) {
+  if (!hasBaseUrl(base_url) || spool_id <= 0 || price < 0.0f) return -1;
+  char body[48];
+  snprintf(body, sizeof(body), "{\"price\": %.2f}", price);
   return patchJson(String(base_url) + "/api/v1/spool/" + spool_id, String(body), timeout_ms);
 }
 

@@ -33,6 +33,7 @@ Pending s_pending;
 // wraps after 49 days and a deadline comparison would expire on the spot.
 bool          s_window_open       = false;
 unsigned long s_window_started_ms = 0;
+int           s_window_spool_id   = 0;
 
 }  // namespace
 
@@ -86,6 +87,26 @@ unsigned long amsWindowRemainingMs() {
   const unsigned long total   = (unsigned long)g_ams_window_s * 1000UL;
   const unsigned long elapsed = millis() - s_window_started_ms;
   return elapsed >= total ? 0 : total - elapsed;
+}
+
+int amsWindowSpoolId() {
+  return amsWindowOpen() ? s_window_spool_id : 0;
+}
+
+// Long enough for a double tap to finish after the report has gone out (the
+// second tap lands as soon as the loop runs LVGL again), short against a
+// window of tens of seconds.
+#define AMS_WINDOW_TAP_GRACE_MS  1500UL
+
+bool amsWindowJustOpened() {
+  return amsWindowOpen() && (millis() - s_window_started_ms) < AMS_WINDOW_TAP_GRACE_MS;
+}
+
+void amsWindowEnd(const char* why) {
+  if (!amsWindowOpen()) return;
+  logSDf("AMS: countdown for id=%d ended (%s), FilaMan keeps its own timer",
+         s_window_spool_id, why);
+  s_window_open = false;
 }
 
 int amsWriteEnabled(bool enabled) {
@@ -167,6 +188,7 @@ bool amsCommitWithWindow() {
 
   s_window_open       = true;
   s_window_started_ms = millis();
+  s_window_spool_id   = spool_id;
   logSDf("AMS: window opened for id=%d, %d s (%.0fg %s)",
          spool_id, g_ams_window_s, gross,
          written ? "booked a second time" : "written for the first time");
@@ -174,10 +196,10 @@ bool amsCommitWithWindow() {
 }
 
 void amsBootReconcile() {
-  // Only the ask mode ever raises the flag temporarily, so it is the only
-  // one that can leave it standing. Off and always are written explicitly
-  // when the mode is chosen and need no correction here.
-  if (!backendIsFilaMan() || g_ams_mode != AMS_ASK) return;
+  // Every mode but "always" can leave the flag standing: ask raises it for a
+  // commit, and so does the AMS button on a scale without a load cell, which
+  // commits under "off" as well. Only "always" means it to stay up.
+  if (!backendIsFilaMan() || g_ams_mode == AMS_ALWAYS) return;
   if (filamanDeviceId() <= 0 || filamanApiKey()[0] == '\0') return;
   int code = amsWriteEnabled(false);
   if (code == 200) {

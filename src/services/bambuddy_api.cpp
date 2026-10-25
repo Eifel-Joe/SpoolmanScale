@@ -10,7 +10,10 @@
 
 #include "hardware/sd_logger.h"
 #include "services/device_name.h"
+#include "services/dried_marker.h"
 #include "services/http_progress.h"
+#include "services/json_util.h"
+#include "services/last_dried.h"
 #include "services/spool_cache.h"
 #include "services/spool_color.h"
 #include "services/tag_uid.h"
@@ -44,6 +47,16 @@ struct SpiRamAllocator : ArduinoJson::Allocator {
 
 static BbInventoryMode s_mode = BB_INV_LOCAL;
 static char s_spoolman_url[96] = "";
+// Whether the last spool BamBuddy sent carried last_dried_at (#2863), set in
+// mapSpool() on every read. See bbHasDriedField(). Known only once a spool
+// was read from this server; until then a write asks first.
+static bool s_has_dried_field   = false;
+static bool s_dried_field_known = false;
+// The spool whose drying date the last bbGetSpoolJson() brought over from
+// Spoolman's extra, 0 for none. In the mapped spool that date looks the
+// same as one from BamBuddy's own field; dried_migrate.cpp asks here which
+// it was before it moves one.
+static int  s_dried_from_spoolman_id = 0;
 
 static bool hasBaseUrl(const char* base_url) {
   return base_url && strlen(base_url) > 7;   // longer than "http://"
@@ -247,6 +260,33 @@ const char* bbInventoryBase() {
 
 const char* bbSpoolmanUrl() { return s_spoolman_url; }
 
+bool bbHasDriedField() { return s_has_dried_field; }
+
+bool bbLastDriedFromSpoolman(int spool_id) {
+  return spool_id > 0 && spool_id == s_dried_from_spoolman_id;
+}
+
+void bbForgetDriedField() {
+  s_has_dried_field   = false;
+  s_dried_field_known = false;
+}
+
+bool bbProbeDriedField(const char* base_url, const char* api_key, int spool_id,
+                       uint32_t timeout_ms) {
+  if (s_dried_field_known) return s_has_dried_field;
+  if (!hasBaseUrl(base_url) || spool_id <= 0) return false;
+
+  char url[192];
+  snprintf(url, sizeof(url), "%s%s/spools/%d", base_url, bbInventoryBase(), spool_id);
+  JsonDocument cur;
+  if (getJson(url, api_key, cur, timeout_ms, nullptr, nullptr) != 200) return false;
+  s_has_dried_field   = jsonHasKey(cur.as<JsonObjectConst>(), "last_dried_at");
+  s_dried_field_known = true;
+  logSDf("BamBuddy: own drying date field %s (asked before a write)",
+         s_has_dried_field ? "present" : "absent");
+  return s_has_dried_field;
+}
+
 // How long the mode question may take when a read has just been refused. The
 // same four seconds backendRefreshMode() gives it with the health check.
 #define BB_MODE_RECHECK_MS  4000
@@ -296,30 +336,10 @@ const char* bbDeviceId() { return wifiManagerDeviceId(); }
 //  names as the built in database, so one mapper serves both.
 // ============================================================
 
-// Pulls a "[last_dried:YYYY-MM-DD]" marker out of the note field. BamBuddy
-// has no column for a drying date, so the marker is where the scale keeps it.
-// Read unconditionally: a marker that is there is worth showing no matter
-// which write route the user picked.
-//
-// "[dried:...]" is the spelling the first builds wrote and is still accepted.
-// Nothing migrates it on its own; the next drying entry rewrites it, which is
-// enough for a marker that only matters while it is current.
-static bool driedFromNote(const char* note, char* out, size_t out_size) {
-  if (!note || !out || out_size < 11) return false;
-  const char* p = strstr(note, "[last_dried:");
-  if (p) {
-    p += 12;
-  } else {
-    p = strstr(note, "[dried:");
-    if (!p) return false;
-    p += 7;
-  }
-  const char* end = strchr(p, ']');
-  if (!end || (size_t)(end - p) != 10) return false;   // YYYY-MM-DD
-  memcpy(out, p, 10);
-  out[10] = '\0';
-  return true;
-}
+// The "[last_dried:YYYY-MM-DD]" marker in the note (services/dried_marker.h)
+// is read unconditionally: a marker that is there is worth showing no matter
+// which write route the user picked. On a BamBuddy with its own field it is
+// moved there by bbMigrateDried() the next time the spool is scanned.
 
 // "[drying:55 °C, 8 h]": the drying a Bambu tag recommends, kept in the note
 // for want of a field, like the drying date above.
@@ -375,8 +395,15 @@ static void mapSpool(JsonObjectConst src, JsonObject dst) {
   if (tray[0])     extra["tag"] = tray;
   else if (uid[0]) extra["tag"] = uid;
 
-  char dried[12];
-  if (driedFromNote(note, dried, sizeof(dried))) extra["last_dried"] = dried;
+  // BamBuddy's own drying date (#2863) wins over the note marker, which is
+  // read only while the field is empty. Whether the server has the field is
+  // taken from every spool it sends, null or not: an older BamBuddy answers
+  // 200 to a PATCH with last_dried_at and drops it, so only a read can tell.
+  s_has_dried_field   = jsonHasKey(src, "last_dried_at");
+  s_dried_field_known = true;
+  char dried[LAST_DRIED_ISO_MAX];
+  lastDriedUtc(src["last_dried_at"] | (const char*)nullptr, dried, sizeof(dried));
+  if (dried[0] || driedMarkerParse(note, dried, sizeof(dried))) extra["last_dried"] = dried;
   char drying[32];
   if (dryingFromNote(note, drying, sizeof(drying))) extra["drying"] = drying;
 
@@ -395,6 +422,15 @@ static void mapSpool(JsonObjectConst src, JsonObject dst) {
   f["material"]     = src["material"] | "";
   f["weight"]       = (float)label;
   f["spool_weight"] = (float)core;
+  // The maker's article number, Spoolman's article_number.
+  const char* article = src["material_number"] | "";
+  if (article[0]) f["article_number"] = article;
+  // The nozzle range, for the label: Spoolman's one temperature takes the
+  // upper end, the lower one a name of the scale's own.
+  const int t_min = src["nozzle_temp_min"] | 0;
+  const int t_max = src["nozzle_temp_max"] | 0;
+  if (t_max > 0) f["settings_extruder_temp"] = t_max;
+  if (t_min > 0 && t_min < t_max) f["x_extruder_temp_min"] = t_min;
 
   // Spoolman shows one name. BamBuddy keeps the three parts apart, so they are
   // joined in the order they are printed on the spool itself: "PETG HF
@@ -501,6 +537,23 @@ bool bbGetVersion(const char* base_url, const char* api_key,
   return true;
 }
 
+int bbGetExternalUrl(const char* base_url, const char* api_key,
+                     char* out, size_t out_size, uint32_t timeout_ms) {
+  if (!out || out_size == 0) return -1;
+  out[0] = '\0';
+  if (!hasBaseUrl(base_url)) return -1;
+
+  char url[160];
+  snprintf(url, sizeof(url), "%s/api/v1/settings/", base_url);
+  // The settings are a long list; only the one field is kept.
+  JsonDocument filter;
+  filter["external_url"] = true;
+  JsonDocument doc;
+  const int code = getJson(url, api_key, doc, timeout_ms, nullptr, &filter);
+  if (code == 200) snprintf(out, out_size, "%s", doc["external_url"] | "");
+  return code;
+}
+
 int bbGetSpoolRawJson(const char* base_url, const char* api_key, int spool_id,
                       JsonDocument& doc, uint32_t timeout_ms,
                       DeserializationError* out_err) {
@@ -521,6 +574,7 @@ int bbGetSpoolJson(const char* base_url, const char* api_key, int spool_id,
 
   SpiRamAllocator alloc;
   JsonDocument raw(&alloc);
+  s_dried_from_spoolman_id = 0;
   int code = getInventoryJson(base_url, api_key, suffix, raw, timeout_ms, out_err);
   if (code != 200) return code;
 
@@ -530,11 +584,13 @@ int bbGetSpoolJson(const char* base_url, const char* api_key, int spool_id,
   // With the drying date kept on the Spoolman side, one small extra request
   // fetches it - BamBuddy's proxy hides the extra dict it lives in. Only in
   // that mode and only when the user picked it, so the normal scan stays at
-  // two requests.
-  if (g_bb_dried_target == BB_DRIED_SPOOLMAN && s_mode == BB_INV_SPOOLMAN) {
+  // two requests. Not when BamBuddy's own field has the date already.
+  if (g_bb_dried_target == BB_DRIED_SPOOLMAN && s_mode == BB_INV_SPOOLMAN &&
+      !(raw["last_dried_at"] | (const char*)nullptr)) {
     char dried[32];
     if (bbGetDriedFromSpoolman(spool_id, dried, sizeof(dried), timeout_ms)) {
       out["extra"]["last_dried"] = dried;
+      s_dried_from_spoolman_id = spool_id;
     }
   }
   return 200;
@@ -580,6 +636,23 @@ int bbGetLocationsJson(const char* base_url, const char* api_key,
     if (name[0]) out.add(name);
   }
   return 200;
+}
+
+int bbGetStreamed(const char* base_url, const char* api_key, const char* path,
+                  uint32_t timeout_ms, BbBodyReader read, void* ctx) {
+  if (!hasBaseUrl(base_url) || !path || !read) return -1;
+  BackendHttp http;
+  if (!http.begin(String(base_url) + path)) return -1;
+  http.setTimeout(timeout_ms);
+  addKey(http, api_key);
+  const int code = http.GET();
+  if (code != 200) {
+    http.end();
+    return code;
+  }
+  const bool ok = read(*http.getStreamPtr(), ctx);
+  http.end();
+  return ok ? 200 : -2;
 }
 
 int bbCountActiveSpools(const char* base_url, const char* api_key,
@@ -788,6 +861,23 @@ int bbPatchSpoolFields(const char* base_url, const char* api_key, int spool_id,
   return sendJson("PATCH", url, api_key, out, timeout_ms, nullptr);
 }
 
+int bbPatchLastDried(const char* base_url, const char* api_key, int spool_id,
+                     const char* iso, uint32_t timeout_ms) {
+  if (!hasBaseUrl(base_url) || spool_id <= 0 || !iso || !iso[0]) return -1;
+
+  // Same route and key in both inventory modes: the Spoolman proxy stores it
+  // in bambu_last_dried_at itself. The instant goes out with its Z, which
+  // BamBuddy converts to the UTC it keeps.
+  char url[192];
+  snprintf(url, sizeof(url), "%s%s/spools/%d", base_url, bbInventoryBase(), spool_id);
+
+  JsonDocument body;
+  body["last_dried_at"] = iso;
+  String out;
+  serializeJson(body, out);
+  return sendJson("PATCH", url, api_key, out, timeout_ms, nullptr);
+}
+
 int bbPatchDryingNote(const char* base_url, const char* api_key, int spool_id,
                       const char* value, uint32_t timeout_ms) {
   if (!hasBaseUrl(base_url) || spool_id <= 0 || !value || !value[0]) return -1;
@@ -910,6 +1000,74 @@ bool bbGetDriedFromSpoolman(int spool_id, char* out_iso, size_t out_size,
   return true;
 }
 
+// The note's marker moved into last_dried_at: the date when it is later than
+// what the field holds, the marker out of the note either way. False when
+// the note has none.
+static bool driedMoveFromNote(JsonObjectConst sp, JsonDocument& body) {
+  const char* note = sp["note"] | "";
+  char day[DRIED_MARKER_DAY_MAX];
+  if (!driedMarkerParse(note, day, sizeof(day))) return false;
+
+  char native[LAST_DRIED_ISO_MAX];
+  char native_day[DRIED_MARKER_DAY_MAX] = "";
+  lastDriedUtc(sp["last_dried_at"] | (const char*)nullptr, native, sizeof(native));
+  if (native[0]) isoDayLocal(native, native_day, sizeof(native_day));
+  if (driedMarkerNewer(day, native_day)) {
+    char iso[LAST_DRIED_ISO_MAX];
+    if (!dayLocalNoonUtc(day, iso, sizeof(iso))) return false;
+    body["last_dried_at"] = iso;
+  }
+
+  // A char*, so ArduinoJson keeps a copy rather than the pointer.
+  const size_t n = strlen(note) + 1;
+  char* stripped = (char*)malloc(n);
+  if (!stripped) return false;
+  driedMarkerStrip(note, stripped, n);
+  body["note"] = stripped;
+  free(stripped);
+  return true;
+}
+
+// The date the user had sent past BamBuddy into Spoolman's extra.last_dried,
+// copied into BamBuddy's own field while that is empty. extra.last_dried
+// stays: the scale reads the same field in its own Spoolman mode.
+static bool driedCopyFromSpoolman(JsonObjectConst sp, int spool_id,
+                                  JsonDocument& body, uint32_t timeout_ms) {
+  if (g_bb_dried_target != BB_DRIED_SPOOLMAN || s_mode != BB_INV_SPOOLMAN) return false;
+  if (sp["last_dried_at"] | (const char*)nullptr) return false;
+  char iso[LAST_DRIED_ISO_MAX];
+  if (!bbGetDriedFromSpoolman(spool_id, iso, sizeof(iso), timeout_ms)) return false;
+  body["last_dried_at"] = iso;
+  return true;
+}
+
+int bbMigrateDried(const char* base_url, const char* api_key, int spool_id,
+                   uint32_t timeout_ms) {
+  if (!hasBaseUrl(base_url) || spool_id <= 0) return -1;
+
+  // Read first, the note may have changed since the scan.
+  char url[192];
+  snprintf(url, sizeof(url), "%s%s/spools/%d", base_url, bbInventoryBase(), spool_id);
+  JsonDocument cur;
+  const int code = getJson(url, api_key, cur, timeout_ms, nullptr, nullptr);
+  if (code != 200) return (code < 0) ? code : -2;
+  JsonObjectConst sp = cur.as<JsonObjectConst>();
+
+  // An older BamBuddy has nowhere to move it to; the note stays as it is.
+  if (!jsonHasKey(sp, "last_dried_at")) return 0;
+
+  JsonDocument body;
+  const bool from_note = driedMoveFromNote(sp, body);
+  if (!from_note && !driedCopyFromSpoolman(sp, spool_id, body, timeout_ms)) return 0;
+
+  String out;
+  serializeJson(body, out);
+  logSDf("BamBuddy: drying date of spool %d moved from the %s, date %s",
+         spool_id, from_note ? "note" : "Spoolman extra",
+         body["last_dried_at"] | "kept");
+  return sendJson("PATCH", url, api_key, out, timeout_ms, nullptr);
+}
+
 // A Bambu tag stores the colour as a value, never as a name. BamBuddy keeps a
 // catalogue that can turn one into the other, and does it better than a plain
 // hex table would: the material decides between entries that share a hex, so
@@ -954,20 +1112,16 @@ int bbLookupColorName(const char* base_url, const char* api_key, const char* hex
   return 200;
 }
 
-int bbCreateSpool(const char* base_url, const char* api_key,
-                  const BbNewSpool& spool, int* out_spool_id,
-                  uint32_t timeout_ms) {
-  if (out_spool_id) *out_spool_id = 0;
-  if (!hasBaseUrl(base_url) || !spool.material || !spool.material[0]) return -1;
-
-  JsonDocument body;
+static void newSpoolBody(const BbNewSpool& spool, JsonDocument& body) {
   body["material"] = spool.material;
+  if (spool.spoolman_filament_id > 0) body["spoolman_filament_id"] = spool.spoolman_filament_id;
   if (spool.subtype    && spool.subtype[0])    body["subtype"]    = spool.subtype;
   if (spool.brand      && spool.brand[0])      body["brand"]      = spool.brand;
   if (spool.color_name && spool.color_name[0]) body["color_name"] = spool.color_name;
   if (spool.rgba       && spool.rgba[0])       body["rgba"]       = spool.rgba;
   if (spool.label_weight > 0) body["label_weight"] = spool.label_weight;
   if (spool.core_weight  > 0) body["core_weight"]  = spool.core_weight;
+  if (spool.core_weight_catalog_id > 0) body["core_weight_catalog_id"] = spool.core_weight_catalog_id;
   // Always written, zero included: BamBuddy stores what was consumed and
   // derives the rest, so leaving it out would make every new spool full.
   body["weight_used"] = roundGrams(spool.weight_used < 0.0f ? 0.0f : spool.weight_used);
@@ -975,36 +1129,63 @@ int bbCreateSpool(const char* base_url, const char* api_key,
   // not part of the schema and are dropped server side without complaint.
   if (spool.nozzle_temp_min > 0) body["nozzle_temp_min"] = spool.nozzle_temp_min;
   if (spool.nozzle_temp_max > 0) body["nozzle_temp_max"] = spool.nozzle_temp_max;
+  if (spool.extra_colors    && spool.extra_colors[0])    body["extra_colors"]    = spool.extra_colors;
+  if (spool.effect_type     && spool.effect_type[0])     body["effect_type"]     = spool.effect_type;
+  if (spool.material_number && spool.material_number[0]) body["material_number"] = spool.material_number;
+  if (spool.cost_per_kg > 0.0f) body["cost_per_kg"] = roundf(spool.cost_per_kg * 100.0f) / 100.0f;
+}
+
+// Worth a line of its own: behind the Spoolman proxy an empty brand makes
+// the server build a filament with no vendor and a name cut to the bare
+// material, which looks like data loss on the display but starts here.
+// Serial as well as SD: without a card logSDf() is a no-op, and this is the
+// line that tells an empty vendor or colour apart from a server that
+// dropped them.
+static void logNewSpool(const BbNewSpool& spool) {
+  Serial.printf("BamBuddy create: mat='%s' sub='%s' brand='%s' col='%s' fil=%d label=%d core=%d used=%.0f\n",
+                spool.material,
+                spool.subtype    ? spool.subtype    : "",
+                spool.brand      ? spool.brand      : "",
+                spool.color_name ? spool.color_name : "",
+                spool.spoolman_filament_id, spool.label_weight, spool.core_weight, spool.weight_used);
+  logSDf("BamBuddy create: mat=%s sub=%s brand=%s col=%s fil=%d label=%d core=%d used=%.0f",
+         spool.material,
+         spool.subtype    ? spool.subtype    : "",
+         spool.brand      ? spool.brand      : "",
+         spool.color_name ? spool.color_name : "",
+         spool.spoolman_filament_id, spool.label_weight, spool.core_weight, spool.weight_used);
+}
+
+int bbCreateSpool(const char* base_url, const char* api_key,
+                  const BbNewSpool& spool, int* out_spool_id,
+                  uint32_t timeout_ms, bool* out_warned) {
+  if (out_spool_id) *out_spool_id = 0;
+  if (out_warned)   *out_warned   = false;
+  if (!hasBaseUrl(base_url) || !spool.material || !spool.material[0]) return -1;
+
+  JsonDocument body;
+  newSpoolBody(spool, body);
 
   char url[192];
   snprintf(url, sizeof(url), "%s%s/spools", base_url, bbInventoryBase());
 
   String out, resp;
   serializeJson(body, out);
-  // Worth a line of its own: behind the Spoolman proxy an empty brand makes
-  // the server build a filament with no vendor and a name cut to the bare
-  // material, which looks like data loss on the display but starts here.
-  // Serial as well as SD: without a card logSDf() is a no-op, and this is the
-  // line that tells an empty vendor or colour apart from a server that
-  // dropped them.
-  Serial.printf("BamBuddy create: mat='%s' sub='%s' brand='%s' col='%s' label=%d core=%d used=%.0f\n",
-                spool.material,
-                spool.subtype    ? spool.subtype    : "",
-                spool.brand      ? spool.brand      : "",
-                spool.color_name ? spool.color_name : "",
-                spool.label_weight, spool.core_weight, spool.weight_used);
-  logSDf("BamBuddy create: mat=%s sub=%s brand=%s col=%s label=%d core=%d used=%.0f",
-         spool.material,
-         spool.subtype    ? spool.subtype    : "",
-         spool.brand      ? spool.brand      : "",
-         spool.color_name ? spool.color_name : "",
-         spool.label_weight, spool.core_weight, spool.weight_used);
+  logNewSpool(spool);
   int code = sendJson("POST", url, api_key, out, timeout_ms, &resp);
   if (code != 200) return code;
 
   JsonDocument doc;
   if (deserializeJson(doc, resp)) return -2;
   if (out_spool_id) *out_spool_id = doc["id"] | 0;
+  // sendJson folds every 2xx into 200: a 207 - spool made, a step after it
+  // refused - arrives here as a success with its warnings in the body.
+  JsonArrayConst warnings = doc["warnings"].as<JsonArrayConst>();
+  if (warnings.size() > 0) {
+    logSDf("BamBuddy create: spool %d made with a warning: %s",
+           (int)(doc["id"] | 0), warnings[0] | "");
+    if (out_warned) *out_warned = true;
+  }
   return 200;
 }
 

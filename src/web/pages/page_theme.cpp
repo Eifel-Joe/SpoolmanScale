@@ -33,8 +33,9 @@ static const char THEME_CSS[] PROGMEM =
     ".tcard:hover{background:var(--surface-2)}"
     // Apply stays in view while the page scrolls: a choice made at the top
     // with the button far below looked like nothing happened. Something
-    // changed and not applied yet fills it and says so.
-    ".tbar{position:sticky;bottom:12px;z-index:5;display:flex;gap:12px;align-items:center;"
+    // changed and not applied yet fills it and says so. Inside a backend's
+    // frame --vis-bot lifts it to the edge of what is on screen (app.js).
+    ".tbar{position:sticky;bottom:calc(12px + var(--vis-bot,0px));z-index:5;display:flex;gap:12px;align-items:center;"
     "flex-wrap:wrap;margin-top:14px;padding:12px 16px;border-radius:12px;"
     "background:var(--surface);border:1px solid var(--line)}"
     ".tbar .tdirty{display:none;font-size:12.5px;color:var(--ink-soft)}"
@@ -86,6 +87,7 @@ static const char THEME_CSS[] PROGMEM =
     ".cchip i,.hsw{display:inline-block;width:14px;height:14px;border-radius:4px;background:var(--c);"
     "box-shadow:inset 0 0 0 1px rgba(128,128,128,.45)}"
     ".cchip[aria-pressed=true]{background:var(--btn);color:var(--accent);border-color:var(--accent)}"
+    ".cpair{display:inline-flex;gap:2px}"
     "input[type=color]{width:42px;height:32px;padding:2px;border:1px solid var(--line);border-radius:8px;"
     "background:var(--ground);cursor:pointer}"
     ".cchips input[type=range]{flex:0 1 240px}"
@@ -139,6 +141,10 @@ static String body() {
   h += F("</h2><p class='hint'>");
   h += T(STR_W_THEME_OWN_HINT);
   h += F("</p><div class='csec'><div><div class='clbl'>");
+  h += T(STR_W_THEME_PRESETS);
+  h += F("</div><div class='hint'>");
+  h += T(STR_W_THEME_PRESETS_HINT);
+  h += F("</div></div><div class='cchips' id='pre'></div></div><div class='csec'><div><div class='clbl'>");
   h += T(STR_W_THEME_ACCENT);
   h += F("</div><div class='hint'>");
   h += T(STR_W_THEME_ACCENT_HINT);
@@ -183,6 +189,10 @@ static String body() {
   h += jsStr(T(STR_W_THEME_FILAMAN_DARK));
   h += F(",filaman_light:");
   h += jsStr(T(STR_W_THEME_FILAMAN_LIGHT));
+  h += F(",bambuddy_dark:");
+  h += jsStr(T(STR_W_THEME_BAMBUDDY_DARK));
+  h += F(",bambuddy_light:");
+  h += jsStr(T(STR_W_THEME_BAMBUDDY_LIGHT));
   h += F("},active:");
   h += jsStr(T(STR_W_THEME_ACTIVE));
   h += F(",later:");
@@ -272,13 +282,21 @@ static String body() {
          // The chosen palette and the own colours over it. CS is what the
          // controls say, CS0 what is stored: Apply is live only in between.
          "var sel=null,stored=null,BASE={},BACKEND='',CS0='',WEBK=['dark','light'],"
-         "CS={accent:null,tone:-1,strength:50,follow:false},DARK={dark:1,spoolman_dark:1,filaman_dark:1};"
+         "CS={accent:null,tone:-1,strength:50,follow:false},DARK={dark:1,spoolman_dark:1,filaman_dark:1,bambuddy_dark:1};"
          "var ACC=[['ff9442','orange'],['ff5fa2','pink'],['2563eb','blue'],['8b5cf6','violet'],['e0b100','yellow'],['0e7490','petrol'],['e5484d','red']];"
+         // Accent and ground in pairs: the accent, the colour the pair was
+         // named after for the ground (shown in the chip only, the scale takes
+         // its hue as the tone), the tone and its strength. The names are the
+         // pairs' own and stay the same in every language.
+         "var PRE=[['6d35ff','5dd8ff',222,100,'Electric Purple'],['e26f4a','fffcf4',90,50,'Clay Orange'],"
+         "['ff173d','f9dedf',15,50,'Dusty Rose'],['1d61f3','f1f4f9',261,50,'Blue Ribbon'],"
+         "['7a00ff','ffe600',101,100,'Ultra Violet'],['ff2e3a','dbf6ff',220,60,'Machine Red'],"
+         "['ff9030','111827',265,50,'Neon Orange']];"
          "var HUES=[[255,'4f7fd6','blue'],[200,'2f9aa6','petrol'],[150,'3f9f6a','green'],[300,'8a63d2','violet'],[20,'c85a5a','red'],[75,'c49a5c','sand']];"
          "function key(){return [sel,CS.accent||'-',CS.tone,CS.strength,CS.follow?1:0].join(',');}"
          "function resolved(){var s=sel||'dark';if(!CS.follow)return s;var d=DARK[s]?'_dark':'_light';"
          "if(BACKEND==='filaman')return 'filaman'+d;if(BACKEND==='spoolman')return 'spoolman'+d;"
-         "return d==='_dark'?'dark':'light';}"
+         "if(BACKEND==='bambuddy')return 'bambuddy'+d;return d==='_dark'?'dark':'light';}"
          "function paint(el,p){Object.keys(p).forEach(function(k){el.style.setProperty('--'+k,'#'+p[k]);});}"
          "function chip(g,sw,txt,on,fn){var b=document.createElement('button');b.type='button';"
          "b.className='quiet cchip';b.innerHTML='<i style=\"--c:#'+sw+'\"></i>'+(txt?esc(txt):'');"
@@ -286,7 +304,13 @@ static String body() {
          "b.addEventListener('click',fn);g.appendChild(b);}"
          "function update(){var id=resolved(),b=BASE[id];if(!b)return;var p=TC.apply(b,CS,!!DARK[id]);"
          "$('tlight').hidden=!!DARK[id];$('fres').textContent=(TT.names[id]||id)+(CS.accent||CS.tone>=0||CS.strength!==50?' '+TT.plus:'');"
-         "var g=$('acc');g.textContent='';chip(g,b.ACCENT,TT.own,!CS.accent,function(){CS.accent=null;update();});"
+         "var g=$('pre');g.textContent='';PRE.forEach(function(q){var e=document.createElement('button');"
+         "e.type='button';e.className='quiet cchip';e.innerHTML='<span class=\"cpair\"><i style=\"--c:#'+q[0]+'\"></i>"
+         "<i style=\"--c:#'+q[1]+'\"></i></span>'+esc(q[4]);"
+         "e.setAttribute('aria-pressed',CS.accent===q[0]&&CS.tone===q[2]&&CS.strength===q[3]?'true':'false');"
+         "e.addEventListener('click',function(){CS.accent=q[0];CS.tone=q[2];CS.strength=q[3];"
+         "$('accpick').value='#'+q[0];$('huerange').value=q[2];update();});g.appendChild(e);});"
+         "g=$('acc');g.textContent='';chip(g,b.ACCENT,TT.own,!CS.accent,function(){CS.accent=null;update();});"
          "ACC.forEach(function(a){chip(g,a[0],TT.cn[a[1]],CS.accent===a[0],function(){CS.accent=a[0];$('accpick').value='#'+a[0];update();});});"
          "g=$('hue');g.textContent='';chip(g,b.GROUND,TT.own,CS.tone<0,function(){CS.tone=-1;update();});"
          "HUES.forEach(function(h){chip(g,h[1],TT.cn[h[2]],CS.tone===h[0],function(){CS.tone=h[0];$('huerange').value=h[0];update();});});"
