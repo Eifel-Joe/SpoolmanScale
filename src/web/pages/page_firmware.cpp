@@ -10,6 +10,7 @@
 #include "app/app_state.h"
 #include "app_config.h"
 #include "hardware/sd_logger.h"
+#include "boards/board.h"
 #include "services/github_release.h"
 #include "services/board_image.h"
 #include "services/partition_layout.h"
@@ -824,10 +825,11 @@ static void routesTail(WebServer &srv) {
       } else if (upload.status == UPLOAD_FILE_WRITE) {
         // An image for another board says so in itself, see board_image.h.
         // Nothing is committed before end(), so dropping it here leaves the
-        // running firmware where it is.
+        // running firmware where it is. The line names this board by its id;
+        // boardImageMarker() is the whole marker line, for the boot log.
         if (boardImageScanFeed(upload.buf, upload.currentSize) == BOARD_IMAGE_FOREIGN) {
           logSDf("OTA: upload refused after %u bytes, the image is for another board (this is %s)",
-                 (unsigned)ota_upload_done, boardImageMarker());
+                 (unsigned)ota_upload_done, BOARD_ID);
           Update.abort();
           ota_upload_active = false;
           failed = true;
@@ -870,7 +872,7 @@ static void routesTail(WebServer &srv) {
           s_upload_ok = false;
           otaGithubOverlayHide();
           logSDf("OTA: upload refused, the image names no board (this is %s)",
-                 boardImageMarker());
+                 BOARD_ID);
           return;
         }
         s_upload_ok = Update.end(true) && !Update.hasError();

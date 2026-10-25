@@ -447,6 +447,10 @@ bool githubFlashTag(const char *tag, const char *sha256_hex,
   // back to the old image.
   const char *fail = nullptr;
   char detail[80] = "";
+  // The two refusals about the board say in the log which board this is, the
+  // way the release files name it. Only in the log: `fail` also goes to the
+  // screen, where the reason alone fits the line like the other reasons.
+  const char *board_note = "";
   if (write_failed) {
     snprintf(detail, sizeof(detail), "Update error %u", (unsigned)Update.getError());
     fail = detail;
@@ -457,6 +461,7 @@ bool githubFlashTag(const char *tag, const char *sha256_hex,
     // Before the length test: the loop was left early, and "Incomplete"
     // would be the reason shown for what is really the wrong board's image.
     fail = "Image for another board";
+    board_note = " (this is " BOARD_ID ")";
   } else if (total > 0 && done != total) {
     snprintf(detail, sizeof(detail), "Incomplete: %u of %u bytes", (unsigned)done, (unsigned)total);
     fail = detail;
@@ -470,12 +475,13 @@ bool githubFlashTag(const char *tag, const char *sha256_hex,
     // an image without one. Its own test and not part of the checksum's: a
     // tag picked by hand carries no sum, and this must refuse there as well.
     fail = "No board line in the image";
+    board_note = " (this is " BOARD_ID ")";
   }
 
   heapLowText(heap_low, low_txt, sizeof(low_txt));
   if (fail) {
     Update.abort();
-    logSDf("OTA: %s refused - %s, internal low %s", tag, fail, low_txt);
+    logSDf("OTA: %s refused - %s%s, internal low %s", tag, fail, board_note, low_txt);
     if (err && err_len) snprintf(err, err_len, "%s", fail);
     gh_flash_active = false;
     return false;
