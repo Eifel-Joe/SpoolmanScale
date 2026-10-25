@@ -56,6 +56,12 @@ int main() {
     {"Bambu Lab - A", 250}, {"Bambu Lab - B", 251}, {"Bambu Lab - C", 249},
     {"Bambu Lab - D", 252}, {"Bambu Lab - E", 248}, {"Bambu Lab - F", 253},
   };
+  // Six types of one vendor in the order of the list from far to near: with
+  // 250 g asked for, the closest one stands last.
+  const SpoolType dense2[6] = {
+    {"Bambu Lab - A", 258}, {"Bambu Lab - B", 257}, {"Bambu Lab - C", 256},
+    {"Bambu Lab - D", 255}, {"Bambu Lab - E", 254}, {"Bambu Lab - F", 250},
+  };
   int out[8];
 
   // A type belongs to a vendor when the name starts with it, in any case and
@@ -108,6 +114,13 @@ int main() {
   assert(n == 5);
   assert(idxIs(out, n, {0, 1, 2, 3, 4}));
   assert(out[5] == -1);
+  // The five nearest, not the first five of the list: F is 0 g away and
+  // stands last, so it comes first, and A (8 g, the farthest) has no room.
+  clearOut(out);
+  n = spoolTypeNear(dense2, 6, "Bambu Lab", 250.0f, SPOOL_TYPE_NEAR_G, out, 5);
+  assert(n == 5);
+  assert(idxIs(out, n, {5, 4, 3, 2, 1}));
+  assert(out[5] == -1);
   // With a tolerance of a kilogram the nearest type is still one: 167 g is
   // 13 g from 180, 200 g is 20 g.
   clearOut(out);
@@ -152,7 +165,8 @@ int main() {
   // unless it has a tare of its own.
   assert(spoolTypeFirstAsk(1000.0f, 260.0f, 460.0f, false, 250.0f) == STA_LIST);
   assert(spoolTypeFirstAsk(1000.0f, 260.0f, 460.0f, true, 250.0f) == STA_NONE);
-  // Less on the scale than the label weight: the dish is empty, nothing to ask.
+  // A bare reading of NEW_SPOOL_TARE_MIN_G (30 g, the only value pinned here)
+  // is the dish with nothing on it: nothing to ask.
   assert(spoolTypeFirstAsk(1000.0f, 1000.0f, 30.0f, false, 250.0f) == STA_NONE);
   // Full is within 0.5 g of the label (999.6), 0.6 g short is not (999.4); and
   // with no label weight at all there is nothing to take the tare from.
