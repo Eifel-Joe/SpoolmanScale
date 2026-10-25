@@ -57,6 +57,10 @@ jobs:
         run: python3 test/test_update_source.py
       - name: Test factory image
         run: python3 test/test_factory_image.py
+      - name: Test release files
+        run: python3 test/test_release_files.py
+      - name: Test version compare
+        run: python3 test/test_version_compare.py
 
   build:
     name: Build ${{ matrix.env }}
