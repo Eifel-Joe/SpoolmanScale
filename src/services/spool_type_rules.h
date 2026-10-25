@@ -110,6 +110,20 @@ bool spoolTypeTarePlausible(float tare);
 // Not a number, infinite and negative count as 0.
 float spoolTypeFullLabel(float fill, float rest);
 
+// What a full spool on the scale writes, in the whole grams the server keeps:
+// the tare as it will be stored, the label weight, and a rest never above it.
+struct FullSpoolWrite { int tare_g; int label_g; float rest_g; };
+
+// The three writes of a full spool from the bare reading, the filament in it
+// and the tare chosen or measured. The server stores the tare in whole grams
+// and takes the rest as the reading less that stored tare, so the rest is
+// worked out against the rounded tare (spoolTypeGrams), and a spool filled
+// over its label lifts the label to the rest (spoolTypeFullLabel) before it
+// is rounded. The rest is cut to the rounded label, so that it cannot round
+// up past the label the server holds. A reading that is not a number or lies
+// below the tare leaves a rest of 0.
+FullSpoolWrite spoolTypeFullSpoolWrite(float bare, float fill, float tare);
+
 // What to ask when a spool is put down: its label weight, the filament left,
 // the bare reading (without the parts on the spool), whether the spool has a
 // tare of its own and which one. The order of the rules is in the head of

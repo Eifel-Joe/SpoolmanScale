@@ -144,20 +144,21 @@ void handleConfirmPopupDeferredActions() {
     case CJ_FULL_SPOOL: {
       // Design L14, in this order and each step only after the one before
       // it: the tare (a picked type wins over the computed one, s_job_value
-      // is what was picked), the label weight, the rest. A rest above the
-      // fill lifts the label to it, the proxy turns down a negative use.
-      if (!patchSpoolWeight(s_job_value)) {
+      // is what was picked), the label weight, the rest. The server keeps
+      // whole grams and takes the rest as the reading less the tare it holds,
+      // so the three are worked out in whole grams, the rest never above the
+      // label (spoolTypeFullSpoolWrite). A rest above the fill lifts the label
+      // to it, the proxy turns down a negative use.
+      const FullSpoolWrite w = spoolTypeFullSpoolWrite(s_job_gross, s_job_fill, s_job_value);
+      if (!patchSpoolWeight((float)w.tare_g)) {
         logSD("Full spool: tare not stored, nothing else written");
         break;
       }
-      float rest = s_job_gross - s_job_value;
-      if (rest < 0.0f) rest = 0.0f;
-      const float label = spoolTypeFullLabel(s_job_fill, rest);
-      logSDf("Full spool: %.0f g filament, %.1f g bare, %.1f g tare: label %.1f g, rest %.1f g",
-             s_job_fill, s_job_gross, s_job_value, label, rest);
-      if (!patchInitialWeight(label)) break;
+      logSDf("Full spool: %.0f g filament, %.1f g bare, %d g tare: label %d g, rest %.1f g",
+             s_job_fill, s_job_gross, w.tare_g, w.label_g, w.rest_g);
+      if (!patchInitialWeight((float)w.label_g)) break;
       // Past the label check: the label was just set to hold this rest.
-      patchSpoolmanWeight(rest, true);
+      patchSpoolmanWeight(w.rest_g, true);
       break;
     }
     case CJ_ARCHIVE:

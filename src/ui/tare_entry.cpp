@@ -727,6 +727,10 @@ void tareEntryTick() {
   // A pick parked in the pass before has been written by now: the loop runs
   // the parked jobs before this tick.
   s_pick_parked = false;
+  // The list goes without a call back when another flow opens its own
+  // (showSpoolTypeList() closes the one standing), and a flag left set would
+  // claim the next list, that flow's, as this file's.
+  if (s_list_mine && !isSpoolTypeListOpen()) s_list_mine = false;
   // The placement the first weighing held ends with the tag or a swap; a
   // spool put back is weighed as usual.
   if (s_fw_hold_id != 0 && (!tag_present || sm_id != s_fw_hold_id)) s_fw_hold_id = 0;

@@ -111,6 +111,21 @@ float spoolTypeFullLabel(float fill, float rest) {
   return r > f ? r : f;
 }
 
+FullSpoolWrite spoolTypeFullSpoolWrite(float bare, float fill, float tare) {
+  const int tare_g = spoolTypeGrams(tare);
+  // Against the tare the server will hold, not the one typed in: 212.3 g is
+  // 212 g over there, and the rest it computes is the reading less that.
+  float rest = bare - (float)tare_g;
+  // The negated comparison also catches a rest that is not a number.
+  if (!(rest > 0.0f) || !isfinite(rest)) rest = 0.0f;
+  const int label_g = spoolTypeGrams(spoolTypeFullLabel(fill, rest));
+  // The label is rounded and the rest is not, so a rest of 1000.3 g would
+  // stand above a label of 1000 g. The cut costs at most half a gram.
+  const float label = (float)label_g;
+  const FullSpoolWrite w = { tare_g, label_g, rest < label ? rest : label };
+  return w;
+}
+
 SpoolTypeAsk spoolTypeFirstAsk(float total, float remaining, float bare, bool own_tare, float stored_tare) {
   // 1. Nothing on the dish, or nothing a spool could be: no question. The
   //    negated comparison also stops a reading that is not a number.

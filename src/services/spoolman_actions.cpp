@@ -22,6 +22,7 @@
 #include "services/backend.h"
 #include "services/server_reach.h"
 #include "services/spool_cache.h"
+#include "services/spool_type_rules.h"
 #include "services/time_service.h"
 #include "ui/main_screen_helpers.h"
 #include "ui/info_popup.h"
@@ -734,7 +735,10 @@ bool patchSpoolWeight(float spool_w) {
     // copying reads the tare from it. The cache stamp cannot see that: it
     // proves which spools there are, not what they hold.
     spoolCacheForget("spool tare changed");
-    sm_spool_weight = spool_w;
+    // BamBuddy keeps whole grams (backendPatchSpoolWeight rounds the same
+    // way), and the weights written next are worked out against what it
+    // holds: 212.3 g typed is 212 g there. The other backends keep the float.
+    sm_spool_weight = backendIsBamBuddy() ? (float)spoolTypeGrams(spool_w) : spool_w;
     // The value now comes from this spool, so drop any inherited source.
     // Without this the details screen keeps claiming "(filament)" over a
     // number that was just measured here.
