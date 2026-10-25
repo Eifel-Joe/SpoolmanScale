@@ -149,6 +149,13 @@ void handleConfirmPopupDeferredActions() {
       // so the three are worked out in whole grams, the rest never above the
       // label (spoolTypeFullSpoolWrite). A rest above the fill lifts the label
       // to it, the proxy turns down a negative use.
+      // The label is written only where it changes: the write sets the label
+      // and clears the use in one (patchInitialWeight), so repeating the label
+      // the spool already has would only open a window in which a failed rest
+      // leaves a used spool reading full. The rest alone is then enough.
+      // NOT-TO-DO: no skip on "the rest is below the label" alone: a typed
+      // fill that differs from sm_total (full spool) is a new label and is
+      // written as before.
       const FullSpoolWrite w = spoolTypeFullSpoolWrite(s_job_gross, s_job_fill, s_job_value);
       if (!patchSpoolWeight((float)w.tare_g)) {
         logSD("Full spool: tare not stored, nothing else written");
@@ -156,8 +163,14 @@ void handleConfirmPopupDeferredActions() {
       }
       logSDf("Full spool: %.0f g filament, %.1f g bare, %d g tare: label %d g, rest %.1f g",
              s_job_fill, s_job_gross, w.tare_g, w.label_g, w.rest_g);
-      if (!patchInitialWeight((float)w.label_g)) break;
-      // Past the label check: the label was just set to hold this rest.
+      const int label_have_g = spoolTypeGrams(sm_total);
+      if (w.label_g != label_have_g) {
+        logSDf("Full spool: label set to %d g (the spool had %d g)", w.label_g, label_have_g);
+        if (!patchInitialWeight((float)w.label_g)) break;
+      } else {
+        logSDf("Full spool: label unchanged at %d g", w.label_g);
+      }
+      // Past the label check: the label holds this rest, set now or before.
       patchSpoolmanWeight(w.rest_g, true);
       break;
     }

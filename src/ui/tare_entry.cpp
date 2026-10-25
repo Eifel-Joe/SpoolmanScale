@@ -653,14 +653,15 @@ bool tareEntryHoldsAutoWeigh() {
 //
 // V19 (spec 5.3 M), a type from the catalog (also one just added): the rest
 // is written too, by the job of the full spool (CJ_FULL_SPOOL): tare, label
-// weight, rest, each only after the one before it. The fill is the label
-// weight sm_total, the reading the one without the parts on the spool.
+// weight (only where it changes), rest, each only after the one before it.
+// The fill is the label weight sm_total, the reading the one without the
+// parts on the spool.
 // Root: the tare alone left the rest as the server had it, and a spool
 // holding more than its label (spool 2, 25.10.2026: 1184 g on a 167 g type,
 // 1017 g of rest, label 1000 g) cannot be given its rest by a plain weight
 // write: Spoolman and Bambuddy cut a rest above the label silently. So the
-// label is lifted first; the job does it in whole grams
-// (spoolTypeFullSpoolWrite, test_spool_type_rules.py).
+// label is lifted first where the rest is above it; the job does it in whole
+// grams (spoolTypeFullSpoolWrite, test_spool_type_rules.py).
 // "Take measured" (no name) writes the tare alone, as before.
 // NOT-TO-DO: no write sequence of its own here (a second copy of the order
 // and the rounding rules), and not a tare job followed by a weight job (one
