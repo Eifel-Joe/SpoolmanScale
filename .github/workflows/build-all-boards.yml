@@ -42,6 +42,14 @@ concurrency:
   cancel-in-progress: false
 jobs:
   build:
+    # This job builds and releases every board, but GitHub shows the job of a
+    # matrix as "<name> (<matrix values>)", here "build (wt32-sc01-plus)", as
+    # if only the WT32 were released. The suffix is left out when the name
+    # itself holds a matrix expression. This one evaluates to the empty string
+    # (`&&` returns its last operand), so the name stays as written. A plain
+    # name would still get the suffix; test/test_release_workflow.py pins the
+    # line.
+    name: Build and release all boards${{ matrix.env && '' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -190,8 +198,11 @@ jobs:
         # file, the file for the browser upload and the factory image of each
         # board. A failure stops the run before version.json takes the
         # checksums, before the release and before the pages. On a manual run
-        # as well, like the checks above: no `if:`.
+        # as well, like the checks above: no `if:`. The first failing call ends
+        # the step, whichever shell runs it: the default `bash -e` would do,
+        # but nothing in this file would say so, hence `set -euo pipefail`.
         run: |
+          set -euo pipefail
           VERSION=${{ steps.version.outputs.version }}
           # The matrix board, whose device file has no board in its name.
           python3 scripts/board_marker.py SpoolmanScale.bin ${{ matrix.env }}
