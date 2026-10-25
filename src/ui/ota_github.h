@@ -31,7 +31,7 @@ bool otaGithubScreenVisible();
 
 // What the background check found, for the screen that asked for it.
 enum GhCheckAnswer : uint8_t {
-  GH_ANSWER_FAILED,      // no answer to show: HTTP error, bad file, no memory
+  GH_ANSWER_FAILED,      // no answer: HTTP error, bad file, no memory
   GH_ANSWER_UP_TO_DATE,
   GH_ANSWER_AVAILABLE,   // stored in gh_latest_version, update_available set
   GH_ANSWER_TOO_BIG,     // the version in `version` does not fit this slot

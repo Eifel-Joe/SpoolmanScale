@@ -157,8 +157,9 @@ bool otaGithubScreenVisible() {
 // stored update into the status, both version lines and a live "Install"
 // button, as on entry. Writing the labels one by one was not taken: that is a
 // second copy of the drawing in buildOtaGithubScreen() and doGithubOtaCheck(),
-// and the two would drift. A failed check leaves the status empty; its line
-// is in the log, and "Check" gives the reason.
+// and the two would drift. A failed check says "check failed" (Jörg,
+// 26.10.2026), with the web page's text for it; its line is in the log, and
+// "Check" gives the reason.
 //
 // Not built again while a dialog waits (the downgrade question): dialogs sit
 // on the active screen, and a screen built now would be appended above one
@@ -181,22 +182,23 @@ void otaGithubShowCheckAnswer(GhCheckAnswer answer, const char* version) {
   if (answer == GH_ANSWER_UP_TO_DATE) {
     lv_label_set_text(lbl_gh_status, T(STR_GH_OTA_UP_TO_DATE));
     lv_obj_set_style_text_color(lbl_gh_status, lv_color_hex(UI_COL_OK_TEXT_2), 0);
-  } else if (answer == GH_ANSWER_TOO_BIG && version && version[0]) {
+  } else if (answer == GH_ANSWER_TOO_BIG) {
     char big[96];
-    snprintf(big, sizeof(big), T(STR_GH_OTA_TOO_BIG), version);
+    snprintf(big, sizeof(big), T(STR_GH_OTA_TOO_BIG), version ? version : "");
     lv_label_set_text(lbl_gh_status, big);
     lv_obj_set_style_text_color(lbl_gh_status, lv_color_hex(UI_COL_WARN), 0);
-  } else if (!rebuilt) {
-    // Still the "Checking..." of the switch: the build that would have said
-    // it did not run.
-    if (answer == GH_ANSWER_AVAILABLE && gh_latest_version[0] != '\0') {
+  } else if (answer == GH_ANSWER_AVAILABLE) {
+    // Said by the build above. Not built again, the status line still reads
+    // the "Checking..." of the switch and says it here instead.
+    if (!rebuilt) {
       char avail[64];
       snprintf(avail, sizeof(avail), T(STR_GH_OTA_UPDATE_AVAIL), gh_latest_version);
       lv_label_set_text(lbl_gh_status, avail);
       lv_obj_set_style_text_color(lbl_gh_status, lv_color_hex(UI_COL_WARN), 0);
-    } else {
-      lv_label_set_text(lbl_gh_status, "");
     }
+  } else {
+    lv_label_set_text(lbl_gh_status, T(STR_W_FW_CHECK_FAIL));
+    lv_obj_set_style_text_color(lbl_gh_status, lv_color_hex(UI_COL_BAD_TEXT), 0);
   }
 }
 
