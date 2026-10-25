@@ -6,6 +6,7 @@
 #include "app/backend_switch.h"
 #include "hardware/sd_logger.h"
 #include "services/backend.h"
+#include "services/backend_api.h"
 #include "services/backend_job_rules.h"
 #include "ui/spoolman_lookup.h"
 
@@ -23,8 +24,10 @@ static TagProbeResult         s_res;
 // rewrites cfg_spoolman_base, and this task must not read it half written; the
 // generation then drops whatever came back.
 static char                   s_base[sizeof(cfg_spoolman_base)] = "";
-// The gate of the "postponed" line; only the loop starts a probe.
+// The gates of the "postponed" line and of the "task creation failed" line,
+// one each; only the loop starts a probe.
 static LogGate                s_start_gate;
+static LogGate                s_create_gate;
 
 static void tagProbeTask(void* arg) {
   (void)arg;
@@ -41,11 +44,15 @@ static void tagProbeTask(void* arg) {
 bool tagProbeStart(const char* query) {
   if (s_state != TPS_IDLE || !query || !query[0]) return false;
   // Checked here rather than inside the task: the stack comes out of the
-  // heap the moment the task is created. The floor follows the address the
-  // lookup reads: the active backend's, which is cfg_spoolman_base (copied
-  // into s_base below) in Spoolman mode and the FilaMan or BamBuddy address
-  // in the other two (backendFindSpoolByTag in backend_api.cpp).
-  const uint32_t min_heap  = backendJobMinHeap(backendBaseUrl());
+  // heap the moment the task is created. The floor follows the addresses the
+  // lookup can go to (backendFindSpoolByTag in backend_api.cpp): the active
+  // backend's, which is cfg_spoolman_base (copied into s_base below) in
+  // Spoolman mode and the FilaMan or BamBuddy address in the other two, and
+  // for a BamBuddy that keeps its spools in a Spoolman server that server's,
+  // where bbFindSpoolByTag, through bbGetSpoolJson, reads the drying date.
+  // backendFdbBaseUrl() is that server exactly then and the active backend
+  // otherwise: the higher floor of the two.
+  const uint32_t min_heap  = backendJobMinHeapBoth(backendBaseUrl(), backendFdbBaseUrl());
   const uint32_t free_heap = (uint32_t)ESP.getFreeHeap();
   if (free_heap < min_heap) {
     // The recheck asks again every few seconds: one line a minute, with the
@@ -75,11 +82,17 @@ bool tagProbeStart(const char* query) {
                                           TAG_PROBE_CORE);
   if (ok != pdPASS) {
     s_state = TPS_IDLE;
-    logSD("Recheck: task creation failed");
+    // A task that cannot be created is asked for again like a refused start:
+    // one line a minute here as well.
+    if (logGateDue(&s_create_gate, millis(), BACKEND_JOB_REFUSAL_LOG_MS)) {
+      logSDf("Recheck: task creation failed (%u more since the last line)",
+             (unsigned)logGateTakeSuppressed(&s_create_gate));
+    }
     return false;
   }
-  // Started: what was refused before is over, the next refusal gets a line.
+  // Started: what was refused or failed before is over, the next one gets a line.
   logGateReset(&s_start_gate);
+  logGateReset(&s_create_gate);
   return true;
 }
 

@@ -26,8 +26,10 @@ static DriedBatchResult         s_res;
 // The Spoolman address as it stood when the batch started. Copied because
 // the settings screen writes cfg_spoolman_base in place.
 static char                     s_base[sizeof(cfg_spoolman_base)] = "";
-// The gate of the "not started" line; only the loop starts a batch.
+// The gates of the "not started" line and of the "task creation failed" line,
+// one each; only the loop starts a batch.
 static LogGate                  s_start_gate;
+static LogGate                  s_create_gate;
 
 static void driedBatchTask(void* arg) {
   (void)arg;
@@ -51,24 +53,17 @@ static void driedBatchTask(void* arg) {
   vTaskDelete(NULL);
 }
 
-// The floor for the addresses a batch writes to. backendPatchSpoolLastDried()
-// goes to the active backend and, for a BamBuddy that keeps its spools on a
-// Spoolman server, straight to that server (backendFdbBaseUrl() names it, the
-// active backend otherwise). Two addresses can be asked: the higher floor
-// wins, so an https one on either side keeps 60000.
-static uint32_t driedBatchMinHeap() {
-  const uint32_t active = backendJobMinHeap(backendBaseUrl());
-  const uint32_t behind = backendJobMinHeap(backendFdbBaseUrl());
-  return behind > active ? behind : active;
-}
-
 bool driedBatchStart(int printer_id, uint8_t ams_id, const int* spool_ids,
                      uint8_t n, const char* iso) {
   if (s_state != DBS_IDLE || !spool_ids || n == 0 || !iso || !iso[0]) return false;
   // Checked here rather than inside the task: the stack comes out of the
   // heap the moment the task is created, so testing afterwards would be
   // testing the wrong number.
-  const uint32_t min_heap  = driedBatchMinHeap();
+  // The batch writes to the active backend and, for a BamBuddy that keeps its
+  // spools in a Spoolman server, straight to that server
+  // (backendPatchSpoolLastDried). backendFdbBaseUrl() is that server exactly
+  // then and the active backend otherwise: the higher floor of the two.
+  const uint32_t min_heap  = backendJobMinHeapBoth(backendBaseUrl(), backendFdbBaseUrl());
   const uint32_t free_heap = (uint32_t)ESP.getFreeHeap();
   if (free_heap < min_heap) {
     // One line a minute, with the refusals it stands for.
@@ -100,11 +95,17 @@ bool driedBatchStart(int printer_id, uint8_t ams_id, const int* spool_ids,
                                           DRIED_BATCH_CORE);
   if (ok != pdPASS) {
     s_state = DBS_IDLE;
-    logSD("DRIEDBATCH: task creation failed");
+    // A task that cannot be created is asked for again like a refused start:
+    // one line a minute here as well.
+    if (logGateDue(&s_create_gate, millis(), BACKEND_JOB_REFUSAL_LOG_MS)) {
+      logSDf("DRIEDBATCH: task creation failed (%u more since the last line)",
+             (unsigned)logGateTakeSuppressed(&s_create_gate));
+    }
     return false;
   }
-  // Started: what was refused before is over, the next refusal gets a line.
+  // Started: what was refused or failed before is over, the next one gets a line.
   logGateReset(&s_start_gate);
+  logGateReset(&s_create_gate);
   return true;
 }
 

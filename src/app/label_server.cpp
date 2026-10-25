@@ -131,8 +131,10 @@ static void jobTask(void*) {
   vTaskDelete(NULL);
 }
 
-// The gate of the "not started" line; only the loop starts a fetch.
+// The gates of the "not started" line and of the "task creation failed" line,
+// one each; only the loop starts a fetch.
 static LogGate s_start_gate;
+static LogGate s_create_gate;
 
 // False when the task could not start; the caller marks the fetch failed.
 static bool startJob(JobKind kind, const LabelKey& key) {
@@ -158,11 +160,17 @@ static bool startJob(JobKind kind, const LabelKey& key) {
   if (xTaskCreatePinnedToCore(jobTask, "labelsrv", LS_STACK_BYTES, nullptr,
                               LS_PRIORITY, nullptr, LS_CORE) != pdPASS) {
     s_job_running = false;
-    logSD("Label: server fetch task creation failed");
+    // A task that cannot be created is asked for again like a refused start:
+    // one line a minute here as well.
+    if (logGateDue(&s_create_gate, millis(), BACKEND_JOB_REFUSAL_LOG_MS)) {
+      logSDf("Label: server fetch task creation failed (%u more since the last line)",
+             (unsigned)logGateTakeSuppressed(&s_create_gate));
+    }
     return false;
   }
-  // Started: what was refused before is over, the next refusal gets a line.
+  // Started: what was refused or failed before is over, the next one gets a line.
   logGateReset(&s_start_gate);
+  logGateReset(&s_create_gate);
   return true;
 }
 

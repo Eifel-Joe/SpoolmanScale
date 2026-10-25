@@ -23,6 +23,12 @@ uint32_t backendJobMinHeap(const char* base_url) {
                                                 : (uint32_t)BACKEND_JOB_MIN_HEAP_PLAIN;
 }
 
+uint32_t backendJobMinHeapBoth(const char* first, const char* second) {
+  const uint32_t a = backendJobMinHeap(first);
+  const uint32_t b = backendJobMinHeap(second);
+  return a > b ? a : b;
+}
+
 bool logGateDue(LogGate* g, uint32_t now_ms, uint32_t interval_ms) {
   if (!g) return true;
   // The difference is taken in uint32_t on purpose: it stays right when

@@ -59,6 +59,9 @@ static uint32_t                   s_retry_pause_ms = 0;
 static char                       s_base[sizeof(cfg_spoolman_base)] = "";
 // The gate of the "postponed" line; only the loop task starts a list.
 static LogGate                    s_refusal_gate;
+// The gate of the "task creation failed" line, a gate of its own: the callers
+// retry on every pass for as long as they ask, and each pass would write it.
+static LogGate                    s_create_gate;
 // The internal heap when the task is created: what was free, and the lowest it
 // had been since boot. Written before the task exists, read by it when done,
 // so that its line shows how deep the list pushed the heap.
@@ -177,12 +180,16 @@ bool backendJobStartList(bool allow_archived, const JsonDocument* filter,
                                           BACKEND_JOB_CORE);
   if (ok != pdPASS) {
     s_state = BJS_IDLE;
-    logSD("Backend job: task creation failed");
+    if (logGateDue(&s_create_gate, millis(), BACKEND_JOB_REFUSAL_LOG_MS)) {
+      logSDf("Backend job: task creation failed (%u more since the last line)",
+             (unsigned)logGateTakeSuppressed(&s_create_gate));
+    }
     return false;
   }
-  // Started: whatever was refused before is over, and the next refusal gets a
-  // line of its own.
+  // Started: whatever was refused or failed before is over, and the next one
+  // gets a line of its own.
   logGateReset(&s_refusal_gate);
+  logGateReset(&s_create_gate);
   return true;
 }
 

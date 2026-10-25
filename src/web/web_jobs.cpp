@@ -46,9 +46,11 @@ static WebJobResult         s_res;
 static char                 s_arg[160] = "";   // a release tag, or the backend address for the probe
 static bool                 s_flag    = false;
 static unsigned long        s_done_ms = 0;
-// The gate of the "postponed" line. Every kind of job starts from the loop
-// task (the web handlers and the catalog sync), so one gate serves them all.
+// The gates of the "postponed" line and of the "task creation failed" line,
+// one each. Every kind of job starts from the loop task (the web handlers and
+// the catalog sync), so one pair serves them all.
 static LogGate              s_start_gate;
+static LogGate              s_create_gate;
 
 static void runHostTest() {
   s_res.code = backendGetHealthCode(backendBaseUrl(), 4000);
@@ -206,11 +208,17 @@ bool webJobStart(WebJobKind kind, const char* arg, bool flag) {
                                           nullptr, WEB_JOB_PRIORITY, nullptr, WEB_JOB_CORE);
   if (ok != pdPASS) {
     s_state = WJS_IDLE;
-    Serial.println("[webjob] task creation failed");
+    // A task that cannot be created is asked for again like a refused start:
+    // one line a minute here as well.
+    if (logGateDue(&s_create_gate, millis(), BACKEND_JOB_REFUSAL_LOG_MS)) {
+      Serial.printf("[webjob] task creation failed (%u more since the last line)\n",
+                    (unsigned)logGateTakeSuppressed(&s_create_gate));
+    }
     return false;
   }
-  // Started: what was refused before is over, the next refusal gets a line.
+  // Started: what was refused or failed before is over, the next one gets a line.
   logGateReset(&s_start_gate);
+  logGateReset(&s_create_gate);
   return true;
 }
 

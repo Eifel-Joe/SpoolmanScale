@@ -25,8 +25,10 @@ static AmsWeightsResult         s_res;
 // The bays to ask about, filled before the task starts.
 static AmsSlotSpool             s_bay[AMS_WEIGHTS_MAX];
 static uint8_t                  s_bay_count = 0;
-// The gate of the "not started" line; only the loop starts the task.
+// The gates of the "not started" line and of the "task creation failed" line,
+// one each; only the loop starts the task.
 static LogGate                  s_start_gate;
+static LogGate                  s_create_gate;
 
 static void amsWeightsTask(void* arg) {
   (void)arg;
@@ -115,9 +117,13 @@ bool amsWeightsStart(int printer_id, const AmsSlotState& st) {
   }
   if (s_bay_count == 0) return false;
 
-  // The floor follows the address both requests of the task read, the active
-  // backend's (backendFindPrinterSpools and backendGetSpoolDetail).
-  const uint32_t min_heap  = backendJobMinHeap(backendBaseUrl());
+  // The floor follows the addresses the requests of the task can go to:
+  // backendFindPrinterSpools reads the active backend's, backendGetSpoolDetail
+  // too and, for a BamBuddy that keeps its spools in a Spoolman server, that
+  // server's, where the drying date is read (bbGetSpoolJson).
+  // backendFdbBaseUrl() is that server exactly then and the active backend
+  // otherwise: the higher floor of the two.
+  const uint32_t min_heap  = backendJobMinHeapBoth(backendBaseUrl(), backendFdbBaseUrl());
   const uint32_t free_heap = (uint32_t)ESP.getFreeHeap();
   if (free_heap < min_heap) {
     // The grid asks again with every refresh: one line a minute, with the
@@ -140,11 +146,17 @@ bool amsWeightsStart(int printer_id, const AmsSlotState& st) {
                                           AMS_WEIGHTS_CORE);
   if (ok != pdPASS) {
     s_state = AWS_IDLE;
-    logSD("AMSWEIGHTS: task creation failed");
+    // A task that cannot be created is asked for again like a refused start:
+    // one line a minute here as well.
+    if (logGateDue(&s_create_gate, millis(), BACKEND_JOB_REFUSAL_LOG_MS)) {
+      logSDf("AMSWEIGHTS: task creation failed (%u more since the last line)",
+             (unsigned)logGateTakeSuppressed(&s_create_gate));
+    }
     return false;
   }
-  // Started: what was refused before is over, the next refusal gets a line.
+  // Started: what was refused or failed before is over, the next one gets a line.
   logGateReset(&s_start_gate);
+  logGateReset(&s_create_gate);
   return true;
 }
 

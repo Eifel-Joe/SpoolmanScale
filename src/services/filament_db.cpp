@@ -276,8 +276,10 @@ static void fdbTask(void* arg) {
   vTaskDelete(NULL);
 }
 
-// The gate of the "postponed" line; only the loop starts a job.
+// The gates of the "postponed" line and of the "task creation failed" line,
+// one each; only the loop starts a job.
 static LogGate s_start_gate;
+static LogGate s_create_gate;
 
 static bool startTask(FdbJob job) {
   if (s_state != FDB_IDLE) return false;
@@ -303,11 +305,17 @@ static bool startTask(FdbJob job) {
   if (xTaskCreatePinnedToCore(fdbTask, "filamentdb", FDB_STACK_BYTES, nullptr,
                               FDB_PRIORITY, nullptr, FDB_CORE) != pdPASS) {
     s_state = FDB_IDLE;
-    logSD("Filament DB: task creation failed");
+    // A task that cannot be created is asked for again like a refused start:
+    // one line a minute here as well.
+    if (logGateDue(&s_create_gate, millis(), BACKEND_JOB_REFUSAL_LOG_MS)) {
+      logSDf("Filament DB: task creation failed (%u more since the last line)",
+             (unsigned)logGateTakeSuppressed(&s_create_gate));
+    }
     return false;
   }
-  // Started: what was refused before is over, the next refusal gets a line.
+  // Started: what was refused or failed before is over, the next one gets a line.
   logGateReset(&s_start_gate);
+  logGateReset(&s_create_gate);
   return true;
 }
 

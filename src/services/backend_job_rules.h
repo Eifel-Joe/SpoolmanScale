@@ -32,8 +32,9 @@
 //  speaks https to GitHub, and so does the TLS warm-up in backend_http.cpp,
 //  which only runs for an https backend.
 //
-//  A refused start is asked for again on every pass of the loop, so its log
-//  line goes through a LogGate, at most once per BACKEND_JOB_REFUSAL_LOG_MS.
+//  A refused start is asked for again on every pass of the loop, and so is a
+//  task that could not be created, so each of those two log lines goes
+//  through a LogGate of its own, at most once per BACKEND_JOB_REFUSAL_LOG_MS.
 //
 //  The rules live here, without Arduino, the heap or the log: a host test
 //  holds them to the values in test_backend_job_rules.py, and the workers
@@ -54,6 +55,13 @@
 // else is http, a bare address without scheme included, which is how the
 // backend layer reads it (backendComposeBase).
 uint32_t backendJobMinHeap(const char* base_url);
+
+// The higher of the two floors, for a worker that may talk to either of two
+// addresses: a BamBuddy that keeps its inventory in a Spoolman server may
+// speak http while that Spoolman speaks https (or the other way round), and a
+// request of the worker may go to either. An address that is empty or missing
+// counts as TLS on whichever side it stands, as above.
+uint32_t backendJobMinHeapBoth(const char* first, const char* second);
 
 // Says whether a line that can repeat on every pass may be written now:
 // the first time, then once per interval. The calls that are refused are

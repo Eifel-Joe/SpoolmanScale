@@ -256,14 +256,19 @@ static void dateTask(void*) {
   vTaskDelete(NULL);
 }
 
-// The gate of the "not fetched" line; only the loop starts the job.
+// The gates of the "not fetched" line and of the "task creation failed" line,
+// one each; only the loop starts the job.
 static LogGate s_date_gate;
+static LogGate s_create_gate;
 
 // False when the task could not start; the caller then gives up on the dates.
 static bool startDateJob(int id) {
-  // The floor follows the address copied into s_job.url below, the one the
-  // request goes to (fetchDates, then backendGetSpoolJson).
-  const uint32_t min_heap  = backendJobMinHeap(backendBaseUrl());
+  // The floor follows the addresses the request can go to (fetchDates, then
+  // backendGetSpoolJson): the backend's, copied into s_job.url below, and for a
+  // BamBuddy that keeps its spools in a Spoolman server that server's, where
+  // the drying date is read (bbGetSpoolJson). backendFdbBaseUrl() is that
+  // server exactly then and the active backend otherwise: the higher floor.
+  const uint32_t min_heap  = backendJobMinHeapBoth(backendBaseUrl(), backendFdbBaseUrl());
   const uint32_t free_heap = (uint32_t)ESP.getFreeHeap();
   if (free_heap < min_heap) {
     // Every label asks once more: one line a minute, with the refusals it
@@ -284,11 +289,17 @@ static bool startDateJob(int id) {
   if (xTaskCreatePinnedToCore(dateTask, "labeldates", LABEL_DATE_STACK_BYTES, nullptr,
                               LABEL_DATE_PRIORITY, nullptr, LABEL_DATE_CORE) != pdPASS) {
     s_job_running = false;
-    logSD("Label: date task creation failed");
+    // A task that cannot be created is asked for again like a refused start:
+    // one line a minute here as well.
+    if (logGateDue(&s_create_gate, millis(), BACKEND_JOB_REFUSAL_LOG_MS)) {
+      logSDf("Label: date task creation failed (%u more since the last line)",
+             (unsigned)logGateTakeSuppressed(&s_create_gate));
+    }
     return false;
   }
-  // Started: what was refused before is over, the next refusal gets a line.
+  // Started: what was refused or failed before is over, the next one gets a line.
   logGateReset(&s_date_gate);
+  logGateReset(&s_create_gate);
   return true;
 }
 
