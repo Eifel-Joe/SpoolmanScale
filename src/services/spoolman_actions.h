@@ -75,7 +75,10 @@ void unlinkCardUid(int spool_id, const char* uid, bool all);
 // Silent and free on a spool that already carries the uid, which is the normal
 // case. Returns true only when something was written.
 bool syncHwUidField(int spool_id, const char* scanned);
-void patchInitialWeight(float initial_w);
-bool patchSpoolWeight(float spool_w);   // true only on 2xx
-void patchFilamentSpoolWeight(float spool_w);
-void patchVendorSpoolWeight(float spool_w);
+// The label weight, the empty spool weight of the spool, its filament or its
+// brand. Each is true only on 2xx: a write that depends on one of them (the
+// initial weight after a tare, the rest after a label) waits for it.
+bool patchInitialWeight(float initial_w);
+bool patchSpoolWeight(float spool_w);
+bool patchFilamentSpoolWeight(float spool_w);
+bool patchVendorSpoolWeight(float spool_w);

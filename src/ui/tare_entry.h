@@ -2,7 +2,13 @@
 
 // The empty spool weight, weighed or typed in (issue #40). Opened from the
 // weight popup's empty spool button. Either way the value goes on to the
-// popup that asks where it is stored - spool, filament or brand.
+// popup that asks where it is stored - spool, filament or brand. Two by two
+// (design L13): weigh and type in, and with Bambuddy in Spoolman mode a type
+// from the list of spool types and the full spool. A type goes to the spool
+// as its empty weight; the full spool asks for its filament, offers the types
+// near the reading less that, and stores the pick, then label weight and rest
+// (confirmParkFullSpool()). Weighing and the full spool only with the spool
+// on the pad.
 void showTareChoice();
 
 // The first weighing (Bambuddy in Spoolman mode, design 3): a spool with a
@@ -17,9 +23,11 @@ void showTareChoice();
 // Closed, not hidden, without their callbacks.
 void closeTareEntry();
 
-// The choice, the keypad, the list of the first weighing or the empty spool
-// screen is up. Counts as a modal like the weight popup: no automatic weighing
-// and no question on removal while it stands.
+// The choice, the keypad, a list of spool types opened from here (the first
+// weighing, the choice) or the empty spool screen is up, or a pick from the
+// choice's list waits for its write on the next pass. Counts as a modal like
+// the weight popup: no automatic weighing and no question on removal while it
+// stands.
 bool isTareEntryOpen();
 
 // Automatic weighing waits for the first weighing: true while the spool on
@@ -32,8 +40,8 @@ bool tareEntryHoldsAutoWeigh();
 
 // Every loop pass. Runs the ticks of the list of spool types, the name entry
 // and the empty spool screen and opens the first weighing, then closes the
-// choice, the keypad or the list of the first weighing without saving once
-// the spool they were opened for is lifted off the pad or another spool is
+// choice, the keypad or a list opened from here without saving once the
+// spool they were opened for is lifted off the pad or another spool is
 // loaded. The empty spool screen belongs to no spool and stays.
 void tareEntryTick();
 

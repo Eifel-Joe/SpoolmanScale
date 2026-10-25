@@ -1803,6 +1803,11 @@ enum StringID {
   STR_SPT_LATER,              // button: ask again after the next restart
   STR_SPT_WITHOUT,            // button: go on without a type
   STR_SPT_MORE,               // last line when the list was cut for memory
+  // The empty spool button: a spool type, a full spool
+  STR_TARE_CHOICE_TYPES,      // choice button: a type from the list of spool types
+  STR_TARE_CHOICE_FULL,       // choice button: the empty weight from a full spool and its filament
+  STR_FULL_TITLE,             // title of the keypad for the filament of a full spool
+  STR_FULL_INFO,              // line beside it: %.0f reading, %.0f filament, %.0f empty spool, grams
 
   STR_COUNT
 };

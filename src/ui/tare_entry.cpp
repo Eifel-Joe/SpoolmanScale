@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <lvgl.h>
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 
@@ -25,18 +26,27 @@
 // empty weight is often known - printed on the box, measured on a sister
 // spool, or listed by the maker. The weight popup's empty spool button
 // therefore asks first how the number is to be had, and a typed number then
-// takes the same way to the server as a weighed one.
+// takes the same way to the server as a weighed one. With Bambuddy in Spoolman
+// mode it also offers a type from the catalog of empty spools and the full
+// spool, whose empty weight is the reading less the filament on it.
 
-static lv_obj_t *s_choice = nullptr;   // weigh or type
+static lv_obj_t *s_choice = nullptr;   // weigh, type, spool type or full spool
 static lv_obj_t *s_pad    = nullptr;   // the keypad
 
 static char      s_input[8]  = "";
 static lv_obj_t *s_lbl_input = nullptr;
 static lv_obj_t *s_lbl_info  = nullptr;
 static lv_obj_t *s_btn_next  = nullptr;
+// The keypad takes the filament of a full spool instead of an empty weight.
+static bool      s_pad_fill  = false;
 
 // Longest input: "600.0", plus room for the one decimal digit being typed.
 #define TARE_INPUT_MAX_CHARS  5
+// The filament of a full spool: whole grams, 1 to 9999 (design L5).
+#define FULL_INPUT_MAX_CHARS  4
+#define FULL_FILL_MAX_G       9999
+// The fill amounts offered as buttons beside the keys (design L5).
+static const int FULL_FILL_PRESETS_G[4] = { 1000, 750, 500, 250 };
 
 // Lifted, by the same measure the removal check in app_loop.cpp uses: more
 // than half of what was on the pad when the entry opened has left it.
@@ -49,8 +59,20 @@ static int   s_spool_id = 0;
 static float s_open_g   = 0.0f;
 
 // The list of spool types, when this file opened it for the spool s_spool_id
-// (the first weighing). Cleared on every way the list closes.
+// (the first weighing, or a spool type or a full spool from the choice).
+// Cleared on every way the list closes.
 static bool s_list_mine = false;
+
+// The full spool on its way through the list: the filament typed in and the
+// reading it was taken with, handed on with the type picked.
+static float s_full_fill = 0.0f;
+static float s_full_bare = 0.0f;
+
+// A pick from a list of the choice parked its write in this pass. The list
+// answers from tareEntryTick(), after the loop ran the parked jobs, so the
+// write runs on the next pass; until then the entry still counts as open,
+// or automatic weighing would weigh against the old empty weight in between.
+static bool s_pick_parked = false;
 
 // The windows of this file, opened for the spool s_spool_id. Only these are
 // closed by a swap or a lift (tareEntryTick()).
@@ -63,7 +85,7 @@ bool isTareEntryOpen() {
   // The empty spool screen of the settings counts as well, although it
   // belongs to no spool: a spool is put on the pad for it, and automatic
   // weighing and the drift correction must not act on that.
-  return spoolEntryOpen() || isEmptySpoolTypeOpen();
+  return spoolEntryOpen() || s_pick_parked || isEmptySpoolTypeOpen();
 }
 
 // The choice and the keypad, nothing else. What the buttons of this file
@@ -85,6 +107,44 @@ void closeTareEntry() {
   closeSpoolTypeList();
   closeSpoolTypeName();
   s_list_mine = false;
+}
+
+// ---------------------------------------------------------------------------
+//  The list of spool types, from the choice (design L13)
+// ---------------------------------------------------------------------------
+
+// Cancel or back: nothing is written.
+static void entryListLeft() {
+  s_list_mine = false;
+}
+
+// "Spool type": the type goes to the spool as its empty weight, by the job
+// the scope question's Spool button parks; a spool swapped meanwhile drops it
+// there. No weight is written: the next weighing is taken against the type.
+static void entryTypePicked(float grams, const char *name) {
+  s_list_mine   = false;
+  s_pick_parked = true;
+  logSDf("UI: spool type for spool %d: '%s' %.1f g taken",
+         s_spool_id, name ? name : "", grams);
+  confirmParkTare(TARE_SCOPE_SPOOL, grams, s_spool_id, false);
+}
+
+// "Full spool": whatever was picked (a type, the computed weight, a type
+// added from the list) is the tare, and label and rest follow from it
+// (confirm_popup.cpp, design L14).
+static void entryFullPicked(float grams, const char *name) {
+  s_list_mine   = false;
+  s_pick_parked = true;
+  logSDf("UI: full spool, spool %d: '%s' %.1f g taken (%.0f g filament, %.1f g bare)",
+         s_spool_id, name ? name : "", grams, s_full_fill, s_full_bare);
+  confirmParkFullSpool(grams, s_full_fill, s_full_bare, s_spool_id);
+}
+
+// The list for the spool of the choice, one of this file's windows: it counts
+// in isTareEntryOpen(), and a swap or a lift closes it (tareEntryTick()).
+static void openEntryList(const SpoolTypeListReq &req, SpoolTypePicked on_pick) {
+  s_list_mine = true;   // before the call: a refused open calls back at once
+  showSpoolTypeList(req, on_pick, entryListLeft);
 }
 
 // ---------------------------------------------------------------------------
@@ -110,6 +170,17 @@ static bool inputValue(float *out) {
   return true;
 }
 
+// The typed filament of a full spool, when it can be one: whole grams, 1 to
+// FULL_FILL_MAX_G. Whether the empty weight it gives is plausible is the
+// list's question; it says so there.
+static bool fillValue(int *out) {
+  if (!s_input[0]) return false;
+  const int v = atoi(s_input);
+  if (v < 1 || v > FULL_FILL_MAX_G) return false;
+  if (out) *out = v;
+  return true;
+}
+
 // Input line, the line under it and the look of the Next button, all from
 // the current input. Called after every key.
 static void refreshPad() {
@@ -120,10 +191,18 @@ static void refreshPad() {
   lv_label_set_text(s_lbl_input, buf);
 
   float v = 0.0f;
-  const bool ok = inputValue(&v);
+  int fill = 0;
+  const bool ok = s_pad_fill ? fillValue(&fill) : inputValue(&v);
   char info[96];
   uint32_t info_col = UI_COL_CAPTION;
-  if (ok && padHoldsSpool()) {
+  if (s_pad_fill) {
+    // The reading without the parts, the filament, and the empty weight
+    // they leave (design L5): a warning colour where that is no spool.
+    const float bare = spoolExtrasBareReading();
+    const float tare = spoolTypeTareFromFull(bare, (float)fill);
+    snprintf(info, sizeof(info), T(STR_FULL_INFO), bare, (float)fill, tare);
+    info_col = (ok && spoolTypeTarePlausible(tare)) ? UI_COL_GOOD : UI_COL_WARN;
+  } else if (ok && padHoldsSpool()) {
     // What a weighing would store once this tare is in - the number the
     // issue asked to see before anything is saved.
     const float bare = spoolExtrasBareReading();
@@ -147,16 +226,78 @@ static void refreshPad() {
 static void onKey(lv_event_t *e) {
   const char *ch = lv_label_get_text(lv_obj_get_child(lv_event_get_target(e), 0));
   const size_t len = strlen(s_input);
-  const char *dot = strchr(s_input, '.');
-  if (ch[0] == '.') {
-    if (dot || len == 0) return;           // one point, and not in front
-  } else if (dot && strlen(dot) > 1) {
-    return;                                // one decimal is plenty for grams
+  if (s_pad_fill) {
+    // Whole grams, without a zero in front.
+    if (ch[0] == '.' || (len == 0 && ch[0] == '0')) return;
+    if (len >= FULL_INPUT_MAX_CHARS) return;
+  } else {
+    const char *dot = strchr(s_input, '.');
+    if (ch[0] == '.') {
+      if (dot || len == 0) return;           // one point, and not in front
+    } else if (dot && strlen(dot) > 1) {
+      return;                                // one decimal is plenty for grams
+    }
+    if (len >= TARE_INPUT_MAX_CHARS) return;
   }
-  if (len >= TARE_INPUT_MAX_CHARS) return;
   s_input[len] = ch[0];
   s_input[len + 1] = '\0';
   refreshPad();
+}
+
+// A fill amount button: its grams replace whatever was typed.
+static void onFillPreset(lv_event_t *e) {
+  const int g = (int)(intptr_t)lv_event_get_user_data(e);
+  snprintf(s_input, sizeof(s_input), "%d", g);
+  refreshPad();
+}
+
+// Next on the keypad of an empty weight: on to where it is stored.
+static void onTareNext(lv_event_t *e) {
+  float v = 0.0f;
+  if (!inputValue(&v)) return;          // the button is greyed, the press is ignored
+  // tareEntryTick() closes the pad on a swap; this covers a swap that
+  // landed in the same pass as the press.
+  if (sm_id != s_spool_id) {
+    logSDf("UI: tare %.1f g typed for spool %d, spool %d loaded now - dropped",
+           v, s_spool_id, sm_id);
+    closeSpoolEntry();
+    return;
+  }
+  logSDf("UI: tare typed in, %.1f g", v);
+  closeSpoolEntry();
+  showSpoolWeightScope(v, false);
+}
+
+// Next on the full spool's keypad: the computed empty weight and the types
+// near it (design L5). The reading is taken at the press, without the parts
+// on the spool; it goes on with the pick, so the rest is the one the list
+// was computed from.
+static void onFullNext(lv_event_t *e) {
+  int fill = 0;
+  if (!fillValue(&fill)) return;        // the button is greyed, the press is ignored
+  // As for a typed tare: a swap in the same pass as the press.
+  if (sm_id != s_spool_id) {
+    logSDf("UI: full spool, %d g typed for spool %d, spool %d loaded now - dropped",
+           fill, s_spool_id, sm_id);
+    closeSpoolEntry();
+    return;
+  }
+  const float bare      = spoolExtrasBareReading();
+  const float tare      = spoolTypeTareFromFull(bare, (float)fill);
+  const bool  plausible = spoolTypeTarePlausible(tare);
+  logSDf("UI: full spool, spool %d: %d g filament on %.1f g, empty spool %.1f g%s",
+         s_spool_id, fill, bare, tare, plausible ? "" : " (implausible)");
+  closeSpoolEntry();
+  s_full_fill = (float)fill;
+  s_full_bare = bare;
+  SpoolTypeListReq req = {};
+  req.mode = STL_NEAR;
+  utf8Cut(sm_vendor_g, sizeof(req.vendor) - 1, req.vendor, sizeof(req.vendor));
+  req.near_g = tare;
+  // Only an empty weight a spool can have is offered to take or to name.
+  req.measured_g = plausible ? tare : 0.0f;
+  req.skip_text  = STR_CANCEL;
+  openEntryList(req, entryFullPicked);
 }
 
 static lv_obj_t *padButton(lv_obj_t *parent, int x, int y, int w, int h,
@@ -183,10 +324,18 @@ static lv_obj_t *padLabel(lv_obj_t *btn, const char *text, uint32_t col, const l
   return l;
 }
 
-static void showTarePad() {
-  logSD("SHOW: TareEntryPad");
+// fill: the full spool's filament (design L5) instead of an empty weight:
+// whole grams, the label weight filled in where the spool has one, and the
+// fill amount buttons above Next.
+static void showTarePad(bool fill) {
+  logSD(fill ? "SHOW: TareEntryPad (full spool)" : "SHOW: TareEntryPad");
   releaseScreen(&s_pad);
+  s_pad_fill = fill;
   s_input[0] = '\0';
+  if (fill && sm_total > 0.0f) {
+    const long label = lroundf(sm_total);
+    if (label >= 1 && label <= FULL_FILL_MAX_G) snprintf(s_input, sizeof(s_input), "%ld", label);
+  }
 
   lv_obj_t *scr = lv_obj_create(lv_scr_act());
   s_pad = scr;
@@ -200,7 +349,7 @@ static void showTarePad() {
   lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
 
   lv_obj_t *title = lv_label_create(scr);
-  lv_label_set_text(title, T(STR_TARE_ENTER_TITLE));
+  lv_label_set_text(title, T(fill ? STR_FULL_TITLE : STR_TARE_ENTER_TITLE));
   lv_obj_set_style_text_color(title, lv_color_hex(UI_COL_ACCENT), 0);
   lv_obj_set_style_text_font(title, UI_FONT_SMALL, 0);
   lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 10);
@@ -235,6 +384,7 @@ static void showTarePad() {
 
   static const char *const KEYS[12] = { "1","2","3","4","5","6","7","8","9",".","0","" };
   for (int i = 0; i < 12; i++) {
+    if (fill && KEYS[i][0] == '.') continue;   // whole grams: its place stays empty
     const int x = EDGE + (i % 3) * (KEY_W + GAP);
     const int y = KEYS_Y + (i / 3) * (KEY_H + GAP);
     lv_obj_t *b = padButton(scr, x, y, KEY_W, KEY_H, UI_COL_SURFACE, UI_COL_LINE);
@@ -253,29 +403,33 @@ static void showTarePad() {
 
   const int KEYS_H = 4 * KEY_H + 3 * GAP;
   const int CANCEL_H = UI_TOUCH_MIN + 10;
-  const int NEXT_H = KEYS_H - CANCEL_H - GAP;
+  // The fill amounts, two by two above Next, each a finger's height.
+  const int PRESET_H = UI_TOUCH_MIN;
+  const int PRESETS_H = fill ? 2 * (PRESET_H + GAP) : 0;
+  const int NEXT_Y = KEYS_Y + PRESETS_H;
+  const int NEXT_H = KEYS_H - PRESETS_H - CANCEL_H - GAP;
+
+  if (fill) {
+    const int PRESET_W = (COL_W - GAP) / 2;
+    for (int i = 0; i < 4; i++) {
+      const int x = COL_X + (i % 2) * (PRESET_W + GAP);
+      const int y = KEYS_Y + (i / 2) * (PRESET_H + GAP);
+      lv_obj_t *b = padButton(scr, x, y, PRESET_W, PRESET_H, UI_COL_SURFACE, UI_COL_LINE);
+      char pbuf[12];
+      snprintf(pbuf, sizeof(pbuf), "%d g", FULL_FILL_PRESETS_G[i]);
+      padLabel(b, pbuf, UI_COL_INK, UI_FONT_BODY);
+      lv_obj_add_event_cb(b, onFillPreset, LV_EVENT_CLICKED,
+                          (void *)(intptr_t)FULL_FILL_PRESETS_G[i]);
+    }
+  }
 
   char next_buf[32];
   snprintf(next_buf, sizeof(next_buf), "%s  " LV_SYMBOL_RIGHT, T(STR_BTN_NEXT));
-  s_btn_next = padButton(scr, COL_X, KEYS_Y, COL_W, NEXT_H, UI_COL_OK_BG, UI_COL_OK_BG_PRESSED);
+  s_btn_next = padButton(scr, COL_X, NEXT_Y, COL_W, NEXT_H, UI_COL_OK_BG, UI_COL_OK_BG_PRESSED);
   padLabel(s_btn_next, next_buf, UI_COL_OK_TEXT, UI_FONT_BODY);
-  lv_obj_add_event_cb(s_btn_next, [](lv_event_t *e) {
-    float v = 0.0f;
-    if (!inputValue(&v)) return;          // the button is greyed, the press is ignored
-    // tareEntryTick() closes the pad on a swap; this covers a swap that
-    // landed in the same pass as the press.
-    if (sm_id != s_spool_id) {
-      logSDf("UI: tare %.1f g typed for spool %d, spool %d loaded now - dropped",
-             v, s_spool_id, sm_id);
-      closeSpoolEntry();
-      return;
-    }
-    logSDf("UI: tare typed in, %.1f g", v);
-    closeSpoolEntry();
-    showSpoolWeightScope(v, false);
-  }, LV_EVENT_CLICKED, NULL);
+  lv_obj_add_event_cb(s_btn_next, fill ? onFullNext : onTareNext, LV_EVENT_CLICKED, NULL);
 
-  lv_obj_t *cancel = padButton(scr, COL_X, KEYS_Y + NEXT_H + GAP, COL_W, CANCEL_H,
+  lv_obj_t *cancel = padButton(scr, COL_X, NEXT_Y + NEXT_H + GAP, COL_W, CANCEL_H,
                                UI_COL_BAD_BG, UI_COL_BAD_BG_PRESSED);
   padLabel(cancel, T(STR_CANCEL), UI_COL_BAD_TEXT, UI_FONT_SMALL);
   lv_obj_add_event_cb(cancel, [](lv_event_t *e) { closeSpoolEntry(); }, LV_EVENT_CLICKED, NULL);
@@ -284,13 +438,13 @@ static void showTarePad() {
 }
 
 // ---------------------------------------------------------------------------
-//  Weigh or type
+//  Weigh, type, spool type or full spool
 // ---------------------------------------------------------------------------
 
-static lv_obj_t *choiceButton(lv_obj_t *box, int y, int w, int h, const char *text) {
+static lv_obj_t *choiceButton(lv_obj_t *box, int x, int y, int w, int h, const char *text) {
   lv_obj_t *b = lv_btn_create(box);
   lv_obj_set_size(b, w, h);
-  lv_obj_set_pos(b, 12, y);
+  lv_obj_set_pos(b, x, y);
   lv_obj_set_style_bg_color(b, lv_color_hex(UI_COL_CHIP), 0);
   lv_obj_set_style_bg_color(b, lv_color_hex(UI_COL_PRESS_FILL), LV_STATE_PRESSED);
   lv_obj_set_style_radius(b, UI_RADIUS_BTN, 0);
@@ -316,17 +470,29 @@ void showTareChoice() {
   lv_obj_set_style_pad_all(scrim, 0, 0);
   lv_obj_clear_flag(scrim, LV_OBJ_FLAG_SCROLLABLE);
 
-  const int BOX_W = 440, BOX_H = 262, BTN_H = 70, GAP = 10;
+  // Two by two (design L13): weigh and type in, then spool type and full
+  // spool. Weighing and the full spool need the spool on the pad, the spool
+  // types Bambuddy in Spoolman mode; typing in is always there. A button not
+  // offered leaves its place empty, a row with neither goes, and the box
+  // follows. As wide as the weight popup this opens from; the places are
+  // counted inside the border, where LVGL puts the children.
+  const bool on_pad = padHoldsSpool();
+  const bool with_types = spoolTypesActive();
+  const int BOX_W = 460, BORDER = 2, EDGE = 6, GAP = 6, BTN_H = 70, TOP = 44, BOTTOM = 10;
+  const int BTN_W = (BOX_W - 2 * BORDER - 2 * EDGE - GAP) / 2;
+  const int X_R   = EDGE + BTN_W + GAP;
+  const int ROWS  = with_types ? 2 : 1;
+  const int Y_CANCEL = TOP + ROWS * (BTN_H + GAP);
+  const int BOX_H = 2 * BORDER + Y_CANCEL + UI_TOUCH_MIN + BOTTOM;
   lv_obj_t *box = lv_obj_create(scrim);
   lv_obj_set_size(box, BOX_W, BOX_H);
   lv_obj_align(box, LV_ALIGN_CENTER, 0, 0);
   lv_obj_set_style_bg_color(box, lv_color_hex(UI_COL_SURFACE), 0);
   lv_obj_set_style_border_color(box, lv_color_hex(UI_COL_POPUP_BORDER), 0);
-  lv_obj_set_style_border_width(box, 2, 0);
+  lv_obj_set_style_border_width(box, BORDER, 0);
   lv_obj_set_style_radius(box, UI_RADIUS_BOX, 0);
   lv_obj_set_style_pad_all(box, 0, 0);
   lv_obj_clear_flag(box, LV_OBJ_FLAG_SCROLLABLE);
-  const int BTN_W = BOX_W - 2 * 12;
 
   lv_obj_t *title = lv_label_create(box);
   lv_label_set_text(title, T(STR_TARE_CHOICE_TITLE));
@@ -334,29 +500,52 @@ void showTareChoice() {
   lv_obj_set_style_text_font(title, UI_FONT_TITLE, 0);
   lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 12);
 
-  int y = 44;
-  char weigh_buf[96];
-  // The empty spool without the parts on it: they are not the spool's.
-  snprintf(weigh_buf, sizeof(weigh_buf), T(STR_TARE_CHOICE_WEIGH), spoolExtrasBareReading());
-  lv_obj_t *weigh = choiceButton(box, y, BTN_W, BTN_H, weigh_buf);
-  lv_obj_add_event_cb(weigh, [](lv_event_t *e) {
-    // The reading at the moment of the press, as the old button took it.
-    const float g = spoolExtrasBareReading();
-    closeSpoolEntry();
-    showSpoolWeightScope(g, true);
-  }, LV_EVENT_CLICKED, NULL);
-  y += BTN_H + GAP;
+  if (on_pad) {
+    char weigh_buf[96];
+    // The empty spool without the parts on it: they are not the spool's.
+    snprintf(weigh_buf, sizeof(weigh_buf), T(STR_TARE_CHOICE_WEIGH), spoolExtrasBareReading());
+    lv_obj_t *weigh = choiceButton(box, EDGE, TOP, BTN_W, BTN_H, weigh_buf);
+    lv_obj_add_event_cb(weigh, [](lv_event_t *e) {
+      // The reading at the moment of the press, as the old button took it.
+      const float g = spoolExtrasBareReading();
+      closeSpoolEntry();
+      showSpoolWeightScope(g, true);
+    }, LV_EVENT_CLICKED, NULL);
+  }
 
   char type_buf[96];
   snprintf(type_buf, sizeof(type_buf), LV_SYMBOL_KEYBOARD "  %s", T(STR_TARE_CHOICE_TYPE));
-  lv_obj_t *type = choiceButton(box, y, BTN_W, BTN_H, type_buf);
+  lv_obj_t *type = choiceButton(box, X_R, TOP, BTN_W, BTN_H, type_buf);
   lv_obj_add_event_cb(type, [](lv_event_t *e) {
     releaseScreen(&s_choice);
-    showTarePad();
+    showTarePad(false);
   }, LV_EVENT_CLICKED, NULL);
-  y += BTN_H + GAP;
 
-  lv_obj_t *cancel = padButton(box, 12, y, BTN_W, UI_TOUCH_MIN,
+  if (with_types) {
+    // The maker's types, the one nearest the spool's empty weight marked.
+    lv_obj_t *by_type = choiceButton(box, EDGE, TOP + BTN_H + GAP, BTN_W, BTN_H,
+                                     T(STR_TARE_CHOICE_TYPES));
+    lv_obj_add_event_cb(by_type, [](lv_event_t *e) {
+      SpoolTypeListReq req = {};
+      req.mode = STL_VENDOR;
+      utf8Cut(sm_vendor_g, sizeof(req.vendor) - 1, req.vendor, sizeof(req.vendor));
+      req.preselect_g = sm_spool_weight;
+      req.skip_text   = STR_CANCEL;
+      closeSpoolEntry();
+      openEntryList(req, entryTypePicked);
+    }, LV_EVENT_CLICKED, NULL);
+  }
+
+  if (with_types && on_pad) {
+    lv_obj_t *full = choiceButton(box, X_R, TOP + BTN_H + GAP, BTN_W, BTN_H,
+                                  T(STR_TARE_CHOICE_FULL));
+    lv_obj_add_event_cb(full, [](lv_event_t *e) {
+      releaseScreen(&s_choice);
+      showTarePad(true);
+    }, LV_EVENT_CLICKED, NULL);
+  }
+
+  lv_obj_t *cancel = padButton(box, EDGE, Y_CANCEL, 2 * BTN_W + GAP, UI_TOUCH_MIN,
                                UI_COL_BAD_BG, UI_COL_BAD_BG_PRESSED);
   lv_obj_set_style_radius(cancel, UI_RADIUS_BTN, 0);
   lv_obj_set_style_border_width(cancel, 0, 0);
@@ -505,6 +694,9 @@ static void firstWeighTick() {
 }
 
 void tareEntryTick() {
+  // A pick parked in the pass before has been written by now: the loop runs
+  // the parked jobs before this tick.
+  s_pick_parked = false;
   // The placement the first weighing held ends with the tag or a swap; a
   // spool put back is weighed as usual.
   if (s_fw_hold_id != 0 && (!tag_present || sm_id != s_fw_hold_id)) s_fw_hold_id = 0;

@@ -79,11 +79,15 @@ enum ConfirmJob : uint8_t {
   CJ_TARE_VENDOR,     // ... on the brand
   CJ_ARCHIVE,
   CJ_CAP_RAISE,       // BamBuddy: raise the label weight, then write
-  CJ_CAP_KEEP         // BamBuddy: keep the label, write anyway
+  CJ_CAP_KEEP,        // BamBuddy: keep the label, write anyway
+  CJ_FULL_SPOOL       // a full spool: the tare, then label and rest (design L14)
 };
 static ConfirmJob s_job       = CJ_NONE;
 static float      s_job_value = 0.0f;
-static float      s_job_gross = 0.0f;   // the pad reading the AMS note wants
+// The pad reading the AMS note wants; for the full spool the bare reading
+// the fill was taken with.
+static float      s_job_gross = 0.0f;
+static float      s_job_fill  = 0.0f;   // the full spool: its filament, grams
 // The spool an empty spool weight was meant for. Every tare write goes to
 // whatever spool is loaded when it runs, and a spool swapped while the scope
 // question stood would take a tare that belongs to the one before it.
@@ -106,7 +110,7 @@ void handleConfirmPopupDeferredActions() {
   const ConfirmJob job = s_job;
   s_job = CJ_NONE;
   const bool tare_job = job == CJ_TARE_SPOOL || job == CJ_TARE_FILAMENT ||
-                        job == CJ_TARE_VENDOR;
+                        job == CJ_TARE_VENDOR || job == CJ_FULL_SPOOL;
   if (tare_job && sm_id != s_job_spool_id) {
     logSDf("Tare: %.1f g was for spool %d, spool %d is loaded now - not stored",
            s_job_value, s_job_spool_id, sm_id);
@@ -126,9 +130,36 @@ void handleConfirmPopupDeferredActions() {
     case CJ_INITIAL:
       patchInitialWeight(s_job_value);
       break;
-    case CJ_TARE_SPOOL:    patchSpoolWeight(s_job_value);         tareFollowUp(); break;
-    case CJ_TARE_FILAMENT: patchFilamentSpoolWeight(s_job_value); tareFollowUp(); break;
-    case CJ_TARE_VENDOR:   patchVendorSpoolWeight(s_job_value);   tareFollowUp(); break;
+    // The initial weight follows a tare only once the server took it: after a
+    // failed one it would rest on a tare the server does not have.
+    case CJ_TARE_SPOOL:
+      if (patchSpoolWeight(s_job_value)) tareFollowUp(); else tareDropFollowUp();
+      break;
+    case CJ_TARE_FILAMENT:
+      if (patchFilamentSpoolWeight(s_job_value)) tareFollowUp(); else tareDropFollowUp();
+      break;
+    case CJ_TARE_VENDOR:
+      if (patchVendorSpoolWeight(s_job_value)) tareFollowUp(); else tareDropFollowUp();
+      break;
+    case CJ_FULL_SPOOL: {
+      // Design L14, in this order and each step only after the one before
+      // it: the tare (a picked type wins over the computed one, s_job_value
+      // is what was picked), the label weight, the rest. A rest above the
+      // fill lifts the label to it, the proxy turns down a negative use.
+      if (!patchSpoolWeight(s_job_value)) {
+        logSD("Full spool: tare not stored, nothing else written");
+        break;
+      }
+      float rest = s_job_gross - s_job_value;
+      if (rest < 0.0f) rest = 0.0f;
+      const float label = spoolTypeFullLabel(s_job_fill, rest);
+      logSDf("Full spool: %.0f g filament, %.1f g bare, %.1f g tare: label %.1f g, rest %.1f g",
+             s_job_fill, s_job_gross, s_job_value, label, rest);
+      if (!patchInitialWeight(label)) break;
+      // Past the label check: the label was just set to hold this rest.
+      patchSpoolmanWeight(rest, true);
+      break;
+    }
     case CJ_ARCHIVE:
       if (patchArchiveSpool()) s_ask_free_tag_pending = true;
       break;
@@ -196,7 +227,7 @@ static bool  s_tare_then_new = false;
 // After a tare is stored from the New spool flow the initial weight follows
 // from it: what is left of the reading once the spool itself is taken off.
 // Done here rather than in the caller so the two writes stay in the order that
-// makes the second one correct.
+// makes the second one correct. Only called once the server took the tare.
 static void tareFollowUp() {
   if (!s_tare_then_new) return;
   s_tare_then_new = false;
@@ -226,6 +257,18 @@ void confirmParkTare(TareScope scope, float grams, int spool_id, bool then_new_s
   s_job_value     = grams;
   s_job_spool_id  = spool_id;
   s_tare_then_new = then_new_spool;
+}
+
+// The full spool of the empty spool button (tare_entry.cpp), parked like a
+// tare: the list it was picked from answers in the loop, after this file's
+// jobs ran, so it runs on the next pass.
+void confirmParkFullSpool(float tare, float fill, float bare, int spool_id) {
+  s_job           = CJ_FULL_SPOOL;
+  s_job_value     = tare;
+  s_job_fill      = fill;
+  s_job_gross     = bare;
+  s_job_spool_id  = spool_id;
+  s_tare_then_new = false;   // its own follow-up, not the New spool one
 }
 
 // Whether New spool has to derive the tare from this reading because nothing

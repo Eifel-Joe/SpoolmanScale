@@ -3883,6 +3883,15 @@ const char* const STRINGS[][3] = {
   { "Ohne Typ",                              "Without type",                   "Sans type" },  // STR_SPT_WITHOUT
   { "Nicht alle Typen passen in die Liste.", "Not all types fit in the list.",
     "La liste ne peut pas tout afficher." },  // STR_SPT_MORE
+  // The empty spool button: a spool type, a full spool
+  { "Spulentyp wählen\naus der Liste", "Pick a spool type\nfrom the list",
+    "Choisir le type\nde bobine dans la liste" },  // STR_TARE_CHOICE_TYPES
+  { "Volle Spule wiegen\nFüllmenge angeben", "Weigh the full spool\ngive the filament weight",
+    "Peser la bobine pleine\nindiquer le filament" },  // STR_TARE_CHOICE_FULL
+  { "Volle Spule: Füllmenge eingeben", "Full spool: enter the filament weight",
+    "Bobine pleine : saisir le poids du filament" },  // STR_FULL_TITLE
+  { "Waage %.0f g\n- Filament %.0f g\n= Spule %.0f g", "Scale %.0f g\n- filament %.0f g\n= spool %.0f g",
+    "Balance %.0f g\n- filament %.0f g\n= bobine %.0f g" },  // STR_FULL_INFO
 };
 
 StringID tagWriteResultString(uint8_t code) {

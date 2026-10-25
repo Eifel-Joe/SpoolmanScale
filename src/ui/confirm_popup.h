@@ -16,6 +16,12 @@ enum TareScope : uint8_t { TARE_SCOPE_SPOOL, TARE_SCOPE_FILAMENT, TARE_SCOPE_VEN
 // Parks an empty spool weight for the spool it was asked for. then_new_spool:
 // the initial weight follows it (the New spool flow).
 void confirmParkTare(TareScope scope, float grams, int spool_id, bool then_new_spool);
+// Parks the full spool of the empty spool button (design L14) for the spool
+// it was asked for. tare is what was picked: a type, or the weight computed
+// from the fill. It is written first; only once the server has it do the
+// label weight (the fill, or the rest where that is more) and the rest
+// (bare minus tare) follow. bare is the reading the fill was taken with.
+void confirmParkFullSpool(float tare, float fill, float bare, int spool_id);
 // Runs whatever a popup button parked - the weight, tare, archive and cap
 // writes. Called from appLoop().
 void handleConfirmPopupDeferredActions();
