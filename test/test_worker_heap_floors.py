@@ -1,4 +1,4 @@
-"""Read the source tree without a compiler and check that no background worker keeps a heap floor of its own: the ones that talk to a backend take theirs from backendJobMinHeap() and log a refusal through logGateDue(), the list worker asks it for the address the list really goes to, the workers that may reach the Spoolman behind Bambuddy take the higher of two floors, and a refused start and a failed task creation are each logged through a gate of their own. The daily update check and the TLS warm-up ask the same rule, and the daily check and the GitHub jobs of the web pages never run side by side."""
+"""Read the source tree without a compiler and check that no background worker keeps a heap floor of its own: the ones that talk to a backend take theirs from backendJobMinHeap() and log a refusal through logGateDue(), the list worker asks it for the address the list really goes to, the workers that may reach the Spoolman behind Bambuddy take the higher of two floors, and a refused start and a failed task creation are each logged through a gate of their own. The daily update check and the TLS warm-up ask the same rule, and the daily check and the GitHub jobs of the web pages never run side by side. Every GitHub request measures the lowest the internal heap went while it ran and writes it to the log, and every way out of the request ends that measurement."""
 import re
 import sys
 from pathlib import Path
@@ -193,7 +193,75 @@ if web_jobs_path.is_file():
             if needle not in condition:
                 errors.append(f"src/{WEB_JOBS}: a GitHub web job does not wait on {needle}")
 
-# 7. Verdict.
+# 7. Every GitHub request writes the lowest the internal heap went while it
+# ran. "Lowest since boot" cannot do that: it only moves on a new record, so a
+# request that went deep but not deeper than the boot did reads the same
+# before and after. The unit heap_low starts the ESP-IDF monitor for the
+# local minimum and stops it again. The three requests of github_release.cpp
+# and the task of the daily check start it before http.begin and end it after
+# every http.end(), the failed requests included: the monitor is global, one
+# left running makes every later start fail and every later line read n/a.
+# The same goes for a connection that could not even be set up.
+HEAP_LOW_UNIT = "services/heap_low.cpp"
+HEAP_LOW_IDF = [
+    "heap_caps_monitor_local_minimum_free_size_start(",
+    "heap_caps_monitor_local_minimum_free_size_stop(",
+]
+HEAP_LOW_BEGIN = "heapLowBegin("
+HEAP_LOW_END = "heapLowEnd("
+HEAP_LOW_REQUESTS = {
+    "services/github_release.cpp": ["bool githubLatestTag(", "bool githubReleaseByTag(", "bool githubFlashTag("],
+    "services/update_check.cpp": ["void updateCheckTask("],
+}
+HTTP_END = re.compile(r"http\.end\(\);")
+RETURN = re.compile(r"\breturn\b")
+BEGIN_FAILS = re.compile(r"if\s*\(\s*!\s*http\.begin\([^)]*\)\s*\)\s*\{(.*?)\}", re.S)
+
+def code_only(text):
+    """The text with its comments left out; a // behind a colon is a URL."""
+    text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+    return re.sub(r"(?<!:)//.*", "", text)
+
+heap_low_path = src / HEAP_LOW_UNIT
+if not heap_low_path.is_file():
+    errors.append(f"src/{HEAP_LOW_UNIT}: file is missing")
+else:
+    heap_low_code = code_only(heap_low_path.read_text(encoding="utf-8", errors="replace"))
+    for call in HEAP_LOW_IDF:
+        if call not in heap_low_code:
+            errors.append(f"src/{HEAP_LOW_UNIT}: does not call {call}")
+
+for rel, signatures in HEAP_LOW_REQUESTS.items():
+    path = src / rel
+    if not path.is_file():
+        errors.append(f"src/{rel}: file is missing")
+        continue
+    text = path.read_text(encoding="utf-8", errors="replace")
+    code = code_only(text)
+    for call in (HEAP_LOW_BEGIN, HEAP_LOW_END):
+        count = code.count(call)
+        if count < len(signatures):
+            errors.append(f"src/{rel}: {count} call(s) of {call}, wants {len(signatures)} (one per request)")
+    for signature in signatures:
+        body = function_body(text, signature)
+        if body is None:
+            errors.append(f"src/{rel}: {signature} is not there")
+            continue
+        begin = body.find(HEAP_LOW_BEGIN)
+        opens = body.find("http.begin(")
+        if begin < 0 or (opens >= 0 and begin > opens):
+            errors.append(f"src/{rel}: {signature} does not call {HEAP_LOW_BEGIN} before http.begin(")
+        # After every http.end() the measurement ends before the next way out.
+        for done in HTTP_END.finditer(body):
+            ahead = body[done.end():]
+            leave = RETURN.search(ahead)
+            if HEAP_LOW_END not in (ahead[:leave.start()] if leave else ahead):
+                errors.append(f"src/{rel}: {signature} ends a request with http.end() and no {HEAP_LOW_END} before it returns")
+        for failed in BEGIN_FAILS.finditer(body):
+            if HEAP_LOW_END not in failed.group(1):
+                errors.append(f"src/{rel}: {signature} leaves a failed http.begin() without {HEAP_LOW_END}")
+
+# 8. Verdict.
 if errors:
     print("worker heap floors: FAILED")
     for error in errors:
