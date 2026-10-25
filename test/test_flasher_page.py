@@ -1,4 +1,4 @@
-"""Read the web flasher page (flasher/index.html) as text, without a browser, and check what the release workflow and the visitor rely on: one manifest per board of src/boards and no other, the install button without a manifest and hidden until a board is chosen, the choice setting the manifest, the right claim on each board (only the 7B was tried on a scale), and exactly one line "Firmware vX.Y.Z" for the workflow's sed to set.
+"""Read the web flasher page (flasher/index.html) as text, without a browser, and check what the release workflow and the visitor rely on: one manifest per board of src/boards and no other, the install button without a manifest and hidden until a board is chosen, the choice setting the manifest, the right claim on each board (only the 7B was tried on a scale), and exactly one line "Firmware vX.Y.Z" for the workflow's sed to set; the licence linked where the fork has it, the board hints hedged, the way to keep the settings without an update, no inert Install button when ESP Web Tools does not load, and readable small text.
 
 The page cannot be tried before the first stable tag publishes it, so this is what holds it together between releases."""
 import re
@@ -158,6 +158,41 @@ expect("must say to update through the scale to keep them", "update through the 
 expect("must not contain U+2014", chr(0x2014) not in text)
 expect("must be plain ASCII (write signs as HTML entities)", all(ord(c) < 128 for c in text),
        "first other character: " + next((repr(c) for c in text if ord(c) >= 128), "-"))
+
+# 8. What the review of the page found. The licence link goes to the branch
+#    that has the file: the fork's main mirrors the original and has no
+#    LICENSE, waage has it. The hints taken from the 7B page are hedged: not
+#    every board has BOOT and RESET buttons, or a USB and a UART connector. A
+#    scale that cannot update itself is told to save its settings first, under
+#    "Backup and restore" (the English name in its web interface). If ESP Web
+#    Tools does not load, the element stays undefined and shows an inert
+#    Install button next to both error texts: CSS hides it and shows a plain
+#    line instead. The status line says which board is selected, not that
+#    installing runs. The safety sentence (in .choice p) and the version line
+#    are readable on the dark background, in the colour of the board notes.
+LICENSE_URL = "https://github.com/Eifel-Joe/SpoolmanScale/blob/waage/LICENSE"
+READABLE = "#8aa4cc"
+expect("must not link the LICENSE on main (the fork's main has none)", "blob/main/LICENSE" not in text)
+expect(f"must link the licence at {LICENSE_URL}", LICENSE_URL in text)
+expect("must hedge the BOOT/RESET help (if your board has BOOT and RESET buttons)",
+       "if your board has boot and reset buttons" in flat)
+expect("must hedge the USB step (if it has both a USB and a UART connector)",
+       "if it has both a usb and a uart connector" in flat)
+expect('must tell a scale that cannot update itself to save its settings under "Backup and restore"',
+       "cannot update itself" in flat and '"backup and restore"' in flat)
+expect("must hide ESP Web Tools while it is not defined (esp-web-install-button:not(:defined) { display: none })",
+       re.search(r"esp-web-install-button:not\(:defined\)\s*\{[^}]*display:\s*none", text) is not None)
+expect("must show a fallback line while ESP Web Tools is not defined "
+       "(esp-web-install-button:not(:defined) + .no-installer { display: block })",
+       re.search(r"esp-web-install-button:not\(:defined\)\s*\+\s*\.no-installer\s*\{[^}]*display:\s*block", text)
+       is not None and 'class="no-installer"' in text)
+expect('the status line must say "Selected board:", not "Installing for:"',
+       "Installing for" not in text and "Selected board: " in text)
+for selector in (".choice p", ".version"):
+    rule = re.search(r"(?m)^\s*" + re.escape(selector) + r"\s*\{([^}]*)\}", text)
+    color = re.search(r"(?<![-\w])color:\s*(#[0-9a-fA-F]{3,6})\b", rule.group(1)) if rule else None
+    expect(f"{selector} must be readable on the dark background (color: {READABLE})",
+           color is not None and color.group(1).lower() == READABLE, color.group(1) if color else "no rule")
 
 if errors:
     print("flasher page: FAILED")
