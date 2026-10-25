@@ -37,6 +37,8 @@
 #define SIP_CANCEL_H (UI_TOUCH_MIN + 10)
 #define SIP_CARD_H  150
 #define SIP_SWATCH  44
+#define SIP_NAME_Y  62   // under the swatch row
+#define SIP_LINE_GAP 4
 // The action button sits at the same place in every state, under the card.
 #define SIP_ACTION_Y (SIP_TOP_Y + SIP_CARD_H + SIP_GAP)
 #define SIP_ACTION_H (SIP_BOTTOM_Y - SIP_CANCEL_H - SIP_GAP - SIP_ACTION_Y)
@@ -140,6 +142,9 @@ static lv_obj_t* colText(lv_obj_t* parent, const char* text, int y, uint32_t col
   lv_obj_set_style_text_font(l, font, 0);
   lv_label_set_long_mode(l, mode);
   lv_obj_set_width(l, SIP_COL_W - 2 * SIP_EDGE);
+  // A dotted label only cuts once its height is bounded; without one it wraps
+  // like any other and runs into the line below.
+  if (mode == LV_LABEL_LONG_DOT) lv_obj_set_height(l, lv_font_get_line_height(font));
   lv_obj_set_pos(l, SIP_EDGE, y);
   return l;
 }
@@ -178,11 +183,25 @@ static void buildFoundCard() {
   lv_obj_set_pos(ven, text_x, 32);
   lv_obj_set_width(ven, text_w);
 
-  colText(c, s_spool.name[0] ? s_spool.name : "-", 62, UI_COL_INK, UI_FONT_BODY, LV_LABEL_LONG_DOT);
+  // Up to two lines for the name: "Matte - Scarlet Red (11200)" is what tells
+  // two spools of one material apart. A third line is cut, and what follows
+  // moves down by as much as the name took.
+  lv_obj_t* name = colText(c, s_spool.name[0] ? s_spool.name : "-", SIP_NAME_Y, UI_COL_INK, UI_FONT_BODY,
+                           LV_LABEL_LONG_WRAP);
+  const lv_coord_t two_lines = 2 * lv_font_get_line_height(UI_FONT_BODY);
+  lv_obj_update_layout(name);
+  lv_coord_t name_h = lv_obj_get_height(name);
+  if (name_h > two_lines) {
+    lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
+    lv_obj_set_height(name, two_lines);
+    name_h = two_lines;   // the new height only lands with the next layout pass
+  }
+  int y = SIP_NAME_Y + name_h + SIP_LINE_GAP;
   char grams[24] = "-";
   if (s_spool.remaining_g >= 0) fmtG(grams, sizeof(grams), s_spool.remaining_g);
-  colText(c, grams, 92, UI_COL_GOOD, UI_FONT_SMALL, LV_LABEL_LONG_DOT);
-  if (s_spool.archived) colText(c, T(STR_ARCHIVED), 118, UI_COL_ARCHIVED, UI_FONT_CAPTION, LV_LABEL_LONG_DOT);
+  colText(c, grams, y, UI_COL_GOOD, UI_FONT_SMALL, LV_LABEL_LONG_DOT);
+  y += lv_font_get_line_height(UI_FONT_SMALL) + SIP_LINE_GAP;
+  if (s_spool.archived) colText(c, T(STR_ARCHIVED), y, UI_COL_ARCHIVED, UI_FONT_CAPTION, LV_LABEL_LONG_DOT);
 }
 
 static void buildMessageCard(const char* head, uint32_t head_col, const char* hint) {
