@@ -718,22 +718,28 @@ void patchInitialWeight(float initial_w) {
   }
 }
 
-void patchSpoolWeight(float spool_w) {
-  if (!wifi_ok) { Serial.println("patchSpoolWeight: no WiFi"); return; }
-  if (!sm_found || sm_id == 0) { Serial.println("patchSpoolWeight: no spool"); return; }
+// True only when the server took the write (2xx); every other way out is false.
+bool patchSpoolWeight(float spool_w) {
+  if (!wifi_ok) { Serial.println("patchSpoolWeight: no WiFi"); return false; }
+  if (!sm_found || sm_id == 0) { Serial.println("patchSpoolWeight: no spool"); return false; }
   Serial.printf("PATCH spool_weight: %.1fg\n", spool_w);
   int code = serverReachNote(backendPatchSpoolWeight(cfg_spoolman_base, sm_id, spool_w), true);
   logSDf("PATCH spool_weight=%.1fg ID=%d HTTP %d", spool_w, sm_id, code);
   if (backendWriteOk(code)) {
+    // The cached row of this spool still carries the old spool_weight, and
+    // copying reads the tare from it. The cache stamp cannot see that: it
+    // proves which spools there are, not what they hold.
+    spoolCacheForget("spool tare changed");
     sm_spool_weight = spool_w;
     // The value now comes from this spool, so drop any inherited source.
     // Without this the details screen keeps claiming "(filament)" over a
     // number that was just measured here.
     sm_tare_source = TARE_SPOOL;
     Serial.printf("spool_weight OK: %.1fg\n", spool_w);
-  } else {
-    Serial.printf("PATCH spool_weight Fehler: %d\n", code);
+    return true;
   }
+  Serial.printf("PATCH spool_weight Fehler: %d\n", code);
+  return false;
 }
 
 void patchFilamentSpoolWeight(float spool_w) {

@@ -76,6 +76,6 @@ void unlinkCardUid(int spool_id, const char* uid, bool all);
 // case. Returns true only when something was written.
 bool syncHwUidField(int spool_id, const char* scanned);
 void patchInitialWeight(float initial_w);
-void patchSpoolWeight(float spool_w);
+bool patchSpoolWeight(float spool_w);   // true only on 2xx
 void patchFilamentSpoolWeight(float spool_w);
 void patchVendorSpoolWeight(float spool_w);

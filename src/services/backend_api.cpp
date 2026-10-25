@@ -2,6 +2,7 @@
 
 #include <ctype.h>
 #include <esp_mac.h>
+#include <math.h>
 #include <string.h>
 
 #include "app/app_state.h"
@@ -677,10 +678,10 @@ bool backendGetLastUsedAt(const char* base_url, int spool_id,
 }
 
 bool backendCanTareSpool() {
-  if (backendMode() != BACKEND_BAMBUDDY) return true;
-  // Only BamBuddy's own database keeps core_weight on the spool. Behind the
-  // Spoolman proxy the field is accepted and discarded.
-  return bbInventoryMode() == BB_INV_LOCAL;
+  // True everywhere. Behind BamBuddy's Spoolman proxy core_weight lands in the
+  // spool's spool_weight since #2908 (fix b6521e93); the rest of the spool
+  // stays while its filament passes BamBuddy's metadata check.
+  return true;
 }
 
 bool backendCanTareFilamentOrVendor() {
@@ -1155,7 +1156,8 @@ int backendPatchInitialWeight(const char* base_url, int spool_id, float initial_
     case BACKEND_BAMBUDDY: {
       // Both numbers again, for the same reason as FilaMan. BamBuddy stores
       // what was consumed, so a full spool is label_weight with nothing used.
-      const int   label = (int)initial_weight;
+      // Rounded like the spool tare below: whole grams, never cut.
+      const int   label = (int)lroundf(initial_weight);
       const float used  = 0.0f;
       return bbPatchSpoolFields(backendBaseUrl(), bambuddyApiKey(), spool_id,
                                 &label, nullptr, &used, nullptr, nullptr, timeout_ms);
@@ -1223,11 +1225,9 @@ int backendPatchSpoolWeight(const char* base_url, int spool_id, float spool_weig
       return filamanPatchSpoolFloat(backendBaseUrl(), filamanApiKey(), spool_id,
                                     "empty_spool_weight_g", spool_weight, timeout_ms);
     case BACKEND_BAMBUDDY: {
-      // Only reaches the database in BamBuddy's own inventory. With Spoolman
-      // behind it the proxy accepts core_weight and drops it, so that mode
-      // answers "not supported" rather than reporting a false success.
-      if (bbInventoryMode() == BB_INV_SPOOLMAN) return notSupported("PatchSpoolWeight");
-      const int core = (int)spool_weight;
+      // Both inventory modes store it (the Spoolman proxy since #2908). Rounded,
+      // not cut: BamBuddy keeps whole grams and 249.9 must not become 249.
+      const int core = (int)lroundf(spool_weight);
       return bbPatchSpoolFields(backendBaseUrl(), bambuddyApiKey(), spool_id,
                                 nullptr, &core, nullptr, nullptr, nullptr, timeout_ms);
     }

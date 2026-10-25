@@ -265,9 +265,9 @@ static void showSpoolWeightPopup(float grams, bool then_new_spool, bool measured
       // Sub-popup: where should the spool weight be written?
       const float w = s_tare_prompt_g;
       // Not every backend has all three places to put it. BamBuddy has no
-      // filament and no vendor object at all, and behind its Spoolman proxy
-      // even the spool's own core weight is discarded on write. Buttons for
-      // those are not built rather than built and left to fail.
+      // filament and no vendor object, only the spool's own core weight,
+      // which its Spoolman proxy stores too (#2908). Buttons for those
+      // are not built rather than built and left to fail.
       const bool scope_spool  = backendCanTareSpool();
       const bool scope_shared = backendCanTareFilamentOrVendor();
 
@@ -584,10 +584,10 @@ void showConfirmPopup(const char* msg, int action) {
     lv_obj_center(l3);
 
     // ── Row 2 right: empty spool weight, weighed or typed in ──
-    // Dropped entirely where no tare scope can be written - which is the case
-    // for BamBuddy behind Spoolman. The place stays empty on purpose rather
-    // than letting the neighbour grow into it: a button that changes width
-    // depending on the backend reads as a different button.
+    // Dropped where no tare scope can be written. Every backend takes the
+    // spool's own tare now, BamBuddy behind Spoolman too (#2908). Were it ever
+    // dropped again the place stays empty on purpose rather than letting the
+    // neighbour grow into it: a width that changes reads as a different button.
     if (tare_writable) {
     lv_obj_t *btn4 = lv_btn_create(box);
     lv_obj_set_size(btn4, BW2, H_ROW2);

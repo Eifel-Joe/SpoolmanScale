@@ -826,14 +826,10 @@ int bbPatchSpoolFields(const char* base_url, const char* api_key, int spool_id,
   if (weight_used)      body["weight_used"]  = *weight_used;
   if (storage_location) body["storage_location"] = storage_location;
   if (note)             body["note"] = note;
-  if (core_weight) {
-    // Only reaches the database in BamBuddy's own inventory. The Spoolman
-    // proxy accepts core_weight and drops it on the floor: "Accepted for
-    // schema parity but not persisted to Spoolman". Sending it there would
-    // return 200 and change nothing, so the caller is told instead.
-    if (s_mode == BB_INV_SPOOLMAN) return -1;
-    body["core_weight"] = *core_weight;
-  }
+  // Both modes take it. Behind Spoolman the proxy stores core_weight as the
+  // spool's spool_weight since BamBuddy #2908 (fix b6521e93); before that it
+  // answered 200 and changed nothing.
+  if (core_weight)      body["core_weight"] = *core_weight;
   if (body.size() == 0) return -1;
 
   char url[192];

@@ -245,9 +245,10 @@ int  backendPatchExtraField(const char* base_url, int spool_id, const char* key,
        const char* value, uint32_t timeout_ms = 5000);
 
 // Which tare scopes the active backend can really store. Offering one it
-// cannot write gives a button that answers BACKEND_NOT_SUPPORTED, or worse
-// reports success and changes nothing - BamBuddy's Spoolman proxy accepts
-// core_weight and drops it. Asked by the tare popup before it is built.
+// cannot write gives a button that answers BACKEND_NOT_SUPPORTED. The spool's
+// own tare goes through on every backend, behind BamBuddy's Spoolman proxy
+// too (#2908); filament and vendor do not (BamBuddy: no object to write to).
+// Asked by the tare popup before it is built.
 bool backendCanTareSpool();
 bool backendCanTareFilamentOrVendor();
 
