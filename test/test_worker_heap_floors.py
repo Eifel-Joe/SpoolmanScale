@@ -29,8 +29,9 @@ FLOOR_USERS = {
 # Encrypted background requests do not run side by side: their stacks would
 # add up in the internal heap. The daily update check waits for the web jobs
 # and for the inventory list, and the GitHub jobs of the web pages wait for the
-# daily check and for the inventory list (the "Check" button on the scale
-# already waits for the first two).
+# daily check and for the inventory list. The "Check" button on the scale
+# waits only for the daily check; its deferred retry in the loop waits for
+# the daily check and the web jobs.
 WAITS = {
     "services/update_check.cpp": ["webJobState() == WJS_RUNNING", "backendJobState() == BJS_RUNNING"],
     "web/web_jobs.cpp": ["updateCheckBusy()"],

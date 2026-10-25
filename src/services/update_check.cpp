@@ -28,7 +28,7 @@
 namespace {
 
 // Served from our GitHub Pages (branch gh-pages of the fork, FW_PAGES_URL)
-// next to manifest.json and written by the release workflow. Deliberately not
+// next to the web flasher and written by the release workflow. Deliberately not
 // api.github.com: that endpoint allows 60 requests per hour and IP, which
 // users behind carrier grade NAT share, and its answer for the release list is
 // over a hundred kilobytes. This file is a few hundred bytes and has no rate
@@ -258,7 +258,9 @@ void maybeStartCheck() {
   // internal heap, and a second pair would take what the floor leaves free.
   // Not logged and not postponed, the due time stays as it is: the other one
   // is over in seconds and the next pass asks again. The web jobs wait for
-  // this check the same way (webJobStart), and so does "Check" on the scale.
+  // this check the same way (webJobStart). "Check" on the scale waits only
+  // for this check (doGithubOtaCheck), not for the web jobs; its deferred
+  // retry in the loop (app_loop.cpp) waits for both.
   if (webJobState() == WJS_RUNNING || backendJobState() == BJS_RUNNING) return;
   // Signed difference, so this survives the millis() wrap after 49 days.
   if ((long)(millis() - s_due_ms) < 0) return;

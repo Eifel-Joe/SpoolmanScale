@@ -190,12 +190,13 @@ bool webJobStart(WebJobKind kind, const char* arg, bool flag) {
   // is for one such request: two stacks side by side would take what it
   // leaves free. So it does not start while the daily check runs, nor while
   // the inventory list does (its task takes a stack of the same size). The
-  // check waits for the web jobs and the list the same way (maybeStartCheck),
-  // and "Check" on the scale waits for the check and the web jobs. Nothing
-  // is logged, the pages and the catalog sync ask again. The jobs for the
-  // backend are not held up here: on the 7B a running check leaves less than
-  // their floor (40 kB at http, 50 kB at https), and boards with more heap
-  // have room for both.
+  // check waits for the web jobs and the list the same way (maybeStartCheck).
+  // "Check" on the scale waits only for the daily check (doGithubOtaCheck),
+  // not for these jobs; only its deferred retry in the loop (app_loop.cpp)
+  // waits for both. Nothing is logged, the pages and the catalog sync ask
+  // again. The jobs for the backend are not held up here: on the 7B a
+  // running check leaves less than their floor (40 kB at http, 50 kB at
+  // https), and boards with more heap have room for both.
   if (webJobTalksToGithub(kind) &&
       (updateCheckBusy() || backendJobState() == BJS_RUNNING)) {
     return false;
