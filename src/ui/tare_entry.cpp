@@ -51,11 +51,6 @@ static float s_open_g   = 0.0f;
 // The list of spool types, when this file opened it for the spool s_spool_id
 // (the first weighing). Cleared on every way the list closes.
 static bool s_list_mine = false;
-// A type was picked on the first weighing in this pass and its tare is parked
-// (confirmParkTare()). The loop writes it early in the next pass, and until
-// then the entry still counts as open: automatic weighing comes later in this
-// pass and would weigh against the old tare.
-static bool s_tare_parked = false;
 
 // The windows of this file, opened for the spool s_spool_id. Only these are
 // closed by a swap or a lift (tareEntryTick()).
@@ -68,7 +63,7 @@ bool isTareEntryOpen() {
   // The empty spool screen of the settings counts as well, although it
   // belongs to no spool: a spool is put on the pad for it, and automatic
   // weighing and the drift correction must not act on that.
-  return spoolEntryOpen() || s_tare_parked || isEmptySpoolTypeOpen();
+  return spoolEntryOpen() || isEmptySpoolTypeOpen();
 }
 
 // The choice and the keypad, nothing else. What the buttons of this file
@@ -392,6 +387,19 @@ static int           s_fw_id    = 0;
 static float         s_fw_last  = 0.0f;
 static unsigned long s_fw_since = 0;
 
+// The spool whose question opened on this placement, until its tag is gone or
+// another spool is loaded: automatic weighing leaves it alone, whatever the
+// answer (tareEntryHoldsAutoWeigh()). 0: none.
+static int s_fw_hold_id = 0;
+
+// What the first weighing needs before anything else: Bambuddy in Spoolman
+// mode, a load cell, and a spool with a tag that the server knows, not
+// archived.
+static bool fwSpoolHere() {
+  return spoolTypesActive() && wifi_ok && g_scale_fitted && scale_ready &&
+         tag_present && sm_found && sm_id > 0 && !sm_archived;
+}
+
 static bool fwAsked(int id) {
   for (int i = 0; i < FIRST_WEIGH_ASKED_MAX; i++)
     if (s_fw_asked[i] == id) return true;
@@ -407,6 +415,17 @@ void tareEntryForgetAsked() {
   memset(s_fw_asked, 0, sizeof(s_fw_asked));
   s_fw_asked_next = 0;
   s_fw_id = 0;
+  s_fw_hold_id = 0;
+}
+
+bool tareEntryHoldsAutoWeigh() {
+  // Asked on this placement: the rest stays as the server has it after a
+  // pick, and rest and tare stay untouched after "later", so that the
+  // question comes again after a restart.
+  if (s_fw_hold_id != 0 && tag_present && sm_id == s_fw_hold_id) return true;
+  // Not looked at yet: it may still be asked, also once a dialog that holds
+  // the question back is gone.
+  return fwSpoolHere() && !fwAsked(sm_id);
 }
 
 // From the list, in the loop, after it closed itself. The type goes to the
@@ -418,7 +437,6 @@ static void fwPicked(float grams, const char *name) {
   logSDf("UI: first weighing of spool %d: '%s' %.1f g taken",
          s_spool_id, name ? name : "", grams);
   confirmParkTare(TARE_SCOPE_SPOOL, grams, s_spool_id, false);
-  s_tare_parked = true;
 }
 
 // "Later", or back: the spool stays asked until the next restart.
@@ -428,8 +446,7 @@ static void fwLater() {
 }
 
 static void firstWeighTick() {
-  if (!spoolTypesActive() || !wifi_ok || !g_scale_fitted || !scale_ready ||
-      !tag_present || !sm_found || sm_id <= 0 || sm_archived) {
+  if (!fwSpoolHere()) {
     s_fw_id = 0;
     return;
   }
@@ -477,16 +494,20 @@ static void firstWeighTick() {
     if (ask == STA_SUGGEST) req.measured_g = computed;
   }
   closeTareEntry();
-  s_spool_id  = sm_id;
-  s_open_g    = scale_weight_g;
-  s_list_mine = true;   // before the call: a refused open calls fwLater() at once
+  s_spool_id   = sm_id;
+  s_open_g     = scale_weight_g;
+  s_list_mine  = true;   // before the call: a refused open calls fwLater() at once
+  // From the open on, not only after an answer: a pick, "later", back, the
+  // close button and a lift that leaves the tag on the reader all end the
+  // question without a weighing on this placement.
+  s_fw_hold_id = sm_id;
   showSpoolTypeList(req, fwPicked, fwLater);
 }
 
 void tareEntryTick() {
-  // The parked tare of the last pass was written by now: the deferred
-  // actions run earlier in the loop than this tick.
-  s_tare_parked = false;
+  // The placement the first weighing held ends with the tag or a swap; a
+  // spool put back is weighed as usual.
+  if (s_fw_hold_id != 0 && (!tag_present || sm_id != s_fw_hold_id)) s_fw_hold_id = 0;
   // Every loop pass, before anything returns: the list of types, the name
   // entry and the empty spool screen have no call of their own in
   // app_loop.cpp, which must not grow.

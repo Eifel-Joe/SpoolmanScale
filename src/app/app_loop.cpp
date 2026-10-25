@@ -1516,10 +1516,10 @@ void appLoop() {
     // sm_archived is excluded on purpose: an archived spool reads 0 g by
     // definition, so weighing it silently would file a full spool as empty
     // stock. Bringing it back is a decision, and it has its own button.
-    // Nor while an empty spool weight is being entered: the weighing would
-    // be computed against the tare that is about to be replaced.
+    // Nor while an empty spool weight is entered, or the first weighing may
+    // still ask about this spool or answered on this placement (tare_entry.h).
     if (!aw_done && !isConfirmPopupOpen() && !isTareEntryOpen() && !isSpoolWeightScopeOpen() &&
-        sm_found && !sm_archived && sm_id > 0 && scale_ready &&
+        !tareEntryHoldsAutoWeigh() && sm_found && !sm_archived && sm_id > 0 && scale_ready &&
         (tag_present || aw_adopted)) {
       float cur = scale_weight_g;
       if (fabsf(cur - auto_weight_last_val) > AUTO_WEIGHT_THRESH_G) {

@@ -18,10 +18,17 @@ void showTareChoice();
 void closeTareEntry();
 
 // The choice, the keypad, the list of the first weighing or the empty spool
-// screen is up, or a type picked on the first weighing waits for the loop to
-// store it. Counts as a modal like the weight popup: no automatic weighing and
-// no question on removal while it stands.
+// screen is up. Counts as a modal like the weight popup: no automatic weighing
+// and no question on removal while it stands.
 bool isTareEntryOpen();
+
+// Automatic weighing waits for the first weighing: true while the spool on
+// the pad may still be asked (it passes the first weighing's own conditions,
+// a dialog standing or not, and was not looked at yet), and from the moment
+// its question opened until its tag is gone or another spool is loaded. The
+// rest stays as it was after an answer, and "later" leaves rest and tare
+// untouched, so the question comes again after a restart.
+bool tareEntryHoldsAutoWeigh();
 
 // Every loop pass. Runs the ticks of the list of spool types, the name entry
 // and the empty spool screen and opens the first weighing, then closes the
