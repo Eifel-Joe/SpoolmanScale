@@ -206,7 +206,8 @@ if web_jobs_path.is_file():
 # local minimum and stops it again. The three requests of github_release.cpp
 # and the request of the daily check start it before http.begin and end it after
 # every http.end(), the failed requests included: the monitor is global, one
-# left running makes every later start fail and every later line read n/a.
+# left running keeps heap_low's claim, every later start is refused and every
+# later line reads n/a.
 # The same goes for a connection that could not even be set up.
 HEAP_LOW_UNIT = "services/heap_low.cpp"
 HEAP_LOW_IDF = [

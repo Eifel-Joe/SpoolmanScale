@@ -30,17 +30,22 @@
 //   - It sees the whole internal heap, not this request's allocations: what
 //     the other tasks take in the same window counts. That is what the floor
 //     is about, the lowest the device went while the request ran.
-//   - A second start fails while one runs. Whoever did not get the
-//     measurement does not own it: its heapLowEnd() returns 0 and leaves the
-//     owner's measurement alone. One measurement per task, not nested.
+//   - The monitor does not refuse a second start. In ESP-IDF 5.5
+//     (components/heap/heap_caps.c,
+//     heap_caps_monitor_local_minimum_free_size_start) it returns ESP_OK
+//     every time and resets the minimum of every heap, which would quietly
+//     restart a measurement that is running. So there is one owner, claimed
+//     atomically before the monitor is started: a task that does not get
+//     the claim has no measurement, and its heapLowEnd() returns 0 and
+//     touches nothing. One measurement at a time device wide, not nested.
 //
 //  Every way out of a request has to end the measurement, the failing ones
-//  too. A measurement left running makes every later start fail, and every
-//  later line reads n/a.
+//  too. A measurement left running keeps the claim: every later start is
+//  refused, and every later line reads n/a.
 // ============================================================
 
-// Starts the measurement on the calling task. False when one is already
-// running (ESP_FAIL from the monitor): this call then has no value to give.
+// Starts the measurement on the calling task. False when another task holds
+// it, or when the monitor did not start: this call then has no value to give.
 bool heapLowBegin();
 
 // The lowest free internal heap since heapLowBegin(), in bytes, and the end
