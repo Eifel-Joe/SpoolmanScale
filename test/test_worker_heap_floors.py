@@ -1,4 +1,4 @@
-"""Read the source tree without a compiler and check that no background worker keeps a heap floor of its own: the ones that talk to a backend take theirs from backendJobMinHeap() and log a refusal through logGateDue()."""
+"""Read the source tree without a compiler and check that no background worker keeps a heap floor of its own: the ones that talk to a backend take theirs from backendJobMinHeap() and log a refusal through logGateDue(), and the list worker asks it for the address the list really goes to."""
 import re
 import sys
 from pathlib import Path
@@ -32,6 +32,13 @@ REQUIRED = ["backendJobMinHeap(", "logGateDue("]
 
 FLOOR_DEFINE = re.compile(r"^\s*#define\s+(\w*MIN\w*HEAP\w*)\s+(\d+)")
 
+# The list worker's floor follows the address the list request reads. That is
+# backendBaseUrl() in every mode; cfg_spoolman_base is the Spoolman address,
+# which is empty in FilaMan and BamBuddy mode and then gave the TLS floor.
+LIST_WORKER = "services/backend_job.cpp"
+LIST_FLOOR = "backendJobMinHeap(backendBaseUrl())"
+SPOOLMAN_FLOOR = re.compile(r"backendJobMinHeap\(\s*cfg_spoolman_base\s*\)")
+
 errors = []
 
 # 1. No file but the three allowed ones defines a fixed floor.
@@ -57,7 +64,20 @@ for rel in WORKERS:
         if needle not in text:
             errors.append(f"src/{rel}: does not call {needle}")
 
-# 3. Verdict.
+# 3. The list worker asks for the floor of the backend in use, and no file asks
+# for the floor of the Spoolman address.
+list_path = src / LIST_WORKER
+if list_path.is_file() and LIST_FLOOR not in list_path.read_text(encoding="utf-8", errors="replace"):
+    errors.append(f"src/{LIST_WORKER}: does not call {LIST_FLOOR}")
+for path in sorted(src.rglob("*")):
+    if path.suffix not in (".h", ".cpp", ".hpp", ".c", ".ino"):
+        continue
+    text = path.read_text(encoding="utf-8", errors="replace")
+    for number, line in enumerate(text.splitlines(), 1):
+        if SPOOLMAN_FLOOR.search(line):
+            errors.append(f"src/{path.relative_to(src).as_posix()}:{number}: floor from cfg_spoolman_base, not from the address the request reads")
+
+# 4. Verdict.
 if errors:
     print("worker heap floors: FAILED")
     for error in errors:
