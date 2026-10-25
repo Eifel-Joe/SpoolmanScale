@@ -31,6 +31,15 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+# One run at a time. Two tags pushed close together would otherwise both
+# read the same version.json from gh-pages, and the second push would be
+# refused or the older tag would land last. A run that has started is not
+# cancelled: it may have created its release already, and its pages must
+# follow. GitHub keeps one waiting run per group: a third tag pushed while
+# one runs and one waits cancels the waiting one, so tag one at a time.
+concurrency:
+  group: release
+  cancel-in-progress: false
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -220,6 +229,9 @@ jobs:
           # hand asks releases/latest, which skips pre-releases; a stable tag
           # marked pre-release would stay hidden from that check.
           prerelease: ${{ contains(github.ref_name, '-beta.') }}
+          # A file named below and not built fails the step, before the pages
+          # name a release that lacks the image a device would download.
+          fail_on_unmatched_files: true
           # SpoolmanScale-*.bin takes both files of every other board and the
           # factory image of every board, the WT32's included.
           files: |
