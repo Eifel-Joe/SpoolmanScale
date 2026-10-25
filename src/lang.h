@@ -1780,6 +1780,8 @@ enum StringID {
   STR_W_EXTRAS_HINT,
   STR_W_EXTRAS_NAME,
   STR_W_EXTRAS_DEFAULT,
+  // Empty spool types (Bambuddy's catalog of empty spools)
+  STR_TARE_INHERITED,         // after a tare that came from the filament level behind Bambuddy's Spoolman proxy
 
   STR_COUNT
 };

@@ -15,6 +15,7 @@
 #include "services/auto_weight_state.h"
 #include "services/prefs_store.h"
 #include "services/spool_extras.h"
+#include "services/spool_types.h"
 #include "services/spoolman_actions.h"
 #include "services/tag_write.h"
 #include "dried_action.h"
@@ -570,9 +571,7 @@ void showConfirmPopup(const char* msg, int action) {
     // An inherited tare carries into the filament weight measured against it,
     // so the button says where it came from - same wording as the spool
     // details, so the two read as one statement rather than two.
-    const char *tare_note = "";
-    if (!derives_tare && sm_tare_source == TARE_FILAMENT) tare_note = T(STR_TARE_FROM_FILAMENT);
-    else if (!derives_tare && sm_tare_source == TARE_VENDOR) tare_note = T(STR_TARE_FROM_BRAND);
+    const char *tare_note = derives_tare ? "" : spoolTareNote(sm_tare_source);
     if (tare_note[0]) {
       const size_t used = strlen(buf3);
       snprintf(buf3 + used, sizeof(buf3) - used, "%s", tare_note);

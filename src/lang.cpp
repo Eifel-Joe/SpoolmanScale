@@ -3843,6 +3843,7 @@ const char* const STRINGS[][3] = {
   { "Standard",
     "Default",
     "Par défaut" },  // STR_W_EXTRAS_DEFAULT
+  { " (geerbt)", " (inherited)", " (hérité)" },  // STR_TARE_INHERITED
 };
 
 StringID tagWriteResultString(uint8_t code) {
