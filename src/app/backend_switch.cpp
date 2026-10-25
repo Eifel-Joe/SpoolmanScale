@@ -27,6 +27,7 @@
 #include "services/user_options.h"
 #include "ui/header_status.h"
 #include "ui/tag_display.h"
+#include "ui/tare_entry.h"
 #include "web/web_server.h"
 
 static volatile uint32_t s_generation = 0;
@@ -149,6 +150,8 @@ void backendApplyMode(BackendMode mode) {
   // Spool ids are per backend, so the marker for "the location popup was
   // already shown for this spool" now points at a different spool.
   g_loc_popup_shown_for_id = -1;
+  // The same for the spools the first weighing has looked at.
+  tareEntryForgetAsked();
 
   // The card_uids switch only means anything on a list field, and the
   // effective field depends on the backend: the native source applies on

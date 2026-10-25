@@ -351,4 +351,5 @@ STR_SPT_ONLY_VENDOR	14	221	NEVER	src/ui/spool_type_list.cpp bar button, two to a
 STR_SPT_SHOW_ALL	14	142	NEVER	src/ui/spool_type_list.cpp bar button, three to a row (VENDOR): (480 - 2 * 8 - 2 * 6) / 3 - 8
 STR_SPT_NEW	14	142	NEVER	src/ui/spool_type_list.cpp bar button, three to a row (VENDOR): (480 - 2 * 8 - 2 * 6) / 3 - 8
 STR_SPT_LATER	14	142	NEVER	src/ui/spool_type_list.cpp skip button, three to a row at the narrowest: (480 - 2 * 8 - 2 * 6) / 3 - 8
+STR_SPT_LATER	14	142	NEVER	src/ui/tare_entry.cpp the first weighing hands it to that skip button, same width
 STR_SPT_WITHOUT	14	142	NEVER	src/ui/spool_type_list.cpp skip button, three to a row at the narrowest: (480 - 2 * 8 - 2 * 6) / 3 - 8

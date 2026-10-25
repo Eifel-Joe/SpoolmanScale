@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <lvgl.h>
+#include <cmath>
 #include <cstdlib>
 #include <cstring>
 
@@ -11,7 +12,10 @@
 #include "empty_spool_type.h"
 #include "hardware/sd_logger.h"
 #include "lang.h"
+#include "services/ams_assign.h"     // AMS_SETTLE_MS / AMS_SETTLE_TOL_G
 #include "services/spool_extras.h"
+#include "services/spool_types.h"
+#include "services/user_options.h"   // g_scale_fitted
 #include "spool_type_list.h"
 #include "spool_type_name.h"
 #include "theme.h"
@@ -44,17 +48,27 @@ static lv_obj_t *s_btn_next  = nullptr;
 static int   s_spool_id = 0;
 static float s_open_g   = 0.0f;
 
+// The list of spool types, when this file opened it for the spool s_spool_id
+// (the first weighing). Cleared on every way the list closes.
+static bool s_list_mine = false;
+// A type was picked on the first weighing in this pass and its tare is parked
+// (confirmParkTare()). The loop writes it early in the next pass, and until
+// then the entry still counts as open: automatic weighing comes later in this
+// pass and would weigh against the old tare.
+static bool s_tare_parked = false;
+
 // The windows of this file, opened for the spool s_spool_id. Only these are
 // closed by a swap or a lift (tareEntryTick()).
 static bool spoolEntryOpen() {
-  return s_choice != nullptr || s_pad != nullptr;
+  return s_choice != nullptr || s_pad != nullptr ||
+         (s_list_mine && isSpoolTypeListOpen());
 }
 
 bool isTareEntryOpen() {
   // The empty spool screen of the settings counts as well, although it
   // belongs to no spool: a spool is put on the pad for it, and automatic
   // weighing and the drift correction must not act on that.
-  return spoolEntryOpen() || isEmptySpoolTypeOpen();
+  return spoolEntryOpen() || s_tare_parked || isEmptySpoolTypeOpen();
 }
 
 // The choice and the keypad, nothing else. What the buttons of this file
@@ -75,6 +89,7 @@ void closeTareEntry() {
   closeEmptySpoolType();
   closeSpoolTypeList();
   closeSpoolTypeName();
+  s_list_mine = false;
 }
 
 // ---------------------------------------------------------------------------
@@ -354,13 +369,131 @@ void showTareChoice() {
   lv_obj_add_event_cb(cancel, [](lv_event_t *e) { closeSpoolEntry(); }, LV_EVENT_CLICKED, NULL);
 }
 
+// ---------------------------------------------------------------------------
+//  The first weighing
+// ---------------------------------------------------------------------------
+
+// Bambuddy in Spoolman mode: a spool put down for the first time in this
+// session is asked which empty spool it sits on, once (design 3, L18). What
+// is asked is spoolTypeFirstAsk()'s answer; the list is opened for the spool
+// like the choice and the keypad, so a swap or a lift closes it.
+
+// The spools looked at in this session, asked or not. A ring, the oldest
+// place goes first; 0 is a free place, spool ids start at 1.
+#define FIRST_WEIGH_ASKED_MAX 16
+static int     s_fw_asked[FIRST_WEIGH_ASKED_MAX] = {};
+static uint8_t s_fw_asked_next = 0;
+
+// The reading has to stand still first: within AMS_SETTLE_TOL_G for
+// AMS_SETTLE_MS, the AMS question's measure (app_loop.cpp), far shorter than
+// the 3 s of automatic weighing, which then waits for the answer. A watch of
+// its own, started again for every spool.
+static int           s_fw_id    = 0;
+static float         s_fw_last  = 0.0f;
+static unsigned long s_fw_since = 0;
+
+static bool fwAsked(int id) {
+  for (int i = 0; i < FIRST_WEIGH_ASKED_MAX; i++)
+    if (s_fw_asked[i] == id) return true;
+  return false;
+}
+
+static void fwRemember(int id) {
+  s_fw_asked[s_fw_asked_next] = id;
+  s_fw_asked_next = (uint8_t)((s_fw_asked_next + 1) % FIRST_WEIGH_ASKED_MAX);
+}
+
+void tareEntryForgetAsked() {
+  memset(s_fw_asked, 0, sizeof(s_fw_asked));
+  s_fw_asked_next = 0;
+  s_fw_id = 0;
+}
+
+// From the list, in the loop, after it closed itself. The type goes to the
+// spool as its empty weight by the job the scope question's Spool button
+// parks; no weight is written (design 3), and a spool swapped meanwhile
+// drops it there.
+static void fwPicked(float grams, const char *name) {
+  s_list_mine = false;
+  logSDf("UI: first weighing of spool %d: '%s' %.1f g taken",
+         s_spool_id, name ? name : "", grams);
+  confirmParkTare(TARE_SCOPE_SPOOL, grams, s_spool_id, false);
+  s_tare_parked = true;
+}
+
+// "Later", or back: the spool stays asked until the next restart.
+static void fwLater() {
+  s_list_mine = false;
+  logSDf("UI: first weighing of spool %d: later", s_spool_id);
+}
+
+static void firstWeighTick() {
+  if (!spoolTypesActive() || !wifi_ok || !g_scale_fitted || !scale_ready ||
+      !tag_present || !sm_found || sm_id <= 0 || sm_archived) {
+    s_fw_id = 0;
+    return;
+  }
+  // The watch runs on under a dialog: it does not make the reading less still.
+  const unsigned long now = millis();
+  if (sm_id != s_fw_id || fabsf(scale_weight_g - s_fw_last) > AMS_SETTLE_TOL_G) {
+    s_fw_id    = sm_id;
+    s_fw_last  = scale_weight_g;
+    s_fw_since = now;
+    return;
+  }
+  if (now - s_fw_since < AMS_SETTLE_MS) return;
+  if (isTareEntryOpen() || uiModalWaiting() || isSpoolTypeListOpen() ||
+      isSpoolTypeNameOpen())
+    return;
+  if (fwAsked(sm_id)) return;
+  // A tag held to the reader over an empty pad is no weighing; the spool is
+  // looked at once it is put down.
+  const float bare = spoolExtrasBareReading();
+  if (!(bare > NEW_SPOOL_TARE_MIN_G)) return;
+
+  // The label weight is spoolTypeFullLabel(), not sm_total: an unused spool
+  // filled over its label would get an empty weight too high by the overfill.
+  // No label weight stays none, and such a spool is asked from the list.
+  const float label    = sm_total > 0.0f ? spoolTypeFullLabel(sm_total, sm_remaining) : 0.0f;
+  const float computed = bare - label;
+  const SpoolTypeAsk ask = spoolTypeFirstAsk(label, sm_remaining, bare,
+                                             sm_tare_source == TARE_SPOOL, sm_spool_weight);
+  // Before anything opens, and also when there is nothing to ask.
+  fwRemember(sm_id);
+  static const char *const ASK_WORDS[] = { "nothing to ask", "suggest", "implausible", "list" };
+  logSDf("UI: first weighing of spool %d: %s (computed %.0f g, stored %.0f g)",
+         sm_id, ask <= STA_LIST ? ASK_WORDS[ask] : "?", computed, sm_spool_weight);
+  if (ask == STA_NONE) return;
+
+  SpoolTypeListReq req = {};
+  utf8Cut(sm_vendor_g, sizeof(req.vendor) - 1, req.vendor, sizeof(req.vendor));
+  req.skip_text = STR_SPT_LATER;
+  if (ask == STA_LIST) {
+    req.mode = STL_VENDOR;           // in use: nothing measured, nothing marked
+  } else {
+    req.mode   = STL_NEAR;
+    req.near_g = computed;
+    // Only an empty weight a spool can have is offered to take or to name.
+    if (ask == STA_SUGGEST) req.measured_g = computed;
+  }
+  closeTareEntry();
+  s_spool_id  = sm_id;
+  s_open_g    = scale_weight_g;
+  s_list_mine = true;   // before the call: a refused open calls fwLater() at once
+  showSpoolTypeList(req, fwPicked, fwLater);
+}
+
 void tareEntryTick() {
+  // The parked tare of the last pass was written by now: the deferred
+  // actions run earlier in the loop than this tick.
+  s_tare_parked = false;
   // Every loop pass, before anything returns: the list of types, the name
   // entry and the empty spool screen have no call of their own in
   // app_loop.cpp, which must not grow.
   spoolTypeListTick();
   spoolTypeNameTick();
   emptySpoolTypeTick();
+  firstWeighTick();
   // What follows is for the windows opened for a spool. The empty spool
   // screen weighs whatever is put down, and a swap does not close it.
   if (!spoolEntryOpen()) return;
@@ -376,4 +509,6 @@ void tareEntryTick() {
   // From the loop, not from a callback; releaseScreen() deletes on the next
   // timer pass either way.
   closeSpoolEntry();
+  if (s_list_mine) closeSpoolTypeList();   // no answer: the spool stays asked
+  s_list_mine = false;
 }
