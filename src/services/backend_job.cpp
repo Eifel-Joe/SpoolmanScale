@@ -5,6 +5,7 @@
 #include "app/app_state.h"
 #include "app/backend_switch.h"
 #include "hardware/sd_logger.h"
+#include "services/backend.h"
 #include "services/backend_api.h"
 #include "services/backend_job_rules.h"
 #include "services/http_progress.h"
@@ -128,8 +129,11 @@ bool backendJobStartList(bool allow_archived, const JsonDocument* filter,
   if (backendListBusy() || s_state != BJS_IDLE) return false;
   // Checked here rather than inside the task: the stack comes out of the
   // heap the moment the task is created. The floor follows the address the
-  // job is about to copy into s_base below.
-  const uint32_t min_heap  = backendJobMinHeap(cfg_spoolman_base);
+  // list goes to, backendBaseUrl(): in FilaMan and BamBuddy mode the backend
+  // layer reads that one and ignores the base it is handed, and the Spoolman
+  // address (cfg_spoolman_base) can be empty there. The copy in s_base below
+  // only matters in Spoolman mode, where it is the same address.
+  const uint32_t min_heap  = backendJobMinHeap(backendBaseUrl());
   const uint32_t free_heap = (uint32_t)ESP.getFreeHeap();
   if (free_heap < min_heap) {
     // The callers ask again on every pass of the loop; a line each time
