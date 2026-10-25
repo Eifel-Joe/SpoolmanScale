@@ -159,15 +159,24 @@ bool otaGithubScreenVisible() {
 // second copy of the drawing in buildOtaGithubScreen() and doGithubOtaCheck(),
 // and the two would drift. A failed check leaves the status empty; its line
 // is in the log, and "Check" gives the reason.
-// test/test_update_screen.py pins the guard and the texts.
+//
+// Not built again while a dialog waits (the downgrade question): dialogs sit
+// on the active screen, and a screen built now would be appended above one
+// and hide a question that still takes the taps. Then only the status line
+// says what came; the button follows when the screen is next opened.
+// test/test_update_screen.py pins the guards, the texts and which result
+// gives which answer.
 void otaGithubShowCheckAnswer(GhCheckAnswer answer, const char* version) {
   if (!otaGithubScreenVisible()) return;
-  otaGithubForgetLabels();
-  lv_obj_del(scr_ota_github);
-  scr_ota_github = nullptr;
-  buildOtaGithubScreen();
-  if (!scr_ota_github) return;
-  lv_obj_clear_flag(scr_ota_github, LV_OBJ_FLAG_HIDDEN);
+  const bool rebuilt = !uiModalWaiting();
+  if (rebuilt) {
+    otaGithubForgetLabels();
+    lv_obj_del(scr_ota_github);
+    scr_ota_github = nullptr;
+    buildOtaGithubScreen();
+    if (!scr_ota_github) return;
+    lv_obj_clear_flag(scr_ota_github, LV_OBJ_FLAG_HIDDEN);
+  }
   if (!lbl_gh_status) return;
   if (answer == GH_ANSWER_UP_TO_DATE) {
     lv_label_set_text(lbl_gh_status, T(STR_GH_OTA_UP_TO_DATE));
@@ -177,6 +186,17 @@ void otaGithubShowCheckAnswer(GhCheckAnswer answer, const char* version) {
     snprintf(big, sizeof(big), T(STR_GH_OTA_TOO_BIG), version);
     lv_label_set_text(lbl_gh_status, big);
     lv_obj_set_style_text_color(lbl_gh_status, lv_color_hex(UI_COL_WARN), 0);
+  } else if (!rebuilt) {
+    // Still the "Checking..." of the switch: the build that would have said
+    // it did not run.
+    if (answer == GH_ANSWER_AVAILABLE && gh_latest_version[0] != '\0') {
+      char avail[64];
+      snprintf(avail, sizeof(avail), T(STR_GH_OTA_UPDATE_AVAIL), gh_latest_version);
+      lv_label_set_text(lbl_gh_status, avail);
+      lv_obj_set_style_text_color(lbl_gh_status, lv_color_hex(UI_COL_WARN), 0);
+    } else {
+      lv_label_set_text(lbl_gh_status, "");
+    }
   }
 }
 
