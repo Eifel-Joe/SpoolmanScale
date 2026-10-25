@@ -232,30 +232,36 @@ int amsSourceGetState(int printer_id, AmsSlotState& out, uint32_t timeout_ms) {
   return 200;
 }
 
-static int postTray(const char* verb, int spool_id, int printer_id, int ams_id,
-                    int tray_id, uint32_t timeout_ms) {
-  if (!amsSourceConfigured() || printer_id <= 0 || ams_id < 0 || tray_id < 0) return -1;
+// One bay of one printer, as assign and unassign both address it.
+struct AmsBay {
+  int printer_id;
+  int ams_id;
+  int tray_id;
+};
+
+static int postTray(const char* verb, int spool_id, const AmsBay& bay, uint32_t timeout_ms) {
+  if (!amsSourceConfigured() || bay.printer_id <= 0 || bay.ams_id < 0 || bay.tray_id < 0) return -1;
 
   char url[sizeof(s_base) + 64];
   snprintf(url, sizeof(url), "%s" AMS_SOURCE_PREFIX "/printers/%d/%s",
-           s_base, printer_id, verb);
+           s_base, bay.printer_id, verb);
 
   JsonDocument body;
   if (spool_id > 0) body["spool_id"] = spool_id;
-  body["ams_id"]  = ams_id;
-  body["tray_id"] = tray_id;
+  body["ams_id"]  = bay.ams_id;
+  body["tray_id"] = bay.tray_id;
   const int code = postJson(url, body, timeout_ms);
   logSDf("AMS source: %s spool %d, printer %d bay %d/%d -> %d",
-         verb, spool_id, printer_id, ams_id, tray_id, code);
+         verb, spool_id, bay.printer_id, bay.ams_id, bay.tray_id, code);
   return code;
 }
 
 int amsSourceAssign(int spool_id, int printer_id, int ams_id, int tray_id,
                     uint32_t timeout_ms) {
   if (spool_id <= 0) return -1;
-  return postTray("assign", spool_id, printer_id, ams_id, tray_id, timeout_ms);
+  return postTray("assign", spool_id, AmsBay{printer_id, ams_id, tray_id}, timeout_ms);
 }
 
 int amsSourceUnassign(int printer_id, int ams_id, int tray_id, uint32_t timeout_ms) {
-  return postTray("unassign", 0, printer_id, ams_id, tray_id, timeout_ms);
+  return postTray("unassign", 0, AmsBay{printer_id, ams_id, tray_id}, timeout_ms);
 }
