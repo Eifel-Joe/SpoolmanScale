@@ -12,6 +12,7 @@
 #include "hardware/sd_logger.h"
 #include "lang.h"
 #include "services/spool_extras.h"
+#include "spool_type_list.h"
 #include "spool_type_name.h"
 #include "theme.h"
 #include "ui_common.h"
@@ -69,8 +70,10 @@ static void closeSpoolEntry() {
 void closeTareEntry() {
   closeSpoolEntry();
   // For the navigation (closeConfirmPopups()): the screens of the empty spool
-  // types go as well, a name entry also when it was not opened from there.
+  // types go as well, the list of types and a name entry also when they were
+  // not opened from here.
   closeEmptySpoolType();
+  closeSpoolTypeList();
   closeSpoolTypeName();
 }
 
@@ -352,9 +355,10 @@ void showTareChoice() {
 }
 
 void tareEntryTick() {
-  // Every loop pass, before anything returns: the name entry and the empty
-  // spool screen have no call of their own in app_loop.cpp, which must not
-  // grow.
+  // Every loop pass, before anything returns: the list of types, the name
+  // entry and the empty spool screen have no call of their own in
+  // app_loop.cpp, which must not grow.
+  spoolTypeListTick();
   spoolTypeNameTick();
   emptySpoolTypeTick();
   // What follows is for the windows opened for a spool. The empty spool

@@ -344,3 +344,11 @@ STR_SPT_EMPTY_BTN	16	320	NEVER	src/ui/scale_menu.cpp makeListBtn title, text_w 3
 STR_SPT_EMPTY_SUB	12	320	NEVER	src/ui/scale_menu.cpp makeListBtn sub, text_w 320
 STR_SPT_EMPTY_TITLE	18	376	NEVER	src/ui/empty_spool_type.cpp sub header title, 480 - 2 * (44 + 2 * 4)
 STR_SPT_NAME_TITLE	18	460	NEVER	src/ui/spool_type_name.cpp title of a full screen with no buttons in its head, 480 - 2 * 10
+STR_SPT_TITLE	18	376	NEVER	src/ui/spool_type_list.cpp sub header title, 480 - 2 * (44 + 2 * 4)
+STR_SPT_TAKE_MEASURED	14	221	NEVER	src/ui/spool_type_list.cpp bar button, two to a row (four buttons): (480 - 2 * 8 - 6) / 2 - 8
+STR_SPT_OTHER	14	221	NEVER	src/ui/spool_type_list.cpp bar button, two to a row (NEAR: two or four buttons): (480 - 2 * 8 - 6) / 2 - 8
+STR_SPT_ONLY_VENDOR	14	221	NEVER	src/ui/spool_type_list.cpp bar button, two to a row (ALL); the maker may wrap it to a second line
+STR_SPT_SHOW_ALL	14	142	NEVER	src/ui/spool_type_list.cpp bar button, three to a row (VENDOR): (480 - 2 * 8 - 2 * 6) / 3 - 8
+STR_SPT_NEW	14	142	NEVER	src/ui/spool_type_list.cpp bar button, three to a row (VENDOR): (480 - 2 * 8 - 2 * 6) / 3 - 8
+STR_SPT_LATER	14	142	NEVER	src/ui/spool_type_list.cpp skip button, three to a row at the narrowest: (480 - 2 * 8 - 2 * 6) / 3 - 8
+STR_SPT_WITHOUT	14	142	NEVER	src/ui/spool_type_list.cpp skip button, three to a row at the narrowest: (480 - 2 * 8 - 2 * 6) / 3 - 8
