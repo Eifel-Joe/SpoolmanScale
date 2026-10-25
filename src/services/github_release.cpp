@@ -13,6 +13,7 @@
 #include "app_config.h"
 #include "boards/board.h"
 #include "hardware/sd_logger.h"
+#include "services/heap_low.h"
 #include "services/ota_state.h"
 
 // The repo the releases are read and downloaded from, the same one the version
@@ -69,6 +70,9 @@ bool githubLatestTag(bool prerelease, char *tag, size_t tag_len,
   String url = prerelease
     ? "https://api.github.com/repos/" GH_REPO "/releases?per_page=3"
     : "https://api.github.com/repos/" GH_REPO "/releases/latest";
+  // The low point of this one request, for the log line below. Every way out
+  // of here ends it (heapLowEnd after http.end), the failed ones too.
+  heapLowBegin();
   http.begin(client, url);
   http.addHeader("User-Agent", "SpoolmanScale-ESP32");
   http.setTimeout(8000);
@@ -79,6 +83,7 @@ bool githubLatestTag(bool prerelease, char *tag, size_t tag_len,
   if (code != 200) {
     if (err && err_len) snprintf(err, err_len, "HTTP %d", code);
     http.end();
+    heapLowEnd();
     return false;
   }
 
@@ -92,6 +97,7 @@ bool githubLatestTag(bool prerelease, char *tag, size_t tag_len,
   const int    payload_len = payload.length();
   const uint32_t heap_parse = ESP.getFreeHeap();
   http.end();
+  const uint32_t heap_low = heapLowEnd();
 
   DeserializationError jerr;
   int entries = 0;
@@ -157,9 +163,11 @@ bool githubLatestTag(bool prerelease, char *tag, size_t tag_len,
   // Enough to diagnose the next failure without guessing. "No release found"
   // and "JSON error" looked identical from the outside before this, and both
   // have several possible causes.
-  logSDf("OTA check: HTTP %d len=%d heap %u->%u pre=%d err=%s entries=%d tag='%s' image=%u",
+  char low_txt[12];
+  logSDf("OTA check: HTTP %d len=%d heap %u->%u pre=%d err=%s entries=%d tag='%s' image=%u low=%s",
          code, payload_len, (unsigned)heap_before, (unsigned)heap_parse,
-         prerelease ? 1 : 0, jerr.c_str(), entries, tag, (unsigned)found_size);
+         prerelease ? 1 : 0, jerr.c_str(), entries, tag, (unsigned)found_size,
+         heapLowText(heap_low, low_txt, sizeof(low_txt)));
   Serial.printf("OTA check: len=%d heap %u->%u err=%s entries=%d tag='%s'\n",
                 payload_len, (unsigned)heap_before, (unsigned)heap_parse,
                 jerr.c_str(), entries, tag);
@@ -218,6 +226,8 @@ bool githubReleaseByTag(const char *tag, GithubRelease &out,
   HTTPClient http;
   String url = "https://api.github.com/repos/" GH_REPO "/releases/tags/";
   url += tag;
+  // As in githubLatestTag(): the low point of this request, ended on every way out.
+  heapLowBegin();
   http.begin(client, url);
   http.addHeader("User-Agent", "SpoolmanScale-ESP32");
   http.setTimeout(8000);
@@ -229,11 +239,13 @@ bool githubReleaseByTag(const char *tag, GithubRelease &out,
   if (code != 200) {
     if (err && err_len) snprintf(err, err_len, code == 404 ? "notfound" : "HTTP %d", code);
     http.end();
+    heapLowEnd();
     return false;
   }
 
   String payload = http.getString();
   http.end();
+  const uint32_t heap_low = heapLowEnd();
 
   JsonDocument filter;
   filter["tag_name"]     = true;
@@ -266,8 +278,10 @@ bool githubReleaseByTag(const char *tag, GithubRelease &out,
     out.notes = b;
   }
 
-  logSDf("OTA notes: %s pre=%d published=%s body=%u",
-         out.tag, out.prerelease ? 1 : 0, out.published, (unsigned)out.notes.length());
+  char low_txt[12];
+  logSDf("OTA notes: %s pre=%d published=%s body=%u low=%s",
+         out.tag, out.prerelease ? 1 : 0, out.published, (unsigned)out.notes.length(),
+         heapLowText(heap_low, low_txt, sizeof(low_txt)));
   return true;
 }
 
@@ -315,6 +329,10 @@ bool githubFlashTag(const char *tag, const char *sha256_hex,
   url += tag;
   url += "/" GH_IMAGE_ASSET;
   Serial.printf("GitHub OTA URL: %s\n", url.c_str());
+  // As in githubLatestTag(): the low point of the whole download, ended on
+  // every way out. It covers the writes to flash and the progress painting
+  // that run beside the connection, not just the connection.
+  heapLowBegin();
   http.begin(client, url);
   http.addHeader("User-Agent", "SpoolmanScale-ESP32");
   http.setTimeout(60000);
@@ -326,6 +344,7 @@ bool githubFlashTag(const char *tag, const char *sha256_hex,
   if (code != 200) {
     if (err && err_len) snprintf(err, err_len, "HTTP %d", code);
     http.end();
+    heapLowEnd();
     gh_flash_active = false;
     return false;
   }
@@ -336,6 +355,7 @@ bool githubFlashTag(const char *tag, const char *sha256_hex,
   if (!Update.begin(len > 0 ? len : UPDATE_SIZE_UNKNOWN)) {
     if (err && err_len) snprintf(err, err_len, "%s", "No room for the image");
     http.end();
+    heapLowEnd();
     gh_flash_active = false;
     return false;
   }
@@ -379,6 +399,7 @@ bool githubFlashTag(const char *tag, const char *sha256_hex,
     delay(1);
   }
   http.end();
+  const uint32_t heap_low = heapLowEnd();
 
   unsigned char digest[32];
   mbedtls_sha256_finish(&sha, digest);
@@ -417,8 +438,10 @@ bool githubFlashTag(const char *tag, const char *sha256_hex,
     return false;
   }
 
-  logSDf("OTA: %s complete, %u bytes, sha256 %s%s", tag, (unsigned)done, got,
-         check_sha ? " (verified)" : " (no checksum published)");
+  char low_txt[12];
+  logSDf("OTA: %s complete, %u bytes, sha256 %s%s, internal low %s", tag, (unsigned)done, got,
+         check_sha ? " (verified)" : " (no checksum published)",
+         heapLowText(heap_low, low_txt, sizeof(low_txt)));
 
   // With a known size the strict form: the library checks that every byte
   // it was promised has arrived. Only a server that sent no Content-Length

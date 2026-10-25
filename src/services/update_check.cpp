@@ -16,6 +16,7 @@
 #include "services/backend_job_rules.h"
 #include "services/partition_layout.h"
 #include "services/github_release.h"
+#include "services/heap_low.h"
 #include "services/ota_state.h"
 #include "web/web_jobs.h"
 #include "web/web_server.h"
@@ -80,12 +81,22 @@ volatile uint8_t s_result = RES_NONE;
 volatile int     s_http_code = 0;
 volatile bool    s_task_running = false;
 volatile uint32_t s_persist_epoch = 0;   // non-zero: tick writes it to NVS
+// The lowest the internal heap went during the request (heap_low.h), 0 when it
+// could not be measured. Set before s_result, for the two lines of a check that
+// got an answer.
+volatile uint32_t s_check_low = 0;
 
 // What maybeStartCheck() found when it turned the check down for the heap,
 // for the log line of RES_FAIL_HEAP. Both are written and read on the loop
 // task; the task of the check does not exist then.
 uint32_t s_skip_free  = 0;
 uint32_t s_skip_floor = 0;
+
+// The internal heap when the check was started, the other half of the line the
+// tick writes when the task is done: where it started, how low it went.
+// Written on the loop task before the task exists and read on it after the
+// result, so no ordering is needed beyond that.
+uint32_t s_heap_at_start = 0;
 
 // The task stages the tag it found here instead of writing gh_latest_version
 // directly. That buffer is read by the OTA screen on the loop task, and a
@@ -107,7 +118,12 @@ void updateCheckTask(void* arg) {
   githubTrust(client);
   HTTPClient http;
 
+  // The low point of this request, for the line the tick writes. Every way out
+  // of the request ends it: the monitor is global, and one left running would
+  // make the next check's start fail.
+  heapLowBegin();
   if (!http.begin(client, VERSION_URL)) {
+    heapLowEnd();
     s_result = RES_FAIL_BEGIN;
     s_task_running = false;
     vTaskDelete(NULL);
@@ -125,6 +141,7 @@ void updateCheckTask(void* arg) {
     Serial.printf("[upd] HTTP %d\n", code);
     s_result = RES_FAIL_HTTP;
     http.end();
+    heapLowEnd();
     s_task_running = false;
     vTaskDelete(NULL);
     return;
@@ -136,6 +153,9 @@ void updateCheckTask(void* arg) {
   JsonDocument doc;
   DeserializationError err = deserializeJson(doc, http.getStream());
   http.end();
+  // Before any s_result below, like the other values the tick reads. The parse
+  // above is inside the window: it runs on this task's stack and heap too.
+  s_check_low = heapLowEnd();
 
   if (err) {
     Serial.printf("[upd] JSON error: %s\n", err.c_str());
@@ -269,6 +289,9 @@ void maybeStartCheck() {
   // below, and if it succeeds the task may finish before this line would run.
   s_task_running = true;
   s_due_ms = millis() + RETRY_DELAY_MS;
+  // What the task starts from. Nothing allocates between the floor test above
+  // and here, and the stack comes out of this number the moment the task exists.
+  s_heap_at_start = free_heap;
 
   BaseType_t ok = xTaskCreatePinnedToCore(updateCheckTask, "updchk",
                                           TASK_STACK_BYTES, nullptr,
@@ -325,6 +348,9 @@ void updateCheckTick() {
   bool answered = (result == RES_AVAILABLE || result == RES_UP_TO_DATE);
   if (result != RES_NONE) {
     s_result = RES_NONE;
+    // For the two lines of a check that got an answer; 0 reads n/a.
+    char low_txt[12];
+    heapLowText(s_check_low, low_txt, sizeof(low_txt));
     switch (result) {
       case RES_AVAILABLE:
         // Larger than this device's app slot: no badge that leads to a
@@ -341,8 +367,8 @@ void updateCheckTick() {
         gh_latest_sha_tag[sizeof(gh_latest_sha_tag) - 1] = '\0';
         update_available = true;
         showUpdateBadges(true);
-        logSDf("Update check: %s available (installed %s)",
-               gh_latest_version, FW_VERSION);
+        logSDf("Update check: %s available (installed %s), internal heap %u at start, low %s",
+               gh_latest_version, FW_VERSION, (unsigned)s_heap_at_start, low_txt);
         break;
       case RES_UP_TO_DATE:
         // A clean result has to take the badge down again, not just leave the
@@ -360,7 +386,8 @@ void updateCheckTick() {
           update_available = false;
           showUpdateBadges(false);
         }
-        if (sd_verbose) logSDf("[verbose] Update check: up to date (%s)", FW_VERSION);
+        if (sd_verbose) logSDf("[verbose] Update check: up to date (%s), internal heap %u at start, low %s",
+                               FW_VERSION, (unsigned)s_heap_at_start, low_txt);
         break;
       case RES_FAIL_HTTP:
         logSDf("Update check: HTTP %d", s_http_code);
