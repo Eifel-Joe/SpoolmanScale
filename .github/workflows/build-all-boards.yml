@@ -1,4 +1,24 @@
 name: Build and Release
+
+# A tag push builds every board, creates the GitHub release and then publishes
+# to this fork's GitHub Pages. What goes where:
+#
+#   GitHub release   for every board the image the device downloads
+#                    (SpoolmanScale.bin for the WT32, SpoolmanScale-<board>.bin
+#                    for the others), the same with the version in its name
+#                    for the browser upload, and the factory image to flash at
+#                    offset 0 over USB
+#   branch gh-pages  version.json, on every tag; on a stable tag (vX.Y.Z, no
+#                    -beta.N) also the web flasher: index.html from flasher/,
+#                    one manifest-<board>.json per board and each board's
+#                    factory image under the fixed name its manifest points at
+#
+# The pages of this fork are served from the branch gh-pages, so that is where
+# version.json and the flasher go. main stays a mirror of the original and is
+# not written by this workflow. The release comes first and the pages follow:
+# the device reads the tag from version.json and downloads from that tag's
+# release, so version.json must never name a release that does not exist, not
+# yet or not at all because its upload failed.
 on:
   push:
     tags:
@@ -9,6 +29,13 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      # Every board but the matrix one, by its BOARD_ID. Built in "Build the
+      # other boards", its factory image published in "Publish to gh-pages".
+      # A new board is one more name here and in scripts/release_files.py
+      # (OTHER_BOARDS, MODELS); test/test_release_workflow.py holds both to
+      # the boards in src/boards.
+      OTHER_BOARDS: waveshare-s3-lcd7 waveshare-s3-lcd7b
     strategy:
       matrix:
         env: [wt32-sc01-plus]
@@ -49,7 +76,7 @@ jobs:
           # FW_VERSION moved out of main.cpp into app_config.h during the
           # refactor. The old grep silently returned an empty string, which
           # would have produced a release named "SpoolmanScale " with an empty
-          # version in manifest.json instead of failing.
+          # version in version.json instead of failing.
           VERSION=$(grep '#define FW_VERSION' src/app_config.h | sed 's/.*"\(.*\)"/\1/')
           if [ -z "$VERSION" ]; then
             echo "::error::FW_VERSION not found in src/app_config.h"
@@ -64,74 +91,63 @@ jobs:
           echo "Building $VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
       - name: Refuse a tag that is not newer than what is published
-        if: github.ref_type == 'tag'
         run: |
           # The check above only compares the tag against FW_VERSION, so two
-          # matching but too low numbers pass it. Since the firmware now
-          # compares itself against version.json, a tag ranking below the
-          # published one would put a red dot on every device and offer them a
-          # downgrade. The ranking must stay identical to
-          # src/services/version_compare.cpp.
-          python3 - "${{ steps.version.outputs.version }}" <<'PY'
-          import json, re, sys
-
-          def rank(v):
-              if not v:
-                  return -1
-              m = re.search(r"(\d+)\.(\d+)\.(\d+)", v)
-              if not m:
-                  return -1
-              major, minor, patch = (int(g) for g in m.groups())
-              beta = 999                  # no "beta" in the tag: final release
-              b = v.find("beta")
-              if b != -1:
-                  beta = 0                # "-beta": the public release
-                  m2 = re.match(r"\.(\d+)", v[b + 4:])
-                  if m2:
-                      beta = int(m2.group(1))
-              return major * 10**9 + minor * 10**6 + patch * 10**3 + beta
-
-          tag = sys.argv[1]
-          try:
-              with open("version.json") as f:
-                  data = json.load(f)
-          except FileNotFoundError:
-              print("no version.json yet, nothing to compare against")
-              sys.exit(0)
-
-          published = max((data.get("stable") or "", data.get("prerelease") or ""),
-                          key=rank)
-          if rank(tag) <= rank(published):
-              print(f"::error::Tag {tag} does not rank above the published "
-                    f"{published}. Every device would be offered a downgrade.")
-              sys.exit(1)
-          print(f"{tag} ranks above {published}, ok")
-          PY
+          # matching but too low numbers pass it. Since the firmware compares
+          # itself against version.json, a tag ranking below the published one
+          # would put a red dot on every device and offer them a downgrade.
+          #
+          # What counts is the version.json on gh-pages, the file the devices
+          # read, not the one in the tagged commit (that is the original's and
+          # stays behind). Before the first release gh-pages has none, which
+          # means nothing is published yet. "Update version.json" continues
+          # from the same file, and "Publish to gh-pages" commits on top of the
+          # same commit of gh-pages: should gh-pages move in between, the push
+          # there is refused instead of overwriting what moved it.
+          #
+          # The ranking is the one of src/services/version_compare.cpp, over
+          # the top level and every board node (scripts/release_files.py, held
+          # to it by test/test_release_files.py). Not only on a tag push: a
+          # manual run publishes version.json just the same.
+          VERSION=${{ steps.version.outputs.version }}
+          git fetch origin gh-pages
+          # Stops here when the fetch left no origin/gh-pages, rather than
+          # taking that for "nothing published yet" on the next line.
+          git rev-parse --verify origin/gh-pages
+          git show origin/gh-pages:version.json > published.json || echo '{}' > published.json
+          python3 scripts/release_files.py check published.json "$VERSION"
       - name: Prepare release assets
         run: |
           # Always, for both kinds of tag. The device downloads
           # releases/download/<tag>/SpoolmanScale.bin, so every release needs an
-          # asset under that exact name - and it has to be the binary just
-          # built, not whatever webflasher/ happens to hold from the last public
-          # release.
+          # asset under that exact name, and it has to be the binary just built.
           VERSION=${{ steps.version.outputs.version }}
           cp .pio/build/${{ matrix.env }}/firmware.bin SpoolmanScale.bin
           cp .pio/build/${{ matrix.env }}/firmware.bin SpoolmanScale_${VERSION}.bin
+          # The factory image as for every other board below: the file the
+          # platform merged at the end of the build, looked over by the same
+          # script as in ci.yml before it is kept. The release takes it along
+          # with SpoolmanScale-*.bin.
+          python3 scripts/factory_image.py .pio/build/${{ matrix.env }} SpoolmanScale-${{ matrix.env }}_${VERSION}_factory.bin
       - name: Build the other boards
-        # The matrix above is the board whose files the fleet and the web
-        # flasher know by their plain names. Every other board is built here,
-        # in the same job, because the steps below publish once for all of
-        # them. Each gets three assets under its own name:
+        # The matrix above is the board whose image the fleet knows by its
+        # plain name, SpoolmanScale.bin, and whose entry is the top level of
+        # version.json. Every other board (OTHER_BOARDS, at the top of this
+        # job) is built here, in the same job, because the steps below
+        # publish once for all of them. Each gets three assets under its own
+        # name:
         #   SpoolmanScale-<board>.bin                    what the device downloads
         #   SpoolmanScale-<board>_<version>.bin          for the browser upload
         #   SpoolmanScale-<board>_<version>_factory.bin  bootloader, partition
         #     table and firmware in one file, to flash at offset 0 over USB
-        # A new board is one more name in OTHER_BOARDS, here and below.
-        env:
-          OTHER_BOARDS: waveshare-s3-lcd7 waveshare-s3-lcd7b
+        # The factory image is the one the platform writes at the end of every
+        # build (firmware.factory.bin), looked over by scripts/factory_image.py
+        # as in ci.yml. No esptool merge of our own: started through
+        # `pio pkg exec` it lacks the rich_click module esptool 5.4 imports
+        # and stopped every release here (the factory step in ci.yml has the
+        # details).
         run: |
           VERSION=${{ steps.version.outputs.version }}
-          BOOT_APP0="$(find ~/.platformio/packages -path '*framework-arduinoespressif32*' -name boot_app0.bin | head -1)"
           for BOARD in $OTHER_BOARDS; do
             pio run -e "$BOARD"
             OUT=".pio/build/$BOARD"
@@ -143,32 +159,8 @@ jobs:
             fi
             cp "$OUT/firmware.bin" "SpoolmanScale-$BOARD.bin"
             cp "$OUT/firmware.bin" "SpoolmanScale-${BOARD}_${VERSION}.bin"
-            pio pkg exec --package tool-esptoolpy -- esptool.py --chip esp32s3 merge-bin \
-              -o "SpoolmanScale-${BOARD}_${VERSION}_factory.bin" \
-              --flash-mode dio --flash-freq 80m --flash-size 16MB \
-              0x0 "$OUT/bootloader.bin" 0x8000 "$OUT/partitions.bin" \
-              0xe000 "$BOOT_APP0" 0x10000 "$OUT/firmware.bin"
+            python3 scripts/factory_image.py "$OUT" "SpoolmanScale-${BOARD}_${VERSION}_factory.bin"
           done
-      - name: Update the public web flasher
-        # Public tags only. An internal beta.N build would otherwise switch the
-        # flasher on the docs page to a test version that nobody outside the
-        # test should be offered.
-        if: "!contains(github.ref_name, '-beta.')"
-        run: |
-          VERSION=${{ steps.version.outputs.version }}
-          cp .pio/build/${{ matrix.env }}/bootloader.bin webflasher/bootloader.bin
-          cp .pio/build/${{ matrix.env }}/partitions.bin  webflasher/partitions.bin
-          # otadata, blank: boots app0 after a flash. Without it a device that
-          # last ran from app1 keeps booting the old firmware from there.
-          cp "$(find ~/.platformio/packages -path '*framework-arduinoespressif32*' -name boot_app0.bin | head -1)" webflasher/boot_app0.bin
-          cp .pio/build/${{ matrix.env }}/firmware.bin    webflasher/SpoolmanScale.bin
-          sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" manifest.json
-          # The whole suffix is optional, in both directions. Without the
-          # counter group a second beta.N in a row matched only the prefix and
-          # produced "v0.6.3-beta.14.13"; without making "-beta" itself optional
-          # the line would stop matching for good after the first suffix-free
-          # release and index.html would freeze at that version.
-          sed -i -E "s/Firmware v[0-9]+\.[0-9]+\.[0-9]+(-beta(\.[0-9]+)?)?/Firmware $VERSION/" index.html
       - name: Update version.json
         run: |
           # Read by the firmware's background update check. Deliberately a
@@ -176,124 +168,91 @@ jobs:
           # 60 requests per hour and IP, which users behind carrier grade NAT
           # share, and its release list runs to over a hundred kilobytes.
           #
-          # A tag carrying a beta counter (v0.6.0-beta.3) is an internal build
-          # and only ever lands in "prerelease". A public tag (v0.6.0-beta)
-          # updates both, so devices with pre-releases switched off see it too.
-          #
-          # The checksum of the image goes next to the tag. The device sums
-          # the download as it writes it and refuses to commit on a mismatch,
-          # so a corrupt or foreign image cannot be booted - TLS covers the
-          # path, this covers the bytes.
-          VERSION=${{ steps.version.outputs.version }}
-          SHA=$(sha256sum SpoolmanScale.bin | cut -d' ' -f1)
-          # The size too: a device on the old 3 MB partition table compares it
-          # with its app slot and offers the web flasher instead of an update
-          # that would not fit. Firmware from before this ignores the key.
-          SIZE=$(stat -c%s SpoolmanScale.bin)
-          # Every other board has the same keys in an object of its own under
-          # "boards", which is where its firmware looks (BOARD_VERSION_NODE).
-          OTHER_BOARDS="waveshare-s3-lcd7 waveshare-s3-lcd7b"
-          python3 - "$VERSION" "$SHA" "$SIZE" $OTHER_BOARDS <<'PY'
-          import hashlib, json, os, re, sys
-          version, sha, size = sys.argv[1], sys.argv[2], int(sys.argv[3])
-          other_boards = sys.argv[4:]
-          data = {
-              "stable": "",
-              "stable_sha256": "",
-              "prerelease": "",
-              "prerelease_sha256": "",
-              "url": "https://github.com/Niko11111/SpoolmanScale/releases/latest",
-          }
-          try:
-              with open("version.json") as f:
-                  data.update(json.load(f))
-          except FileNotFoundError:
-              pass
-          data["prerelease"] = version
-          data["prerelease_sha256"] = sha
-          data["prerelease_size"] = size
-          if not re.search(r"-beta\.\d+$", version):
-              data["stable"] = version
-              data["stable_sha256"] = sha
-              data["stable_size"] = size
-          boards = data.setdefault("boards", {})
-          for board in other_boards:
-              image = f"SpoolmanScale-{board}.bin"
-              with open(image, "rb") as f:
-                  board_sha = hashlib.sha256(f.read()).hexdigest()
-              board_size = os.path.getsize(image)
-              node = boards.setdefault(board, {})
-              node["prerelease"] = version
-              node["prerelease_sha256"] = board_sha
-              node["prerelease_size"] = board_size
-              if not re.search(r"-beta\.\d+$", version):
-                  node["stable"] = version
-                  node["stable_sha256"] = board_sha
-                  node["stable_size"] = board_size
-          with open("version.json", "w") as f:
-              json.dump(data, f, indent=2)
-              f.write("\n")
-          print("version.json:", data)
-          PY
-      - name: Publish the changed files to main
+          # scripts/release_files.py continues from the published file read
+          # above and enters this version with the checksum and size of every
+          # board's image: the WT32's (SpoolmanScale.bin) on the top level,
+          # every other board's (SpoolmanScale-<board>.bin) in a node of its
+          # own under "boards", where its firmware looks (BOARD_VERSION_NODE).
+          # A tag with a beta counter (v0.8.4-beta.1) only lands in
+          # "prerelease"; a stable tag (v0.8.4) updates "stable" too, so that
+          # devices with pre-releases switched off see it. The device sums the
+          # download as it writes it and refuses to commit on a mismatch; the
+          # size lets a device on the old 3 MB partition table offer the web
+          # flasher instead of an update that would not fit.
+          python3 scripts/release_files.py version-json published.json version.json "${{ steps.version.outputs.version }}" .
+      - name: Release title
+        id: title
         run: |
-          # GitHub Pages serves version.json, index.html, manifest.json and
-          # webflasher/ from main, so the files have to land there - but only
-          # the files.
-          #
-          # This used to be "git pull origin main --rebase" followed by
-          # "git push origin HEAD:main". The checkout sits on the tagged commit,
-          # so tagging any branch other than main pushed that branch's entire
-          # history onto main as a fast-forward. Tagging dev would have merged
-          # dev into main as a side effect of cutting a release.
-          #
-          # Instead: carry the generated files aside, check out main, put them
-          # back, and commit there. One commit, only the intended files, no
-          # foreign history.
-          VERSION=${{ steps.version.outputs.version }}
-          mkdir -p /tmp/ci-out/webflasher
-          cp version.json /tmp/ci-out/
-          if [ -z "$(echo "$VERSION" | grep -E -- '-beta\.[0-9]+$')" ]; then
-            cp manifest.json index.html /tmp/ci-out/
-            cp webflasher/bootloader.bin webflasher/partitions.bin webflasher/boot_app0.bin webflasher/SpoolmanScale.bin /tmp/ci-out/webflasher/
-          fi
-
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git fetch origin main
-          # -f discards the working tree, which by now holds a rewritten
-          # version.json. Without it the checkout refuses whenever that file
-          # differs between the tagged commit and main - which is exactly what
-          # happens as soon as a previous release has advanced main without the
-          # tagged branch following. Everything worth keeping is in /tmp/ci-out
-          # at this point.
-          git checkout -f -B ci-main origin/main
-
-          cp /tmp/ci-out/version.json version.json
-          git add version.json
-          if [ -f /tmp/ci-out/manifest.json ]; then
-            cp /tmp/ci-out/manifest.json manifest.json
-            cp /tmp/ci-out/index.html index.html
-            cp /tmp/ci-out/webflasher/*.bin webflasher/
-            git add manifest.json index.html webflasher/bootloader.bin webflasher/partitions.bin webflasher/boot_app0.bin webflasher/SpoolmanScale.bin
-          fi
-
-          git diff --cached --quiet || git commit -m "CI: publish $VERSION"
-          git push origin ci-main:main
+          # "SpoolmanScale v0.8.4" for a stable tag. A pre-release carries the
+          # day of the build, "SpoolmanScale v0.8.4-beta.1 (25.10.2026)": its
+          # tag alone does not say when it was made.
+          TITLE=$(python3 scripts/release_files.py title "${{ steps.version.outputs.version }}")
+          echo "$TITLE"
+          echo "title=$TITLE" >> "$GITHUB_OUTPUT"
       - name: Create GitHub Release
+        # Before the pages, see the top of this file.
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: SpoolmanScale ${{ steps.version.outputs.version }}
+          name: ${{ steps.title.outputs.title }}
           # Only internal builds carrying a beta counter are pre-releases.
           # A public tag has to become the real "latest", because the update
           # button downloads from releases/latest/download/ and that path skips
           # pre-releases. Marked wrong, the device would announce the new
           # version and then install the previous binary.
           prerelease: ${{ contains(github.ref_name, '-beta.') }}
+          # SpoolmanScale-*.bin takes both files of every other board and the
+          # factory image of every board, the WT32's included.
           files: |
             SpoolmanScale.bin
             SpoolmanScale_${{ steps.version.outputs.version }}.bin
             SpoolmanScale-*.bin
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish to gh-pages
+        # After the release, see the top of this file. In a worktree of its
+        # own under the runner's temp folder, on the commit of gh-pages the
+        # check above read: the tag checkout stays as it is, and the release
+        # files in it do not get mixed up with the pages.
+        #
+        # Every tag: version.json. A pre-release (-beta.N) stops there and
+        # leaves the flasher as it is, so that nobody outside a test is
+        # offered a test build to flash.
+        #
+        # A stable tag also renews the web flasher: index.html is
+        # flasher/index.html with its line "Firmware vX.Y.Z" set to this
+        # version (taken from the repository every time, not from the last
+        # published page, so the line to replace is always the one there),
+        # manifest-<board>.json per board comes from scripts/release_files.py,
+        # and each board's factory image goes under the name its manifest
+        # points at, SpoolmanScale-<board>_factory.bin (without the version,
+        # so that the manifests only change in their version line). The
+        # single-board manifest.json of the first, hand-made flasher goes.
+        # .nojekyll stays: it keeps Pages from running the files through
+        # Jekyll.
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          PAGES="$RUNNER_TEMP/gh-pages"
+          git worktree add --detach "$PAGES" origin/gh-pages
+          cd "$PAGES"
+          cp "$GITHUB_WORKSPACE/version.json" version.json
+          git add version.json
+          if [[ "$VERSION" =~ -beta\.[0-9]+$ ]]; then
+            echo "$VERSION is a pre-release: version.json only, the flasher stays"
+          else
+            sed -E "s/Firmware v[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?/Firmware $VERSION/" "$GITHUB_WORKSPACE/flasher/index.html" > index.html
+            if ! grep -qF "Firmware $VERSION" index.html; then
+              echo "::error::flasher/index.html has no line Firmware vX.Y.Z to set to $VERSION"
+              exit 1
+            fi
+            python3 "$GITHUB_WORKSPACE/scripts/release_files.py" manifests . "$VERSION"
+            for BOARD in ${{ matrix.env }} $OTHER_BOARDS; do
+              cp "$GITHUB_WORKSPACE/SpoolmanScale-${BOARD}_${VERSION}_factory.bin" "SpoolmanScale-${BOARD}_factory.bin"
+            done
+            git rm -f --ignore-unmatch manifest.json
+            git add index.html manifest-*.json SpoolmanScale-*_factory.bin
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git diff --cached --quiet || git commit -m "Pages: publish $VERSION"
+          git push origin HEAD:gh-pages
