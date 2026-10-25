@@ -1,0 +1,20 @@
+{
+  "stable": "",
+  "stable_sha256": "",
+  "prerelease": "v0.8.4-beta.1",
+  "prerelease_sha256": "3e29f98f613279cc4c1a2f7c20af9372b20312a15582546d8c83fb304cae9cbd",
+  "url": "https://github.com/Eifel-Joe/SpoolmanScale/releases",
+  "prerelease_size": 3667856,
+  "boards": {
+    "waveshare-s3-lcd7": {
+      "prerelease": "v0.8.4-beta.1",
+      "prerelease_sha256": "f31a136be8629dc016fb8a9c9c07e10462f9aa94813b159787ba2ef0ce44115e",
+      "prerelease_size": 3629776
+    },
+    "waveshare-s3-lcd7b": {
+      "prerelease": "v0.8.4-beta.1",
+      "prerelease_sha256": "e87da85bc2f4ceee04eb1427b7d894fdd3e386ee831e1bd1796f46f8e3452600",
+      "prerelease_size": 3630640
+    }
+  }
+}
