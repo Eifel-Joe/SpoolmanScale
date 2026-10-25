@@ -28,18 +28,19 @@ And it writes tags, too. Link a spool to a blank NTAG and the scale puts the spo
 
 ---
 
-## New in 0.8.0
+## New in 0.8.3
 
-- 🏷️ **Label printing (beta, first version)** – via Bluetooth on a Phomemo M220 (M110 experimental), with material, colour, spool ID and a QR code to the spool. This is a start: labels straight from the backend, a small editor in the browser, more printers and sizes are planned
-- ⚡ **Much faster** – linking a new spool takes under a second instead of 2 to 7 s, the inventory loads in the background while the screen keeps working, and touch is read 100 times a second
-- 🧵 **Spoolman 0.27 native tags** – tags belong to the spool, several per spool, and existing scales move over by themselves
-- 🔧 **New foundation** – Arduino core 3.3, twice the room for firmware, 72 KB more free memory
-- 🇫🇷 **French**, contributed by nanostra
+- 🧵 **Create spools on the scale** – a spool that is not in your inventory yet is created right at the scale, from a Bambu tag or with a blank NTAG, with its starting weight. Put an unknown spool on and a card suggests the next step
+- 🔢 **Spool by its ID** – no tag on the spool? Weigh it by its ID. And when you archive a spool, its tag is freed for the next one
+- 🏷️ **Label printing, extended** – a label editor in the browser, more printers, labels from FilaMan, printing on the PC through FilaMan, and a QR code that leads where your server does
+- 🪟 **The scale inside BamBuddy or FilaMan** – its web interface in your filament manager's navigation
+- 🎨 **Themes** – light, Spoolman and FilaMan looks, your own accent colour
+- 🔒 **HTTPS and proxies** – a backend address with https, servers behind a key or password
 
-Everything else is in the [release notes](https://github.com/Niko11111/SpoolmanScale/releases/tag/v0.8.0).
+Everything else is in the [release notes](https://github.com/Niko11111/SpoolmanScale/releases/tag/v0.8.3).
 
 > [!NOTE]
-> **Already running 0.7.x?** Because 0.8.0 divides the memory anew, this one update goes through the [Web Flasher](https://niko11111.github.io/SpoolmanScale) once: connect, choose **Update**, about 2 minutes, all settings are kept. From then on updates arrive over the air as before.
+> **Skipped the USB update from 0.8.0?** 0.8.3 no longer fits the old memory layout, so your scale will not install it over the air. Open the [Web Flasher](https://niko11111.github.io/SpoolmanScale) in Chrome or Edge, connect the scale and choose **Update**: about 2 minutes, all settings are kept. After that, updates arrive over the air as usual.
 
 ---
 
@@ -72,18 +73,21 @@ Over 200 people are running a SpoolmanScale, and it is tested daily against a Sp
 - 🏷️ **Bambu Lab NFC tags** – place a spool on the scale and SpoolmanScale reads it instantly: material, color, vendor, remaining weight and drying history appear automatically. No tapping required
 - 🔗 **Bambu Lab spool linking** – SpoolmanScale finds the matching entry automatically by filtering by material type, subtype (e.g. HF, CF, Matte) and color similarity, so you only see spools that actually match your tag
 - 🔗 **Third-party spool linking** – place any NTAG sticker or MIFARE Classic card → select vendor and material → pick from a filtered list → linked and done. Snapmaker tags can be read as well (an option in the web settings)
-- ✍️ **Writing NFC tags** – the scale does not just read tags, it writes them, with every backend and without help from the server. Link a spool and the data goes on the tag right away, silently or after a prompt, whichever you prefer. Notices later on when tag and inventory drift apart and offers to put it right. Four formats: OpenSpool, FilaMan, Anycubic ACE, or erase. A spool can carry a tag on each side: right after linking, the scale asks for the second one. Tap the NFC chip in the header to see what is on the tag on the reader
-- 📋 **Copy spool** – running low? Place a new spool on the scale, tap Copy Spool, and SpoolmanScale creates an identical entry, tags the NFC chip and logs the current weight, all in one step
-- ⚖️ **Live weight (NAU7802)** – moving average filter, TARE, live diff against the remaining weight in your database
+- 🔢 **Spool by ID** – weigh a spool that has no tag by typing its ID, and free a tag for the next spool when you archive
+- ✍️ **Writing NFC tags** – the scale does not just read tags, it writes them, with every backend and without help from the server, in four formats: OpenSpool, FilaMan, Anycubic ACE, or erase. A spool can carry a tag on each side, and the scale tells you when tag and inventory drift apart and offers to put it right
+- 📋 **Create and copy spools** – a spool that is not in your inventory is created right at the scale, from a Bambu tag or a blank NTAG. Running low? Place the new spool on, tap Copy Spool, and the scale creates an identical entry, tags the chip and logs the weight in one step
+- ⚖️ **Live weight (NAU7802)** – moving average filter, TARE with optional auto-tare, live diff against the remaining weight in your database
 - 🔀 **Three backends** – [Spoolman](https://github.com/Donkie/Spoolman), [FilaMan](https://github.com/Fire-Devils/filaman-system) or [BamBuddy](https://github.com/maziggy/BamBuddy), switchable in the settings. Update remaining weight, set initial and spool weight (per spool / filament / vendor), log drying dates, set locations, archive and restore spools. BamBuddy can keep its own inventory or run against a Spoolman server behind it - the scale works out which and writes to the right one
+- 🔒 **HTTPS and proxies** – a server address with https, and servers behind an API key or a password
 - 🖨️ **AMS view** – with FilaMan and BamBuddy: every AMS unit with its bays, material, colour, remaining filament, humidity and temperature. Tap a bay and a card shows the spool behind it, and you can record a drying right there, without taking the spool out
 - 📍 **Locations** – assign and view storage locations on the scale, with an optional popup when you take a spool off
 - 🌡️ **Drying reminder** – color-coded `last_dried` date showing whether a spool needs drying, with thresholds per material or set manually
 - 📱 **Touchscreen UI (LVGL 8.3, 480×320)** – settings menu, confirmation popups, sleep/wake
+- 🎨 **Themes** – dark and light, in the look of Spoolman, FilaMan or BamBuddy, with your own accent colour
 - ⚙️ **On-device setup** – language, Wi-Fi and server address step by step on the touchscreen. Wi-Fi can also come straight from the Web Flasher or from your phone, so there is no long password to type on a small screen
 - 🌐 **Web interface** – rebuilt from the ground up as separate pages, in all three languages, as usable on a phone as on a desktop. Update the firmware straight from GitHub with the release notes in front of you, switch backends, write tags, read and follow the log. Areas you would rather not expose can be switched off individually
 - 🩺 **Self-diagnosis** – when something is wrong, the scale says so in plain words instead of a four-character code: a chip that does not answer, an NFC reader that answers but does nothing, a missing calibration, a load cell wired the wrong way round, readings too unsteady to trust. Tap the message and it explains what to do, with a button that takes you there
-- 🏷️ **Label printing (beta)** – print a label for a spool on a Bluetooth label printer (Phomemo M220, M110 or M100), with a QR code that opens the spool in your backend. A first version that will grow
+- 🏷️ **Label printing** – print spool and filament labels on Bluetooth label printers (Phomemo M220 and M110S, NIIMBOT B1 and M2, more experimental), with a QR code that opens the spool in your backend. Lay the label out in the browser editor, or print it on the PC through FilaMan
 - 🔄 **Firmware updates (OTA)** – check and flash directly on the device or from the browser. No PC, no cables. Or upload a firmware file yourself
 - ⚡ **Web Flasher** – first-time flash via browser over USB. All you need is a browser and a USB cable: [niko11111.github.io/SpoolmanScale](https://niko11111.github.io/SpoolmanScale)
 - 🌍 **DE / EN / FR language support** – chosen on first boot, switchable in settings, and it applies to the web interface as well
@@ -118,10 +122,6 @@ The 3D printable enclosure is available on MakerWorld, under MakerWorld's own li
 
 📖 A detailed build guide, wiring diagrams and setup instructions are available in the **[SpoolmanScale Documentation](https://niko11111.github.io/SpoolmanScale-Docs/)**
 
-<a href="https://niko11111.github.io/SpoolmanScale-Docs/">
-  <img src="https://img.shields.io/badge/📖%20Documentation-Full%20Build%20Guide%2C%20Wiring%20%26%20Setup-28d49a?style=for-the-badge&logoColor=white" alt="Documentation"/>
-</a>
-
 ---
 ## Getting Started
 
@@ -143,6 +143,10 @@ Settings → Scale → Calibration. Done.
 
 On first boot the scale asks which filament manager you use and then only shows the steps that apply.
 
+**No server yet?** [SpoolmanScale Pro](https://niko11111.github.io/SpoolmanScale-Docs/pro/) turns a Raspberry Pi into one for Spoolman, FilaMan or BamBuddy, with backups and updates from a web page.
+
+*Not available ready-made yet. Looking into kits and pre-built scales in small batches. Interested? Tell us on [Discord](https://discord.gg/K3KmKnrWhP) or [Instagram](https://www.instagram.com/spoolmanscale/): the more people ask, the sooner it can happen. [More in the FAQ](https://niko11111.github.io/SpoolmanScale-Docs/help/faq/#can-i-buy-the-scale-ready-made).*
+
 ### <img src="https://raw.githubusercontent.com/Niko11111/SpoolmanScale/main/images/Logo_Spoolman.png" height="20" align="top"> Spoolman
 
 **Spoolman 0.27 and newer:** tags are stored the native way. They belong to the spool instead of sitting in an extra field, a spool can carry several, and a scan at the scale can open that spool in your browser. New setups use this by default, and a scale that used `extra.tag` before moves over once by itself; the old fields stay filled.
@@ -157,7 +161,9 @@ On first boot the scale asks which filament manager you use and then only shows 
 Which field holds the UID on an older Spoolman is your choice: `tag` is the default, `nfc_id` is what FilaMan and nfc2klipper use, and `card_uids` is SpoolLink's list format for the Snapmaker U1. Reading always covers all three, so switching never hides a spool.
 
 **Recommended add-on: [OpenSpoolMan](https://github.com/drndos/openspoolman)**
-OpenSpoolMan connects to your Bambu printer via MQTT and reads which filament is loaded in which AMS tray. It finds Bambu spools by the UUID in `extra.tag` and does not know Spoolman's native tags yet. With native tags, turn on **For OpenSpoolman** in the scale's Spoolman settings and the scale writes the UUID there as well, so OpenSpoolMan recognizes your linked spools instantly.
+OpenSpoolMan connects to your Bambu printer via MQTT and reads which filament is loaded in which AMS tray. It finds Bambu spools by the UUID in `extra.tag` and does not know Spoolman's native tags yet. With native tags, set **Also in extra field** to `extra.tag` in the scale's Spoolman settings and the scale writes the UUID there as well, so OpenSpoolMan recognizes your linked spools instantly.
+
+We are working on something of our own for Spoolman users. Stay tuned…
 
 ### <img src="https://raw.githubusercontent.com/Niko11111/SpoolmanScale/main/images/filaman_logo.png" height="20" align="top"> FilaMan
 
@@ -176,26 +182,32 @@ Because both write to the same field, a spool you link to an NTAG here is recogn
 **Recommended add-on: [Bambu Usage Tracker](https://github.com/Niko11111/FilaManBambuUsage)**
 For anyone running Bambu spools: it counts filament as it is printed and books it against the right spool, so your inventory stays right without weighing after every job.
 
+**Recommended add-on: [SpoolmanScale for FilaMan](https://github.com/Niko11111/filaman-spoolmanscale-plugin/releases/latest)**
+Shows the scale's web interface inside FilaMan, with its own entry in the navigation. Needs FilaMan 1.2.45 or newer and firmware 0.8.3 or newer.
+
 ### <img src="https://raw.githubusercontent.com/Niko11111/SpoolmanScale/main/images/BamBuddy_logo.png" height="20" align="top"> BamBuddy
 
 BamBuddy needs an **API key**, entered on the same page as the FilaMan credentials.
 
 It can keep its inventory in its own database or use a Spoolman server behind it. The scale detects which of the two it is talking to and says so in the status bar, because a few things differ: with Spoolman behind it, tare values and the drying date are stored the Spoolman way.
 
-One thing only BamBuddy can do: create a spool straight from a Bambu tag. Material, brand, colour and temperatures come off the tag, and the new spool is linked to it in the same step.
+Since BamBuddy's October daily builds, the drying date has a field of its own, and the scale uses it. An older BamBuddy keeps it in the spool's note.
+
+### Other servers
+
+Any server that implements the [integration specification](https://github.com/Niko11111/SpoolmanScale-Integration) works with the scale, also online services that do not run on your own network. A checker is included.
 
 ---
 
 ## Roadmap
 
-### In progress
+### Planned
 
-- ➕ **New spools right from the scale** – create a new spool on the device, with every backend, from the information on the spool's own tag or from other sources, instead of copying an existing spool
-- ⚖️ **Smarter linking** – when several spools look alike, the list puts the one whose remaining weight matches the scale first
-- 🧩 **More of BamBuddy** – the groundwork is done and everything you can do with Spoolman you can do here. What else belongs on a scale is what we are working out now, and requests are welcome. Next up: Bambu spools hand BamBuddy their chip UIDs as well, so both sides of a spool are known
-- 🏷️ **Label printing, the next steps** – the first version prints a label the scale renders itself. Next: labels straight from the backend (FilaMan first, where @akira69 is working on label printing), a small editor in the browser to choose what a label shows, the printer's status (paper, lid), and more printers and label sizes. I cannot buy every printer, so help from the community is very welcome
-- 🧹 **First-time setup polish** – language and time zone have their own welcome screen; Wi-Fi and the server address still borrow the settings screens
-- 🌍 **Filament managers on the internet** – not only servers on your own network, but also filament managers that run online. Early development
+- 🏷️ **Tags of more makers** – reading them and creating spools from them: Creality CFS, TigerTag and Snapmaker. The Elegoo Canvas needs tags written in its own format, which is planned as well
+- 🔌 **Active spool to Klipper** – the spool you weigh becomes the active spool on your printer, through Moonraker
+- ⚖️ **More load cell options** – an HX711 next to the NAU7802, detected by the firmware itself
+- 🏷️ **Label printing, the next steps** – more printers and label sizes, and the printer's status (paper, lid). I cannot buy every printer, so help from the community is very welcome
+- 🌍 **Filament managers on the internet** – not only servers on your own network, but also filament managers that run online. The [integration specification](https://github.com/Niko11111/SpoolmanScale-Integration) is published; the first online service is still to come. Early development
 
 ### Community requests & ideas
 
@@ -211,6 +223,7 @@ A lot of my free time – time I could have spent with my family – has gone in
 - ⭐⭐⭐⭐⭐ **Rate 5 stars & boost on MakerWorld** – every like, rating and boost helps: [makerworld.com/@FormFollowsF](https://makerworld.com/de/models/2713675-spoolmanscale#profileId-3005075)
 - ☕ **Support on Ko-fi** – even a single euro makes a difference: [ko-fi.com/formfollowsfunction](https://ko-fi.com/formfollowsfunction)
 - 💬 **Join the Discord** – share your build, report issues, or just say hi: [discord.gg/K3KmKnrWhP](https://discord.gg/K3KmKnrWhP)
+- 📸 **Follow on Instagram and show your build** – post your SpoolmanScale and tag [@spoolmanscale](https://www.instagram.com/spoolmanscale/)
 
 Have a feature request? Post it in the [Discord](https://discord.gg/K3KmKnrWhP) or [open an issue](https://github.com/Niko11111/SpoolmanScale/issues) – I read every one of them and do my best to make it happen.
 
@@ -235,6 +248,8 @@ The license covers the firmware and everything else in this repository. The encl
 **[@akira69](https://github.com/akira69)** built label printer support in his fork, which was the groundwork and proof of concept for label printing.
 
 The codebase was refactored with major help from **[@DanielNagy](https://github.com/DanielNagy)**, which made the multi-backend architecture possible in the first place.
+
+Thanks also to mc-red, dox, Vik, sticky, and everyone who tested and sent logs.
 
 ## Inspiration
 
