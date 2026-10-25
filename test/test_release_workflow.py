@@ -1,4 +1,4 @@
-"""Read the release workflow as text, without running it, and check that it publishes for this fork: no own esptool merge (it fails for want of rich_click), nothing written to main (a mirror of the original) and no name of the original's repo; the factory images come from scripts/factory_image.py, the ranking, version.json, the flasher manifests and the release title from scripts/release_files.py; version.json and the flasher go to gh-pages, and only after the GitHub release exists; release and pages happen on a tag push only, and a pre-release title carries the German date; the boards built besides the matrix one are exactly the boards in src/boards, in the workflow and in release_files.py alike; one release runs at a time, and the release step fails on a file that is missing.
+"""Read the release workflow as text, without running it, and check that it publishes for this fork: no own esptool merge (it fails for want of rich_click), nothing written to main (a mirror of the original) and no name of the original's repo; the factory images come from scripts/factory_image.py, the ranking, version.json, the flasher manifests and the release title from scripts/release_files.py; version.json and the flasher go to gh-pages, and only after the GitHub release exists; release and pages happen on a tag push only, and a pre-release title carries the German date; the boards built besides the matrix one are exactly the boards in src/boards, in the workflow and in release_files.py alike; one release runs at a time, and the release step fails on a file that is missing. Before anything is released, scripts/board_marker.py reads every image (the device file, the file for the browser upload and the factory image of every board) for the line of the board it is meant for, and the CI build does the same for the firmware.bin of every board: version.json carries the checksum of whatever file sits under a board's name, so a swapped file would otherwise pass the checksum.
 
 The workflow cannot be tried before a real tag (tags are public), so this is what holds it together between releases."""
 import re
@@ -167,7 +167,130 @@ if release is not None:
     expect("step 'Create GitHub Release' must fail on a missing file (fail_on_unmatched_files: true)",
            any(re.match(r"^fail_on_unmatched_files:\s*true$", line) for _, line in release[1]))
 
-# 9. Verdict.
+# 9. The board line of every image, before anything is released. Every image
+#    carries "SpoolmanScale-board:<id>", and version.json carries the sha256
+#    of whatever file the workflow put under a board's name, so a file under
+#    the wrong name would pass the scale's checksum: scripts/board_marker.py
+#    reads each file for the line of the board it is meant for. A failing call
+#    stops the step (bash -e), and the step stands before the checksums are
+#    taken (Update version.json), before the release and before the pages. It
+#    runs on a manual run as well: no `if:`. The test fills in the step's
+#    variables for every board (the matrix board, and each of OTHER_BOARDS in
+#    the loop that names it) and compares the calls with the files the
+#    release carries: SpoolmanScale.bin for the WT32 and SpoolmanScale-<id>.bin
+#    for the others, the same with the version in the name, and each board's
+#    factory image.
+MARKER_STEP = "Check that every image names its board"
+VERSION = "v0.0.0"
+expect("scripts/board_marker.py must exist", (root / "scripts" / "board_marker.py").is_file())
+marker_step = step_lines(MARKER_STEP)
+expect(f"must have the step '{MARKER_STEP}'", marker_step is not None)
+
+
+def expected_images():
+    """(file, board) of every image the release carries."""
+    out = set()
+    for board in sorted(board_ids):
+        if board == rf.TOP_BOARD:
+            out.add(("SpoolmanScale.bin", board))
+            out.add((f"SpoolmanScale_{VERSION}.bin", board))
+        else:
+            out.add((f"SpoolmanScale-{board}.bin", board))
+            out.add((f"SpoolmanScale-{board}_{VERSION}.bin", board))
+        out.add((f"SpoolmanScale-{board}_{VERSION}_factory.bin", board))
+    return out
+
+
+def fill(line, board=None):
+    """The line with the variables of the step replaced: the matrix board, the
+    other boards, the version and, inside the loop, the loop's board."""
+    line = re.sub(r"\$\{\{\s*matrix\.env\s*\}\}", rf.TOP_BOARD, line)
+    line = re.sub(r"\$\{?OTHER_BOARDS\}?", " ".join(others), line)
+    line = re.sub(r"\$\{\{\s*steps\.version\.outputs\.version\s*\}\}|\$\{?VERSION\}?", VERSION, line)
+    if board is not None:
+        line = re.sub(r"\$\{?BOARD\}?", board, line)
+    return line
+
+
+def board_marker_calls(lines):
+    """[(file, board, line)] for every call of scripts/board_marker.py in the
+    step, a call inside `for BOARD in ...; do` once for every board it names."""
+    calls = []
+    loop = None
+    for line in lines:
+        if line.startswith("#"):
+            continue
+        m = re.match(r"^for\s+BOARD\s+in\s+(.+?)\s*;\s*do$", line)
+        if m:
+            loop = fill(m.group(1)).split()
+            continue
+        if line == "done":
+            loop = None
+            continue
+        if "scripts/board_marker.py" not in line:
+            continue
+        for board in (loop if loop is not None else [None]):
+            call = re.search(r"python3\s+scripts/board_marker\.py[\"']?\s+(\S+)\s+(\S+)", fill(line, board))
+            if call is None:
+                calls.append((None, None, line))
+            else:
+                calls.append((call.group(1).strip("\"'"), call.group(2).strip("\"'"), line))
+    return calls
+
+
+if marker_step is not None:
+    indent, block = marker_step
+    calls = board_marker_calls([line for _, line in block])
+    for file, board, line in calls:
+        expect("every call must read `python3 scripts/board_marker.py <file> <board>`", file is not None, line)
+    found = {(file, board) for file, board, _ in calls if file is not None}
+    expected = expected_images()
+    for file, board in sorted(expected - found):
+        expect(f"must check {file} for {board}", False)
+    for file, board in sorted(found - expected):
+        expect(f"checks {file} for {board}, which is not an image of that board", False)
+    for _, _, line in calls:
+        expect("a call must not be able to pass on a failure (|| or &)", re.search(r"\|\||&", line) is None, line)
+    expect(f"step '{MARKER_STEP}' must run on a manual run as well (no if:)",
+           not any(depth == indent + 2 and line.startswith("if:") for depth, line in block))
+    expect(f"step '{MARKER_STEP}' must not continue on error",
+           not any(re.match(r"^continue-on-error:\s*true\b", line) for _, line in block))
+    marker_at = re.search(r"^\s*-\s*name:\s*" + re.escape(MARKER_STEP) + r"\s*$", text, re.MULTILINE)
+    build_other = re.search(r"^\s*-\s*name:\s*Build the other boards\s*$", text, re.MULTILINE)
+    json_step = re.search(r"^\s*-\s*name:\s*Update version\.json\s*$", text, re.MULTILINE)
+    if marker_at and build_other and json_step and release_step and pages_step:
+        expect("the board line check must come after the last image is built",
+               build_other.start() < marker_at.start())
+        expect("the board line check must come before version.json takes the checksums",
+               marker_at.start() < json_step.start())
+        expect("the board line check must come before the release",
+               marker_at.start() < release_step.start())
+        expect("the board line check must come before the pages",
+               marker_at.start() < pages_step.start())
+
+# 10. CI: every board's firmware.bin is read for its board line on every push,
+#     so that a missing or wrong line shows before a release is tried.
+ci_path = root / ".github" / "workflows" / "ci.yml"
+if not ci_path.is_file():
+    errors.append(".github/workflows/ci.yml is missing")
+else:
+    ci_code = "\n".join(line for line in ci_path.read_text(encoding="utf-8").splitlines()
+                        if not line.lstrip().startswith("#"))
+    ci_matrix = re.findall(r"^\s*env:\s*\[([^\]]*)\]", ci_code, re.MULTILINE)
+    expect("ci.yml must build every board of src/boards",
+           [sorted(b.strip() for b in m.split(",")) for m in ci_matrix] == [sorted(board_ids)],
+           f"matrix {ci_matrix}, src/boards {sorted(board_ids)}")
+    ci_build = re.search(r"^\s*run:\s*pio run -e \$\{\{\s*matrix\.env\s*\}\}\s*$", ci_code, re.MULTILINE)
+    ci_check = re.search(r"^\s*run:\s*python3 scripts/board_marker\.py\s+"
+                         r"\.pio/build/\$\{\{\s*matrix\.env\s*\}\}/firmware\.bin\s+\$\{\{\s*matrix\.env\s*\}\}\s*$",
+                         ci_code, re.MULTILINE)
+    expect("ci.yml must run `python3 scripts/board_marker.py .pio/build/${{ matrix.env }}/firmware.bin ${{ matrix.env }}`",
+           ci_check is not None)
+    expect("ci.yml must have the build step `pio run -e ${{ matrix.env }}`", ci_build is not None)
+    if ci_build and ci_check:
+        expect("the board line check in ci.yml must come after the build", ci_build.start() < ci_check.start())
+
+# 11. Verdict.
 if errors:
     print("release workflow: FAILED")
     for error in errors:
