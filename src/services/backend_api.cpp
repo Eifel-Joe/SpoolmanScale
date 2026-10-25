@@ -696,7 +696,7 @@ bool backendCanTareFilamentOrVendor() {
 
 int backendCreateSpool(const char* base_url, int template_spool_id, int filament_id,
                        float initial_weight, float spool_weight, float remaining_weight,
-                       int* out_spool_id, uint32_t timeout_ms) {
+                       int* out_spool_id, uint32_t timeout_ms, float chosen_core_g) {
   HttpStallTime stall(__func__);   // the loop stands still for this call
   switch (backendMode()) {
     case BACKEND_FILAMAN:
@@ -706,15 +706,13 @@ int backendCreateSpool(const char* base_url, int template_spool_id, int filament
                                 initial_weight, spool_weight, remaining_weight,
                                 nullptr, out_spool_id, timeout_ms);
     case BACKEND_BAMBUDDY: {
-      // No filament_id exists here, so the template is read back instead. Raw,
-      // because the mapped form folds subtype and color_name into one name and
-      // trims rgba down to six characters - a copy built from it would be
-      // poorer than the spool it was copied from.
+      // No filament_id here: the template is read back, raw, because the mapped
+      // form folds subtype and color_name into one name and trims rgba to six
+      // characters - a copy built from it would be poorer than its template.
       if (template_spool_id <= 0) return notSupported("CreateSpool");
 
-      // Plain document: this is one spool, a couple of kilobytes, nothing like
-      // the inventory listing that needs PSRAM. Same reasoning as the field
-      // probe above.
+      // Plain document: one spool is a couple of kilobytes, not the inventory
+      // listing that needs PSRAM (as for the field probe above).
       JsonDocument tpl;
       int code = bbGetSpoolRawJson(backendBaseUrl(), bambuddyApiKey(), template_spool_id,
                                    tpl, timeout_ms);
@@ -730,10 +728,11 @@ int backendCreateSpool(const char* base_url, int template_spool_id, int filament
       ns.brand      = tpl["brand"]      | "";
       ns.color_name = tpl["color_name"] | "";
       ns.rgba       = tpl["rgba"]       | "";
-      // The scale's reading wins over the template for how full the spool is,
-      // the template only says how big it is.
-      ns.label_weight = tpl["label_weight"] | (int)initial_weight;
-      ns.core_weight  = tpl["core_weight"]  | (int)spool_weight;
+      // How big from the template, how full from the reading; the empty spool: backend_api.h.
+      ns.label_weight = tpl["label_weight"] | (int)lroundf(initial_weight);
+      const bool inherited = tpl["core_weight_is_inherited"] | false;   // the proxy only
+      ns.core_weight = chosen_core_g > 0.0f ? (int)lroundf(chosen_core_g)
+                     : inherited ? 0 : (tpl["core_weight"] | (int)lroundf(spool_weight));
       ns.weight_used  = (float)ns.label_weight - remaining_weight;
       if (ns.weight_used < 0.0f) ns.weight_used = 0.0f;
 
@@ -825,7 +824,7 @@ static int bambuddyCreateFromTag(const TagCreateInput& in, const TagFilamentPlan
   ns.rgba            = in.rgba;
   ns.color_name      = plan.name;
   ns.label_weight    = v.label_weight;
-  ns.core_weight     = in.spool_weight_g;
+  ns.core_weight     = in.spool_type_g > 0 ? in.spool_type_g : in.spool_weight_g;
   ns.core_weight_catalog_id = in.spool_catalog_id;
   ns.nozzle_temp_min = in.temp_min;
   ns.nozzle_temp_max = in.temp_max;
@@ -920,8 +919,9 @@ static int bambuddyCreateUnderSpoolman(const TagCreateInput& in, const TagFilame
   // the Spoolman filament anyway, as it does for every other spool there.
   ns.color_name   = in.color_name_en;
   ns.label_weight = v.label_weight;
-  // The tag's empty spool, else the one Spoolman's database gave the filament.
-  ns.core_weight  = in.spool_weight_g > 0 ? in.spool_weight_g : plan.spool_weight_g;
+  // The type chosen for this spool (L20), else the tag's, else the database's.
+  ns.core_weight  = in.spool_type_g > 0 ? in.spool_type_g
+                  : in.spool_weight_g > 0 ? in.spool_weight_g : plan.spool_weight_g;
   if (v.price > 0.0f && v.label_weight > 0) ns.cost_per_kg = v.price * 1000.0f / (float)v.label_weight;
   ns.weight_used  = (float)v.label_weight - v.remaining;
   if (ns.weight_used < 0.0f) ns.weight_used = 0.0f;

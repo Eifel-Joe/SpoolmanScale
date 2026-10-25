@@ -921,6 +921,7 @@ static void pickEntry(int i) {
   fdbEntryToInput(*e, fdbMaker(s_maker)->name, s_material, &in);
   backendFdbCompleteInput(&in);
   logSDf("DbPick: %s %s \"%s\" %d g, id %s", in.vendor, in.material, e->name, e->weight_g, e->id);
+  if (dbPickTypeAsk(&in)) return;
   if (dbPickCoreAsk(&in)) return;
   showTagCreatePopupFor(in);
 }

@@ -93,13 +93,19 @@ void closeTagCreatePopup() {
 //  Weights
 // ------------------------------------------------------------
 
+// The empty spool the card subtracts: a spool type chosen at the scale for
+// this spool (BBS, design note L20), else the entry's or the tag's.
+static float cardCore() {
+  return (float)(s_in.spool_type_g > 0 ? s_in.spool_type_g : s_in.spool_weight_g);
+}
+
 // What the new spool starts with: the net reading when the spool lies on the
 // pad, otherwise a full one - a spool still in its box has not been touched.
 // Without the empty spool's weight nothing can be subtracted: full as well.
 // The reading is the one without the parts on the spool (spool_extras.h): they
 // are neither the spool's nor the filament's.
 static float remainingWeight() {
-  const float core = (float)s_in.spool_weight_g;
+  const float core = cardCore();
   const float bare = spoolExtrasBareReading();
   if (core <= 0.0f || bare < core) return (float)s_label_weight;
   return bare - core;
@@ -109,7 +115,7 @@ static float remainingWeight() {
 static int labelWeight() {
   if (s_in.net_weight_g > 0) return s_in.net_weight_g;
   static const int choices[NEWTAG_LABEL_COUNT] = NEWTAG_LABEL_CHOICES;
-  const float netto = spoolExtrasBareReading() - (float)s_in.spool_weight_g;
+  const float netto = spoolExtrasBareReading() - cardCore();
   int best = choices[NEWTAG_LABEL_COUNT - 1], best_diff = -1;
   for (int i = 0; i < NEWTAG_LABEL_COUNT; i++) {
     const int diff = (int)fabsf(netto - (float)choices[i]);

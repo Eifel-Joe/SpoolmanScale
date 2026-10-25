@@ -77,7 +77,7 @@ static bool  copy_fetch_pending      = false;   // copy entry: active or archive
 static bool  copy_fetch_archived     = false;
 static bool  copy_create_pending     = false;   // copy confirm OK
 static int   copy_create_sid = 0, copy_create_fid = 0;
-static float copy_create_ini = 0.0f, copy_create_spw = 0.0f;
+static float copy_create_ini = 0.0f, copy_create_spw = 0.0f, copy_create_core = 0.0f;
 static int   copy_row_refresh_pending = -1;
 static bool  copy_reload_pending      = false;  // "Reload" under the copy list
 // The list on screen is the one the cache holds, so it gets the strip.
@@ -126,15 +126,15 @@ bool finishCopyFlow(int new_spool_id, const char* tray_uuid_override) {
 }
 
 // Creates the new spool from the template, then attaches the tag.
-void doCopySpoolCreate(int template_spool_id, int template_filament_id,
-                       float template_initial, float template_spool_w) {
+void doCopySpoolCreate(int template_spool_id, int template_filament_id, float template_initial,
+                       float tare_g, float chosen_core_g) {
   if (!wifi_ok) return;
-  float netto = spoolExtrasBareReading() - template_spool_w;
+  float netto = spoolExtrasBareReading() - tare_g;
   if (netto < 0) netto = 0;
 
   int new_id = 0;
   int code = serverReachNote(backendCreateSpool(cfg_spoolman_base, template_spool_id, template_filament_id,
-    template_initial, template_spool_w, netto, &new_id, 8000), true);
+    template_initial, tare_g, netto, &new_id, 8000, chosen_core_g), true);
   if ((code == 200 || code == 201) && new_id > 0) {
     Serial.printf("Copy spool created: new ID=%d\n", new_id);
     logSDf("Copy spool created: tmpl_spool=%d fid=%d new_spool_id=%d",
@@ -796,12 +796,13 @@ static void copyRowRefresh(int idx) {
   copyConfirmFromRow(idx);
 }
 
-void copyCreateRequest(int template_spool_id, int template_filament_id,
-                       float template_initial, float template_spool_w) {
-  copy_create_sid = template_spool_id;
-  copy_create_fid = template_filament_id;
-  copy_create_ini = template_initial;
-  copy_create_spw = template_spool_w;
+void copyCreateRequest(int template_spool_id, int template_filament_id, float template_initial,
+                       float tare_g, float chosen_core_g) {
+  copy_create_sid  = template_spool_id;
+  copy_create_fid  = template_filament_id;
+  copy_create_ini  = template_initial;
+  copy_create_spw  = tare_g;
+  copy_create_core = chosen_core_g;
   copy_create_pending = true;
 }
 
@@ -839,6 +840,7 @@ void copyFlowDeferredActions() {
     closeCopyConfirmPopup();
     closeCopyListPopup();
     closeCopyEntryPopup();
-    doCopySpoolCreate(copy_create_sid, copy_create_fid, copy_create_ini, copy_create_spw);
+    doCopySpoolCreate(copy_create_sid, copy_create_fid, copy_create_ini, copy_create_spw,
+                      copy_create_core);
   }
 }

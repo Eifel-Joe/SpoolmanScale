@@ -129,5 +129,7 @@ bool finishCopyFlow(int new_spool_id, const char* tray_uuid_override = nullptr);
 // spool the confirmation asked for.
 void copyFlowDeferredActions();
 // The confirmation's yes: create the spool from this template, from the loop.
-void copyCreateRequest(int template_spool_id, int template_filament_id,
-                       float template_initial, float template_spool_w);
+// tare_g is the empty spool the net is taken with; chosen_core_g the spool
+// type chosen for the copy (BBS), 0: none (backendCreateSpool()).
+void copyCreateRequest(int template_spool_id, int template_filament_id, float template_initial,
+                       float tare_g, float chosen_core_g);
