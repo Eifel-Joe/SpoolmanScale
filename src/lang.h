@@ -1792,6 +1792,16 @@ enum StringID {
   STR_PCP_FAIL_TITLE,     // refused; FilaMan's own reason goes under it
   STR_PCP_NO_ROUTE,       // a FilaMan before 1.4.3
 
+  // Spool by ID (ui/spool_id_pad.cpp, app/id_spool.cpp)
+  STR_BTN_SPOOL_BY_ID,        // the main screen's left slot while empty, and the pad's title
+  STR_IDPAD_INFO,             // beside the keys: where the id is, and that nothing saves on its own
+  STR_IDPAD_SEARCH,           // the pad's action button before a spool was found
+  STR_IDPAD_SEARCHING,        // in the answer column while the server is asked
+  STR_IDPAD_THIS_SPOOL,       // the action button once the spool is shown
+  STR_IDPAD_NOT_FOUND,        // %d: the id that was typed
+  STR_IDPAD_NOT_FOUND_HINT,   // under it
+  STR_ID_SPOOL_STATUS,        // the status line while a spool is shown by its id
+
   STR_COUNT
 };
 

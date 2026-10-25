@@ -44,7 +44,8 @@
 # src/ui/main_screen.cpp:258, LV_LABEL_LONG_DOT. The narrow value is the one to
 # respect: header_status.cpp:153 narrows it when the address shows a port.
 # Only the ids really written to lbl_status are listed here.
-STR_WAIT_SCAN	14	262	NEVER	src/app/app_loop.cpp:960 lbl_status, HDR_STATUS_W_NARROW
+# 214: a lifted spool still on screen gets the clear button (40 + 8) behind this text.
+STR_WAIT_SCAN	14	214	NEVER	src/app/app_loop.cpp lbl_status, HDR_STATUS_W_NARROW minus the clear button
 STR_TAG_FOUND	14	262	NEVER	src/app/app_loop.cpp:1723 lbl_status
 STR_READING_TAG	14	262	NEVER	src/app/app_loop.cpp:1533 lbl_status
 STR_NOT_IN_SPOOLMAN	14	262	NEVER	src/app/app_loop.cpp:1597 lbl_status
@@ -381,3 +382,16 @@ STR_PCP_SENT_TITLE	20	360	NEVER	src/ui/pc_print_popup.cpp answer title
 STR_PCP_FAIL_TITLE	20	360	NEVER	src/ui/pc_print_popup.cpp answer title
 STR_PCP_SENT_TEXT	16	360	WRAP:4	src/ui/pc_print_popup.cpp answer text
 STR_PCP_NO_ROUTE	16	360	WRAP:4	src/ui/pc_print_popup.cpp answer text
+# --- spool by id (ui/spool_id_pad.cpp, app/id_spool.cpp) ---------------------
+# Main screen button 202 px, the label carries the keyboard icon and two spaces.
+STR_BTN_SPOOL_BY_ID	16	166	NEVER	src/ui/spool_id_pad.cpp buildSpoolByIdButton, 202 px minus icon
+STR_BTN_SPOOL_BY_ID	14	460	NEVER	src/ui/spool_id_pad.cpp pad title, centred
+# The answer column is 168 px, its texts sit 10 px in from either side.
+STR_IDPAD_INFO	12	148	WRAP:8	src/ui/spool_id_pad.cpp answer column above the action button
+STR_IDPAD_SEARCH	16	160	NEVER	src/ui/spool_id_pad.cpp action button, 168 px
+STR_IDPAD_THIS_SPOOL	16	160	NEVER	src/ui/spool_id_pad.cpp action button, 168 px
+STR_IDPAD_SEARCHING	14	148	NEVER	src/ui/spool_id_pad.cpp answer card
+STR_IDPAD_NOT_FOUND	14	148	WRAP:3	src/ui/spool_id_pad.cpp answer card, %d up to six digits
+STR_IDPAD_NOT_FOUND_HINT	12	148	WRAP:5	src/ui/spool_id_pad.cpp answer card under the verdict
+# Status line, narrow variant 262, minus the clear button (40) and its gap (8).
+STR_ID_SPOOL_STATUS	14	214	NEVER	src/app/id_spool.cpp lbl_status, clear button behind it
