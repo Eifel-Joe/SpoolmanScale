@@ -82,8 +82,8 @@ volatile int     s_http_code = 0;
 volatile bool    s_task_running = false;
 volatile uint32_t s_persist_epoch = 0;   // non-zero: tick writes it to NVS
 // The lowest the internal heap went during the request (heap_low.h), 0 when it
-// could not be measured. Set before s_result, for the two lines of a check that
-// got an answer.
+// could not be measured. Set before s_result on every way out of the request,
+// for every line of a check that ran.
 volatile uint32_t s_check_low = 0;
 
 // What maybeStartCheck() found when it turned the check down for the heap,
@@ -132,7 +132,7 @@ static void runUpdateCheck() {
   // make the next check's start fail.
   heapLowBegin();
   if (!http.begin(client, VERSION_URL)) {
-    heapLowEnd();
+    s_check_low = heapLowEnd();
     s_result = RES_FAIL_BEGIN;
     return;
   }
@@ -146,9 +146,11 @@ static void runUpdateCheck() {
 
   if (code != 200) {
     Serial.printf("[upd] HTTP %d\n", code);
-    s_result = RES_FAIL_HTTP;
     http.end();
-    heapLowEnd();
+    // A failed answer went through the same handshake as a good one, so its
+    // line carries the low point too; handed over before the result.
+    s_check_low = heapLowEnd();
+    s_result = RES_FAIL_HTTP;
     return;
   }
 
@@ -354,15 +356,20 @@ void updateCheckTick() {
   bool answered = (result == RES_AVAILABLE || result == RES_UP_TO_DATE);
   if (result != RES_NONE) {
     s_result = RES_NONE;
-    // For the two lines of a check that got an answer; 0 reads n/a.
+    // For every line of a check that ran (all but the skipped one, which
+    // started no request); 0 reads n/a.
     char low_txt[12];
     heapLowText(s_check_low, low_txt, sizeof(low_txt));
     switch (result) {
       case RES_AVAILABLE:
         // Larger than this device's app slot: no badge that leads to a
         // download bound to fail, the hint with the way to the flasher instead.
+        // partitionNoteTooBig() says so once per version and boot; the line of
+        // the check is written every time, like the others.
         if (!partitionImageFits(s_found_size)) {
           partitionNoteTooBig(s_found_version, s_found_size);
+          logSDf("Update check: %s too big for this slot (installed %s), internal heap %u at start, low %s",
+                 s_found_version, FW_VERSION, (unsigned)s_heap_at_start, low_txt);
           break;
         }
         strncpy(gh_latest_version, s_found_version, sizeof(gh_latest_version) - 1);
@@ -392,20 +399,25 @@ void updateCheckTick() {
           update_available = false;
           showUpdateBadges(false);
         }
-        if (sd_verbose) logSDf("[verbose] Update check: up to date (%s), internal heap %u at start, low %s",
-                               FW_VERSION, (unsigned)s_heap_at_start, low_txt);
+        // Always, not only in verbose mode: the low point of every check is
+        // what the start floor is measured against, and once a day is no noise.
+        logSDf("Update check: up to date (%s), internal heap %u at start, low %s",
+               FW_VERSION, (unsigned)s_heap_at_start, low_txt);
         break;
       case RES_FAIL_HTTP:
-        logSDf("Update check: HTTP %d", s_http_code);
+        logSDf("Update check: HTTP %d, internal heap %u at start, low %s",
+               s_http_code, (unsigned)s_heap_at_start, low_txt);
         break;
       case RES_FAIL_JSON:
-        logSD("Update check: bad response");
+        logSDf("Update check: bad response, internal heap %u at start, low %s",
+               (unsigned)s_heap_at_start, low_txt);
         break;
       case RES_FAIL_HEAP:
         logSDf("Update check: skipped, heap %u < %u", (unsigned)s_skip_free, (unsigned)s_skip_floor);
         break;
       case RES_FAIL_BEGIN:
-        logSD("Update check: connection setup failed");
+        logSDf("Update check: connection setup failed, internal heap %u at start, low %s",
+               (unsigned)s_heap_at_start, low_txt);
         break;
       default:
         break;

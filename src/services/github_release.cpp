@@ -83,7 +83,11 @@ bool githubLatestTag(bool prerelease, char *tag, size_t tag_len,
   if (code != 200) {
     if (err && err_len) snprintf(err, err_len, "HTTP %d", code);
     http.end();
-    heapLowEnd();
+    // A failed check went through the same handshake as a good one, and the
+    // line below is only written for an answer: the low point gets its own.
+    const uint32_t low = heapLowEnd();
+    char low_txt[12];
+    logSDf("OTA check: HTTP %d, low=%s", code, heapLowText(low, low_txt, sizeof(low_txt)));
     return false;
   }
 
@@ -239,13 +243,17 @@ bool githubReleaseByTag(const char *tag, GithubRelease &out,
   if (code != 200) {
     if (err && err_len) snprintf(err, err_len, code == 404 ? "notfound" : "HTTP %d", code);
     http.end();
-    heapLowEnd();
+    // The low point on the failed ways out as well, as in githubLatestTag().
+    const uint32_t low = heapLowEnd();
+    char low_txt[12];
+    logSDf("OTA notes: %s HTTP %d, low=%s", tag, code, heapLowText(low, low_txt, sizeof(low_txt)));
     return false;
   }
 
   String payload = http.getString();
   http.end();
   const uint32_t heap_low = heapLowEnd();
+  char low_txt[12];
 
   JsonDocument filter;
   filter["tag_name"]     = true;
@@ -259,6 +267,8 @@ bool githubReleaseByTag(const char *tag, GithubRelease &out,
     deserializeJson(doc, payload, DeserializationOption::Filter(filter));
   if (jerr) {
     if (err && err_len) snprintf(err, err_len, "JSON: %s", jerr.c_str());
+    logSDf("OTA notes: %s JSON %s, low=%s", tag, jerr.c_str(),
+           heapLowText(heap_low, low_txt, sizeof(low_txt)));
     return false;
   }
 
@@ -278,7 +288,6 @@ bool githubReleaseByTag(const char *tag, GithubRelease &out,
     out.notes = b;
   }
 
-  char low_txt[12];
   logSDf("OTA notes: %s pre=%d published=%s body=%u low=%s",
          out.tag, out.prerelease ? 1 : 0, out.published, (unsigned)out.notes.length(),
          heapLowText(heap_low, low_txt, sizeof(low_txt)));
@@ -341,10 +350,15 @@ bool githubFlashTag(const char *tag, const char *sha256_hex,
   int code = http.GET();
   Serial.printf("GitHub OTA download: %d\n", code);
 
+  // Every way out of the download writes the low point, the failed ones too:
+  // they went through the same handshake, and the caller's line has none.
+  char low_txt[12];
   if (code != 200) {
     if (err && err_len) snprintf(err, err_len, "HTTP %d", code);
     http.end();
-    heapLowEnd();
+    const uint32_t low = heapLowEnd();
+    logSDf("OTA: %s download failed - HTTP %d, internal low %s", tag, code,
+           heapLowText(low, low_txt, sizeof(low_txt)));
     gh_flash_active = false;
     return false;
   }
@@ -355,7 +369,9 @@ bool githubFlashTag(const char *tag, const char *sha256_hex,
   if (!Update.begin(len > 0 ? len : UPDATE_SIZE_UNKNOWN)) {
     if (err && err_len) snprintf(err, err_len, "%s", "No room for the image");
     http.end();
-    heapLowEnd();
+    const uint32_t low = heapLowEnd();
+    logSDf("OTA: %s download failed - no room for the image, internal low %s", tag,
+           heapLowText(low, low_txt, sizeof(low_txt)));
     gh_flash_active = false;
     return false;
   }
@@ -430,18 +446,17 @@ bool githubFlashTag(const char *tag, const char *sha256_hex,
     logSDf("OTA: sha256 expected %s, got %s", sha256_hex, got);
   }
 
+  heapLowText(heap_low, low_txt, sizeof(low_txt));
   if (fail) {
     Update.abort();
-    logSDf("OTA: %s refused - %s", tag, fail);
+    logSDf("OTA: %s refused - %s, internal low %s", tag, fail, low_txt);
     if (err && err_len) snprintf(err, err_len, "%s", fail);
     gh_flash_active = false;
     return false;
   }
 
-  char low_txt[12];
   logSDf("OTA: %s complete, %u bytes, sha256 %s%s, internal low %s", tag, (unsigned)done, got,
-         check_sha ? " (verified)" : " (no checksum published)",
-         heapLowText(heap_low, low_txt, sizeof(low_txt)));
+         check_sha ? " (verified)" : " (no checksum published)", low_txt);
 
   // With a known size the strict form: the library checks that every byte
   // it was promised has arrived. Only a server that sent no Content-Length
