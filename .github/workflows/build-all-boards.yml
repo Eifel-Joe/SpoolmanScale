@@ -19,6 +19,13 @@ name: Build and Release
 # the device reads the tag from version.json and downloads from that tag's
 # release, so version.json must never name a release that does not exist, not
 # yet or not at all because its upload failed.
+#
+# Only a tag push releases and publishes. A manual run (workflow_dispatch)
+# builds every board, checks the images the same way and stops there: its
+# github.ref_name is a branch, so the release would get the branch's name as
+# its tag while version.json named FW_VERSION, a release that does not exist.
+# The steps that only serve the release and the pages carry
+# `if: github.ref_type == 'tag'`.
 on:
   push:
     tags:
@@ -91,6 +98,7 @@ jobs:
           echo "Building $VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
       - name: Refuse a tag that is not newer than what is published
+        if: github.ref_type == 'tag'
         run: |
           # The check above only compares the tag against FW_VERSION, so two
           # matching but too low numbers pass it. Since the firmware compares
@@ -107,8 +115,7 @@ jobs:
           #
           # The ranking is the one of src/services/version_compare.cpp, over
           # the top level and every board node (scripts/release_files.py, held
-          # to it by test/test_release_files.py). Not only on a tag push: a
-          # manual run publishes version.json just the same.
+          # to it by test/test_release_files.py).
           VERSION=${{ steps.version.outputs.version }}
           git fetch origin gh-pages
           # Stops here when the fetch left no origin/gh-pages, rather than
@@ -162,6 +169,7 @@ jobs:
             python3 scripts/factory_image.py "$OUT" "SpoolmanScale-${BOARD}_${VERSION}_factory.bin"
           done
       - name: Update version.json
+        if: github.ref_type == 'tag'
         run: |
           # Read by the firmware's background update check. Deliberately a
           # static file on Pages rather than api.github.com: that API allows
@@ -182,6 +190,12 @@ jobs:
           python3 scripts/release_files.py version-json published.json version.json "${{ steps.version.outputs.version }}" .
       - name: Release title
         id: title
+        if: github.ref_type == 'tag'
+        env:
+          # The day in German time: the runner's clock is UTC and would date
+          # a tag pushed shortly after midnight to the day before. date.today()
+          # in release_files.py follows TZ.
+          TZ: Europe/Berlin
         run: |
           # "SpoolmanScale v0.8.4" for a stable tag. A pre-release carries the
           # day of the build, "SpoolmanScale v0.8.4-beta.1 (25.10.2026)": its
@@ -191,15 +205,20 @@ jobs:
           echo "title=$TITLE" >> "$GITHUB_OUTPUT"
       - name: Create GitHub Release
         # Before the pages, see the top of this file.
+        if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ steps.title.outputs.title }}
-          # Only internal builds carrying a beta counter are pre-releases.
-          # A public tag has to become the real "latest", because the update
-          # button downloads from releases/latest/download/ and that path skips
-          # pre-releases. Marked wrong, the device would announce the new
-          # version and then install the previous binary.
+          # Only builds carrying a beta counter are pre-releases, the same
+          # line version.json draws (a -beta.N tag fills only its "prerelease"
+          # keys). The flag does not change what a device installs: it
+          # downloads a release by its tag, releases/download/<tag>/<asset>
+          # (src/services/github_release.cpp). Together with version.json it
+          # decides who is offered it. With the "Pre-release" switch off, the
+          # daily check reads the "stable" keys of version.json and a check by
+          # hand asks releases/latest, which skips pre-releases; a stable tag
+          # marked pre-release would stay hidden from that check.
           prerelease: ${{ contains(github.ref_name, '-beta.') }}
           # SpoolmanScale-*.bin takes both files of every other board and the
           # factory image of every board, the WT32's included.
@@ -230,6 +249,7 @@ jobs:
         # single-board manifest.json of the first, hand-made flasher goes.
         # .nojekyll stays: it keeps Pages from running the files through
         # Jekyll.
+        if: github.ref_type == 'tag'
         run: |
           VERSION=${{ steps.version.outputs.version }}
           PAGES="$RUNNER_TEMP/gh-pages"
