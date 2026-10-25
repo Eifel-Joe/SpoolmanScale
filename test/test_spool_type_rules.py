@@ -40,6 +40,12 @@ static void clearOut(int* out) {
   for (int i = 0; i < 8; i++) out[i] = -1;
 }
 
+// Two weights agree to within a hundredth of a gram (the floats of a reading
+// like 1212.3 are not exact).
+static bool closeTo(float a, float b) {
+  return std::fabs(a - b) < 0.01f;
+}
+
 int main() {
   const SpoolType cat[7] = {
     {"Bambu Lab - Plastic High Temp", 216},
@@ -146,6 +152,48 @@ int main() {
   // and what is left, so a spool filled over its label is not cut to it.
   assert(spoolTypeFullLabel(1000.0f, 980.0f) == 1000.0f);
   assert(spoolTypeFullLabel(1000.0f, 1012.4f) == 1012.4f);
+
+  // What a full spool on the scale writes, in the whole grams the server
+  // keeps: the tare as it will be stored, the label weight, and a rest that
+  // never lands above that label. The server takes the rest as the reading
+  // less the tare it holds, so the rest is worked out against the rounded
+  // tare. Each line is (bare reading, filament, tare) and what it writes.
+  // 1212.3 g bare, 1000 g of filament, a measured tare of 212.3 g: the server
+  // keeps 212 g, so the rest is 1000.3 g, the label rounds to 1000 g, and the
+  // rest is cut to it (not 1000.3 g, which the server would see above its
+  // label).
+  FullSpoolWrite w = spoolTypeFullSpoolWrite(1212.3f, 1000.0f, 212.3f);
+  assert(w.tare_g == 212);
+  assert(w.label_g == 1000);
+  assert(closeTo(w.rest_g, 1000.0f));
+  // A tare of 200 g under the same reading: 1012.3 g are left, over the
+  // filament, so the label is lifted to 1012 g and the rest is cut to that.
+  w = spoolTypeFullSpoolWrite(1212.3f, 1000.0f, 200.0f);
+  assert(w.tare_g == 200);
+  assert(w.label_g == 1012);
+  assert(closeTo(w.rest_g, 1012.0f));
+  // 1212.6 g with a tare of 212.6 g stores 213 g, which leaves 999.6 g, under
+  // the label of 1000 g and so kept as it is.
+  w = spoolTypeFullSpoolWrite(1212.6f, 1000.0f, 212.6f);
+  assert(w.tare_g == 213);
+  assert(w.label_g == 1000);
+  assert(closeTo(w.rest_g, 999.6f));
+  // A reading below the tare leaves nothing, and the label stays the filament.
+  w = spoolTypeFullSpoolWrite(150.0f, 1000.0f, 200.0f);
+  assert(w.tare_g == 200);
+  assert(w.label_g == 1000);
+  assert(closeTo(w.rest_g, 0.0f));
+  // A reading that is not a number leaves nothing as well, and the label is
+  // the filament rounded (999.6 g to 1000 g).
+  w = spoolTypeFullSpoolWrite(NAN, 999.6f, 212.0f);
+  assert(w.tare_g == 212);
+  assert(w.label_g == 1000);
+  assert(closeTo(w.rest_g, 0.0f));
+  // A rest exactly on the label stays on it.
+  w = spoolTypeFullSpoolWrite(1200.0f, 1000.0f, 200.0f);
+  assert(w.tare_g == 200);
+  assert(w.label_g == 1000);
+  assert(closeTo(w.rest_g, 1000.0f));
 
   // What the scale asks first: (label weight, filament left, the bare
   // reading, whether the spool has a tare of its own, the tare stored for it).
