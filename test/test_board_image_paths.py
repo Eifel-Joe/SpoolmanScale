@@ -1,4 +1,4 @@
-"""Read the source tree without a compiler and check that every way an image gets into the flash first looks at the board line it carries (src/services/board_image.h), so that a scale can never install another board's image. There are two ways: the upload in the browser and the download from GitHub. Both begin the scan, feed it the bytes that go into the flash, drop the image on a foreign verdict and ask whether this board accepts the image before it is committed. The GitHub download is the one that used to rely on a checksum alone, and that checksum comes from the same workflow that names the files, so a file put under the wrong board's name carries a matching sum: the scan stops the loop on a foreign line, the refusal block names the reason before Update.end(), and the no-line case is refused where the board requires a line, with or without a published checksum. A new place that commits an image (Update.end) must be added here and use the scan too."""
+"""Read the source tree without a compiler and check that every way an image gets into the flash first looks at the board line it carries (src/services/board_image.h), so that a scale can never install another board's image. There are two ways: the upload in the browser and the download from GitHub. Both begin the scan, feed it the bytes that go into the flash, drop the image on a foreign verdict and ask whether this board accepts the image before it is committed. The GitHub download is the one that used to rely on a checksum alone, and that checksum comes from the same workflow that names the files, so a file put under the wrong board's name carries a matching sum: the scan stops the loop on a foreign line, the refusal block names the reason before Update.end(), and the no-line case is refused where the board requires a line, with or without a published checksum. A new place that commits an image (Update.end) must be added here and use the scan too. The lines that refuse an image for its board name this board by its id (BOARD_ID), not by the whole marker line."""
 import re
 import sys
 from pathlib import Path
@@ -186,7 +186,56 @@ if github is not None:
                             or not re.search(r"\breturn\s+false\s*;", refusal):
                         errors.append(f"{where}: the block of `if (fail)` does not abort the update and return false")
 
-# 4. Verdict.
+# 4. The lines that refuse an image for its board name this board by its id,
+# the way the release files and version.json name it: "(this is
+# waveshare-s3-lcd7b)". boardImageMarker() is the whole marker line, for the
+# boot log; in a refusal it read "(this is SpoolmanScale-board:...)". The
+# GitHub download names the board in its log line only: the reason it hands
+# to the screen stays as short as the other reasons.
+for rel, source in sources.items():
+    if source is not None and "boardImageMarker()" in source.code:
+        errors.append(f"src/{rel}: a refusal names the board by boardImageMarker(), the whole marker line, "
+                      "instead of BOARD_ID")
+if browser is not None:
+    board_lines = [call for call in re.finditer(r'\blogSDf\(\s*"([^"]*)"\s*,([^;]*)\);', browser.text)
+                   if "another board" in call.group(1) or "names no board" in call.group(1)]
+    if len(board_lines) != 2:
+        errors.append(f"src/{BROWSER}: expected the two refusal lines about the board (another board, "
+                      f"names no board), found {len(board_lines)}")
+    for call in board_lines:
+        if "(this is %s)" not in call.group(1) or not re.search(r"\bBOARD_ID\b", call.group(2)):
+            errors.append(f'src/{BROWSER}: "{call.group(1)}" does not name this board as "(this is %s)" '
+                          "with BOARD_ID")
+if github is not None:
+    spans = [(start, end) for name, start, end in cc.find_functions(github.code) if name == GITHUB_FUNCTION]
+    if len(spans) == 1:
+        text = github.text[spans[0][0] + 1:spans[0][1]]
+        where = f"src/{GITHUB}: {GITHUB_FUNCTION}()"
+        note = re.compile(r'\b(\w+)\s*=\s*"\s*\(this is "\s*BOARD_ID\s*"\)"\s*;')
+        notes = []
+        for label, branch in (("foreign", r"\belse\s+if\s*\(\s*foreign\s*\)\s*\{([^{}]*)\}"),
+                              ("missing line", r"\belse\s+if\s*\(\s*!\s*boardImageScanAccepts\(\)\s*\)\s*\{([^{}]*)\}")):
+            match = re.search(branch, text)
+            found = note.search(match.group(1)) if match else None
+            if found is None:
+                errors.append(f'{where}: the {label} refusal does not set a note " (this is " BOARD_ID ")"')
+            else:
+                notes.append(found.group(1))
+        if len(notes) == 2:
+            name = notes[0]
+            if notes[1] != name:
+                errors.append(f"{where}: the two board refusals set different notes ({notes[0]}, {notes[1]})")
+            elif not re.search(r"\b" + name + r'\s*=\s*""\s*;', text):
+                errors.append(f'{where}: the note {name} does not start empty ("") for the other refusals')
+            refuse = re.search(r"\bif\s*\(\s*fail\s*\)", text)
+            refusal = block_after(text, refuse.end()) if refuse else None
+            line = re.search(r'\blogSDf\(\s*"OTA: %s refused - %s%s, internal low %s"\s*,\s*tag\s*,\s*fail\s*,\s*'
+                             + name + r"\s*,", refusal or "")
+            if line is None:
+                errors.append(f'{where}: the refusal line is not "OTA: %s refused - %s%s, internal low %s" '
+                              f"with tag, fail, {name}")
+
+# 5. Verdict.
 if errors:
     print("board image paths: FAILED")
     for error in errors:

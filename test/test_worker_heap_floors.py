@@ -357,7 +357,7 @@ TICK_LINES = ["Update check: up to date (%s), ", "Update check: HTTP %d, ", "Upd
               "Update check: connection setup failed, "]
 TICK_SKIPPED = "Update check: skipped"
 LOW_TEXT = re.compile(r"\blow[ =]%s")
-REFUSED_LINE = "OTA: %s refused - %s, internal low %s"
+REFUSED_LINE = "OTA: %s refused - %s%s, internal low %s"
 LOG_CALL = re.compile(r'\blogSDf?\(\s*((?:"(?:[^"\\\n]|\\.)*"\s*)+)')
 VERBOSE_UP_TO_DATE = re.compile(r'if\s*\(\s*sd_verbose\s*\)\s*logSDf?\(\s*"[^"]*up to date')
 
