@@ -39,6 +39,8 @@ static lv_obj_t *s_lbl_info  = nullptr;
 static lv_obj_t *s_btn_next  = nullptr;
 // The keypad takes the filament of a full spool instead of an empty weight.
 static bool      s_pad_fill  = false;
+// The colour the line under the input was last drawn in.
+static uint32_t  s_info_col  = 0;
 
 // Longest input: "600.0", plus room for the one decimal digit being typed.
 #define TARE_INPUT_MAX_CHARS  5
@@ -181,6 +183,18 @@ static bool fillValue(int *out) {
   return true;
 }
 
+// The full spool's line: the reading without the parts, the filament, and
+// the empty weight they leave (design L5), in a warning colour where that is
+// no spool or no filament has been typed yet.
+static void fullInfo(char *info, size_t n, uint32_t *col) {
+  int fill = 0;
+  const bool ok = fillValue(&fill);
+  const float bare = spoolExtrasBareReading();
+  const float tare = spoolTypeTareFromFull(bare, (float)fill);
+  snprintf(info, n, T(STR_FULL_INFO), bare, (float)fill, tare);
+  *col = (ok && spoolTypeTarePlausible(tare)) ? UI_COL_GOOD : UI_COL_WARN;
+}
+
 // Input line, the line under it and the look of the Next button, all from
 // the current input. Called after every key.
 static void refreshPad() {
@@ -191,17 +205,11 @@ static void refreshPad() {
   lv_label_set_text(s_lbl_input, buf);
 
   float v = 0.0f;
-  int fill = 0;
-  const bool ok = s_pad_fill ? fillValue(&fill) : inputValue(&v);
+  const bool ok = s_pad_fill ? fillValue(nullptr) : inputValue(&v);
   char info[96];
   uint32_t info_col = UI_COL_CAPTION;
   if (s_pad_fill) {
-    // The reading without the parts, the filament, and the empty weight
-    // they leave (design L5): a warning colour where that is no spool.
-    const float bare = spoolExtrasBareReading();
-    const float tare = spoolTypeTareFromFull(bare, (float)fill);
-    snprintf(info, sizeof(info), T(STR_FULL_INFO), bare, (float)fill, tare);
-    info_col = (ok && spoolTypeTarePlausible(tare)) ? UI_COL_GOOD : UI_COL_WARN;
+    fullInfo(info, sizeof(info), &info_col);
   } else if (ok && padHoldsSpool()) {
     // What a weighing would store once this tare is in - the number the
     // issue asked to see before anything is saved.
@@ -217,10 +225,25 @@ static void refreshPad() {
   }
   lv_label_set_text(s_lbl_info, info);
   lv_obj_set_style_text_color(s_lbl_info, lv_color_hex(info_col), 0);
+  s_info_col = info_col;
 
   lv_obj_set_style_bg_color(s_btn_next, lv_color_hex(ok ? UI_COL_OK_BG : UI_COL_SURFACE), 0);
   lv_obj_set_style_text_color(lv_obj_get_child(s_btn_next, 0),
                               lv_color_hex(ok ? UI_COL_OK_TEXT : UI_COL_CAPTION), 0);
+}
+
+// The full spool's line follows the reading while its keypad is up (design
+// L5: live), from tareEntryTick(). Drawn again only when its text or colour
+// would change, so a still reading costs a format and a compare per pass.
+static void fullPadTick() {
+  if (!s_pad || !s_pad_fill || !s_lbl_info) return;
+  char info[96];
+  uint32_t col = UI_COL_WARN;
+  fullInfo(info, sizeof(info), &col);
+  if (col == s_info_col && strcmp(info, lv_label_get_text(s_lbl_info)) == 0) return;
+  lv_label_set_text(s_lbl_info, info);
+  lv_obj_set_style_text_color(s_lbl_info, lv_color_hex(col), 0);
+  s_info_col = col;
 }
 
 static void onKey(lv_event_t *e) {
@@ -470,20 +493,26 @@ void showTareChoice() {
   lv_obj_set_style_pad_all(scrim, 0, 0);
   lv_obj_clear_flag(scrim, LV_OBJ_FLAG_SCROLLABLE);
 
-  // Two by two (design L13): weigh and type in, then spool type and full
-  // spool. Weighing and the full spool need the spool on the pad, the spool
-  // types Bambuddy in Spoolman mode; typing in is always there. A button not
-  // offered leaves its place empty, a row with neither goes, and the box
-  // follows. As wide as the weight popup this opens from; the places are
+  // Bambuddy in Spoolman mode (design L13, L16): two by two, weigh and type
+  // in, then spool type and full spool. Weighing and the full spool need the
+  // spool on the pad, and a button not offered leaves its place empty. The
+  // box is as wide as the weight popup this opens from, and its places are
   // counted inside the border, where LVGL puts the children.
+  // Every other backend keeps the column it always had: weigh and type in,
+  // one above the other, weighing offered with the pad empty as well (the
+  // press takes the reading then, an empty reel may be put down meanwhile).
+  // Both have two rows, so the cancel row and the box height share a sum.
+  const bool grid   = spoolTypesActive();
   const bool on_pad = padHoldsSpool();
-  const bool with_types = spoolTypesActive();
-  const int BOX_W = 460, BORDER = 2, EDGE = 6, GAP = 6, BTN_H = 70, TOP = 44, BOTTOM = 10;
-  const int BTN_W = (BOX_W - 2 * BORDER - 2 * EDGE - GAP) / 2;
-  const int X_R   = EDGE + BTN_W + GAP;
-  const int ROWS  = with_types ? 2 : 1;
-  const int Y_CANCEL = TOP + ROWS * (BTN_H + GAP);
-  const int BOX_H = 2 * BORDER + Y_CANCEL + UI_TOUCH_MIN + BOTTOM;
+  const int BORDER = 2, BTN_H = 70, TOP = 44, BOTTOM = 10;
+  const int BOX_W  = grid ? 460 : 440;
+  const int EDGE   = grid ? 6 : 12;
+  const int GAP    = grid ? 6 : 10;
+  const int BTN_W  = grid ? (BOX_W - 2 * BORDER - 2 * EDGE - GAP) / 2 : BOX_W - 2 * EDGE;
+  const int X_R    = EDGE + BTN_W + GAP;         // the grid's right column
+  const int ROW2_Y = TOP + BTN_H + GAP;
+  const int Y_CANCEL = TOP + 2 * (BTN_H + GAP);
+  const int BOX_H  = 2 * BORDER + Y_CANCEL + UI_TOUCH_MIN + BOTTOM;
   lv_obj_t *box = lv_obj_create(scrim);
   lv_obj_set_size(box, BOX_W, BOX_H);
   lv_obj_align(box, LV_ALIGN_CENTER, 0, 0);
@@ -500,7 +529,7 @@ void showTareChoice() {
   lv_obj_set_style_text_font(title, UI_FONT_TITLE, 0);
   lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 12);
 
-  if (on_pad) {
+  if (!grid || on_pad) {
     char weigh_buf[96];
     // The empty spool without the parts on it: they are not the spool's.
     snprintf(weigh_buf, sizeof(weigh_buf), T(STR_TARE_CHOICE_WEIGH), spoolExtrasBareReading());
@@ -515,15 +544,16 @@ void showTareChoice() {
 
   char type_buf[96];
   snprintf(type_buf, sizeof(type_buf), LV_SYMBOL_KEYBOARD "  %s", T(STR_TARE_CHOICE_TYPE));
-  lv_obj_t *type = choiceButton(box, X_R, TOP, BTN_W, BTN_H, type_buf);
+  lv_obj_t *type = grid ? choiceButton(box, X_R, TOP, BTN_W, BTN_H, type_buf)
+                        : choiceButton(box, EDGE, ROW2_Y, BTN_W, BTN_H, type_buf);
   lv_obj_add_event_cb(type, [](lv_event_t *e) {
     releaseScreen(&s_choice);
     showTarePad(false);
   }, LV_EVENT_CLICKED, NULL);
 
-  if (with_types) {
+  if (grid) {
     // The maker's types, the one nearest the spool's empty weight marked.
-    lv_obj_t *by_type = choiceButton(box, EDGE, TOP + BTN_H + GAP, BTN_W, BTN_H,
+    lv_obj_t *by_type = choiceButton(box, EDGE, ROW2_Y, BTN_W, BTN_H,
                                      T(STR_TARE_CHOICE_TYPES));
     lv_obj_add_event_cb(by_type, [](lv_event_t *e) {
       SpoolTypeListReq req = {};
@@ -536,8 +566,8 @@ void showTareChoice() {
     }, LV_EVENT_CLICKED, NULL);
   }
 
-  if (with_types && on_pad) {
-    lv_obj_t *full = choiceButton(box, X_R, TOP + BTN_H + GAP, BTN_W, BTN_H,
+  if (grid && on_pad) {
+    lv_obj_t *full = choiceButton(box, X_R, ROW2_Y, BTN_W, BTN_H,
                                   T(STR_TARE_CHOICE_FULL));
     lv_obj_add_event_cb(full, [](lv_event_t *e) {
       releaseScreen(&s_choice);
@@ -545,8 +575,8 @@ void showTareChoice() {
     }, LV_EVENT_CLICKED, NULL);
   }
 
-  lv_obj_t *cancel = padButton(box, EDGE, Y_CANCEL, 2 * BTN_W + GAP, UI_TOUCH_MIN,
-                               UI_COL_BAD_BG, UI_COL_BAD_BG_PRESSED);
+  lv_obj_t *cancel = padButton(box, EDGE, Y_CANCEL, grid ? 2 * BTN_W + GAP : BTN_W,
+                               UI_TOUCH_MIN, UI_COL_BAD_BG, UI_COL_BAD_BG_PRESSED);
   lv_obj_set_style_radius(cancel, UI_RADIUS_BTN, 0);
   lv_obj_set_style_border_width(cancel, 0, 0);
   padLabel(cancel, T(STR_CANCEL), UI_COL_BAD_TEXT, UI_FONT_SMALL);
@@ -707,6 +737,7 @@ void tareEntryTick() {
   spoolTypeNameTick();
   emptySpoolTypeTick();
   firstWeighTick();
+  fullPadTick();
   // What follows is for the windows opened for a spool. The empty spool
   // screen weighs whatever is put down, and a swap does not close it.
   if (!spoolEntryOpen()) return;
