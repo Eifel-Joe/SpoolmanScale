@@ -3843,6 +3843,55 @@ const char* const STRINGS[][3] = {
   { "Standard",
     "Default",
     "Par défaut" },  // STR_W_EXTRAS_DEFAULT
+  { " (geerbt)", " (inherited)",
+    " (hérité)" },  // STR_TARE_INHERITED
+  { "Name der Leerspule (%d g)", "Name of the empty spool (%d g)",
+    "Nom de la bobine vide (%d g)" },  // STR_SPT_NAME_TITLE
+  { "Diesen Namen gibt es schon. Bitte einen anderen eingeben.", "That name is taken already. Please type another one.",
+    "Ce nom existe déjà. Saisissez-en un autre." },  // STR_SPT_NAME_TAKEN
+  { "Anlegen fehlgeschlagen (HTTP %d)", "Could not create (HTTP %d)",
+    "Création impossible (HTTP %d)" },  // STR_SPT_NAME_FAIL
+  { "Leerspule anlegen", "Add empty spool",
+    "Ajouter une bobine vide" },  // STR_SPT_EMPTY_BTN
+  { "Leere Spule wiegen, als Spulentyp anlegen", "Weigh an empty spool, add it as a spool type",
+    "Peser une bobine vide, l'ajouter comme type" },  // STR_SPT_EMPTY_SUB
+  { "Leerspule anlegen", "Add empty spool",
+    "Ajouter une bobine vide" },  // STR_SPT_EMPTY_TITLE
+  { "Leere Spule auflegen und das Zubehör daran antippen. Dann Weiter.", "Put the empty spool on and tap the parts on it. Then Next.",
+    "Posez la bobine vide, touchez ses accessoires, puis Suivant." },  // STR_SPT_EMPTY_HINT
+  { "Angelegt: %s (%d g)", "Created: %s (%d g)",
+    "Créé : %s (%d g)" },  // STR_SPT_CREATED
+  { "Spulentyp wählen", "Choose the spool type",
+    "Choisir le type de bobine" },  // STR_SPT_TITLE
+  { "Spulentypen werden geladen ...", "Loading spool types ...",
+    "Chargement des types ..." },  // STR_SPT_LOADING
+  { "Spulentypen nicht geladen (HTTP %d)", "Spool types not loaded (HTTP %d)",
+    "Types non chargés (HTTP %d)" },  // STR_SPT_LOAD_FAIL
+  { "Kein Spulentyp in der Nähe dieses Leergewichts.", "No spool type close to this empty weight.",
+    "Aucun type proche de ce poids à vide." },  // STR_SPT_NONE_NEAR
+  { "Gerechnetes Leergewicht %.0f g: das kann keine Spule sein. Bitte den Typ wählen.",
+    "Computed empty weight %.0f g: that cannot be a spool. Please choose the type.",
+    "Poids à vide calculé %.0f g : ce n'est pas une bobine. Choisissez le type." },  // STR_SPT_IMPLAUSIBLE
+  { "Gemessen nehmen (%d g)", "Take measured (%d g)",
+    "Prendre la mesure (%d g)" },  // STR_SPT_TAKE_MEASURED
+  { "Anderer Typ",                           "Other type",                     "Autre type" },  // STR_SPT_OTHER
+  { "Alle zeigen",                           "Show all",                       "Tout afficher" },  // STR_SPT_SHOW_ALL
+  { "Nur %s", "Only %s",
+    "Seulement %s" },  // STR_SPT_ONLY_VENDOR
+  { "Neu anlegen",                           "Add new",                        "Nouveau type" },  // STR_SPT_NEW
+  { "Später",                                "Later",                          "Plus tard" },  // STR_SPT_LATER
+  { "Ohne Typ",                              "Without type",                   "Sans type" },  // STR_SPT_WITHOUT
+  { "Nicht alle Typen passen in die Liste.", "Not all types fit in the list.",
+    "La liste ne peut pas tout afficher." },  // STR_SPT_MORE
+  // The empty spool button: a spool type, a full spool
+  { "Spulentyp wählen\naus der Liste", "Pick a spool type\nfrom the list",
+    "Choisir le type\nde bobine dans la liste" },  // STR_TARE_CHOICE_TYPES
+  { "Volle Spule wiegen\nFüllmenge angeben", "Weigh the full spool\ngive the filament weight",
+    "Peser la bobine pleine\nindiquer le filament" },  // STR_TARE_CHOICE_FULL
+  { "Volle Spule: Füllmenge eingeben", "Full spool: enter the filament weight",
+    "Bobine pleine : saisir le poids du filament" },  // STR_FULL_TITLE
+  { "Waage %.0f g\n- Filament %.0f g\n= Spule %.0f g", "Scale %.0f g\n- filament %.0f g\n= spool %.0f g",
+    "Balance %.0f g\n- filament %.0f g\n= bobine %.0f g" },  // STR_FULL_INFO
 };
 
 StringID tagWriteResultString(uint8_t code) {

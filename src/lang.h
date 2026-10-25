@@ -1780,6 +1780,34 @@ enum StringID {
   STR_W_EXTRAS_HINT,
   STR_W_EXTRAS_NAME,
   STR_W_EXTRAS_DEFAULT,
+  // Empty spool types (Bambuddy's catalog of empty spools)
+  STR_TARE_INHERITED,         // after a tare that came from the filament level behind Bambuddy's Spoolman proxy
+  STR_SPT_NAME_TITLE,         // title of the name entry for a new spool type, %d = its weight in grams
+  STR_SPT_NAME_TAKEN,         // the catalog has that name already
+  STR_SPT_NAME_FAIL,          // the type was not created, %d = HTTP code
+  STR_SPT_EMPTY_BTN,          // scale menu row: an empty spool weighed and added as a spool type
+  STR_SPT_EMPTY_SUB,          // its subtitle
+  STR_SPT_EMPTY_TITLE,        // title of that screen
+  STR_SPT_EMPTY_HINT,         // what to do on it; "Weiter" is STR_BTN_NEXT
+  STR_SPT_CREATED,            // the type just added, %s = name, %d = grams
+  STR_SPT_TITLE,              // title of the list of spool types
+  STR_SPT_LOADING,            // line in that list while the catalog loads
+  STR_SPT_LOAD_FAIL,          // line in that list: the catalog did not load, %d = HTTP code
+  STR_SPT_NONE_NEAR,          // line in that list: no type near the computed empty weight
+  STR_SPT_IMPLAUSIBLE,        // line in that list: the computed empty weight (%.0f g) is no spool
+  STR_SPT_TAKE_MEASURED,      // button: the measured empty weight without a type, %d = grams
+  STR_SPT_OTHER,              // button: the types of the maker instead of the ones near
+  STR_SPT_SHOW_ALL,           // button: every type, not only the maker's
+  STR_SPT_ONLY_VENDOR,        // button: only the maker's types, %s = the maker
+  STR_SPT_NEW,                // button: add a new type with the measured weight
+  STR_SPT_LATER,              // button: ask again after the next restart
+  STR_SPT_WITHOUT,            // button: go on without a type
+  STR_SPT_MORE,               // last line when the list was cut for memory
+  // The empty spool button: a spool type, a full spool
+  STR_TARE_CHOICE_TYPES,      // choice button: a type from the list of spool types
+  STR_TARE_CHOICE_FULL,       // choice button: the empty weight from a full spool and its filament
+  STR_FULL_TITLE,             // title of the keypad for the filament of a full spool
+  STR_FULL_INFO,              // line beside it: %.0f reading, %.0f filament, %.0f empty spool, grams
 
   STR_COUNT
 };

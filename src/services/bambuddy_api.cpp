@@ -360,6 +360,10 @@ static void mapSpool(JsonObjectConst src, JsonObject dst) {
   const int   label = src["label_weight"] | 1000;
   const int   core  = src["core_weight"]  | 250;
   const float used  = src["weight_used"]  | 0.0f;
+  // A spool with no weight of its own still gets core_weight from the proxy (the
+  // inherited one, or 250 g) plus this flag, absent in the own inventory. It then
+  // goes on the filament level only: spoolTare() says TARE_FILAMENT, same number.
+  const bool  inherited = src["core_weight_is_inherited"] | false;
 
   dst["id"] = src["id"] | 0;
 
@@ -369,7 +373,7 @@ static void mapSpool(JsonObjectConst src, JsonObject dst) {
   if (remaining < 0.0f) remaining = 0.0f;
   dst["remaining_weight"] = remaining;
   dst["used_weight"]      = used;
-  dst["spool_weight"]     = (float)core;
+  if (!inherited) dst["spool_weight"] = (float)core;
   dst["initial_weight"]   = (float)label;
 
   dst["archived"] = !src["archived_at"].isNull();
@@ -826,14 +830,10 @@ int bbPatchSpoolFields(const char* base_url, const char* api_key, int spool_id,
   if (weight_used)      body["weight_used"]  = *weight_used;
   if (storage_location) body["storage_location"] = storage_location;
   if (note)             body["note"] = note;
-  if (core_weight) {
-    // Only reaches the database in BamBuddy's own inventory. The Spoolman
-    // proxy accepts core_weight and drops it on the floor: "Accepted for
-    // schema parity but not persisted to Spoolman". Sending it there would
-    // return 200 and change nothing, so the caller is told instead.
-    if (s_mode == BB_INV_SPOOLMAN) return -1;
-    body["core_weight"] = *core_weight;
-  }
+  // Both modes take it. Behind Spoolman the proxy stores core_weight as the
+  // spool's spool_weight since BamBuddy #2908 (fix b6521e93); before that it
+  // answered 200 and changed nothing.
+  if (core_weight)      body["core_weight"] = *core_weight;
   if (body.size() == 0) return -1;
 
   char url[192];

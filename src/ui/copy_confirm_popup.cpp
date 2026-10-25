@@ -10,6 +10,8 @@
 #include "hardware/sd_logger.h"
 #include "lang.h"
 #include "services/spool_extras.h"
+#include "services/spool_types.h"   // spoolTypesActive(), NEW_SPOOL_TARE_MIN_G
+#include "ui/spool_type_list.h"
 #include "ui/theme.h"
 
 // ============================================================
@@ -18,6 +20,12 @@
 //  The last question of the copy flow, whichever way the template was
 //  chosen: the Bambu copy list, the picker, or its id. Out of copy_flow.cpp
 //  since v0.8.0-beta.49, when it moved onto the house card.
+//
+//  With Bambuddy on Spoolman and a spool on the pad, the maker's list of
+//  spool types comes first (design notes L21, L22): the type picked is the
+//  copy's empty spool, on the card and on the server; "without type" leaves
+//  the template's (backendCreateSpool() says which of it is sent); back goes
+//  where Cancel on the card goes. The card is built when the list answers.
 // ============================================================
 
 // The lines of the card.
@@ -33,28 +41,38 @@ static int   copy_template_spool_id    = 0;
 static float copy_template_initial     = 0;
 static float copy_template_spool_w     = 0;
 static char  copy_template_name[64]    = "";
+// A copy of the caller's look: the card may be built once the list of types
+// has answered, when a look the caller kept on its stack is gone.
+static CopyLook copy_template_look     = {};
+static bool     copy_template_has_look = false;
+// The spool type chosen for the copy (BBS), 0: none, the template's.
+static float    s_copy_core            = 0.0f;
 
 void closeCopyConfirmPopup() {
   releaseScreen(&scr_copy_confirm);
+}
+
+// The empty spool the copy starts from: the type chosen, else the template's.
+static float copyTare() {
+  return s_copy_core > 0.0f ? s_copy_core : copy_template_spool_w;
+}
+
+// Cancel on the card, and back in the list of types: to whichever list the
+// template came from.
+static void copyBackToList() {
+  closeCopyConfirmPopup();
+  if (scr_copy_list) lv_obj_clear_flag(scr_copy_list, LV_OBJ_FLAG_HIDDEN);
+  linkPickerShowList();
 }
 
 // The copy confirmation, on the house card for a question (400 x 260, the
 // answers in its bottom row): the template as a colour and a name, where it
 // comes from, and what the new spool will weigh. It used to be one block of
 // text on a box of its own, and the picker asked a second question first.
-void showCopyConfirmPopup(int template_spool_id, int template_filament_id,
-                          const char* template_name,
-                          float template_remaining, float template_initial, float template_spool_w,
-                          const CopyLook* look) {
+static void buildCopyCard() {
   closeCopyConfirmPopup();
-  copy_template_spool_id    = template_spool_id;
-  copy_template_filament_id = template_filament_id;
-  copy_template_initial      = template_initial;
-  copy_template_spool_w      = template_spool_w;
-  strncpy(copy_template_name, template_name, sizeof(copy_template_name)-1);
-  copy_template_name[sizeof(copy_template_name)-1] = '\0';
-
-  (void)template_remaining;   // the weight the template had is not the new spool's
+  const CopyLook* look = copy_template_has_look ? &copy_template_look : nullptr;
+  const float tare = copyTare();
 
   scr_copy_confirm = lv_obj_create(lv_scr_act());
   lv_obj_set_size(scr_copy_confirm, LV_HOR_RES, LV_VER_RES);
@@ -116,7 +134,7 @@ void showCopyConfirmPopup(int template_spool_id, int template_filament_id,
   if (look) {
     joinMaterialName(look->material, look->name, line1, sizeof(line1));
   } else {
-    snprintf(line1, sizeof(line1), "%s", template_name ? template_name : "");
+    snprintf(line1, sizeof(line1), "%s", copy_template_name);
   }
   lv_obj_t *lbl1 = lv_label_create(row);
   lv_label_set_text(lbl1, line1);
@@ -128,7 +146,7 @@ void showCopyConfirmPopup(int template_spool_id, int template_filament_id,
   // Line 2: whose it is and which spool it is copied from.
   char line2[64];
   snprintf(line2, sizeof(line2), T(STR_COPY_CARD_TEMPLATE),
-           (look && look->vendor[0]) ? look->vendor : "-", template_spool_id);
+           (look && look->vendor[0]) ? look->vendor : "-", copy_template_spool_id);
   lv_obj_t *lbl2 = lv_label_create(box);
   lv_label_set_text(lbl2, line2);
   lv_obj_set_style_text_color(lbl2, lv_color_hex(UI_COL_INK_SOFT), 0);
@@ -139,11 +157,11 @@ void showCopyConfirmPopup(int template_spool_id, int template_filament_id,
   lv_obj_align(lbl2, LV_ALIGN_TOP_MID, 0, UI_CARD_TEXT_Y - 4 + COPY_CARD_LINE_H + 4);
 
   // Line 3: what the new spool starts with - the scale minus the parts on the
-  // spool and the template's empty spool, as copy_flow.cpp will save it.
-  float display_netto = spoolExtrasBareReading() - template_spool_w;
+  // spool and the empty spool, as copy_flow.cpp will save it.
+  float display_netto = spoolExtrasBareReading() - tare;
   if (display_netto < 0) display_netto = 0;
   char line3[64];
-  snprintf(line3, sizeof(line3), T(STR_COPY_CARD_WEIGHT), display_netto, template_spool_w);
+  snprintf(line3, sizeof(line3), T(STR_COPY_CARD_WEIGHT), display_netto, tare);
   lv_obj_t *lbl3 = lv_label_create(box);
   lv_label_set_text(lbl3, line3);
   lv_obj_set_style_text_color(lbl3, lv_color_hex(UI_COL_INK_2), 0);
@@ -164,7 +182,7 @@ void showCopyConfirmPopup(int template_spool_id, int template_filament_id,
     // The handler closes the three popups - this button's own among them -
     // and then creates the spool from the loop.
     copyCreateRequest(copy_template_spool_id, copy_template_filament_id,
-                      copy_template_initial, copy_template_spool_w);
+                      copy_template_initial, copyTare(), s_copy_core);
   }, LV_EVENT_CLICKED, NULL);
   lv_obj_t *lbl_ok = lv_label_create(btn_ok);
   lv_label_set_text(lbl_ok, T(STR_COPY_CARD_CREATE));
@@ -181,14 +199,52 @@ void showCopyConfirmPopup(int template_spool_id, int template_filament_id,
   lv_obj_set_style_shadow_width(btn_no, 0, 0);
   lv_obj_add_event_cb(btn_no, [](lv_event_t *e) {
     logSD("BTN: CopyConfirm -> Cancel (back to list)");
-    closeCopyConfirmPopup();
-    // Back to whichever list the template came from.
-    if (scr_copy_list) lv_obj_clear_flag(scr_copy_list, LV_OBJ_FLAG_HIDDEN);
-    linkPickerShowList();
+    copyBackToList();
   }, LV_EVENT_CLICKED, NULL);
   lv_obj_t *lbl_no = lv_label_create(btn_no);
   lv_label_set_text(lbl_no, T(STR_CANCEL));
   lv_obj_set_style_text_color(lbl_no, lv_color_hex(UI_COL_BAD_TEXT), 0);
   lv_obj_set_style_text_font(lbl_no, UI_FONT_TITLE, 0);
   lv_obj_center(lbl_no);
+}
+
+static void copyTypePicked(float grams, const char*) {
+  s_copy_core = grams;
+  buildCopyCard();
+}
+
+static void copyTypeWithout() {
+  s_copy_core = 0.0f;
+  buildCopyCard();
+}
+
+void showCopyConfirmPopup(int template_spool_id, int template_filament_id,
+                          const char* template_name,
+                          float template_remaining, float template_initial, float template_spool_w,
+                          const CopyLook* look) {
+  closeCopyConfirmPopup();
+  copy_template_spool_id    = template_spool_id;
+  copy_template_filament_id = template_filament_id;
+  copy_template_initial      = template_initial;
+  copy_template_spool_w      = template_spool_w;
+  strncpy(copy_template_name, template_name, sizeof(copy_template_name)-1);
+  copy_template_name[sizeof(copy_template_name)-1] = '\0';
+  copy_template_has_look = look != nullptr;
+  if (look) copy_template_look = *look;
+  s_copy_core = 0.0f;
+
+  (void)template_remaining;   // the weight the template had is not the new spool's
+
+  // The list only with Bambuddy on Spoolman and a spool on the pad: an empty
+  // pad (or no number) has no net to take a type off (L22).
+  if (!spoolTypesActive() || !(spoolExtrasBareReading() > NEW_SPOOL_TARE_MIN_G)) {
+    buildCopyCard();
+    return;
+  }
+  SpoolTypeListReq req = {};
+  req.mode = STL_VENDOR;
+  utf8Cut(look ? look->vendor : "", sizeof(req.vendor) - 1, req.vendor, sizeof(req.vendor));
+  req.preselect_g = template_spool_w;
+  req.skip_text   = STR_SPT_WITHOUT;
+  showSpoolTypeList(req, copyTypePicked, copyTypeWithout, copyBackToList);
 }

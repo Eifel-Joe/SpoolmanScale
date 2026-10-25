@@ -1,14 +1,27 @@
 #pragma once
 
+#include <stdint.h>
+
+// The question where an empty spool weight goes (showSpoolWeightScope(),
+// isSpoolWeightScopeOpen()) lives in a file of its own; callers keep
+// including this header for it.
+#include "tare_scope_popup.h"
+
 void closeConfirmPopup();
 void showConfirmPopup(const char* msg, int action);
 bool isConfirmPopupOpen();
-// Where an empty spool weight is stored: spool, filament or brand. measured
-// is false for a typed value, which drops the hint about a bag on the pad.
-void showSpoolWeightScope(float grams, bool measured);
-// That question is up. A modal like the rest: the value in it is about to
-// change the tare, and an automatic weighing meanwhile would use the old one.
-bool isSpoolWeightScopeOpen();
+// Where a parked empty spool weight is written. The buttons of the scope
+// question hand one over with confirmParkTare() and appLoop() runs it.
+enum TareScope : uint8_t { TARE_SCOPE_SPOOL, TARE_SCOPE_FILAMENT, TARE_SCOPE_VENDOR };
+// Parks an empty spool weight for the spool it was asked for. then_new_spool:
+// the initial weight follows it (the New spool flow).
+void confirmParkTare(TareScope scope, float grams, int spool_id, bool then_new_spool);
+// Parks the full spool of the empty spool button (design L14) for the spool
+// it was asked for. tare is what was picked: a type, or the weight computed
+// from the fill. It is written first; only once the server has it do the
+// label weight (the fill, or the rest where that is more) and the rest
+// (bare minus tare) follow. bare is the reading the fill was taken with.
+void confirmParkFullSpool(float tare, float fill, float bare, int spool_id);
 // Runs whatever a popup button parked - the weight, tare, archive and cap
 // writes. Called from appLoop().
 void handleConfirmPopupDeferredActions();

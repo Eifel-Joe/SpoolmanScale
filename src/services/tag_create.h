@@ -65,6 +65,9 @@ struct TagCreateInput {
   // The backend's own entry for that empty spool (BamBuddy's spool catalog),
   // 0 when none.
   int   spool_catalog_id;
+  // The new spool's own empty weight (design note L20); spool_weight_g stays
+  // what a filament or a vendor made on the way is given.
+  int   spool_type_g;   // chosen at the scale for this spool alone (BBS), 0: none; never a filament's or vendor's
   float diameter_mm;         // 0 when unknown
   int   temp_min;
   int   temp_max;

@@ -15,6 +15,7 @@
 #include "services/auto_weight_state.h"
 #include "services/prefs_store.h"
 #include "services/spool_extras.h"
+#include "services/spool_types.h"
 #include "services/spoolman_actions.h"
 #include "services/tag_write.h"
 #include "dried_action.h"
@@ -30,10 +31,10 @@
 static lv_obj_t *confirm_popup = nullptr;
 static int confirm_action = 0;
 static lv_obj_t *lbl_auto_weight_btn = nullptr;
-// The three dialogs this file opens on top of the main popup. They used to
-// be locals of the callback that built them, so nothing could close them
-// from outside and a navigation left them standing over the next screen.
-static lv_obj_t *s_scope_popup = nullptr;   // where the empty spool weight goes
+// The two dialogs this file opens on top of the main popup (the third, where
+// the empty spool weight goes, is tare_scope_popup.cpp's). They used to be
+// locals of the callback that built them, so nothing could close them from
+// outside and a navigation left them standing over the next screen.
 static lv_obj_t *s_auto_popup  = nullptr;   // the auto-weight question
 static lv_obj_t *s_cap_popup   = nullptr;   // BamBuddy's label weight question
 // The weight question's text, so the popup can come back after the parts
@@ -43,7 +44,7 @@ static void reopenWeightPopup() { showConfirmPopup(s_weight_msg, 2); }
 
 void closeConfirmPopups() {
   closeConfirmPopup();
-  releaseScreen(&s_scope_popup);
+  closeSpoolWeightScope();
   releaseScreen(&s_auto_popup);
   releaseScreen(&s_cap_popup);
   closeExtrasChooser();
@@ -53,10 +54,6 @@ void closeConfirmPopups() {
 bool isConfirmPopupOpen() {
   // The parts chooser stands in for the weight popup it came from.
   return confirm_popup != nullptr || isExtrasChooserOpen();
-}
-
-bool isSpoolWeightScopeOpen() {
-  return s_scope_popup != nullptr;
 }
 
 void closeConfirmPopup() {
@@ -82,16 +79,19 @@ enum ConfirmJob : uint8_t {
   CJ_TARE_VENDOR,     // ... on the brand
   CJ_ARCHIVE,
   CJ_CAP_RAISE,       // BamBuddy: raise the label weight, then write
-  CJ_CAP_KEEP         // BamBuddy: keep the label, write anyway
+  CJ_CAP_KEEP,        // BamBuddy: keep the label, write anyway
+  CJ_FULL_SPOOL       // a full spool: the tare, then label and rest (design L14)
 };
 static ConfirmJob s_job       = CJ_NONE;
 static float      s_job_value = 0.0f;
-static float      s_job_gross = 0.0f;   // the pad reading the AMS note wants
+// The pad reading the AMS note wants; for the full spool the bare reading
+// the fill was taken with.
+static float      s_job_gross = 0.0f;
+static float      s_job_fill  = 0.0f;   // the full spool: its filament, grams
 // The spool an empty spool weight was meant for. Every tare write goes to
 // whatever spool is loaded when it runs, and a spool swapped while the scope
 // question stood would take a tare that belongs to the one before it.
-static int        s_tare_spool_id = 0;  // the spool the scope question is for
-static int        s_job_spool_id  = 0;  // ... carried with the parked write
+static int        s_job_spool_id  = 0;  // carried with the parked write
 
 static void tareFollowUp();
 static void tareDropFollowUp();
@@ -110,7 +110,7 @@ void handleConfirmPopupDeferredActions() {
   const ConfirmJob job = s_job;
   s_job = CJ_NONE;
   const bool tare_job = job == CJ_TARE_SPOOL || job == CJ_TARE_FILAMENT ||
-                        job == CJ_TARE_VENDOR;
+                        job == CJ_TARE_VENDOR || job == CJ_FULL_SPOOL;
   if (tare_job && sm_id != s_job_spool_id) {
     logSDf("Tare: %.1f g was for spool %d, spool %d is loaded now - not stored",
            s_job_value, s_job_spool_id, sm_id);
@@ -130,9 +130,50 @@ void handleConfirmPopupDeferredActions() {
     case CJ_INITIAL:
       patchInitialWeight(s_job_value);
       break;
-    case CJ_TARE_SPOOL:    patchSpoolWeight(s_job_value);         tareFollowUp(); break;
-    case CJ_TARE_FILAMENT: patchFilamentSpoolWeight(s_job_value); tareFollowUp(); break;
-    case CJ_TARE_VENDOR:   patchVendorSpoolWeight(s_job_value);   tareFollowUp(); break;
+    // The initial weight follows a tare only once the server took it: after a
+    // failed one it would rest on a tare the server does not have.
+    case CJ_TARE_SPOOL:
+      if (patchSpoolWeight(s_job_value)) tareFollowUp(); else tareDropFollowUp();
+      break;
+    case CJ_TARE_FILAMENT:
+      if (patchFilamentSpoolWeight(s_job_value)) tareFollowUp(); else tareDropFollowUp();
+      break;
+    case CJ_TARE_VENDOR:
+      if (patchVendorSpoolWeight(s_job_value)) tareFollowUp(); else tareDropFollowUp();
+      break;
+    case CJ_FULL_SPOOL: {
+      // Design L14, in this order and each step only after the one before
+      // it: the tare (a picked type wins over the computed one, s_job_value
+      // is what was picked), the label weight, the rest. The server keeps
+      // whole grams and takes the rest as the reading less the tare it holds,
+      // so the three are worked out in whole grams, the rest never above the
+      // label (spoolTypeFullSpoolWrite). A rest above the fill lifts the label
+      // to it, the proxy turns down a negative use.
+      // The label is written only where it changes: the write sets the label
+      // and clears the use in one (patchInitialWeight), so repeating the label
+      // the spool already has would only open a window in which a failed rest
+      // leaves a used spool reading full. The rest alone is then enough.
+      // NOT-TO-DO: no skip on "the rest is below the label" alone: a typed
+      // fill that differs from sm_total (full spool) is a new label and is
+      // written as before.
+      const FullSpoolWrite w = spoolTypeFullSpoolWrite(s_job_gross, s_job_fill, s_job_value);
+      if (!patchSpoolWeight((float)w.tare_g)) {
+        logSD("Full spool: tare not stored, nothing else written");
+        break;
+      }
+      logSDf("Full spool: %.0f g filament, %.1f g bare, %d g tare: label %d g, rest %.1f g",
+             s_job_fill, s_job_gross, w.tare_g, w.label_g, w.rest_g);
+      const int label_have_g = spoolTypeGrams(sm_total);
+      if (w.label_g != label_have_g) {
+        logSDf("Full spool: label set to %d g (the spool had %d g)", w.label_g, label_have_g);
+        if (!patchInitialWeight((float)w.label_g)) break;
+      } else {
+        logSDf("Full spool: label unchanged at %d g", w.label_g);
+      }
+      // Past the label check: the label holds this rest, set now or before.
+      patchSpoolmanWeight(w.rest_g, true);
+      break;
+    }
     case CJ_ARCHIVE:
       if (patchArchiveSpool()) s_ask_free_tag_pending = true;
       break;
@@ -190,9 +231,6 @@ static void freeTagConfirmed() {
   requestSpoolUnlink(s_free_tag_spool_id, true, true, s_free_tag_uid);
 }
 
-// The weight the scope buttons below will store. Normally whatever is on the
-// pad, but a brand new spool can derive it instead -- see the New spool button.
-static float s_tare_prompt_g = 0.0f;
 static float s_cap_measured  = 0.0f;
 // What the reactivate button says it will write. Settled while the popup is
 // built and reused in the callback, so the number the user read is the number
@@ -203,7 +241,7 @@ static bool  s_tare_then_new = false;
 // After a tare is stored from the New spool flow the initial weight follows
 // from it: what is left of the reading once the spool itself is taken off.
 // Done here rather than in the caller so the two writes stay in the order that
-// makes the second one correct.
+// makes the second one correct. Only called once the server took the tare.
 static void tareFollowUp() {
   if (!s_tare_then_new) return;
   s_tare_then_new = false;
@@ -218,6 +256,33 @@ static void tareFollowUp() {
 
 static void tareDropFollowUp() {
   s_tare_then_new = false;
+}
+
+// The buttons of the scope question (tare_scope_popup.cpp) cannot reach the
+// job slot, so they park the write through here. The flag for the follow-up
+// is set with the job and not when the question opens: a question closed
+// without an answer leaves nothing behind that the next tare could pick up.
+void confirmParkTare(TareScope scope, float grams, int spool_id, bool then_new_spool) {
+  switch (scope) {
+    case TARE_SCOPE_FILAMENT: s_job = CJ_TARE_FILAMENT; break;
+    case TARE_SCOPE_VENDOR:   s_job = CJ_TARE_VENDOR;   break;
+    default:                  s_job = CJ_TARE_SPOOL;    break;
+  }
+  s_job_value     = grams;
+  s_job_spool_id  = spool_id;
+  s_tare_then_new = then_new_spool;
+}
+
+// The full spool of the empty spool button (tare_entry.cpp), parked like a
+// tare: the list it was picked from answers in the loop, after this file's
+// jobs ran, so it runs on the next pass.
+void confirmParkFullSpool(float tare, float fill, float bare, int spool_id) {
+  s_job           = CJ_FULL_SPOOL;
+  s_job_value     = tare;
+  s_job_fill      = fill;
+  s_job_gross     = bare;
+  s_job_spool_id  = spool_id;
+  s_tare_then_new = false;   // its own follow-up, not the New spool one
 }
 
 // Whether New spool has to derive the tare from this reading because nothing
@@ -251,141 +316,6 @@ static bool newSpoolDerivesTare(float* out_tare) {
   if (!plausible) return false;
   if (out_tare) *out_tare = derived;
   return true;
-}
-
-// measured: the value is a reading off the pad, so a bag on it would be in
-// there too. A typed value knows nothing of the bag.
-static void showSpoolWeightPopup(float grams, bool then_new_spool, bool measured = true) {
-  s_tare_prompt_g = grams;
-  s_tare_then_new = then_new_spool;
-  // The typed value only gets here for the spool its entry was opened for,
-  // see tare_entry.cpp.
-  s_tare_spool_id = sm_id;
-
-      // Sub-popup: where should the spool weight be written?
-      const float w = s_tare_prompt_g;
-      // Not every backend has all three places to put it. BamBuddy has no
-      // filament and no vendor object at all, and behind its Spoolman proxy
-      // even the spool's own core weight is discarded on write. Buttons for
-      // those are not built rather than built and left to fail.
-      const bool scope_spool  = backendCanTareSpool();
-      const bool scope_shared = backendCanTareFilamentOrVendor();
-
-      releaseScreen(&s_scope_popup);
-      lv_obj_t *popup = lv_obj_create(lv_scr_act());
-      s_scope_popup = popup;
-      lv_obj_set_size(popup, 480, 320);
-      lv_obj_set_pos(popup, 0, 0);
-      lv_obj_set_style_bg_color(popup, lv_color_hex(UI_COL_GROUND), 0);
-      lv_obj_set_style_bg_opa(popup, LV_OPA_COVER, 0);
-      lv_obj_set_style_border_width(popup, 0, 0);
-      lv_obj_set_style_pad_all(popup, 0, 0);
-      lv_obj_clear_flag(popup, LV_OBJ_FLAG_SCROLLABLE);
-
-      // Title
-      lv_obj_t *title = lv_label_create(popup);
-      char title_buf[48];
-      snprintf(title_buf, sizeof(title_buf), T(STR_SPOOL_WEIGHT_TITLE), w);
-      lv_label_set_text(title, title_buf);
-      lv_obj_set_style_text_color(title, lv_color_hex(UI_COL_ACCENT), 0);
-      lv_obj_set_style_text_font(title, &lv_font_montserrat_ext_14, 0);
-      lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 10);
-
-      // Rows are placed one after another so a missing scope leaves no hole.
-      int row_y = 36;
-
-      // Button 1: this spool
-      lv_obj_t *b1 = lv_btn_create(popup);
-      lv_obj_set_size(b1, 460, 60); lv_obj_set_pos(b1, 10, row_y);
-      if (!scope_spool) lv_obj_add_flag(b1, LV_OBJ_FLAG_HIDDEN);
-      else row_y += 70;
-      lv_obj_set_style_bg_color(b1, lv_color_hex(UI_COL_CHIP), 0);
-      lv_obj_set_style_radius(b1, 8, 0); lv_obj_set_style_shadow_width(b1, 0, 0);
-      { lv_obj_t *l = lv_label_create(b1);
-        lv_label_set_text(l, T(backendIsFilaMan() ? STR_BTN_THIS_SPOOL_FM
-                                                  : STR_BTN_THIS_SPOOL));
-        lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_INK_2), 0);
-        lv_obj_set_style_text_font(l, &lv_font_montserrat_ext_16, 0);
-        lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_center(l); }
-      lv_obj_add_event_cb(b1, [](lv_event_t *e) {
-        s_job = CJ_TARE_SPOOL; s_job_value = s_tare_prompt_g; s_job_spool_id = s_tare_spool_id;
-        releaseScreen(&s_scope_popup);
-      }, LV_EVENT_CLICKED, NULL);
-
-      // Button 2: this filament
-      lv_obj_t *b2 = lv_btn_create(popup);
-      lv_obj_set_size(b2, 460, 60); lv_obj_set_pos(b2, 10, row_y);
-      if (!scope_shared) lv_obj_add_flag(b2, LV_OBJ_FLAG_HIDDEN);
-      else row_y += 70;
-      lv_obj_set_style_bg_color(b2, lv_color_hex(UI_COL_FILAMENT_BG), 0);
-      lv_obj_set_style_radius(b2, 8, 0); lv_obj_set_style_shadow_width(b2, 0, 0);
-      { lv_obj_t *l = lv_label_create(b2);
-        lv_label_set_text(l, T(backendIsFilaMan() ? STR_BTN_THIS_FILAMENT_FM
-                                                  : STR_BTN_THIS_FILAMENT));
-        lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_INK_2), 0);
-        lv_obj_set_style_text_font(l, &lv_font_montserrat_ext_16, 0);
-        lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_center(l); }
-      lv_obj_add_event_cb(b2, [](lv_event_t *e) {
-        s_job = CJ_TARE_FILAMENT; s_job_value = s_tare_prompt_g; s_job_spool_id = s_tare_spool_id;
-        releaseScreen(&s_scope_popup);
-      }, LV_EVENT_CLICKED, NULL);
-
-      // Button 3: vendor
-      lv_obj_t *b3 = lv_btn_create(popup);
-      lv_obj_set_size(b3, 460, 60); lv_obj_set_pos(b3, 10, row_y);
-      if (!scope_shared) lv_obj_add_flag(b3, LV_OBJ_FLAG_HIDDEN);
-      else row_y += 70;
-      lv_obj_set_style_bg_color(b3, lv_color_hex(UI_COL_AMBER_BG), 0);
-      lv_obj_set_style_radius(b3, 8, 0); lv_obj_set_style_shadow_width(b3, 0, 0);
-      { lv_obj_t *l = lv_label_create(b3);
-        // Spoolman's vendor is FilaMan's manufacturer, and the bracketed field
-        // names below the title only hold for Spoolman - see the lang.cpp entries.
-        lv_label_set_text(l, T(backendIsFilaMan() ? STR_BTN_THIS_VENDOR_FM
-                                                  : STR_BTN_THIS_VENDOR));
-        lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_INK_2), 0);
-        lv_obj_set_style_text_font(l, &lv_font_montserrat_ext_16, 0);
-        lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_center(l); }
-      lv_obj_add_event_cb(b3, [](lv_event_t *e) {
-        s_job = CJ_TARE_VENDOR; s_job_value = s_tare_prompt_g; s_job_spool_id = s_tare_spool_id;
-        releaseScreen(&s_scope_popup);
-      }, LV_EVENT_CLICKED, NULL);
-
-      // Button 4: cancel, right under whatever was built above
-      lv_obj_t *b4 = lv_btn_create(popup);
-      lv_obj_set_size(b4, 460, 40); lv_obj_set_pos(b4, 10, row_y + 10);
-      lv_obj_set_style_bg_color(b4, lv_color_hex(UI_COL_BAD_BG), 0);
-      lv_obj_set_style_radius(b4, 8, 0); lv_obj_set_style_shadow_width(b4, 0, 0);
-      { lv_obj_t *l = lv_label_create(b4);
-        lv_label_set_text(l, T(STR_CANCEL));
-        lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_BAD_TEXT), 0);
-        lv_obj_set_style_text_font(l, &lv_font_montserrat_ext_14, 0);
-        lv_obj_center(l); }
-      lv_obj_add_event_cb(b4, [](lv_event_t *e) {
-        s_tare_then_new = false;
-        releaseScreen(&s_scope_popup);
-      }, LV_EVENT_CLICKED, NULL);
-
-      // A bag on the pad is counted into the reading, and this number may be
-      // written to an entire brand. The device cannot tell whether one is
-      // there, so it says so rather than silently subtracting a weight that
-      // might not be on the scale at all.
-      if (measured && bag_weight_g > 0.0f) {
-        lv_obj_t *bag_hint = lv_label_create(popup);
-        char bag_buf[64];
-        snprintf(bag_buf, sizeof(bag_buf), T(STR_SPOOL_WEIGHT_BAG_HINT), bag_weight_g);
-        lv_label_set_text(bag_hint, bag_buf);
-        lv_obj_set_style_text_color(bag_hint, lv_color_hex(UI_COL_WARN), 0);
-        lv_obj_set_style_text_font(bag_hint, &lv_font_montserrat_ext_12, 0);
-        lv_obj_align(bag_hint, LV_ALIGN_TOP_MID, 0, 300);
-      }
-
-    }
-
-void showSpoolWeightScope(float grams, bool measured) {
-  showSpoolWeightPopup(grams, false, measured);
 }
 
 void showConfirmPopup(const char* msg, int action) {
@@ -552,7 +482,7 @@ void showConfirmPopup(const char* msg, int action) {
       closeConfirmPopup();
       float derived = 0.0f;
       if (newSpoolDerivesTare(&derived)) {
-        showSpoolWeightPopup(derived, true);   // stores the tare, then the initial
+        showSpoolWeightScope(derived, true, true);   // stores the tare, then the initial
         return;
       }
       float initial = spoolExtrasBareReading() - (float)sm_spool_weight;
@@ -570,9 +500,7 @@ void showConfirmPopup(const char* msg, int action) {
     // An inherited tare carries into the filament weight measured against it,
     // so the button says where it came from - same wording as the spool
     // details, so the two read as one statement rather than two.
-    const char *tare_note = "";
-    if (!derives_tare && sm_tare_source == TARE_FILAMENT) tare_note = T(STR_TARE_FROM_FILAMENT);
-    else if (!derives_tare && sm_tare_source == TARE_VENDOR) tare_note = T(STR_TARE_FROM_BRAND);
+    const char *tare_note = derives_tare ? "" : spoolTareNote(sm_tare_source);
     if (tare_note[0]) {
       const size_t used = strlen(buf3);
       snprintf(buf3 + used, sizeof(buf3) - used, "%s", tare_note);
@@ -584,10 +512,10 @@ void showConfirmPopup(const char* msg, int action) {
     lv_obj_center(l3);
 
     // ── Row 2 right: empty spool weight, weighed or typed in ──
-    // Dropped entirely where no tare scope can be written - which is the case
-    // for BamBuddy behind Spoolman. The place stays empty on purpose rather
-    // than letting the neighbour grow into it: a button that changes width
-    // depending on the backend reads as a different button.
+    // Dropped where no tare scope can be written. Every backend takes the
+    // spool's own tare now, BamBuddy behind Spoolman too (#2908). Were it ever
+    // dropped again the place stays empty on purpose rather than letting the
+    // neighbour grow into it: a width that changes reads as a different button.
     if (tare_writable) {
     lv_obj_t *btn4 = lv_btn_create(box);
     lv_obj_set_size(btn4, BW2, H_ROW2);

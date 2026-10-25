@@ -14,6 +14,7 @@
 #include "second_tag_popup.h"
 #include "tag_busy_popup.h"
 #include "tag_display.h"
+#include "tare_entry.h"
 #include "spool_flow.h"
 #include "ui_common.h"
 #include "ui/theme.h"
@@ -342,8 +343,9 @@ void tagMismatchTick() {
   // The second tag question is in that list for a further reason: it is
   // waiting for a tag to change, and this popup goes up precisely because one
   // did. Both at once would ask about the same tag twice.
+  // The empty spool weight's windows count too, the first weighing among them.
   if (isConfirmPopupOpen() || isSpoolFlowIdInputOpen() ||
-      isSpoolFlowLinkEntryOpen() || isSecondTagPopupOpen())
+      isSpoolFlowLinkEntryOpen() || isSecondTagPopupOpen() || isTareEntryOpen())
     return;
 
   if (s_mism_asked_id == sm_id && strcmp(s_mism_asked_uid, g_tag.uid_str) == 0) return;

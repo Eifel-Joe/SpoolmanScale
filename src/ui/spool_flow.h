@@ -66,8 +66,8 @@ struct CopyLook;   // spool_flow_internal.h
 void showCopyConfirmPopup(int template_spool_id, int template_filament_id, const char* template_name,
                           float template_remaining, float template_initial, float template_spool_w,
                           const CopyLook* look = nullptr);
-void doCopySpoolCreate(int template_spool_id, int template_filament_id,
-                       float template_initial, float template_spool_w);
+void doCopySpoolCreate(int template_spool_id, int template_filament_id, float template_initial,
+                       float tare_g, float chosen_core_g);
 
 void hideSpoolFlowOverlays();
 void deleteSpoolFlowOverlays();

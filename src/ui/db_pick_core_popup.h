@@ -15,6 +15,16 @@
 //  only park the answer, dbPickCoreTick() carries it out from the loop.
 // ============================================================
 
+// Asked before dbPickCoreAsk(), with Bambuddy on Spoolman only and with
+// something on the pad (design notes L20, L22): which spool type the spool
+// on the pad is, from the maker's list (ui/spool_type_list.h), the one
+// nearest the entry's empty spool marked. A pick goes into the input as the
+// type for this spool alone; "without type" leaves none. Either goes on to
+// dbPickCoreAsk() and the card; back leaves the picker as it is. False when
+// nothing is asked (not BBS, an empty pad, a type chosen already): the caller
+// goes on with *in.
+bool dbPickTypeAsk(TagCreateInput* in);   // true: asked; the answer goes on to dbPickCoreAsk() and the card
+
 // Takes over the input of a picked entry. Asks when its maker has two or
 // more empty spools, takes the only one without asking. False when there
 // is nothing to ask: the caller opens the card with *in as it is now.

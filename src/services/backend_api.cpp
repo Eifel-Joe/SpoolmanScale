@@ -2,6 +2,7 @@
 
 #include <ctype.h>
 #include <esp_mac.h>
+#include <math.h>
 #include <string.h>
 
 #include "app/app_state.h"
@@ -677,10 +678,10 @@ bool backendGetLastUsedAt(const char* base_url, int spool_id,
 }
 
 bool backendCanTareSpool() {
-  if (backendMode() != BACKEND_BAMBUDDY) return true;
-  // Only BamBuddy's own database keeps core_weight on the spool. Behind the
-  // Spoolman proxy the field is accepted and discarded.
-  return bbInventoryMode() == BB_INV_LOCAL;
+  // True everywhere. Behind BamBuddy's Spoolman proxy core_weight lands in the
+  // spool's spool_weight since #2908 (fix b6521e93); the rest of the spool
+  // stays while its filament passes BamBuddy's metadata check.
+  return true;
 }
 
 bool backendCanTareFilamentOrVendor() {
@@ -695,7 +696,7 @@ bool backendCanTareFilamentOrVendor() {
 
 int backendCreateSpool(const char* base_url, int template_spool_id, int filament_id,
                        float initial_weight, float spool_weight, float remaining_weight,
-                       int* out_spool_id, uint32_t timeout_ms) {
+                       int* out_spool_id, uint32_t timeout_ms, float chosen_core_g) {
   HttpStallTime stall(__func__);   // the loop stands still for this call
   switch (backendMode()) {
     case BACKEND_FILAMAN:
@@ -705,15 +706,13 @@ int backendCreateSpool(const char* base_url, int template_spool_id, int filament
                                 initial_weight, spool_weight, remaining_weight,
                                 nullptr, out_spool_id, timeout_ms);
     case BACKEND_BAMBUDDY: {
-      // No filament_id exists here, so the template is read back instead. Raw,
-      // because the mapped form folds subtype and color_name into one name and
-      // trims rgba down to six characters - a copy built from it would be
-      // poorer than the spool it was copied from.
+      // No filament_id here: the template is read back, raw, because the mapped
+      // form folds subtype and color_name into one name and trims rgba to six
+      // characters - a copy built from it would be poorer than its template.
       if (template_spool_id <= 0) return notSupported("CreateSpool");
 
-      // Plain document: this is one spool, a couple of kilobytes, nothing like
-      // the inventory listing that needs PSRAM. Same reasoning as the field
-      // probe above.
+      // Plain document: one spool is a couple of kilobytes, not the inventory
+      // listing that needs PSRAM (as for the field probe above).
       JsonDocument tpl;
       int code = bbGetSpoolRawJson(backendBaseUrl(), bambuddyApiKey(), template_spool_id,
                                    tpl, timeout_ms);
@@ -729,10 +728,11 @@ int backendCreateSpool(const char* base_url, int template_spool_id, int filament
       ns.brand      = tpl["brand"]      | "";
       ns.color_name = tpl["color_name"] | "";
       ns.rgba       = tpl["rgba"]       | "";
-      // The scale's reading wins over the template for how full the spool is,
-      // the template only says how big it is.
-      ns.label_weight = tpl["label_weight"] | (int)initial_weight;
-      ns.core_weight  = tpl["core_weight"]  | (int)spool_weight;
+      // How big from the template, how full from the reading; the empty spool: backend_api.h.
+      ns.label_weight = tpl["label_weight"] | (int)lroundf(initial_weight);
+      const bool inherited = tpl["core_weight_is_inherited"] | false;   // the proxy only
+      ns.core_weight = chosen_core_g > 0.0f ? (int)lroundf(chosen_core_g)
+                     : inherited ? 0 : (tpl["core_weight"] | (int)lroundf(spool_weight));
       ns.weight_used  = (float)ns.label_weight - remaining_weight;
       if (ns.weight_used < 0.0f) ns.weight_used = 0.0f;
 
@@ -824,7 +824,7 @@ static int bambuddyCreateFromTag(const TagCreateInput& in, const TagFilamentPlan
   ns.rgba            = in.rgba;
   ns.color_name      = plan.name;
   ns.label_weight    = v.label_weight;
-  ns.core_weight     = in.spool_weight_g;
+  ns.core_weight     = in.spool_type_g > 0 ? in.spool_type_g : in.spool_weight_g;
   ns.core_weight_catalog_id = in.spool_catalog_id;
   ns.nozzle_temp_min = in.temp_min;
   ns.nozzle_temp_max = in.temp_max;
@@ -914,13 +914,14 @@ static int bambuddyCreateUnderSpoolman(const TagCreateInput& in, const TagFilame
   // Ignored by BamBuddy once the id is set, but the request insists on one.
   ns.material     = in.material;
   ns.brand        = in.vendor;
-  // Only a real colour name (a Bambu tag's, from the catalog): a SpoolmanDB
-  // entry names no colour of its own, and BamBuddy derives the display from
-  // the Spoolman filament anyway, as it does for every other spool there.
-  ns.color_name   = in.color_name_en;
+  // A black-and-white label prints the colour name, which BamBuddy keeps on
+  // the spool: a Bambu tag's, else the database's. That may carry the line
+  // ("Rapid-Eco Dark Green"); the user can edit it in BamBuddy.
+  ns.color_name   = in.color_name_en[0] ? in.color_name_en : in.db_color_name;
   ns.label_weight = v.label_weight;
-  // The tag's empty spool, else the one Spoolman's database gave the filament.
-  ns.core_weight  = in.spool_weight_g > 0 ? in.spool_weight_g : plan.spool_weight_g;
+  // The type chosen for this spool (L20), else the tag's, else the database's.
+  ns.core_weight  = in.spool_type_g > 0 ? in.spool_type_g
+                  : in.spool_weight_g > 0 ? in.spool_weight_g : plan.spool_weight_g;
   if (v.price > 0.0f && v.label_weight > 0) ns.cost_per_kg = v.price * 1000.0f / (float)v.label_weight;
   ns.weight_used  = (float)v.label_weight - v.remaining;
   if (ns.weight_used < 0.0f) ns.weight_used = 0.0f;
@@ -1155,7 +1156,8 @@ int backendPatchInitialWeight(const char* base_url, int spool_id, float initial_
     case BACKEND_BAMBUDDY: {
       // Both numbers again, for the same reason as FilaMan. BamBuddy stores
       // what was consumed, so a full spool is label_weight with nothing used.
-      const int   label = (int)initial_weight;
+      // Rounded like the spool tare below: whole grams, never cut.
+      const int   label = (int)lroundf(initial_weight);
       const float used  = 0.0f;
       return bbPatchSpoolFields(backendBaseUrl(), bambuddyApiKey(), spool_id,
                                 &label, nullptr, &used, nullptr, nullptr, timeout_ms);
@@ -1223,11 +1225,9 @@ int backendPatchSpoolWeight(const char* base_url, int spool_id, float spool_weig
       return filamanPatchSpoolFloat(backendBaseUrl(), filamanApiKey(), spool_id,
                                     "empty_spool_weight_g", spool_weight, timeout_ms);
     case BACKEND_BAMBUDDY: {
-      // Only reaches the database in BamBuddy's own inventory. With Spoolman
-      // behind it the proxy accepts core_weight and drops it, so that mode
-      // answers "not supported" rather than reporting a false success.
-      if (bbInventoryMode() == BB_INV_SPOOLMAN) return notSupported("PatchSpoolWeight");
-      const int core = (int)spool_weight;
+      // Both inventory modes store it (the Spoolman proxy since #2908). Rounded,
+      // not cut: BamBuddy keeps whole grams and 249.9 must not become 249.
+      const int core = (int)lroundf(spool_weight);
       return bbPatchSpoolFields(backendBaseUrl(), bambuddyApiKey(), spool_id,
                                 nullptr, &core, nullptr, nullptr, nullptr, timeout_ms);
     }

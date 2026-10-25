@@ -14,6 +14,7 @@
 #include "hardware/sd_logger.h"
 #include "services/list_limits.h"
 #include "services/location_state.h"
+#include "services/spool_types.h"
 #include "services/spoolman_actions.h"
 #include "services/tag_uid.h"
 #include "services/user_options.h"
@@ -1047,9 +1048,7 @@ void buildMoreInfoScreen() {
   // is not mistaken for one measured off this spool.
   char sw_buf[32];
   if (sm_spool_weight > 0) {
-    const char *from = (sm_tare_source == TARE_FILAMENT) ? T(STR_TARE_FROM_FILAMENT)
-                     : (sm_tare_source == TARE_VENDOR)   ? T(STR_TARE_FROM_BRAND)
-                     : "";
+    const char *from = spoolTareNote(sm_tare_source);
     snprintf(sw_buf, sizeof(sw_buf), "%.0f g%s", sm_spool_weight, from);
   } else {
     strncpy(sw_buf, "-", sizeof(sw_buf)-1);

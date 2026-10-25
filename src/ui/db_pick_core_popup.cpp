@@ -8,7 +8,10 @@
 #include "services/filament_db.h"
 #include "hardware/sd_logger.h"
 #include "lang.h"
+#include "services/spool_extras.h"
+#include "services/spool_types.h"   // spoolTypesActive(), spoolTypeGrams(), NEW_SPOOL_TARE_MIN_G
 #include "ui/entry_tile.h"
+#include "ui/spool_type_list.h"
 #include "ui/tag_create_popup.h"
 #include "ui/theme.h"
 #include "ui/ui_common.h"
@@ -141,6 +144,45 @@ static void build() {
   for (int i = 0; i < s_n; i++) choice(box, i, s_in.vendor);
   bottomButton(box, 0, bottom_y, DBC_ANSWER_WITHOUT, STR_DBPICK_CORE_NONE);
   bottomButton(box, 1, bottom_y, DBC_ANSWER_CANCEL, STR_CANCEL);
+}
+
+// ---- the spool type, asked first (BBS) ----------------------------------------
+
+// The input waits in s_in while the list is up. It goes on through a copy:
+// dbPickCoreAsk() takes its own into s_in.
+static void typeGoOn() {
+  TagCreateInput in = s_in;
+  if (!dbPickCoreAsk(&in)) showTagCreatePopupFor(in);
+}
+
+static void typePicked(float grams, const char* name) {
+  s_in.spool_type_g = spoolTypeGrams(grams);
+  logSDf("DbPickType: '%s' %d g for this spool alone", name ? name : "", s_in.spool_type_g);
+  typeGoOn();
+}
+
+static void typeWithout() {
+  s_in.spool_type_g = 0;
+  typeGoOn();
+}
+
+// Back: the picker stays on the entries it showed. Not null, which the list
+// would take as "without type".
+static void typeBack() {}
+
+bool dbPickTypeAsk(TagCreateInput* in) {
+  if (!in || !spoolTypesActive() || in->spool_type_g > 0) return false;
+  // Nothing on the pad (or no number): no net to take a type off (L22).
+  if (!(spoolExtrasBareReading() > NEW_SPOOL_TARE_MIN_G)) return false;
+  dbPickCoreClose();
+  s_in = *in;
+  SpoolTypeListReq req = {};
+  req.mode = STL_VENDOR;
+  utf8Cut(in->vendor, sizeof(req.vendor) - 1, req.vendor, sizeof(req.vendor));
+  req.preselect_g = (float)in->spool_weight_g;
+  req.skip_text   = STR_SPT_WITHOUT;
+  showSpoolTypeList(req, typePicked, typeWithout, typeBack);
+  return true;
 }
 
 bool dbPickCoreAsk(TagCreateInput* in) {

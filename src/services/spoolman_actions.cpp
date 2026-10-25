@@ -22,6 +22,7 @@
 #include "services/backend.h"
 #include "services/server_reach.h"
 #include "services/spool_cache.h"
+#include "services/spool_type_rules.h"
 #include "services/time_service.h"
 #include "ui/main_screen_helpers.h"
 #include "ui/info_popup.h"
@@ -697,48 +698,62 @@ void unlinkCardUid(int spool_id, const char* uid, bool all) {
   unlinkTagFromFields(spool_id, uid);
 }
 
-void patchInitialWeight(float initial_w) {
-  if (!wifi_ok) { Serial.println("patchInitialWeight: kein WiFi"); return; }
-  if (!sm_found || sm_id == 0) { Serial.println("patchInitialWeight: keine Spule"); return; }
+// True only when the server took the write (2xx); every other way out is false.
+bool patchInitialWeight(float initial_w) {
+  if (!wifi_ok) { Serial.println("patchInitialWeight: kein WiFi"); return false; }
+  if (!sm_found || sm_id == 0) { Serial.println("patchInitialWeight: keine Spule"); return false; }
   Serial.printf("PATCH initial_weight: %.1fg\n", initial_w);
   int code = serverReachNote(backendPatchInitialWeight(cfg_spoolman_base, sm_id, initial_w), true);
+  // Logged either way, like the tare and the weight: the full spool writes
+  // all three, and the log is where their order shows.
+  logSDf("PATCH initial_weight=%.1fg ID=%d HTTP %d", initial_w, sm_id, code);
   if (backendWriteOk(code)) {
     sm_remaining = initial_w;
     sm_total = initial_w;
     Serial.printf("initial_weight OK: %.1fg\n", initial_w);
-  } else {
-    logSDf("PATCH initial_weight=%.1fg ID=%d HTTP %d", initial_w, sm_id, code);
-    // A server that could not be reached already has its popup from
-    // serverReachNote(). A refusal (4xx, or -2 for an answer that did not
-    // parse) had nothing: the display kept the old weight and nobody said
-    // why. Runs from the loop, like every caller of this.
-    if (!serverReachIsNetworkFailure(code)) {
-      showInfoPopup(STR_AMSD_WRITE_FAIL, STR_INIT_W_FAIL_TEXT, INFO_WARN);
-    }
+    return true;
   }
+  // A server that could not be reached already has its popup from
+  // serverReachNote(). A refusal (4xx, or -2 for an answer that did not
+  // parse) had nothing: the display kept the old weight and nobody said
+  // why. Runs from the loop, like every caller of this.
+  if (!serverReachIsNetworkFailure(code)) {
+    showInfoPopup(STR_AMSD_WRITE_FAIL, STR_INIT_W_FAIL_TEXT, INFO_WARN);
+  }
+  return false;
 }
 
-void patchSpoolWeight(float spool_w) {
-  if (!wifi_ok) { Serial.println("patchSpoolWeight: no WiFi"); return; }
-  if (!sm_found || sm_id == 0) { Serial.println("patchSpoolWeight: no spool"); return; }
+// True only when the server took the write (2xx); every other way out is false.
+bool patchSpoolWeight(float spool_w) {
+  if (!wifi_ok) { Serial.println("patchSpoolWeight: no WiFi"); return false; }
+  if (!sm_found || sm_id == 0) { Serial.println("patchSpoolWeight: no spool"); return false; }
   Serial.printf("PATCH spool_weight: %.1fg\n", spool_w);
   int code = serverReachNote(backendPatchSpoolWeight(cfg_spoolman_base, sm_id, spool_w), true);
   logSDf("PATCH spool_weight=%.1fg ID=%d HTTP %d", spool_w, sm_id, code);
   if (backendWriteOk(code)) {
-    sm_spool_weight = spool_w;
+    // The cached row of this spool still carries the old spool_weight, and
+    // copying reads the tare from it. The cache stamp cannot see that: it
+    // proves which spools there are, not what they hold.
+    spoolCacheForget("spool tare changed");
+    // BamBuddy keeps whole grams (backendPatchSpoolWeight rounds the same
+    // way), and the weights written next are worked out against what it
+    // holds: 212.3 g typed is 212 g there. The other backends keep the float.
+    sm_spool_weight = backendIsBamBuddy() ? (float)spoolTypeGrams(spool_w) : spool_w;
     // The value now comes from this spool, so drop any inherited source.
     // Without this the details screen keeps claiming "(filament)" over a
     // number that was just measured here.
     sm_tare_source = TARE_SPOOL;
     Serial.printf("spool_weight OK: %.1fg\n", spool_w);
-  } else {
-    Serial.printf("PATCH spool_weight Fehler: %d\n", code);
+    return true;
   }
+  Serial.printf("PATCH spool_weight Fehler: %d\n", code);
+  return false;
 }
 
-void patchFilamentSpoolWeight(float spool_w) {
-  if (!wifi_ok) return;
-  if (sm_filament_id == 0) { Serial.println("patchFilamentSpoolWeight: keine filament_id"); return; }
+// True only when the server took the write (2xx), as for the spool's own.
+bool patchFilamentSpoolWeight(float spool_w) {
+  if (!wifi_ok) return false;
+  if (sm_filament_id == 0) { Serial.println("patchFilamentSpoolWeight: keine filament_id"); return false; }
   Serial.printf("PATCH filament spool_weight: ID=%d %.1fg\n", sm_filament_id, spool_w);
   int code = serverReachNote(backendPatchFilamentSpoolWeight(cfg_spoolman_base, sm_filament_id, spool_w), true);
   Serial.printf("patchFilamentSpoolWeight: HTTP %d\n", code);
@@ -754,12 +769,15 @@ void patchFilamentSpoolWeight(float spool_w) {
       sm_spool_weight = spool_w;
       sm_tare_source = TARE_FILAMENT;
     }
+    return true;
   }
+  return false;
 }
 
-void patchVendorSpoolWeight(float spool_w) {
-  if (!wifi_ok) return;
-  if (sm_vendor_id == 0) { Serial.println("patchVendorSpoolWeight: keine vendor_id"); return; }
+// True only when the server took the write (2xx), as for the spool's own.
+bool patchVendorSpoolWeight(float spool_w) {
+  if (!wifi_ok) return false;
+  if (sm_vendor_id == 0) { Serial.println("patchVendorSpoolWeight: keine vendor_id"); return false; }
   Serial.printf("PATCH vendor empty_spool_weight: ID=%d %.1fg\n", sm_vendor_id, spool_w);
   int code = serverReachNote(backendPatchVendorEmptySpoolWeight(cfg_spoolman_base, sm_vendor_id, spool_w), true);
   Serial.printf("patchVendorSpoolWeight: HTTP %d\n", code);
@@ -773,5 +791,7 @@ void patchVendorSpoolWeight(float spool_w) {
       sm_spool_weight = spool_w;
       sm_tare_source = TARE_VENDOR;
     }
+    return true;
   }
+  return false;
 }
