@@ -20,13 +20,19 @@ exits 1. A wrong call exits 2. The same rule is used for the device files
 CI build: a factory image holds the application at 0x10000, so the line is
 found in it the same way.
 
-What counts as a line is what the scale's scan counts (NAME_MAX in
-board_image.cpp): the prefix, a name of at most 40 bytes, the line end. A
-line cut off at the end of the file is none, and neither is a name longer than
-40 bytes. Names are compared whole, so waveshare-s3-lcd7 is not
-waveshare-s3-lcd7b. Any other board's line fails the file even where the own
-line is there too: the scale would take that image (the own line settles it),
-a release has no reason to carry two. Standard library only, Python 3.9.
+It reads the same line format as the scale's scan (NAME_MAX in
+board_image.cpp): the prefix, a name of at most 40 bytes without a line end
+in it, the line end. A line cut off at the end of the file is none, and
+neither is a name longer than 40 bytes. The matching itself is not the
+scan's: the regex below retries at every offset, while the scale restarts a
+failed prefix at the failing byte only and swallows the byte after an
+overlong name (boardImageScanFeed). So it finds every line the scale finds,
+and in odd bytes more. For a real image, where the line stands by itself
+behind the end of another string, that can only make this check stricter
+than needed, never looser. Names are compared whole, so waveshare-s3-lcd7 is
+not waveshare-s3-lcd7b. Any other board's line fails the file even where the
+own line is there too: the scale would take that image (the own line settles
+it), a release has no reason to carry two. Standard library only, Python 3.9.
 """
 
 from __future__ import annotations
