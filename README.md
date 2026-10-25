@@ -18,7 +18,7 @@
 >
 > No server yet? Any always-on machine will do, a Raspberry Pi included. [SpoolmanScale Pro](https://niko11111.github.io/SpoolmanScale-Docs/pro/) turns a Pi into one: installed with one command, then set up and kept up to date from a web page.
 
-**SpoolmanScale** is an open-source ESP32-based filament scale with an NFC reader. It works with [Spoolman](https://github.com/Donkie/Spoolman), [FilaMan](https://github.com/Fire-Devils/filaman-system) and [BamBuddy](https://github.com/maziggy/BamBuddy), and you can switch between them at any time.
+**SpoolmanScale** is an ESP32-based filament scale with an NFC reader and open-source firmware. It works with [Spoolman](https://github.com/Donkie/Spoolman), [FilaMan](https://github.com/Fire-Devils/filaman-system) and [BamBuddy](https://github.com/maziggy/BamBuddy), and you can switch between them at any time.
 
 Yes, another filament scale – but hear me out, this one might actually earn a spot next to your printer. 😄
 
@@ -111,7 +111,7 @@ The firmware also runs on the **Waveshare ESP32-S3-Touch-LCD-7** (7", 800×480),
 
 Prefer everything in one cart? A community member put together an AliExpress list with parts that work well too: 👉 [SpoolmanScale parts list on AliExpress](https://www.aliexpress.com/p/wish-manage/share.html?spm=a2g0o.cart.headerAcount.6.321738dayZTIa0&wishGroupId=800000022363334&smbPageCode=wishlist-amp&spreadId=E95BDFF0E1B4367408F1423D8C0ABF206981C084C10F93E3EE124B0AFA678D69)
 
-The 3D printable enclosure is available on MakerWorld:
+The 3D printable enclosure is available on MakerWorld, under MakerWorld's own license:
 👉 [makerworld.com/@FormFollowsF](https://makerworld.com/de/models/2713675-spoolmanscale#profileId-3005075)
 
 <a href="https://makerworld.com/de/models/2713675-spoolmanscale#profileId-3005075">
@@ -223,6 +223,8 @@ Have a feature request? Post it in the [Discord](https://discord.gg/K3KmKnrWhP) 
 ## License
 
 SpoolmanScale is licensed under the [GNU General Public License v3.0 or later](LICENSE). You may use, change and share it, also commercially; whoever distributes a changed version, for example on pre-flashed scales, must publish its source under the same license.
+
+The license covers the firmware and everything else in this repository. The enclosure is not part of it: it is a MakerWorld Exclusive under the Standard Digital File License - Community Use (SDFL-C).
 
 ---
 
