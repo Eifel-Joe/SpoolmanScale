@@ -1,4 +1,4 @@
-"""Read the release workflow as text, without running it, and check that it publishes for this fork: no own esptool merge (it fails for want of rich_click), nothing written to main (a mirror of the original) and no name of the original's repo; the factory images come from scripts/factory_image.py, the ranking, version.json, the flasher manifests and the release title from scripts/release_files.py; version.json and the flasher go to gh-pages, and only after the GitHub release exists; release and pages happen on a tag push only, and a pre-release title carries the German date; the boards built besides the matrix one are exactly the boards in src/boards, in the workflow and in release_files.py alike.
+"""Read the release workflow as text, without running it, and check that it publishes for this fork: no own esptool merge (it fails for want of rich_click), nothing written to main (a mirror of the original) and no name of the original's repo; the factory images come from scripts/factory_image.py, the ranking, version.json, the flasher manifests and the release title from scripts/release_files.py; version.json and the flasher go to gh-pages, and only after the GitHub release exists; release and pages happen on a tag push only, and a pre-release title carries the German date; the boards built besides the matrix one are exactly the boards in src/boards, in the workflow and in release_files.py alike; one release runs at a time, and the release step fails on a file that is missing.
 
 The workflow cannot be tried before a real tag (tags are public), so this is what holds it together between releases."""
 import re
@@ -138,7 +138,36 @@ expect("must not keep a second list of boards (OTHER_BOARDS=)", re.search(r"\bOT
 expect("release_files.OTHER_BOARDS must name the same boards", sorted(rf.OTHER_BOARDS) == others,
        f"release_files {list(rf.OTHER_BOARDS)}, src/boards {others}")
 
-# 8. Verdict.
+# 8. One release at a time, and none with a file missing. Two tags pushed close
+#    together would otherwise race on gh-pages: both read the same version.json
+#    and the second push is refused, or the older tag lands last. So the whole
+#    workflow is in one concurrency group, and a run that has started is not
+#    cancelled (it may have created its release already). The release step
+#    fails when a file it names is not there, instead of publishing a release
+#    without the image a device would download.
+all_code = code.splitlines()
+concurrency = None
+for at, line in enumerate(all_code):
+    if re.match(r"^concurrency:", line):
+        block = [line[len("concurrency:"):]]
+        for follow in all_code[at + 1:]:
+            if follow.strip() and not follow[0].isspace():
+                break
+            block.append(follow)
+        concurrency = " ".join(block)
+        break
+expect("must run one release at a time (a workflow-level concurrency:)", concurrency is not None)
+if concurrency is not None:
+    expect("the concurrency group must be release",
+           re.search(r"\bgroup:\s*['\"]?release['\"]?(?=[\s,}]|$)", concurrency) is not None, concurrency.strip())
+    expect("a running release must not be cancelled (cancel-in-progress: false)",
+           re.search(r"\bcancel-in-progress:\s*false\b", concurrency) is not None, concurrency.strip())
+release = step_lines("Create GitHub Release")
+if release is not None:
+    expect("step 'Create GitHub Release' must fail on a missing file (fail_on_unmatched_files: true)",
+           any(re.match(r"^fail_on_unmatched_files:\s*true$", line) for _, line in release[1]))
+
+# 9. Verdict.
 if errors:
     print("release workflow: FAILED")
     for error in errors:
