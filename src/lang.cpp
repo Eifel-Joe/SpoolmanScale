@@ -3888,9 +3888,9 @@ const char* const STRINGS[][3] = {
   { "An FilaMan gesendet",
     "Sent to FilaMan",
     "Envoyé à FilaMan" },  // STR_PCP_SENT_TITLE
-  { "Im FilaMan-Tab auf \"Druckfenster öffnen\" klicken und im Designer drucken. Die Anfrage verfällt nach 5 Minuten.",
-    "In the FilaMan tab, click \"Open print window\" and print from the designer. The request expires after 5 minutes.",
-    "Dans l'onglet FilaMan, cliquez sur \"Ouvrir la fenêtre d'impression\" puis imprimez. Demande valable 5 minutes." },  // STR_PCP_SENT_TEXT
+  { "Das Etikett erscheint im offenen FilaMan-Tab. Dort drucken.",
+    "The label shows up in the open FilaMan tab. Print it from there.",
+    "L'étiquette s'affiche dans l'onglet FilaMan ouvert. Imprimez-la." },  // STR_PCP_SENT_TEXT
   { "Nicht gesendet",
     "Not sent",
     "Non envoyé" },  // STR_PCP_FAIL_TITLE
