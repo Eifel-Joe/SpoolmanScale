@@ -111,9 +111,18 @@ volatile uint32_t s_found_size = 0;
 unsigned long s_due_ms = 0;
 bool s_scheduled = false;
 
-void updateCheckTask(void* arg) {
-  (void)arg;
-
+// The request itself, in a function of its own that returns. It used to be the
+// body of updateCheckTask(), which ends with vTaskDelete(NULL): that call does
+// not return, so the destructors of the client, the connection and the document
+// declared there never ran. The WiFiClientSecure frees its ssl context only in
+// its destructor, the HTTPClient keeps its socket open after end() for reuse
+// and stops it only there, and the document keeps its pool: 4-5 kB of internal
+// heap per check, and on the 7B (57 kB free, floor 50 kB) the check locked
+// itself out after about two runs. Freeing them by hand on every way out was
+// rejected: client.stop() does not free the ssl context, and the next local
+// someone adds would leak again. test/test_worker_heap_floors.py holds every
+// self-deleting task in src to this.
+static void runUpdateCheck() {
   WiFiClientSecure client;
   githubTrust(client);
   HTTPClient http;
@@ -125,8 +134,6 @@ void updateCheckTask(void* arg) {
   if (!http.begin(client, VERSION_URL)) {
     heapLowEnd();
     s_result = RES_FAIL_BEGIN;
-    s_task_running = false;
-    vTaskDelete(NULL);
     return;
   }
 
@@ -142,8 +149,6 @@ void updateCheckTask(void* arg) {
     s_result = RES_FAIL_HTTP;
     http.end();
     heapLowEnd();
-    s_task_running = false;
-    vTaskDelete(NULL);
     return;
   }
 
@@ -160,8 +165,6 @@ void updateCheckTask(void* arg) {
   if (err) {
     Serial.printf("[upd] JSON error: %s\n", err.c_str());
     s_result = RES_FAIL_JSON;
-    s_task_running = false;
-    vTaskDelete(NULL);
     return;
   }
 
@@ -197,13 +200,9 @@ void updateCheckTask(void* arg) {
       time_t checked = time(nullptr);
       if ((uint32_t)checked > TIME_IS_SYNCED) s_persist_epoch = (uint32_t)checked;
       s_result = RES_UP_TO_DATE;
-      s_task_running = false;
-      vTaskDelete(NULL);
       return;
     }
     s_result = RES_FAIL_JSON;
-    s_task_running = false;
-    vTaskDelete(NULL);
     return;
   }
 
@@ -232,7 +231,14 @@ void updateCheckTask(void* arg) {
 
   // Published last. Everything the tick needs is in place by now.
   s_result = (remote > installed) ? RES_AVAILABLE : RES_UP_TO_DATE;
+}
 
+void updateCheckTask(void* arg) {
+  (void)arg;
+  runUpdateCheck();
+  // Only now, with the client, the connection and the document destroyed. The
+  // guard keeps the web jobs and the next check from starting while they still
+  // hold their memory, so it drops after them and not with the result.
   s_task_running = false;
   vTaskDelete(NULL);
 }

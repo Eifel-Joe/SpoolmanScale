@@ -417,17 +417,25 @@ void backendConnClose() {
   xSemaphoreGive(s_mux);
 }
 
+// A function of its own so that host is destroyed when it returns: warmTask()
+// ends with vTaskDelete(NULL), which does not return, and a String declared in
+// its body, inner block or not, never gave its buffer back. The kept connection
+// is s_pool's and outlives this on purpose.
+static void warmConnect() {
+  String host;
+  uint16_t port = 0;
+  if (splitHost(backendBaseUrl(), host, port) && poolFor(host, port) && !s_pool->connected() &&
+      hostResolves(host)) {
+    const unsigned long t0 = millis();
+    const int ok = s_pool->connect(host.c_str(), port, WARM_CONNECT_MS);
+    logSDf("Backend https: connection opened ahead of time, %s, %lu ms",
+           ok ? "ok" : "failed", (unsigned long)(millis() - t0));
+  }
+}
+
 static void warmTask(void*) {
   if (xSemaphoreTake(s_mux, pdMS_TO_TICKS(10000)) == pdTRUE) {
-    String host;
-    uint16_t port = 0;
-    if (splitHost(backendBaseUrl(), host, port) && poolFor(host, port) && !s_pool->connected() &&
-        hostResolves(host)) {
-      const unsigned long t0 = millis();
-      const int ok = s_pool->connect(host.c_str(), port, WARM_CONNECT_MS);
-      logSDf("Backend https: connection opened ahead of time, %s, %lu ms",
-             ok ? "ok" : "failed", (unsigned long)(millis() - t0));
-    }
+    warmConnect();
     s_last_used = millis();
     xSemaphoreGive(s_mux);
   }

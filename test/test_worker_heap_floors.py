@@ -204,7 +204,7 @@ if web_jobs_path.is_file():
 # request that went deep but not deeper than the boot did reads the same
 # before and after. The unit heap_low starts the ESP-IDF monitor for the
 # local minimum and stops it again. The three requests of github_release.cpp
-# and the task of the daily check start it before http.begin and end it after
+# and the request of the daily check start it before http.begin and end it after
 # every http.end(), the failed requests included: the monitor is global, one
 # left running makes every later start fail and every later line read n/a.
 # The same goes for a connection that could not even be set up.
@@ -217,7 +217,8 @@ HEAP_LOW_BEGIN = "heapLowBegin("
 HEAP_LOW_END = "heapLowEnd("
 HEAP_LOW_REQUESTS = {
     "services/github_release.cpp": ["bool githubLatestTag(", "bool githubReleaseByTag(", "bool githubFlashTag("],
-    "services/update_check.cpp": ["void updateCheckTask("],
+    # The request of the daily check, the function its task calls (see 8).
+    "services/update_check.cpp": ["static void runUpdateCheck("],
 }
 HTTP_END = re.compile(r"http\.end\(\);")
 RETURN = re.compile(r"\breturn\b")
