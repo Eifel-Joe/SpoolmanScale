@@ -77,7 +77,7 @@
     }
 
     .choice p {
-      color: #4a6fa0;
+      color: #8aa4cc;
       font-size: 13px;
       line-height: 1.6;
       margin-bottom: 14px;
@@ -148,6 +148,26 @@
     esp-web-install-button {
       display: block;
       margin-bottom: 16px;
+    }
+
+    /* Until ESP Web Tools has loaded, the element is unknown to the browser and
+       would show its own Install button, which does nothing, next to both
+       error texts. Hidden then, and a plain line in its place. */
+    esp-web-install-button:not(:defined) {
+      display: none;
+    }
+
+    .no-installer {
+      display: none;
+      color: #f0b838;
+      font-size: 13px;
+      line-height: 1.6;
+      margin-bottom: 16px;
+      text-align: left;
+    }
+
+    esp-web-install-button:not(:defined) + .no-installer {
+      display: block;
     }
 
     /* ESP Web Tools 10 draws a blue "Connect" button of its own and gives it no
@@ -221,7 +241,7 @@
     }
 
     .version {
-      color: #2a4060;
+      color: #8aa4cc;
       font-size: 12px;
       margin-top: 24px;
     }
@@ -274,7 +294,7 @@
     <div class="steps">
       <h3>Before Flashing</h3>
       <ol>
-        <li>Connect a USB data cable to your PC and to the board's <span>"USB"</span> connector (not "UART", if it has both)</li>
+        <li>Connect a USB data cable to your PC and to the board; if it has both a USB and a UART connector, use <span>USB</span></li>
         <li>Click <span>"Install"</span>, select the port and confirm</li>
         <li>After flashing: enter your <span>WiFi</span> right in the browser</li>
       </ol>
@@ -284,7 +304,9 @@
       <strong>&#9888; Your settings</strong>
       Flashing here erases the scale's settings (WiFi, calibration, backend). The browser asks
       for your WiFi again afterwards. To keep your settings, update through the scale itself
-      instead (its web interface, Firmware tab).
+      instead (its web interface, Firmware tab). A scale that cannot update itself: save its
+      settings first in its web interface under "Backup and restore", and load them there
+      again after flashing.
     </div>
 
     <div id="install" hidden>
@@ -299,21 +321,26 @@
           <strong>localhost</strong>.
         </span>
       </esp-web-install-button>
+      <p class="no-installer">
+        The installer has not loaded. If no Install button appears, reload the page; the
+        installer comes from unpkg.com, which this browser must be able to reach.
+      </p>
     </div>
 
     <details class="warning help">
       <summary>Flashing fails with "Failed to initialize"?</summary>
       Close anything else that uses the USB port (a second flasher tab, Arduino IDE) and use a
-      data cable plugged straight into the computer, no hub. Still failing: hold <b>BOOT</b>,
-      press and release <b>RESET</b>, release <b>BOOT</b>, then click "Install" again.
-      Press <b>RESET</b> once when flashing is done.
+      data cable plugged straight into the computer, no hub. Still failing, and if your board
+      has <b>BOOT</b> and <b>RESET</b> buttons: hold <b>BOOT</b>, press and release
+      <b>RESET</b>, release <b>BOOT</b>, then click "Install" again. Press <b>RESET</b> once
+      when flashing is done.
     </details>
 
     <div class="links">
       <a href="https://github.com/Eifel-Joe/SpoolmanScale" target="_blank">Fork on GitHub</a>
       <a href="https://github.com/Eifel-Joe/SpoolmanScale/releases" target="_blank">Releases</a>
       <a href="https://github.com/Niko11111/SpoolmanScale" target="_blank">Original project</a>
-      <a href="https://github.com/Eifel-Joe/SpoolmanScale/blob/main/LICENSE" target="_blank">License GPL-3.0</a>
+      <a href="https://github.com/Eifel-Joe/SpoolmanScale/blob/waage/LICENSE" target="_blank">License GPL-3.0</a>
     </div>
 
     <div class="version">Firmware v0.8.4 &middot; the full factory image of the board you choose</div>
@@ -331,7 +358,7 @@
           other.setAttribute('aria-pressed', other === board ? 'true' : 'false');
         });
         button.setAttribute('manifest', board.getAttribute('data-manifest'));
-        document.getElementById('chosen').textContent = 'Installing for: ' + board.getAttribute('data-name');
+        document.getElementById('chosen').textContent = 'Selected board: ' + board.getAttribute('data-name');
         document.getElementById('install').hidden = false;
       });
     });
