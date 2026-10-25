@@ -1,4 +1,4 @@
-"""Read the source tree without a compiler and check that no background worker keeps a heap floor of its own: the ones that talk to a backend take theirs from backendJobMinHeap() and log a refusal through logGateDue(), and the list worker asks it for the address the list really goes to."""
+"""Read the source tree without a compiler and check that no background worker keeps a heap floor of its own: the ones that talk to a backend take theirs from backendJobMinHeap() and log a refusal through logGateDue(), the list worker asks it for the address the list really goes to, the workers that may reach the Spoolman behind Bambuddy take the higher of two floors, and a refused start and a failed task creation are each logged through a gate of their own."""
 import re
 import sys
 from pathlib import Path
@@ -28,7 +28,23 @@ WORKERS = [
     "services/tag_probe_job.cpp",
     "web/web_jobs.cpp",
 ]
-REQUIRED = ["backendJobMinHeap(", "logGateDue("]
+REQUIRED = ["backendJobMinHeap("]
+
+# Workers whose requests can also go straight to the Spoolman server behind a
+# BamBuddy (the drying date side channel in dried_batch, the spool read in
+# label_spool and ams_weights): the floor is the higher of the backend's and
+# that server's address.
+BOTH_ADDRESSES = [
+    "services/dried_batch.cpp",
+    "app/label_spool.cpp",
+    "services/ams_weights.cpp",
+]
+BOTH_CALL = "backendJobMinHeapBoth("
+
+# A line that can repeat on every pass gets a gate of its own: the refused
+# start and the failed task creation are two lines, so two gates.
+GATE_CALLS_MIN = 2
+GATE_CALL = "logGateDue("
 
 FLOOR_DEFINE = re.compile(r"^\s*#define\s+(\w*MIN\w*HEAP\w*)\s+(\d+)")
 
@@ -63,6 +79,12 @@ for rel in WORKERS:
     for needle in REQUIRED:
         if needle not in text:
             errors.append(f"src/{rel}: does not call {needle}")
+    gates = text.count(GATE_CALL)
+    if gates < GATE_CALLS_MIN:
+        errors.append(f"src/{rel}: {gates} call(s) of {GATE_CALL}, wants {GATE_CALLS_MIN} "
+                      "(one gate for the refused start, one for the failed task creation)")
+    if rel in BOTH_ADDRESSES and BOTH_CALL not in text:
+        errors.append(f"src/{rel}: does not call {BOTH_CALL} (it may reach the Spoolman behind BamBuddy)")
 
 # 3. The list worker asks for the floor of the backend in use, and no file asks
 # for the floor of the Spoolman address.

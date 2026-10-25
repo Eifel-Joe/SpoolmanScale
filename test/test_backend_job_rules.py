@@ -36,6 +36,19 @@ int main() {
   // An address without a scheme is http, as backendComposeBase reads it.
   assert(backendJobMinHeap("192.168.1.5:7912") == 40000u);
 
+  // A worker that may talk to either of two addresses needs the higher floor:
+  // a Bambuddy over http in front of a Spoolman over https is the case. The
+  // pair counts the same either way round, and an address that says nothing
+  // is TLS on whichever side it stands.
+  assert(backendJobMinHeapBoth("http://192.168.10.219:8000", "http://192.168.10.178:7912") == 40000u);
+  assert(backendJobMinHeapBoth("http://192.168.10.219:8000", "https://spoolman.example") == 60000u);
+  assert(backendJobMinHeapBoth("https://bambuddy.example", "http://192.168.10.178:7912") == 60000u);
+  assert(backendJobMinHeapBoth("https://bambuddy.example", "https://spoolman.example") == 60000u);
+  assert(backendJobMinHeapBoth("http://192.168.10.219:8000", "") == 60000u);
+  assert(backendJobMinHeapBoth("http://192.168.10.219:8000", nullptr) == 60000u);
+  assert(backendJobMinHeapBoth(nullptr, "http://192.168.10.178:7912") == 60000u);
+  assert(backendJobMinHeapBoth(nullptr, nullptr) == 60000u);
+
   // "https" must be followed by "://": a host that merely starts with the
   // letters is not a TLS address.
   assert(backendJobMinHeap("httpsproxy.local:8000") == 40000u);
