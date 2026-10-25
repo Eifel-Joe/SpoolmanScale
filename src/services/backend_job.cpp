@@ -6,6 +6,7 @@
 #include "app/backend_switch.h"
 #include "hardware/sd_logger.h"
 #include "services/backend_api.h"
+#include "services/backend_job_rules.h"
 #include "services/http_progress.h"
 #include "web/web_jobs.h"
 
@@ -17,10 +18,16 @@
 // https backend puts the TLS handshake on this task whenever the kept
 // connection is closed, and the warm-up task needs 14 kB for that very
 // handshake.
+// The floor is not one number: 60000 for https, for that handshake, and 40000
+// for plain http (backend_job_rules.h). The Waveshare 7B has about 58 620
+// bytes free in steady state, which the old 60000 for everybody never cleared,
+// so an unknown tag was never looked up on a Bambuddy over http.
 #define BACKEND_JOB_STACK_BYTES   16384
 #define BACKEND_JOB_PRIORITY      1
 #define BACKEND_JOB_CORE          0
-#define BACKEND_JOB_MIN_HEAP      60000
+// A refused start is asked for again on every pass of the loop. Its log line
+// is written at most this often, with the number of refusals it stands for.
+#define BACKEND_JOB_REFUSAL_LOG_MS 60000
 
 // The same allocator the lookup path uses: the inventory goes into PSRAM,
 // not into the 320 kB the rest of the firmware shares. Static, because the
@@ -52,6 +59,13 @@ static uint32_t                   s_retry_pause_ms = 0;
 // rewrites cfg_spoolman_base, and this task must not read it half written; the
 // generation then drops whatever came back.
 static char                       s_base[sizeof(cfg_spoolman_base)] = "";
+// The gate of the "postponed" line; only the loop task starts a list.
+static LogGate                    s_refusal_gate;
+// The internal heap when the task is created: what was free, and the lowest it
+// had been since boot. Written before the task exists, read by it when done,
+// so that its line shows how deep the list pushed the heap.
+static uint32_t                   s_heap_at_start = 0;
+static uint32_t                   s_heap_low_before = 0;
 
 static bool transientParseError(const DeserializationError& e) {
   return e == DeserializationError::IncompleteInput ||
@@ -95,11 +109,15 @@ static void backendJobTask(void* arg) {
   httpCountBytesInto(&s_bytes);
   runList();
   httpCountBytesInto(nullptr);
-  logSDf("Backend job: list%s done in %lu ms, code=%d err=%s partial=%d, %u bytes, stack left %u",
+  logSDf("Backend job: list%s done in %lu ms, code=%d err=%s partial=%d, %u bytes, stack left %u, "
+         "heap %u at start, lowest since boot %u (was %u)",
          s_res.archived_only ? " of the archive" : s_res.archived ? " with archive" : "",
          (unsigned long)s_res.ms, s_res.code,
          s_res.err.c_str(), (int)s_res.partial, (unsigned)s_bytes,
-         (unsigned)uxTaskGetStackHighWaterMark(NULL));
+         (unsigned)uxTaskGetStackHighWaterMark(NULL),
+         (unsigned)s_heap_at_start,
+         (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
+         (unsigned)s_heap_low_before);
   // Everything above is written before the state says so: the loop on the
   // other core reads the state first and the result after.
   __sync_synchronize();
@@ -112,9 +130,18 @@ bool backendJobStartList(bool allow_archived, const JsonDocument* filter,
                          uint32_t retry_pause_ms, bool archived_only) {
   if (backendListBusy() || s_state != BJS_IDLE) return false;
   // Checked here rather than inside the task: the stack comes out of the
-  // heap the moment the task is created.
-  if (ESP.getFreeHeap() < BACKEND_JOB_MIN_HEAP) {
-    logSDf("Backend job: postponed, heap %u", (unsigned)ESP.getFreeHeap());
+  // heap the moment the task is created. The floor follows the address the
+  // job is about to copy into s_base below.
+  const uint32_t min_heap  = backendJobMinHeap(cfg_spoolman_base);
+  const uint32_t free_heap = (uint32_t)ESP.getFreeHeap();
+  if (free_heap < min_heap) {
+    // The callers ask again on every pass of the loop; a line each time
+    // filled the log (over 4000 of them, 25.10.2026), so one a minute.
+    if (logGateDue(&s_refusal_gate, millis(), BACKEND_JOB_REFUSAL_LOG_MS)) {
+      logSDf("Backend job: postponed, heap %u < %u (%u more refusals since the last line)",
+             (unsigned)free_heap, (unsigned)min_heap,
+             (unsigned)logGateTakeSuppressed(&s_refusal_gate));
+    }
     return false;
   }
   s_doc.clear();
@@ -134,6 +161,10 @@ bool backendJobStartList(bool allow_archived, const JsonDocument* filter,
   s_retry_pause_ms = retry_pause_ms;
   snprintf(s_base, sizeof(s_base), "%s", cfg_spoolman_base);
   s_bytes = 0;
+  // Taken last, with everything this function allocated in place and before
+  // the task's stack is taken from the heap: the heap the task starts from.
+  s_heap_at_start   = (uint32_t)heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+  s_heap_low_before = (uint32_t)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
 
   // Set before the task exists: if creation fails it is cleared again below,
   // and if it succeeds the task may finish before this line would run - on
@@ -148,6 +179,9 @@ bool backendJobStartList(bool allow_archived, const JsonDocument* filter,
     logSD("Backend job: task creation failed");
     return false;
   }
+  // Started: whatever was refused before is over, and the next refusal gets a
+  // line of its own.
+  logGateReset(&s_refusal_gate);
   return true;
 }
 
