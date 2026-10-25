@@ -1,10 +1,16 @@
-"""Read the source tree without a compiler and check that no background worker keeps a heap floor of its own: the ones that talk to a backend take theirs from backendJobMinHeap() and log a refusal through logGateDue(), the list worker asks it for the address the list really goes to, the workers that may reach the Spoolman behind Bambuddy take the higher of two floors, and a refused start and a failed task creation are each logged through a gate of their own. The daily update check and the TLS warm-up ask the same rule, and the daily check and the GitHub jobs of the web pages never run side by side. Every GitHub request measures the lowest the internal heap went while it ran and writes it to the log, and every way out of the request ends that measurement."""
+"""Read the source tree without a compiler and check that no background worker keeps a heap floor of its own: the ones that talk to a backend take theirs from backendJobMinHeap() and log a refusal through logGateDue(), the list worker asks it for the address the list really goes to, the workers that may reach the Spoolman behind Bambuddy take the higher of two floors, and a refused start and a failed task creation are each logged through a gate of their own. The daily update check and the TLS warm-up ask the same rule, and the daily check and the GitHub jobs of the web pages never run side by side. Every GitHub request measures the lowest the internal heap went while it ran and writes it to the log, and every way out of the request ends that measurement. A task that ends itself with vTaskDelete(NULL) declares no client, connection, document or String in its own body: their destructors would never run."""
 import re
 import sys
 from pathlib import Path
 
 root = Path(__file__).parents[1]
 src = root / "src"
+
+# The tokenizer and the function finder of the convention ratchet: comments
+# and string contents blanked, function bodies by brace matching. The script
+# is not a package, so its folder goes on the path.
+sys.path.insert(0, str(root / "scripts"))
+import check_conventions as cc  # noqa: E402
 
 # The only place that may define a number for a heap floor: the rules header,
 # which holds the two floors every worker asks for. The update check and the
@@ -261,7 +267,45 @@ for rel, signatures in HEAP_LOW_REQUESTS.items():
             if HEAP_LOW_END not in failed.group(1):
                 errors.append(f"src/{rel}: {signature} leaves a failed http.begin() without {HEAP_LOW_END}")
 
-# 8. Verdict.
+# 8. A task that ends itself with vTaskDelete(NULL) never returns from its own
+# function, so the destructors of what it declares in its body never run. A
+# WiFiClientSecure frees its ssl context only in its destructor, an HTTPClient
+# keeps its socket open after end() and stops it only there, a JsonDocument or
+# String keeps its buffer. The daily update check lost 4-5 kB of internal heap
+# that way on every run and on the 7B (57 kB free, floor 50 kB) locked itself
+# out after about two. Such a task calls a function that holds the objects
+# and returns, and only then deletes itself. Inner blocks count: a brace does
+# not destroy anything when the task never leaves it.
+SELF_DELETE = re.compile(r"\bvTaskDelete\(\s*(?:NULL|nullptr)\s*\)")
+# The plain clients hold a socket the same way; BackendTls is a WiFiClientSecure.
+OWNING_TYPES = ("WiFiClientSecure", "NetworkClientSecure", "BackendTls", "WiFiClient", "NetworkClient",
+                "HTTPClient", "BackendHttp", "JsonDocument", "String")
+OWNING_DECL = re.compile(r"\b(" + "|".join(OWNING_TYPES) + r")\s+([A-Za-z_]\w*)\s*[;=({\[,]")
+# The scan must find the task this rule was written for, or it finds nothing.
+SELF_DELETE_KNOWN = ("services/update_check.cpp", "updateCheckTask")
+
+self_deleting = set()
+for path in sorted(src.rglob("*")):
+    if path.suffix not in (".h", ".cpp", ".hpp", ".c", ".ino"):
+        continue
+    source = cc.Source(path.read_text(encoding="utf-8", errors="replace"))
+    if not SELF_DELETE.search(source.code):
+        continue
+    rel = path.relative_to(src).as_posix()
+    for name, start, end in cc.find_functions(source.code):
+        body = source.code[start + 1:end]
+        if not SELF_DELETE.search(body):
+            continue
+        self_deleting.add((rel, name))
+        for decl in OWNING_DECL.finditer(body):
+            errors.append(f"src/{rel}:{source.line_of(start + 1 + decl.start())}: {name}() ends itself with "
+                          f"vTaskDelete(NULL) and declares {decl.group(1)} {decl.group(2)}, "
+                          "whose destructor never runs")
+if SELF_DELETE_KNOWN not in self_deleting:
+    errors.append(f"src/{SELF_DELETE_KNOWN[0]}: the scan for self-deleting tasks did not find "
+                  f"{SELF_DELETE_KNOWN[1]}()")
+
+# 9. Verdict.
 if errors:
     print("worker heap floors: FAILED")
     for error in errors:
