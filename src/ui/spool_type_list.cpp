@@ -272,7 +272,8 @@ static void stlButton(int x, int y, int w, uint8_t act, const char *text) {
 
 // The buttons of the mode, in the order of the design's table, and the list
 // body cut to the room they leave. After stlBuildRows(), which may have
-// turned VENDOR into ALL and found out whether the maker has types.
+// turned VENDOR into ALL and found out whether the maker has types. ALL has
+// two buttons at most: "only <maker>" or "add new", and skip.
 static void stlBuildBar() {
   lv_obj_clean(s_bar);
   uint8_t acts[STL_BTNS_MAX];
@@ -286,7 +287,12 @@ static void stlBuildBar() {
     acts[n++] = STL_ACT_SHOW_ALL;
     if (stlMeasured()) acts[n++] = STL_ACT_NEW;
   } else if (s_vendor_has) {
+    // ALL by "show all": VENDOR, with "add new", is one tap away.
     acts[n++] = STL_ACT_ONLY_VENDOR;
+  } else if (stlMeasured()) {
+    // ALL because the maker has no type (VENDOR fell to ALL, L3): no way back
+    // to VENDOR, and the type may be the one missing from the list.
+    acts[n++] = STL_ACT_NEW;
   }
   acts[n++] = STL_ACT_SKIP;
 

@@ -23,8 +23,10 @@
 //                (spoolTypeFilter, design note L3); none at all makes it
 //                ALL. Buttons: show all, add a new type (with a measured
 //                weight only), skip.
-//    STL_ALL     every type. Buttons: only the maker's (where it has any),
-//                skip.
+//    STL_ALL     every type. Buttons: only the maker's (where it has any);
+//                where it has none (VENDOR fell to ALL), add a new type (with
+//                a measured weight only); skip. Reached by "show all", it
+//                has no "add new": VENDOR has it, one tap away.
 //
 //  In VENDOR and ALL the type nearest to preselect_g is marked, at any
 //  distance; the list scrolls to the marked row.
