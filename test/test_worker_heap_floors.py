@@ -213,6 +213,11 @@ HEAP_LOW_IDF = [
     "heap_caps_monitor_local_minimum_free_size_start(",
     "heap_caps_monitor_local_minimum_free_size_stop(",
 ]
+HEAP_LOW_READ = "heap_caps_get_minimum_free_size("
+# The owner is taken with a compare-and-swap and given back with a store of
+# nullptr, as builtins or through std::atomic.
+HEAP_LOW_CLAIM = re.compile(r"__atomic_compare_exchange_n\(|\.compare_exchange_(?:strong|weak)\(")
+HEAP_LOW_RELEASE = re.compile(r"__atomic_store_n\(\s*&\s*s_owner\b|\bs_owner\.store\(|\bs_owner\s*=\s*(?:nullptr|NULL)\b")
 HEAP_LOW_BEGIN = "heapLowBegin("
 HEAP_LOW_END = "heapLowEnd("
 HEAP_LOW_REQUESTS = {
@@ -233,10 +238,37 @@ heap_low_path = src / HEAP_LOW_UNIT
 if not heap_low_path.is_file():
     errors.append(f"src/{HEAP_LOW_UNIT}: file is missing")
 else:
-    heap_low_code = code_only(heap_low_path.read_text(encoding="utf-8", errors="replace"))
+    heap_low_text = heap_low_path.read_text(encoding="utf-8", errors="replace")
+    heap_low_code = code_only(heap_low_text)
     for call in HEAP_LOW_IDF:
         if call not in heap_low_code:
             errors.append(f"src/{HEAP_LOW_UNIT}: does not call {call}")
+    # A second start does not fail: in ESP-IDF 5.5 it returns ESP_OK every time
+    # and resets the minimum of every heap (components/heap/heap_caps.c,
+    # heap_caps_monitor_local_minimum_free_size_start), so it would silently
+    # reset the measurement of the task that started first. The unit claims
+    # the owner first, atomically, and starts the monitor only with the claim,
+    # giving it back if the start fails. It stops the monitor before it gives
+    # the claim back: the other way round, another task could start between
+    # the two lines and have its monitor stopped. Text order is enough here.
+    begin_body = function_body(heap_low_text, "bool heapLowBegin(")
+    end_body = function_body(heap_low_text, "uint32_t heapLowEnd(")
+    if begin_body is None or end_body is None:
+        errors.append(f"src/{HEAP_LOW_UNIT}: heapLowBegin() or heapLowEnd() is not there")
+    else:
+        start_at = begin_body.find(HEAP_LOW_IDF[0])
+        claim = HEAP_LOW_CLAIM.search(begin_body)
+        if claim is None or start_at < 0 or claim.start() > start_at:
+            errors.append(f"src/{HEAP_LOW_UNIT}: heapLowBegin() does not claim the owner atomically "
+                          "before it starts the monitor")
+        elif not HEAP_LOW_RELEASE.search(begin_body, start_at):
+            errors.append(f"src/{HEAP_LOW_UNIT}: heapLowBegin() does not give the claim back when the start fails")
+        read_at = end_body.find(HEAP_LOW_READ)
+        stop_at = end_body.find(HEAP_LOW_IDF[1])
+        release = HEAP_LOW_RELEASE.search(end_body)
+        if not (0 <= read_at < stop_at and release is not None and stop_at < release.start()):
+            errors.append(f"src/{HEAP_LOW_UNIT}: heapLowEnd() must read the minimum, then stop the monitor, "
+                          "then give the owner back, in that order")
 
 for rel, signatures in HEAP_LOW_REQUESTS.items():
     path = src / rel
