@@ -60,7 +60,9 @@ typedef void (*OtaProgressFn)(uint32_t done, uint32_t total);
 // by hand on the GitHub screen). Given, it is checked against what was
 // written, and a mismatch is a refusal. The image is only committed when
 // every byte the server announced has arrived: a dropped connection used to
-// finalise a half image and report success.
+// finalise a half image and report success. The image must also name this
+// board (board_image.h): one for another board is dropped as soon as its line
+// shows, one without a line is refused on a board that never had such an image.
 //
 // Blocks for as long as the download takes, so it pumps LVGL from inside its
 // own read loop whichever caller started it.

@@ -9,12 +9,14 @@
 //  An image starts on any ESP32-S3 and only works on the board it was built
 //  for: on another one it looks for a display, a PSRAM and an expander that
 //  are not there, and the device has to be flashed over USB to get back. The
-//  update from GitHub cannot go wrong, every board downloads a file under its
-//  own name. The upload in the browser takes whatever file it is handed.
+//  update from GitHub downloads a file under the board's own name, but the
+//  checksum it is held to comes from the same workflow that names the files
+//  and cannot tell a file put under the wrong name. The upload in the browser
+//  takes whatever file it is handed.
 //
 //  So every image carries the name of its board as a line of text, and the
-//  upload reads along for it. An image without the line is from before there
-//  was a second board, and that one board still takes it.
+//  download and the upload both read along for it. An image without the line
+//  is from before there was a second board, and that one board still takes it.
 // ============================================================
 
 // The line this firmware carries, without its line end. For the boot log.

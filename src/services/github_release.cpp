@@ -13,6 +13,7 @@
 #include "app_config.h"
 #include "boards/board.h"
 #include "hardware/sd_logger.h"
+#include "services/board_image.h"
 #include "services/heap_low.h"
 #include "services/ota_state.h"
 
@@ -392,6 +393,17 @@ bool githubFlashTag(const char *tag, const char *sha256_hex,
   mbedtls_sha256_init(&sha);
   mbedtls_sha256_starts(&sha, 0);
 
+  // Which board the image is for, read from the image as it goes into flash
+  // (board_image.h), the way the browser upload reads it. The checksum cannot
+  // say: version.json carries the sum of whatever file the release workflow
+  // put under this board's name, so a file under the wrong name arrives with
+  // a sum that matches and would be installed as verified, onto a board it
+  // cannot run on. Checking the files in the workflow alone was rejected as
+  // the only guard: it protects the next release, this protects the scale
+  // from whatever is on GitHub.
+  boardImageScanBegin();
+  bool foreign = false;
+
   uint8_t buf8[512];
   while (http.connected() && (len > 0 || len == -1)) {
     size_t available = stream->available();
@@ -403,6 +415,11 @@ bool githubFlashTag(const char *tag, const char *sha256_hex,
       done += rd;
       last_data = millis();
       if (len > 0) len -= rd;
+      // Fed with what went into flash. A foreign line ends the download on
+      // the spot, as in the browser upload: nothing is committed before
+      // end(), and the rest of a wrong image is minutes of download for
+      // nothing.
+      if (boardImageScanFeed(buf8, rd) == BOARD_IMAGE_FOREIGN) { foreign = true; break; }
     } else if (millis() - last_data >= GH_DOWNLOAD_STALL_MS) {
       stalled = true;
       break;
@@ -436,6 +453,10 @@ bool githubFlashTag(const char *tag, const char *sha256_hex,
   } else if (stalled) {
     snprintf(detail, sizeof(detail), "Stalled after %u bytes", (unsigned)done);
     fail = detail;
+  } else if (foreign) {
+    // Before the length test: the loop was left early, and "Incomplete"
+    // would be the reason shown for what is really the wrong board's image.
+    fail = "Image for another board";
   } else if (total > 0 && done != total) {
     snprintf(detail, sizeof(detail), "Incomplete: %u of %u bytes", (unsigned)done, (unsigned)total);
     fail = detail;
@@ -444,6 +465,11 @@ bool githubFlashTag(const char *tag, const char *sha256_hex,
   } else if (check_sha && strcasecmp(got, sha256_hex) != 0) {
     fail = "Checksum mismatch";
     logSDf("OTA: sha256 expected %s, got %s", sha256_hex, got);
+  } else if (!boardImageScanAccepts()) {
+    // The whole image came down and names no board, on a board that never had
+    // an image without one. Its own test and not part of the checksum's: a
+    // tag picked by hand carries no sum, and this must refuse there as well.
+    fail = "No board line in the image";
   }
 
   heapLowText(heap_low, low_txt, sizeof(low_txt));
