@@ -417,10 +417,12 @@ void backendConnClose() {
   xSemaphoreGive(s_mux);
 }
 
-// A function of its own so that host is destroyed when it returns: warmTask()
-// ends with vTaskDelete(NULL), which does not return, and a String declared in
-// its body, inner block or not, never gave its buffer back. The kept connection
-// is s_pool's and outlives this on purpose.
+// A function of its own for the String: warmTask() ends with vTaskDelete(NULL),
+// and test_worker_heap_floors.py keeps every String, client and document out
+// of such a task's body, inner blocks included, rather than tell a block the
+// task leaves from one it never leaves. Nothing leaked here before: host sat
+// in the block of the semaphore, which closes before vTaskDelete(NULL), so its
+// destructor ran. The kept connection is s_pool's and outlives this on purpose.
 static void warmConnect() {
   String host;
   uint16_t port = 0;
