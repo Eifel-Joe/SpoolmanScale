@@ -6,6 +6,9 @@
 !src/**
 !webflasher/
 !webflasher/**
+# The page the release workflow publishes to gh-pages as the web flasher.
+!flasher/
+!flasher/**
 !.github/
 !.github/**
 !scripts/
