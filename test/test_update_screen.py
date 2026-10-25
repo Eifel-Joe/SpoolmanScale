@@ -1,4 +1,4 @@
-"""Read the source tree without a compiler and check that the answer of an update check asked for on the GitHub OTA screen reaches that screen while it is open. The switch "Auto check" brings the daily check forward by five seconds (updateCheckScheduleIn), but the handler builds the screen again at once, before the check has run, and the answer used to set only the badges: the open screen showed nothing until it was opened again (seen on the 7B, 25.10.2026). Now the switch says "Checking..." (or "no WiFi") on the screen it builds, the check remembers that the screen asked, and updateCheckTick() hands its answer to otaGithubShowCheckAnswer(), which builds the screen again from what the check stored and only while it is shown. A daily check that lands by chance while the screen is open still leaves a manual result alone: only an answer the screen asked for clears the stored update there."""
+"""Read the source tree without a compiler and check that the answer of an update check asked for on the GitHub OTA screen reaches that screen while it is open. The switch "Auto check" brings the daily check forward by five seconds (updateCheckScheduleIn), but the handler builds the screen again at once, before the check has run, and the answer used to set only the badges: the open screen showed nothing until it was opened again (seen on the 7B, 25.10.2026). Now the switch says "Checking..." (or "no WiFi") on the screen it builds, the check remembers that the screen asked, and updateCheckTick() hands its answer to otaGithubShowCheckAnswer(), which builds the screen again from what the check stored and only while it is shown, and says "up to date", "too big" or "check failed" where nothing is to install. A daily check that lands by chance while the screen is open still leaves a manual result alone: only an answer the screen asked for clears the stored update there."""
 import re
 import sys
 from pathlib import Path
@@ -73,7 +73,9 @@ if screen is not None:
         if modal < 0 or build < 0 or modal > build:
             errors.append(f"src/{OTA_SCREEN}: {ANSWER}() builds the screen again without asking "
                           "uiModalWaiting() first, a waiting dialog would end up under it")
-        for text in ("STR_GH_OTA_UP_TO_DATE", "STR_GH_OTA_TOO_BIG"):
+        # A failed check says so (Jörg, 26.10.2026: "Suche fehlgeschlagen"),
+        # with the text the web page already has in all three languages.
+        for text in ("STR_GH_OTA_UP_TO_DATE", "STR_GH_OTA_TOO_BIG", "STR_W_FW_CHECK_FAIL"):
             if text not in body:
                 errors.append(f"src/{OTA_SCREEN}: {ANSWER}() does not say {text}")
 
