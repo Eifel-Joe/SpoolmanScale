@@ -28,16 +28,19 @@ WORKERS = [
     "services/tag_probe_job.cpp",
     "web/web_jobs.cpp",
 ]
-REQUIRED = ["backendJobMinHeap("]
+# The floor comes from the rules, for one address or for two.
+FLOOR_CALL = re.compile(r"backendJobMinHeap(?:Both)?\(")
 
 # Workers whose requests can also go straight to the Spoolman server behind a
 # BamBuddy (the drying date side channel in dried_batch, the spool read in
-# label_spool and ams_weights): the floor is the higher of the backend's and
-# that server's address.
+# label_spool and ams_weights, and the tag lookup of tag_probe_job, which reads
+# the spool it finds through the same bbGetSpoolJson): the floor is the higher
+# of the backend's and that server's address.
 BOTH_ADDRESSES = [
     "services/dried_batch.cpp",
     "app/label_spool.cpp",
     "services/ams_weights.cpp",
+    "services/tag_probe_job.cpp",
 ]
 BOTH_CALL = "backendJobMinHeapBoth("
 
@@ -76,9 +79,8 @@ for rel in WORKERS:
         errors.append(f"src/{rel}: file is missing")
         continue
     text = path.read_text(encoding="utf-8", errors="replace")
-    for needle in REQUIRED:
-        if needle not in text:
-            errors.append(f"src/{rel}: does not call {needle}")
+    if not FLOOR_CALL.search(text):
+        errors.append(f"src/{rel}: does not call backendJobMinHeap( or backendJobMinHeapBoth(")
     gates = text.count(GATE_CALL)
     if gates < GATE_CALLS_MIN:
         errors.append(f"src/{rel}: {gates} call(s) of {GATE_CALL}, wants {GATE_CALLS_MIN} "
