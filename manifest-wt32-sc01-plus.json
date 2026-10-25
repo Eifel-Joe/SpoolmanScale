@@ -1,0 +1,17 @@
+{
+  "name": "SpoolmanScale (WT32-SC01 Plus)",
+  "version": "v0.8.4",
+  "home_assistant_domain": null,
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32-S3",
+      "parts": [
+        {
+          "path": "SpoolmanScale-wt32-sc01-plus_factory.bin",
+          "offset": 0
+        }
+      ]
+    }
+  ]
+}
