@@ -130,6 +130,9 @@
 #include "lang.h"
 #include "ui/theme.h"
 #include "ui/unknown_spool_popup.h"
+#include "ui/spool_id_pad.h"
+#include "app/id_spool.h"
+#include "ui/status_clear.h"
 
 namespace {
 constexpr unsigned long NO_TAG_CLEAR_MS = 60000;
@@ -1049,6 +1052,8 @@ void appLoop() {
   // Before the questions below: a spool lifted while its empty weight is being
   // typed in takes the entry down unsaved first, and is asked about after.
   tareEntryTick();
+  spoolIdPadTick();
+  idSpoolTick();
   if (!tag_present && weightSaysSpoolGone()) loc_left_pad = true;
   // Debounced popups after a removal, cross-checked against the scale.
   // The AMS question and the location question hang off the same event, so
@@ -1243,8 +1248,16 @@ void appLoop() {
   // its data on screen indefinitely. The timer applies to every tag now,
   // linked or not, and regardless of which backend is active. Setting
   // last_tag_seen_ms to 0 below keeps this a one-shot until the next tag.
-  if (!tag_present &&
-      last_tag_seen_ms > 0 && millis() - last_tag_seen_ms > NO_TAG_CLEAR_MS) {
+  // A spool shown by its id has no tag to wait for and ends on its own terms.
+  // A lifted one waits out the timer, or the clear button behind the status
+  // text, which both kinds get: that button only ends the wait early.
+  const bool lifted_shown = !tag_present && !idSpoolActive() && last_tag_seen_ms > 0;
+  // Only over something to clear: the timer may still run for a display that
+  // was emptied another way.
+  const bool lifted_on_screen = lifted_shown && (sm_found || g_tag.uid_str[0]);
+  statusClearSync(lifted_on_screen || idSpoolActive());
+  if (lifted_shown &&
+      (millis() - last_tag_seen_ms > NO_TAG_CLEAR_MS || statusClearTaken())) {
     // clearTagDisplay() drops sm_id, so the note loses the spool it refers
     // to. Nothing is lost by forgetting it, the weight was written already.
     if (amsHasPending() && !isAmsAssignPopupOpen()) amsDropPending();
@@ -1345,7 +1358,7 @@ void appLoop() {
     // that is about to use the weight, or the calibration screen, where the
     // zero the user just set has to hold until the factor is computed.
     const bool calibrating = scr_factor && !lv_obj_has_flag(scr_factor, LV_OBJ_FLAG_HIDDEN);
-    scaleAutoTareTick(!tag_present && !aw_adopted && !calibrating && !isConfirmPopupOpen() &&
+    scaleAutoTareTick(!tag_present && !aw_adopted && !idSpoolActive() && !calibrating && !isConfirmPopupOpen() &&
                       !isTareEntryOpen() && !isSpoolWeightScopeOpen(),
                       scale_filter_full ? (hi - lo) : 0.0f);
 
@@ -1573,8 +1586,9 @@ void appLoop() {
           weightPulseStart();
         }
       }
-    } else if (!aw_done && !tag_present) {
+    } else if (!aw_done && !tag_present && !idSpoolActive()) {
       // Kein Tag, kein Countdown -> Idle-Text "(A)"
+      // Not for a spool shown by its id: nothing is saved on its own there.
       if (auto_weight_stable_ms > 0) {
         auto_weight_stable_ms = 0;
         auto_weight_last_val = -9999.0f;
@@ -1633,7 +1647,7 @@ void appLoop() {
       // empty: with a tag on it the NFC branch owns the line already.
       ams_owns_status = false;
       ams_last_shown_s = -1;
-      if (lbl_status && !tag_present) {
+      if (lbl_status && !tag_present && !idSpoolActive()) {
         lv_label_set_text(lbl_status, T(STR_WAIT_SCAN));
         lv_obj_set_style_text_color(lbl_status, lv_color_hex(UI_COL_WARN), 0);
       }
@@ -2314,8 +2328,10 @@ void appLoop() {
     static int link_bar_state = -1;
     // A lookup waiting for its inventory is a state of its own: no buttons
     // until the verdict is in, see updateLinkButton().
+    // Nothing on screen at all is the fourth: "Spool by ID" in the left slot.
     const int s = (tag_present && lookupPending()) ? 2
-                : (tag_present && !sm_found)       ? 1 : 0;
+                : (tag_present && !sm_found)       ? 1
+                : (!tag_present && !sm_found)      ? 3 : 0;
     if (s != link_bar_state) { link_bar_state = s; updateLinkButton(); }
   }
 

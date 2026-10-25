@@ -3994,6 +3994,30 @@ const char* const STRINGS[][3] = {
   { "Dieses FilaMan nimmt noch keine Druckanfragen an. Nötig ist FilaMan 1.4.3 oder neuer.",
     "This FilaMan does not take print requests yet. It needs FilaMan 1.4.3 or newer.",
     "Ce FilaMan ne gère pas encore l'impression sur PC. Il faut FilaMan 1.4.3 ou plus récent." },  // STR_PCP_NO_ROUTE
+  { "Spule per ID",
+    "Spool by ID",
+    "Bobine par ID" },  // STR_BTN_SPOOL_BY_ID
+  { "Die ID steht in Spoolman und auf dem Etikett. Ohne Tag wird das Gewicht nur gespeichert, wenn du \"Gewicht updaten\" tippst.",
+    "The ID is shown in Spoolman and on the label. Without a tag the weight is saved only when you tap \"Update Weight\".",
+    "L'ID figure dans Spoolman et sur l'étiquette. Sans tag, le poids n'est enregistré que si vous touchez \"Envoyer le poids\"." },  // STR_IDPAD_INFO
+  { "Suchen",
+    "Search",
+    "Chercher" },  // STR_IDPAD_SEARCH
+  { "Suche ...",
+    "Searching ...",
+    "Recherche ..." },  // STR_IDPAD_SEARCHING
+  { "Diese Spule",
+    "This spool",
+    "Cette bobine" },  // STR_IDPAD_THIS_SPOOL
+  { "Keine Spule mit ID %d",
+    "No spool with ID %d",
+    "Aucune bobine ID %d" },  // STR_IDPAD_NOT_FOUND
+  { "Ziffern prüfen und erneut suchen.",
+    "Check the digits and search again.",
+    "Vérifiez les chiffres et recherchez." },  // STR_IDPAD_NOT_FOUND_HINT
+  { "Per ID geladen - kein Tag",
+    "Loaded by ID - no tag",
+    "Chargée par ID - sans tag" },  // STR_ID_SPOOL_STATUS
 };
 
 StringID tagWriteResultString(uint8_t code) {
