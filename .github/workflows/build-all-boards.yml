@@ -177,6 +177,31 @@ jobs:
             cp "$OUT/firmware.bin" "SpoolmanScale-${BOARD}_${VERSION}.bin"
             python3 scripts/factory_image.py "$OUT" "SpoolmanScale-${BOARD}_${VERSION}_factory.bin"
           done
+      - name: Check that every image names its board
+        # Every image carries "SpoolmanScale-board:<board id>" (src/services/
+        # board_image.cpp), and the scale refuses an image of another board
+        # when it flashes, from the download and from the browser upload.
+        # What the scale cannot know is which file this workflow put under
+        # which name: version.json takes the sha256 of that very file, so a
+        # build for the wrong board stored under another board's name carries
+        # a sum that matches. So every file the release carries is read here
+        # for the line of the board it is named for
+        # (scripts/board_marker.py, test/test_board_marker.py): the device
+        # file, the file for the browser upload and the factory image of each
+        # board. A failure stops the run before version.json takes the
+        # checksums, before the release and before the pages. On a manual run
+        # as well, like the checks above: no `if:`.
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          # The matrix board, whose device file has no board in its name.
+          python3 scripts/board_marker.py SpoolmanScale.bin ${{ matrix.env }}
+          python3 scripts/board_marker.py "SpoolmanScale_${VERSION}.bin" ${{ matrix.env }}
+          python3 scripts/board_marker.py "SpoolmanScale-${{ matrix.env }}_${VERSION}_factory.bin" ${{ matrix.env }}
+          for BOARD in $OTHER_BOARDS; do
+            python3 scripts/board_marker.py "SpoolmanScale-$BOARD.bin" "$BOARD"
+            python3 scripts/board_marker.py "SpoolmanScale-${BOARD}_${VERSION}.bin" "$BOARD"
+            python3 scripts/board_marker.py "SpoolmanScale-${BOARD}_${VERSION}_factory.bin" "$BOARD"
+          done
       - name: Update version.json
         if: github.ref_type == 'tag'
         run: |

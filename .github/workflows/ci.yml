@@ -114,6 +114,14 @@ jobs:
             echo "::error::firmware.bin is $SIZE bytes, more than the 6 MB app slot"
             exit 1
           fi
+      - name: Check the board line
+        # Every image carries "SpoolmanScale-board:<board id>", which the scale
+        # reads before it takes an image (src/services/board_image.cpp). Read
+        # here for every board on every push, with the same script the release
+        # workflow runs over its files (scripts/board_marker.py): a build that
+        # lost its line or carries another board's shows now, not on the day
+        # of a release.
+        run: python3 scripts/board_marker.py .pio/build/${{ matrix.env }}/firmware.bin ${{ matrix.env }}
       # Here rather than in the house-rules job: both tools measure icons from
       # LVGL's symbol header, and that only exists once the build has unpacked
       # the library.
