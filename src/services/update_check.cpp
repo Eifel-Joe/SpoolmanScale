@@ -12,9 +12,12 @@
 #include "app/app_state.h"
 #include "hardware/sd_logger.h"
 #include "boards/board.h"
+#include "services/backend_job.h"
+#include "services/backend_job_rules.h"
 #include "services/partition_layout.h"
 #include "services/github_release.h"
 #include "services/ota_state.h"
+#include "web/web_jobs.h"
 #include "web/web_server.h"
 #include "services/prefs_store.h"
 #include "services/version_compare.h"
@@ -43,11 +46,6 @@ constexpr unsigned long RETRY_DELAY_MS = 3600000;
 // At most one check per day per device.
 constexpr uint32_t CHECK_INTERVAL_S = 86400;
 constexpr int HTTP_TIMEOUT_MS = 4000;
-
-// A TLS handshake needs roughly 40 kB. Below this it would either fail or push
-// something else out of memory, and skipping a version check costs nothing
-// while an out of memory reboot costs the user their session.
-constexpr uint32_t MIN_FREE_HEAP = 60000;
 
 // Unix time safely in the past. getLocalTime() reports 1970 until NTP has
 // answered, and a timestamp from then would make the daily window meaningless.
@@ -82,6 +80,12 @@ volatile uint8_t s_result = RES_NONE;
 volatile int     s_http_code = 0;
 volatile bool    s_task_running = false;
 volatile uint32_t s_persist_epoch = 0;   // non-zero: tick writes it to NVS
+
+// What maybeStartCheck() found when it turned the check down for the heap,
+// for the log line of RES_FAIL_HEAP. Both are written and read on the loop
+// task; the task of the check does not exist then.
+uint32_t s_skip_free  = 0;
+uint32_t s_skip_floor = 0;
 
 // The task stages the tag it found here instead of writing gh_latest_version
 // directly. That buffer is read by the OTA screen on the loop task, and a
@@ -220,15 +224,33 @@ void maybeStartCheck() {
   if (s_task_running) return;
   // Never a second TLS connection while an image is being written.
   if (gh_flash_active || otaWebUploadActive()) return;
+  // Nor beside a web job (the GitHub check, the release notes, the colour
+  // table, the spool list) or the inventory list. The floor below is for one
+  // background request: its stack and its connection take ~22-24 kB of the
+  // internal heap, and a second pair would take what the floor leaves free.
+  // Not logged and not postponed, the due time stays as it is: the other one
+  // is over in seconds and the next pass asks again. The web jobs wait for
+  // this check the same way (webJobStart), and so does "Check" on the scale.
+  if (webJobState() == WJS_RUNNING || backendJobState() == BJS_RUNNING) return;
   // Signed difference, so this survives the millis() wrap after 49 days.
   if ((long)(millis() - s_due_ms) < 0) return;
 
-  // Checked here rather than inside the task: the 12 kB stack comes out of the
+  // Checked here rather than inside the task: the 14 kB stack comes out of the
   // heap the moment the task is created, so testing after the fact would be
   // testing the wrong number. Skipping a version check costs nothing, an out
-  // of memory reboot costs the user their session.
-  if (ESP.getFreeHeap() < MIN_FREE_HEAP) {
-    Serial.printf("[upd] postponed, heap %u\n", (unsigned)ESP.getFreeHeap());
+  // of memory reboot costs the user their session. The floor is the rule every
+  // https worker asks, not a number of this file: the request goes to GitHub,
+  // so it is https, and TLS itself lives in PSRAM here (the measurements are
+  // in backend_job_rules.h). It used to be 60000 for a handshake of 40 kB that
+  // this firmware does not take from the internal heap, which kept the 7B
+  // (57 kB free in operation) from running the daily check.
+  const uint32_t min_heap  = backendJobMinHeap(VERSION_URL);
+  const uint32_t free_heap = (uint32_t)ESP.getFreeHeap();
+  if (free_heap < min_heap) {
+    Serial.printf("[upd] postponed, heap %u < %u\n", (unsigned)free_heap, (unsigned)min_heap);
+    // For the line updateCheckTick() writes: what was free, what was needed.
+    s_skip_free  = free_heap;
+    s_skip_floor = min_heap;
     s_result = RES_FAIL_HEAP;
     s_due_ms = millis() + RETRY_DELAY_MS;
     return;
@@ -347,7 +369,7 @@ void updateCheckTick() {
         logSD("Update check: bad response");
         break;
       case RES_FAIL_HEAP:
-        logSD("Update check: skipped, low heap");
+        logSDf("Update check: skipped, heap %u < %u", (unsigned)s_skip_free, (unsigned)s_skip_floor);
         break;
       case RES_FAIL_BEGIN:
         logSD("Update check: connection setup failed");

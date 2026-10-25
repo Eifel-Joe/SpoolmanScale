@@ -12,7 +12,7 @@
 // The numbers the web jobs run with, for the same reasons: an https backend
 // does its handshake on this stack, the task sits below the loop so the
 // display keeps its share, and it lives on the other core. The heap floor is
-// checked before the stack is taken from it, and is not a number here: 60000
+// checked before the stack is taken from it, and is not a number here: 50000
 // at https, 40000 at http (backend_job_rules.h).
 #define DRIED_BATCH_STACK_BYTES  16384
 #define DRIED_BATCH_PRIORITY     1

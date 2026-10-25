@@ -16,8 +16,9 @@
 //  task, the same shape as the daily update check (core 0, below the loop
 //  in priority, stack from the heap for as long as it runs), and the
 //  browser asks the same URL again until the answer is ready. One job at a
-//  time: a second TLS handshake beside the first is 40 kB the device does
-//  not have twice.
+//  time: a second TLS request beside the first would take another stack and
+//  connection (~22-24 kB) from the internal heap, and the floors are not
+//  meant for two.
 //
 //  What must not run on the second task stays out of it: LVGL, NVS and the
 //  badges are touched by the handler that collects the result, on the loop

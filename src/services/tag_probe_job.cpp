@@ -12,7 +12,7 @@
 
 // The web jobs' stack, not the backend job's smaller one: a backend behind
 // https does its TLS handshake on this task. Priority and core as in both,
-// for the same reasons; the heap floor is not a number here, it is 60000 at
+// for the same reasons; the heap floor is not a number here, it is 50000 at
 // https and 40000 at http (backend_job_rules.h).
 #define TAG_PROBE_STACK_BYTES   16384
 #define TAG_PROBE_PRIORITY      1

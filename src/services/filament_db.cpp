@@ -16,7 +16,7 @@
 
 // The task, on the terms of the backend job (backend_job.cpp): core 0, below
 // the loop, its stack from the heap and a floor checked before it is taken.
-// The floor is not a number here: 60000 at https, 40000 at http
+// The floor is not a number here: 50000 at https, 40000 at http
 // (backend_job_rules.h).
 #define FDB_STACK_BYTES   16384
 #define FDB_PRIORITY      1

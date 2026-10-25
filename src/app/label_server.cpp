@@ -23,7 +23,7 @@
 #define LS_PREVIEW_MAX_AGE_MS 30000
 // The editor's fetches run like the label dates: core 0, below the loop,
 // TLS needs the 16 kB of stack. The heap floor for that stack is not a number
-// here: 60000 at https, 40000 at http (backend_job_rules.h).
+// here: 50000 at https, 40000 at http (backend_job_rules.h).
 #define LS_STACK_BYTES        16384
 #define LS_PRIORITY           1
 #define LS_CORE               0

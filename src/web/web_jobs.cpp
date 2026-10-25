@@ -10,6 +10,7 @@
 #include "services/backend_job_rules.h"
 #include "bambu/bambu_catalog.h"
 #include "services/github_release.h"
+#include "services/update_check.h"
 #include "web/web_net_probe.h"
 #include "web/web_shell.h"
 
@@ -176,6 +177,19 @@ bool webJobStart(WebJobKind kind, const char* arg, bool flag) {
   if (s_state != WJS_IDLE || kind == WJ_NONE) return false;
   // One inventory at a time, device wide, see backend_job.h.
   if (kind == WJ_SPOOLS && backendJobState() == BJS_RUNNING) return false;
+  // A GitHub job (the kinds webJobMinHeap sends to GitHub: everything but the
+  // host test, the spool list and the net probe) is a TLS request like the
+  // daily update check, and the floor is for one such request: two stacks
+  // side by side would take what it leaves free. The check waits for the web
+  // jobs the same way (maybeStartCheck), and "Check" on the scale waits for
+  // both. Nothing is logged, the pages and the catalog sync ask again. The
+  // jobs for the backend are not held up here: on the 7B a running check
+  // leaves less than their floor (40 kB at http, 50 kB at https), and boards
+  // with more heap have room for both.
+  if (kind != WJ_HOST_TEST && kind != WJ_SPOOLS && kind != WJ_NET_PROBE &&
+      updateCheckBusy()) {
+    return false;
+  }
   // Checked here rather than inside the task: the stack comes out of the
   // heap the moment the task is created, so testing afterwards would be
   // testing the wrong number.

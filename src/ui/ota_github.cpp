@@ -164,8 +164,9 @@ void doGithubOtaCheck() {
   lv_obj_set_style_text_color(lbl_gh_status, lv_color_hex(UI_COL_CAPTION), 0);
   lv_timer_handler();
 
-  // The background check holds its own TLS connection, and two handshakes want
-  // roughly 40 kB each. Rather than open a second one, hand this off to the
+  // The background check holds its own TLS connection and stack, and a second
+  // request beside it would take another ~22-24 kB of the internal heap.
+  // Rather than open a second one, hand this off to the
   // loop and let it come back once the task is done - the screen already says
   // "checking", so nothing looks stuck.
   if (updateCheckBusy()) {

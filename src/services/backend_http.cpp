@@ -8,17 +8,19 @@
 #include "app/app_state.h"
 #include "hardware/sd_logger.h"
 #include "services/backend.h"
+#include "services/backend_job_rules.h"
 #include "services/github_release.h"
 #include "services/prefs_store.h"
 
 // Opening the connection ahead of time is a task of its own: the handshake
 // would otherwise stand the loop still for 0.6 s. The stack is the update
 // check's, for the same TLS handshake; it comes from the heap only while the
-// task runs, and only when the heap can spare it.
+// task runs, and only when the heap can spare it. How much that is, is not a
+// number here: warmStart() asks the rules for the floor of the backend's
+// address (backend_job_rules.h), like every other worker.
 #define WARM_STACK_BYTES     14336
 #define WARM_PRIORITY        1
 #define WARM_CORE            0
-#define WARM_MIN_HEAP        60000
 // A request that finds the connection being opened waits this long for it:
 // longer than a handshake, shorter than doing a second one beside it.
 #define WARM_WAIT_MS         3000
@@ -435,7 +437,8 @@ static void warmTask(void*) {
 
 static void warmStart() {
   if (s_warming || !ensureMux()) return;
-  if (ESP.getFreeHeap() < WARM_MIN_HEAP) return;
+  // Only runs for an https backend (backendConnTick), so this is the TLS floor.
+  if (ESP.getFreeHeap() < backendJobMinHeap(backendBaseUrl())) return;
   s_warming = true;
   if (xTaskCreatePinnedToCore(warmTask, "tlswarm", WARM_STACK_BYTES, nullptr,
                               WARM_PRIORITY, nullptr, WARM_CORE) != pdPASS) {

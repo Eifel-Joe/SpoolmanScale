@@ -11,7 +11,7 @@
 #include "services/spool_detail.h"
 
 // The numbers the other workers run with, and for the same reasons. The heap
-// floor for the stack is not a number here: 60000 at https, 40000 at http
+// floor for the stack is not a number here: 50000 at https, 40000 at http
 // (backend_job_rules.h).
 #define AMS_WEIGHTS_STACK_BYTES  16384
 #define AMS_WEIGHTS_PRIORITY     1

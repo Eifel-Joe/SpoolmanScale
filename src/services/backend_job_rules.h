@@ -11,8 +11,8 @@
 //  out of the internal heap the moment it is created, so the start is refused
 //  while the heap is below a floor. It used to be one floor for everybody,
 //  60000 bytes, written for https: a TLS handshake runs on that task
-//  whenever the kept connection is closed, and the stack of 16 kB is sized
-//  for it.
+//  whenever the kept connection is closed, and the handshake was taken to
+//  need 40 kB on top of the stack.
 //
 //  That floor locked the Waveshare 7B out. The board has about 58 620 bytes
 //  free in steady state, 1 380 bytes under it, and stays there: the heap
@@ -25,12 +25,29 @@
 //  run really takes is in the log line the list job writes when it is done
 //  (free at the start, lowest since boot).
 //
+//  The 40 kB for the handshake do not hold either, and that is why https is
+//  50000 and not 60000. The figure comes from a board where mbedTLS took its
+//  memory from the internal heap. Here it does not: TLS lives in PSRAM
+//  (platformio.ini, CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC), and on the 7B on
+//  24.10.2026 seven requests to GitHub showed no internal heap use of their
+//  own, more was free while the connection was open, not less. What a
+//  background request takes is its stack and its connection, some 22 to
+//  24 kB, encrypted or not. A start at 50000 leaves about 28 kB while it
+//  runs, as low as the 7B has run without a fault (25.10.2026); its 57 kB
+//  in operation clear the floor. 40000 for https would be a guess, nothing
+//  has been measured that low, and the 10 kB over the plain floor stand for
+//  what has not been: the low point inside the handshake itself.
+//
 //  Only the address decides: it is the one thing known before the task
 //  exists. A worker asks for the floor of the address it is about to talk
-//  to, the higher one if it talks to more than one. The update check
-//  (update_check.cpp) keeps its own floor of 60000 on purpose, it always
-//  speaks https to GitHub, and so does the TLS warm-up in backend_http.cpp,
-//  which only runs for an https backend.
+//  to, the higher one if it talks to more than one. The daily update check
+//  (update_check.cpp) asks for the address of its version file, always
+//  https to GitHub, and so does the TLS warm-up in backend_http.cpp, which
+//  only runs for an https backend and asks for the backend's address like
+//  the list worker. The floor is meant for one background request, and a
+//  second stack from the same heap would take what it leaves, so the daily
+//  check does not start while a web job or the inventory list runs, and the
+//  GitHub jobs of the web pages do not start while the daily check runs.
 //
 //  A refused start is asked for again on every pass of the loop, and so is a
 //  task that could not be created, so each of those two log lines goes
@@ -39,10 +56,11 @@
 //  The rules live here, without Arduino, the heap or the log: a host test
 //  holds them to the values in test_backend_job_rules.py, and the workers
 //  ask this unit instead of keeping rules of their own
-//  (test_worker_heap_floors.py looks that none keeps a number).
+//  (test_worker_heap_floors.py looks that none keeps a number, the update
+//  check and the TLS warm-up included).
 // ============================================================
 
-#define BACKEND_JOB_MIN_HEAP_TLS   60000   // https: the TLS handshake runs on the worker
+#define BACKEND_JOB_MIN_HEAP_TLS   50000   // https: stack and socket like http, TLS lives in PSRAM
 #define BACKEND_JOB_MIN_HEAP_PLAIN 40000   // http: the 16 kB stack plus plain sockets
 
 // A refused start is logged at most this often (see LogGate below), with the

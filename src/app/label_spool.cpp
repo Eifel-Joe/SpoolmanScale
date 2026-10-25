@@ -25,7 +25,7 @@
 // The browser's dates are fetched on a task of their own, the shape of the
 // other backend workers: core 0, below the loop, stack from the heap while
 // it runs. TLS needs the 16 kB. The heap floor for that stack is not a number
-// here: 60000 at https, 40000 at http (backend_job_rules.h).
+// here: 50000 at https, 40000 at http (backend_job_rules.h).
 #define LABEL_DATE_STACK_BYTES 16384
 #define LABEL_DATE_PRIORITY    1
 #define LABEL_DATE_CORE        0

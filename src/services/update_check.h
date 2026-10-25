@@ -5,7 +5,8 @@
 // The previous version called the GitHub API straight from the boot path, with
 // an eight second timeout and no separate task. lv_timer_handler() did not run
 // for the whole request, so the display froze, and the TLS handshake claimed
-// around 40 kB of heap at the exact moment the boot needed it most. It was
+// around 40 kB of heap at the exact moment the boot needed it most (on Arduino
+// core 2, before mbedTLS was moved to PSRAM, see platformio.ini). It was
 // switched off for both reasons and never switched back on.
 //
 // This one runs in its own FreeRTOS task on the other core. A slow, hanging or
@@ -22,8 +23,10 @@ void updateCheckScheduleIn(unsigned long delay_ms);
 void updateCheckTick();
 
 // True while the background task holds a TLS connection. The manual check on
-// the OTA screen asks before opening a second one: two handshakes want roughly
-// 40 kB each, and the device does not have that twice over.
+// the OTA screen and the GitHub jobs of the web pages ask before opening a
+// second one: each background request takes a stack and a connection of ~22-24
+// kB from the internal heap, and the floors (backend_job_rules.h) are meant
+// for one of them, not for two side by side. TLS itself lives in PSRAM here.
 bool updateCheckBusy();
 
 // Puts the badge back at boot from the version the last check stored, by

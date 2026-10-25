@@ -82,8 +82,9 @@ bool otaWebUploadActive() { return ota_upload_active; }
 static const char* label() { return T(STR_W_NAV_FIRMWARE); }
 
 
-// Whatever else is holding a TLS connection or writing flash. Two handshakes
-// want roughly 40 kB each and the device does not have that twice over.
+// Whatever else is holding a TLS connection or writing flash. Two requests
+// side by side take two stacks and connections (~22-24 kB each) from the
+// internal heap, and the floors are not meant for that.
 static bool otaBusy() {
   return updateCheckBusy() || gh_flash_active || ota_upload_active ||
          gh_web_flash_pending;
