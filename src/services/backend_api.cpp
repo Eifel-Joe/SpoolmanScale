@@ -599,16 +599,30 @@ bool backendGetVersion(const char* base_url, char* out_version, size_t out_size,
   }
 }
 
-int backendGetLinkBase(char* out, size_t out_size, uint32_t timeout_ms) {
-  HttpStallTime stall(__func__);   // the loop stands still for this call
-  switch (backendMode()) {
+void backendTargetSnapshot(BackendTarget* out) {
+  out->mode = backendMode();
+  snprintf(out->base, sizeof(out->base), "%s", backendBaseUrl());
+  const char* key = out->mode == BACKEND_FILAMAN  ? filamanApiKey()
+                  : out->mode == BACKEND_BAMBUDDY ? bambuddyApiKey() : "";
+  snprintf(out->key, sizeof(out->key), "%s", key);
+}
+
+int backendGetLinkBaseAt(const BackendTarget& at, char* out, size_t out_size, uint32_t timeout_ms) {
+  switch (at.mode) {
     case BACKEND_FILAMAN:
       return notSupported(__func__);
     case BACKEND_BAMBUDDY:
-      return bbGetExternalUrl(backendBaseUrl(), bambuddyApiKey(), out, out_size, timeout_ms);
+      return bbGetExternalUrl(at.base, at.key, out, out_size, timeout_ms);
     default:
-      return spoolmanGetBaseUrlSetting(backendBaseUrl(), out, out_size, timeout_ms);
+      return spoolmanGetBaseUrlSetting(at.base, out, out_size, timeout_ms);
   }
+}
+
+int backendGetLinkBase(char* out, size_t out_size, uint32_t timeout_ms) {
+  HttpStallTime stall(__func__);   // the loop stands still for this call
+  BackendTarget at;
+  backendTargetSnapshot(&at);
+  return backendGetLinkBaseAt(at, out, out_size, timeout_ms);
 }
 
 int backendCountActiveSpools(const char* base_url, uint32_t timeout_ms) {

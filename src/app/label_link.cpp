@@ -56,11 +56,17 @@ bool labelLinkDue() {
   return millis() - s_asked_ms >= LABEL_LINK_TTL_MS;
 }
 
-void labelLinkFetch(LabelLinkAnswer* out) {
+void labelLinkFetchAt(const BackendTarget& at, uint32_t gen, LabelLinkAnswer* out) {
   if (!out) return;
   *out = LabelLinkAnswer{};
-  out->gen  = backendGeneration();
-  out->code = backendGetLinkBase(out->base, sizeof(out->base), LABEL_LINK_TIMEOUT_MS);
+  out->gen  = gen;
+  out->code = backendGetLinkBaseAt(at, out->base, sizeof(out->base), LABEL_LINK_TIMEOUT_MS);
+}
+
+void labelLinkFetch(LabelLinkAnswer* out) {
+  BackendTarget at;
+  backendTargetSnapshot(&at);
+  labelLinkFetchAt(at, backendGeneration(), out);
 }
 
 void labelLinkTake(const LabelLinkAnswer& a) {

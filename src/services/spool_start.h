@@ -28,6 +28,13 @@ enum TareQuality : uint8_t {
   TARE_Q_KNOWN       // stored by someone: filament, brand, catalog, template
 };
 
+// How far an empty spool weight is to be trusted. `fixed_default` says the
+// tag brought a maker's fixed figure of `default_g`; a stored weight that
+// says exactly that figure is that figure and nothing more. The scale itself
+// files the 250 g core on the brand and the filament it creates, so from the
+// second Bambu spool on the entry would otherwise pass as a measurement.
+TareQuality spoolTareQuality(int tare_g, bool fixed_default, int default_g);
+
 // What the reading says about the spool on the pad.
 enum StartVerdict : uint8_t {
   START_NOT_WEIGHED = 0,  // nothing on the pad, or no more than the empty spool

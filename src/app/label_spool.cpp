@@ -30,7 +30,6 @@
 #define LABEL_DATE_STACK_BYTES 16384
 #define LABEL_DATE_PRIORITY    1
 #define LABEL_DATE_CORE        0
-#define LABEL_DATE_URL_LEN     160
 // Above this a temperature is a typo or a unit mix-up, not a setting.
 #define LABEL_TEMP_MAX_C       500
 
@@ -243,9 +242,10 @@ void labelSpoolFetchDates(SpoolLabelData* d) {
 }
 
 // The worker for the browser's dates. Everything it reads is set before it
-// starts and everything it writes is read only after s_job_done says so.
+// starts and everything it writes is read only after s_job_done says so:
+// also where the backend is, which the loop may change while the task runs.
 struct DateJob {
-  char url[LABEL_DATE_URL_LEN];
+  BackendTarget at;
   int id;
   uint32_t gen;        // backendGeneration() at the start
   bool ok;
@@ -256,8 +256,8 @@ struct DateJob {
 static DateJob s_job;
 
 static void dateTask(void*) {
-  if (s_job.want_link) labelLinkFetch(&s_job.link);
-  s_job.ok = fetchDates(s_job.url, s_job.id, &s_job.extras);
+  if (s_job.want_link) labelLinkFetchAt(s_job.at, s_job.gen, &s_job.link);
+  s_job.ok = fetchDates(s_job.at.base, s_job.id, &s_job.extras);
   __sync_synchronize();
   s_job_done = true;
   vTaskDelete(NULL);
@@ -270,11 +270,12 @@ static LogGate s_create_gate;
 
 // False when the task could not start; the caller then gives up on the dates.
 static bool startDateJob(int id) {
-  // The floor follows the addresses the request can go to (fetchDates, then
-  // backendGetSpoolJson): the backend's, copied into s_job.url below, and for a
-  // BamBuddy that keeps its spools in a Spoolman server that server's, where
-  // the drying date is read (bbGetSpoolJson). backendFdbBaseUrl() is that
-  // server exactly then and the active backend otherwise: the higher floor.
+  // The floor follows the addresses the requests can go to (the QR link's,
+  // fetchDates, then backendGetSpoolJson): the backend's, taken into s_job.at
+  // below, and for a BamBuddy that keeps its spools in a Spoolman server that
+  // server's, where the drying date is read (bbGetSpoolJson).
+  // backendFdbBaseUrl() is that server exactly then and the active backend
+  // otherwise: the higher floor.
   const uint32_t min_heap  = backendJobMinHeapBoth(backendBaseUrl(), backendFdbBaseUrl());
   const uint32_t free_heap = (uint32_t)ESP.getFreeHeap();
   if (free_heap < min_heap) {
@@ -288,7 +289,7 @@ static bool startDateJob(int id) {
     return false;
   }
   s_job = DateJob{};
-  snprintf(s_job.url, sizeof(s_job.url), "%s", backendBaseUrl());
+  backendTargetSnapshot(&s_job.at);
   s_job.id = id;
   s_job.gen = backendGeneration();
   s_job.want_link = labelLinkDue();

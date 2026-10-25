@@ -34,6 +34,7 @@
 #include "ui/header_status.h"
 #include "ui/settings_screen.h"
 #include "ui/spool_flow.h"
+#include "ui/spool_id_pad.h"
 #include "ui/tag_view.h"
 
 
@@ -118,6 +119,7 @@ void hideAllOverlays() {
   closeFactoryResetPopup();
   closeMoreInfoPopups();
   closePcPrintPopup();
+  closeSpoolIdPad();
   closeTagView();
   closeBleDeviceCard();
 }

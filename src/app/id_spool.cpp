@@ -8,6 +8,7 @@
 #include "hardware/sd_logger.h"
 #include "lang.h"
 #include "services/auto_weight_state.h"
+#include "services/user_options.h"
 #include "ui/main_screen_helpers.h"
 #include "ui/spoolman_lookup.h"
 #include "ui/status_clear.h"
@@ -18,6 +19,7 @@ static bool          s_active     = false;
 static int           s_id         = 0;
 static bool          s_seen_load  = false;   // the spool has been on the pad since
 static unsigned long s_since_ms   = 0;
+static unsigned long s_lifted_ms  = 0;       // when it left the pad, 0 while it is on
 
 bool idSpoolActive() { return s_active; }
 
@@ -67,6 +69,7 @@ void idSpoolAdopt(int spool_id) {
   s_id        = spool_id;
   s_seen_load = scale_weight_g >= ID_SPOOL_LOAD_MIN_G;
   s_since_ms  = millis();
+  s_lifted_ms = 0;
   paintStatus();
   paintWeightButton(true);
   logSDf("IdSpool: spool %d shown without a tag (load %.0fg)", spool_id, scale_weight_g);
@@ -79,11 +82,24 @@ void idSpoolTick() {
   if (!sm_found || sm_id != s_id) { endIdSpool("display changed", false); return; }
   // The clear button behind the status text, see statusClearSync() in the loop.
   if (statusClearTaken()) { endIdSpool("cleared by hand", true); return; }
+  // Without a load cell nothing below can tell: the button and a tag end it.
+  if (!g_scale_fitted) return;
   if (scale_weight_g >= ID_SPOOL_LOAD_MIN_G) {
     s_seen_load = true;
-  } else if (s_seen_load) {
+    s_lifted_ms = 0;
+    return;
+  }
+  if (!s_seen_load) {
+    if (millis() - s_since_ms > ID_SPOOL_IDLE_MS) endIdSpool("never put on the pad", true);
+    return;
+  }
+  // Lifted: shown for the grace a lifted tag gets, so a location or weight
+  // the spool is carried away during still finds it. Put back in time, it
+  // goes on as before.
+  if (!s_lifted_ms) {
+    s_lifted_ms = millis();
+    logSDf("IdSpool: spool %d lifted, shown for %lu s more", s_id, ID_SPOOL_LIFTED_MS / 1000UL);
+  } else if (millis() - s_lifted_ms > ID_SPOOL_LIFTED_MS) {
     endIdSpool("taken off the pad", true);
-  } else if (millis() - s_since_ms > ID_SPOOL_IDLE_MS) {
-    endIdSpool("never put on the pad", true);
   }
 }

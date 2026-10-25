@@ -72,8 +72,9 @@ static void     (*s_done)(int) = nullptr;
 bool spoolIdPadOpen() { return s_pad != nullptr; }
 
 void closeSpoolIdPad() {
-  if (s_pad) lv_obj_del(s_pad);
-  s_pad = nullptr;
+  // Hidden now, freed on the next pass: hideAllOverlays() reaches this from
+  // the callbacks of whatever rose over the pad.
+  releaseScreen(&s_pad);
   s_col = nullptr;
   s_lbl_input = nullptr;
   s_answer = SIP_NONE;
@@ -111,27 +112,6 @@ static void onBackspace(lv_event_t*) {
   const size_t len = strlen(s_input);
   if (len) s_input[len - 1] = '\0';
   inputChanged();
-}
-
-static lv_obj_t* padButton(lv_obj_t* parent, int x, int y, int w, int h, uint32_t bg, uint32_t bg_pressed) {
-  lv_obj_t* b = lv_btn_create(parent);
-  lv_obj_set_size(b, w, h);
-  lv_obj_set_pos(b, x, y);
-  lv_obj_set_style_bg_color(b, lv_color_hex(bg), 0);
-  lv_obj_set_style_bg_color(b, lv_color_hex(bg_pressed), LV_STATE_PRESSED);
-  lv_obj_set_style_radius(b, UI_RADIUS_INPUT, 0);
-  lv_obj_set_style_shadow_width(b, 0, 0);
-  lv_obj_set_style_border_width(b, 1, 0);
-  lv_obj_set_style_border_color(b, lv_color_hex(UI_COL_LINE_SOFT), 0);
-  return b;
-}
-
-static void padLabel(lv_obj_t* btn, const char* text, uint32_t col, const lv_font_t* font) {
-  lv_obj_t* l = lv_label_create(btn);
-  lv_label_set_text(l, text);
-  lv_obj_set_style_text_color(l, lv_color_hex(col), 0);
-  lv_obj_set_style_text_font(l, font, 0);
-  lv_obj_center(l);
 }
 
 static lv_obj_t* colText(lv_obj_t* parent, const char* text, int y, uint32_t col, const lv_font_t* font,
@@ -301,15 +281,8 @@ void showSpoolIdPad(void (*done)(int spool_id)) {
   s_input[0] = '\0';
   s_state = SIP_EDIT;
 
-  s_pad = lv_obj_create(lv_scr_act());
-  lv_obj_set_size(s_pad, 480, 320);
-  lv_obj_set_pos(s_pad, 0, 0);
-  lv_obj_set_style_bg_color(s_pad, lv_color_hex(UI_COL_GROUND), 0);
-  lv_obj_set_style_bg_opa(s_pad, LV_OPA_COVER, 0);
-  lv_obj_set_style_border_width(s_pad, 0, 0);
-  lv_obj_set_style_radius(s_pad, 0, 0);
-  lv_obj_set_style_pad_all(s_pad, 0, 0);
-  lv_obj_clear_flag(s_pad, LV_OBJ_FLAG_SCROLLABLE);
+  s_pad = buildOverlayScreen();
+  lv_obj_clear_flag(s_pad, LV_OBJ_FLAG_HIDDEN);
 
   s_col = lv_obj_create(s_pad);
   lv_obj_set_size(s_col, SIP_COL_W, SIP_BOTTOM_Y - SIP_CANCEL_H - SIP_GAP - SIP_TOP_Y);
@@ -368,6 +341,13 @@ static void confirmSpool() {
 
 void spoolIdPadTick() {
   if (!s_pad) return;
+  // A tag put down while the id is typed is the better answer, and the
+  // lookup's popups would rise over the pad: it steps aside.
+  if (tag_present) {
+    logSD("UI: spool by id closed, a tag is on the reader");
+    closeSpoolIdPad();
+    return;
+  }
   const SipAnswer answer = s_answer;
   s_answer = SIP_NONE;
   if (answer == SIP_CANCEL) {
