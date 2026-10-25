@@ -2,7 +2,7 @@
 
 #include <stddef.h>
 
-#include "app_config.h"   // NEW_SPOOL_TARE_MIN_G / NEW_SPOOL_TARE_MAX_G, defines only
+#include "app_config.h"   // NEW_SPOOL_TARE_MIN/MAX_G, BB_CAP_TOLERANCE_G, defines only
 
 // ============================================================
 //  WHICH EMPTY SPOOL A READING POINTS AT: THE RULES
@@ -123,6 +123,14 @@ struct FullSpoolWrite { int tare_g; int label_g; float rest_g; };
 // up past the label the server holds. A reading that is not a number or lies
 // below the tare leaves a rest of 0.
 FullSpoolWrite spoolTypeFullSpoolWrite(float bare, float fill, float tare);
+
+// True when a weighing asks before it is written. BamBuddy keeps no rest
+// above the label weight: its own inventory stores what was used, and behind
+// Spoolman the rest is clamped to the label (measured 25.10.2026, 1016.8 g
+// and 1035.9 g against a 1000 g label were stored as 1000 g). A rest more
+// than BB_CAP_TOLERANCE_G over a known label asks to raise the label first.
+// No label, a rest that is not a number and other servers: no question.
+bool spoolLabelAsk(bool bambuddy, float label, float rest);
 
 // What to ask when a spool is put down: its label weight, the filament left,
 // the bare reading (without the parts on the spool), whether the spool has a

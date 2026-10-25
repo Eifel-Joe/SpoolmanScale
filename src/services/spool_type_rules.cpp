@@ -126,6 +126,11 @@ FullSpoolWrite spoolTypeFullSpoolWrite(float bare, float fill, float tare) {
   return w;
 }
 
+bool spoolLabelAsk(bool bambuddy, float label, float rest) {
+  // A rest that is not a number fails the comparison and asks nothing.
+  return bambuddy && label > 0.0f && rest > label + BB_CAP_TOLERANCE_G;
+}
+
 SpoolTypeAsk spoolTypeFirstAsk(float total, float remaining, float bare, bool own_tare, float stored_tare) {
   // 1. Nothing on the dish, or nothing a spool could be: no question. The
   //    negated comparison also stops a reading that is not a number.

@@ -177,14 +177,23 @@ void handleConfirmPopupDeferredActions() {
     case CJ_ARCHIVE:
       if (patchArchiveSpool()) s_ask_free_tag_pending = true;
       break;
-    case CJ_CAP_RAISE:
+    case CJ_CAP_RAISE: {
       // Order matters: the label first, so the weight that follows has room.
-      // patchInitialWeight writes label and consumption together, which
-      // already leaves the spool at full - the weight write after it is what
-      // stamps last_weighed_at and last_scale_weight.
-      patchInitialWeight(s_job_value);
-      patchSpoolmanWeight(s_job_value, true);
+      // In BamBuddy's own inventory patchInitialWeight writes label and
+      // consumption together, which already leaves the spool at full; the
+      // weight write after it sets the rest behind Spoolman and stamps
+      // last_weighed_at and last_scale_weight. A label the server refused
+      // leaves no room, so nothing follows it, as for a full spool. The label
+      // goes over in whole grams and the rest is cut to it, so it cannot
+      // stand above the label (spoolTypeFullSpoolWrite does the same).
+      const float label = (float)spoolTypeGrams(s_job_value);
+      if (!patchInitialWeight(label)) {
+        logSDf("Label raise to %.0f g refused, weight not written", label);
+        break;
+      }
+      patchSpoolmanWeight(s_job_value < label ? s_job_value : label, true);
       break;
+    }
     case CJ_CAP_KEEP:
       // Written anyway, so the scale and the server agree that a weighing
       // happened. BamBuddy clamps it, which is what the user just accepted.
@@ -855,8 +864,10 @@ void showConfirmPopup(const char* msg, int action) {
 //
 //  BamBuddy's built-in inventory keeps the consumed grams and derives the
 //  rest, so a spool holding more than its label says cannot be stored - the
-//  remainder clamps back to full. Raising the label is the only way to keep
-//  the number, and that changes a field the user owns, so it is asked.
+//  remainder clamps back to full. Behind Spoolman BamBuddy clamps the rest
+//  to the label as well (spoolLabelAsk). Raising the label is the only way
+//  to keep the number, and that changes a field the user owns, so it is
+//  asked.
 // ============================================================
 void showBamBuddyCapPopup(float measured_g, float label_g) {
   releaseScreen(&s_cap_popup);
