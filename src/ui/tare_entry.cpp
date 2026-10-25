@@ -8,9 +8,11 @@
 #include "app/app_state.h"
 #include "app_config.h"
 #include "confirm_popup.h"
+#include "empty_spool_type.h"
 #include "hardware/sd_logger.h"
 #include "lang.h"
 #include "services/spool_extras.h"
+#include "spool_type_name.h"
 #include "theme.h"
 #include "ui_common.h"
 
@@ -41,16 +43,35 @@ static lv_obj_t *s_btn_next  = nullptr;
 static int   s_spool_id = 0;
 static float s_open_g   = 0.0f;
 
-bool isTareEntryOpen() {
+// The windows of this file, opened for the spool s_spool_id. Only these are
+// closed by a swap or a lift (tareEntryTick()).
+static bool spoolEntryOpen() {
   return s_choice != nullptr || s_pad != nullptr;
 }
 
-void closeTareEntry() {
+bool isTareEntryOpen() {
+  // The empty spool screen of the settings counts as well, although it
+  // belongs to no spool: a spool is put on the pad for it, and automatic
+  // weighing and the drift correction must not act on that.
+  return spoolEntryOpen() || isEmptySpoolTypeOpen();
+}
+
+// The choice and the keypad, nothing else. What the buttons of this file
+// close when their own window is done.
+static void closeSpoolEntry() {
   releaseScreen(&s_choice);
   releaseScreen(&s_pad);
   s_lbl_input = nullptr;
   s_lbl_info  = nullptr;
   s_btn_next  = nullptr;
+}
+
+void closeTareEntry() {
+  closeSpoolEntry();
+  // For the navigation (closeConfirmPopups()): the screens of the empty spool
+  // types go as well, a name entry also when it was not opened from there.
+  closeEmptySpoolType();
+  closeSpoolTypeName();
 }
 
 // ---------------------------------------------------------------------------
@@ -233,18 +254,18 @@ static void showTarePad() {
     if (sm_id != s_spool_id) {
       logSDf("UI: tare %.1f g typed for spool %d, spool %d loaded now - dropped",
              v, s_spool_id, sm_id);
-      closeTareEntry();
+      closeSpoolEntry();
       return;
     }
     logSDf("UI: tare typed in, %.1f g", v);
-    closeTareEntry();
+    closeSpoolEntry();
     showSpoolWeightScope(v, false);
   }, LV_EVENT_CLICKED, NULL);
 
   lv_obj_t *cancel = padButton(scr, COL_X, KEYS_Y + NEXT_H + GAP, COL_W, CANCEL_H,
                                UI_COL_BAD_BG, UI_COL_BAD_BG_PRESSED);
   padLabel(cancel, T(STR_CANCEL), UI_COL_BAD_TEXT, UI_FONT_SMALL);
-  lv_obj_add_event_cb(cancel, [](lv_event_t *e) { closeTareEntry(); }, LV_EVENT_CLICKED, NULL);
+  lv_obj_add_event_cb(cancel, [](lv_event_t *e) { closeSpoolEntry(); }, LV_EVENT_CLICKED, NULL);
 
   refreshPad();
 }
@@ -267,7 +288,7 @@ static lv_obj_t *choiceButton(lv_obj_t *box, int y, int w, int h, const char *te
 
 void showTareChoice() {
   logSD("SHOW: TareChoice");
-  closeTareEntry();
+  closeSpoolEntry();
   s_spool_id = sm_id;
   s_open_g   = scale_weight_g;
 
@@ -308,7 +329,7 @@ void showTareChoice() {
   lv_obj_add_event_cb(weigh, [](lv_event_t *e) {
     // The reading at the moment of the press, as the old button took it.
     const float g = spoolExtrasBareReading();
-    closeTareEntry();
+    closeSpoolEntry();
     showSpoolWeightScope(g, true);
   }, LV_EVENT_CLICKED, NULL);
   y += BTN_H + GAP;
@@ -327,11 +348,18 @@ void showTareChoice() {
   lv_obj_set_style_radius(cancel, UI_RADIUS_BTN, 0);
   lv_obj_set_style_border_width(cancel, 0, 0);
   padLabel(cancel, T(STR_CANCEL), UI_COL_BAD_TEXT, UI_FONT_SMALL);
-  lv_obj_add_event_cb(cancel, [](lv_event_t *e) { closeTareEntry(); }, LV_EVENT_CLICKED, NULL);
+  lv_obj_add_event_cb(cancel, [](lv_event_t *e) { closeSpoolEntry(); }, LV_EVENT_CLICKED, NULL);
 }
 
 void tareEntryTick() {
-  if (!isTareEntryOpen()) return;
+  // Every loop pass, before anything returns: the name entry and the empty
+  // spool screen have no call of their own in app_loop.cpp, which must not
+  // grow.
+  spoolTypeNameTick();
+  emptySpoolTypeTick();
+  // What follows is for the windows opened for a spool. The empty spool
+  // screen weighs whatever is put down, and a swap does not close it.
+  if (!spoolEntryOpen()) return;
   const bool swapped = sm_id != s_spool_id;
   // Only where a spool was on the pad to begin with: the entry also serves a
   // spool that sits in the printer, and an empty pad has nothing to lose.
@@ -343,5 +371,5 @@ void tareEntryTick() {
          s_open_g, scale_weight_g);
   // From the loop, not from a callback; releaseScreen() deletes on the next
   // timer pass either way.
-  closeTareEntry();
+  closeSpoolEntry();
 }

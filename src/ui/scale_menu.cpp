@@ -19,8 +19,10 @@
 #include "lang.h"
 #include "services/drying_config.h"
 #include "services/prefs_store.h"
+#include "services/spool_types.h"
 #include "services/tag_write.h"
 #include "services/user_options.h"
+#include "empty_spool_type.h"
 #include "info_popup.h"
 #include "ui_common.h"
 #include "tare_mark.h"
@@ -167,6 +169,17 @@ void buildScaleSubScreen() {
     lv_obj_add_event_cb(btn, [](lv_event_t *e){
       logSD("BTN: Scale-Sub -> Bag Weight");
       show_bag_pending = true;
+    }, LV_EVENT_CLICKED, NULL); }
+
+  // An empty spool without a database entry, weighed bare and added to
+  // Bambuddy's catalog of spool types (design B). Only behind Bambuddy in
+  // Spoolman mode, like every spool type screen (design note L16). The button
+  // builds the screen and nothing else; the server is asked from the loop.
+  if (g_scale_fitted && spoolTypesActive())
+  { lv_obj_t *btn = makeListBtn(list, LV_SYMBOL_PLUS, T(STR_SPT_EMPTY_BTN), T(STR_SPT_EMPTY_SUB));
+    lv_obj_add_event_cb(btn, [](lv_event_t *e){
+      logSD("BTN: Scale-Sub -> Empty spool type");
+      showEmptySpoolType();
     }, LV_EVENT_CLICKED, NULL); }
 
   // Only with a load cell, like the bag weight above it.

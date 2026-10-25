@@ -3843,7 +3843,24 @@ const char* const STRINGS[][3] = {
   { "Standard",
     "Default",
     "Par défaut" },  // STR_W_EXTRAS_DEFAULT
-  { " (geerbt)", " (inherited)", " (hérité)" },  // STR_TARE_INHERITED
+  { " (geerbt)", " (inherited)",
+    " (hérité)" },  // STR_TARE_INHERITED
+  { "Name der Leerspule (%d g)", "Name of the empty spool (%d g)",
+    "Nom de la bobine vide (%d g)" },  // STR_SPT_NAME_TITLE
+  { "Diesen Namen gibt es schon. Bitte einen anderen eingeben.", "That name is taken already. Please type another one.",
+    "Ce nom existe déjà. Saisissez-en un autre." },  // STR_SPT_NAME_TAKEN
+  { "Anlegen fehlgeschlagen (HTTP %d)", "Could not create (HTTP %d)",
+    "Création impossible (HTTP %d)" },  // STR_SPT_NAME_FAIL
+  { "Leerspule anlegen", "Add empty spool",
+    "Ajouter une bobine vide" },  // STR_SPT_EMPTY_BTN
+  { "Leere Spule wiegen, als Spulentyp anlegen", "Weigh an empty spool, add it as a spool type",
+    "Peser une bobine vide, l'ajouter comme type" },  // STR_SPT_EMPTY_SUB
+  { "Leerspule anlegen", "Add empty spool",
+    "Ajouter une bobine vide" },  // STR_SPT_EMPTY_TITLE
+  { "Leere Spule auflegen und das Zubehör daran antippen. Dann Weiter.", "Put the empty spool on and tap the parts on it. Then Next.",
+    "Posez la bobine vide, touchez ses accessoires, puis Suivant." },  // STR_SPT_EMPTY_HINT
+  { "Angelegt: %s (%d g)", "Created: %s (%d g)",
+    "Créé : %s (%d g)" },  // STR_SPT_CREATED
 };
 
 StringID tagWriteResultString(uint8_t code) {

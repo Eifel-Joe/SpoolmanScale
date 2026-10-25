@@ -340,3 +340,7 @@ STR_TAG_COMP_OFF	12	290	NEVER	src/ui/ui_common.cpp addSettingRow sub, text_w 290
 STR_TAG_COMP_OFF_SUB	12	320	NEVER	src/ui/tag_companion_screen.cpp makeListBtn sub, text_w 320
 STR_TAG_COMP_TAG_SUB	12	320	NEVER	src/ui/tag_companion_screen.cpp makeListBtn sub, text_w 320
 STR_TAG_COMP_NFCID_SUB	12	320	NEVER	src/ui/tag_companion_screen.cpp makeListBtn sub, text_w 320
+STR_SPT_EMPTY_BTN	16	320	NEVER	src/ui/scale_menu.cpp makeListBtn title, text_w 320
+STR_SPT_EMPTY_SUB	12	320	NEVER	src/ui/scale_menu.cpp makeListBtn sub, text_w 320
+STR_SPT_EMPTY_TITLE	18	376	NEVER	src/ui/empty_spool_type.cpp sub header title, 480 - 2 * (44 + 2 * 4)
+STR_SPT_NAME_TITLE	18	460	NEVER	src/ui/spool_type_name.cpp title of a full screen with no buttons in its head, 480 - 2 * 10

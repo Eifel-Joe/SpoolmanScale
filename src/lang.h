@@ -1782,6 +1782,14 @@ enum StringID {
   STR_W_EXTRAS_DEFAULT,
   // Empty spool types (Bambuddy's catalog of empty spools)
   STR_TARE_INHERITED,         // after a tare that came from the filament level behind Bambuddy's Spoolman proxy
+  STR_SPT_NAME_TITLE,         // title of the name entry for a new spool type, %d = its weight in grams
+  STR_SPT_NAME_TAKEN,         // the catalog has that name already
+  STR_SPT_NAME_FAIL,          // the type was not created, %d = HTTP code
+  STR_SPT_EMPTY_BTN,          // scale menu row: an empty spool weighed and added as a spool type
+  STR_SPT_EMPTY_SUB,          // its subtitle
+  STR_SPT_EMPTY_TITLE,        // title of that screen
+  STR_SPT_EMPTY_HINT,         // what to do on it; "Weiter" is STR_BTN_NEXT
+  STR_SPT_CREATED,            // the type just added, %s = name, %d = grams
 
   STR_COUNT
 };
