@@ -25,9 +25,6 @@
 #define BACKEND_JOB_STACK_BYTES   16384
 #define BACKEND_JOB_PRIORITY      1
 #define BACKEND_JOB_CORE          0
-// A refused start is asked for again on every pass of the loop. Its log line
-// is written at most this often, with the number of refusals it stands for.
-#define BACKEND_JOB_REFUSAL_LOG_MS 60000
 
 // The same allocator the lookup path uses: the inventory goes into PSRAM,
 // not into the 320 kB the rest of the firmware shares. Static, because the

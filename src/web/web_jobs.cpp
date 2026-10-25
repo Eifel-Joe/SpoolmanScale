@@ -7,6 +7,7 @@
 #include "services/backend.h"
 #include "services/backend_api.h"
 #include "services/backend_job.h"
+#include "services/backend_job_rules.h"
 #include "bambu/bambu_catalog.h"
 #include "services/github_release.h"
 #include "web/web_net_probe.h"
@@ -15,11 +16,11 @@
 // The same numbers the update check task runs with, for the same reasons: a
 // TLS handshake with the certificate bundle wants the stack, the task sits
 // below the loop so the display keeps its share, and it lives on the other
-// core. The heap floor is checked before the stack is taken from it.
+// core. The heap floor is checked before the stack is taken from it; it is not
+// a number here but follows what the job talks to (webJobMinHeap below).
 #define WEB_JOB_STACK_BYTES   16384
 #define WEB_JOB_PRIORITY      1
 #define WEB_JOB_CORE          0
-#define WEB_JOB_MIN_HEAP      60000
 // A result nobody collects is dropped after this, so the slot is free again
 // for the next visitor.
 #define WEB_JOB_KEEP_MS       60000UL
@@ -45,6 +46,9 @@ static WebJobResult         s_res;
 static char                 s_arg[160] = "";   // a release tag, or the backend address for the probe
 static bool                 s_flag    = false;
 static unsigned long        s_done_ms = 0;
+// The gate of the "postponed" line. Every kind of job starts from the loop
+// task (the web handlers and the catalog sync), so one gate serves them all.
+static LogGate              s_start_gate;
 
 static void runHostTest() {
   s_res.code = backendGetHealthCode(backendBaseUrl(), 4000);
@@ -152,6 +156,20 @@ static void webJobTask(void* arg) {
   vTaskDelete(NULL);
 }
 
+// The floor of a job follows the address it talks to, which its kind decides:
+// the host test and the spool list go to the active backend, the net probe to
+// the address it is handed (the backend's again, see web_net_probe.cpp), and
+// everything else to GitHub (the release check, its notes, BambuStudio's
+// colour table), always https. The floors are in backend_job_rules.h.
+static uint32_t webJobMinHeap(WebJobKind kind, const char* arg) {
+  switch (kind) {
+    case WJ_HOST_TEST:
+    case WJ_SPOOLS:    return backendJobMinHeap(backendBaseUrl());
+    case WJ_NET_PROBE: return backendJobMinHeap(arg);
+    default:           return backendJobMinHeap("https://api.github.com");
+  }
+}
+
 bool webJobStart(WebJobKind kind, const char* arg, bool flag) {
   if (s_state != WJS_IDLE || kind == WJ_NONE) return false;
   // One inventory at a time, device wide, see backend_job.h.
@@ -159,8 +177,15 @@ bool webJobStart(WebJobKind kind, const char* arg, bool flag) {
   // Checked here rather than inside the task: the stack comes out of the
   // heap the moment the task is created, so testing afterwards would be
   // testing the wrong number.
-  if (ESP.getFreeHeap() < WEB_JOB_MIN_HEAP) {
-    Serial.printf("[webjob] postponed, heap %u\n", (unsigned)ESP.getFreeHeap());
+  const uint32_t min_heap  = webJobMinHeap(kind, arg);
+  const uint32_t free_heap = (uint32_t)ESP.getFreeHeap();
+  if (free_heap < min_heap) {
+    // The pages ask again: one line a minute, with the refusals it stands for.
+    if (logGateDue(&s_start_gate, millis(), BACKEND_JOB_REFUSAL_LOG_MS)) {
+      Serial.printf("[webjob] postponed, heap %u < %u (%u more refusals since the last line)\n",
+                    (unsigned)free_heap, (unsigned)min_heap,
+                    (unsigned)logGateTakeSuppressed(&s_start_gate));
+    }
     return false;
   }
   s_res.kind   = kind;
@@ -184,6 +209,8 @@ bool webJobStart(WebJobKind kind, const char* arg, bool flag) {
     Serial.println("[webjob] task creation failed");
     return false;
   }
+  // Started: what was refused before is over, the next refusal gets a line.
+  logGateReset(&s_start_gate);
   return true;
 }
 

@@ -11,14 +11,16 @@
 #include "../hardware/sd_logger.h"
 #include "backend.h"
 #include "backend_api.h"
+#include "backend_job_rules.h"
 #include "text_util.h"
 
 // The task, on the terms of the backend job (backend_job.cpp): core 0, below
 // the loop, its stack from the heap and a floor checked before it is taken.
+// The floor is not a number here: 60000 at https, 40000 at http
+// (backend_job_rules.h).
 #define FDB_STACK_BYTES   16384
 #define FDB_PRIORITY      1
 #define FDB_CORE          0
-#define FDB_MIN_HEAP      60000
 // The index is the whole database; read again after this long.
 #define FDB_INDEX_MAX_AGE_MS  (24UL * 60UL * 60UL * 1000UL)
 
@@ -274,10 +276,22 @@ static void fdbTask(void* arg) {
   vTaskDelete(NULL);
 }
 
+// The gate of the "postponed" line; only the loop starts a job.
+static LogGate s_start_gate;
+
 static bool startTask(FdbJob job) {
   if (s_state != FDB_IDLE) return false;
-  if (ESP.getFreeHeap() < FDB_MIN_HEAP) {
-    logSDf("Filament DB: postponed, heap %u", (unsigned)ESP.getFreeHeap());
+  // The floor follows the server the job asks, the one copied into s_base
+  // below (backendFdbBaseUrl(): the backend, or the Spoolman behind BamBuddy).
+  const uint32_t min_heap  = backendJobMinHeap(backendFdbBaseUrl());
+  const uint32_t free_heap = (uint32_t)ESP.getFreeHeap();
+  if (free_heap < min_heap) {
+    // One line a minute, with the refusals it stands for.
+    if (logGateDue(&s_start_gate, millis(), BACKEND_JOB_REFUSAL_LOG_MS)) {
+      logSDf("Filament DB: postponed, heap %u < %u (%u more refusals since the last line)",
+             (unsigned)free_heap, (unsigned)min_heap,
+             (unsigned)logGateTakeSuppressed(&s_start_gate));
+    }
     return false;
   }
   s_job   = job;
@@ -292,6 +306,8 @@ static bool startTask(FdbJob job) {
     logSD("Filament DB: task creation failed");
     return false;
   }
+  // Started: what was refused before is over, the next refusal gets a line.
+  logGateReset(&s_start_gate);
   return true;
 }
 

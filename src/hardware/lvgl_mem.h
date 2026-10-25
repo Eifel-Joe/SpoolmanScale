@@ -36,8 +36,9 @@
 #endif
 
 // Internal heap that has to stay free after an LVGL block. The worker tasks
-// refuse to start below 60000 bytes (WEB_JOB_MIN_HEAP and its siblings), so
-// LVGL stops short of that and leaves them some room on top.
+// refuse to start below 60000 bytes at https, 40000 at http
+// (backend_job_rules.h), so LVGL stops short of that and leaves them some
+// room on top.
 #ifndef LVGL_MEM_INTERNAL_RESERVE
 #define LVGL_MEM_INTERNAL_RESERVE (64u * 1024u)
 #endif

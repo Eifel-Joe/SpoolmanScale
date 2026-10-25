@@ -13,6 +13,7 @@
 #include "hardware/sd_logger.h"
 #include "services/backend.h"
 #include "services/backend_api.h"
+#include "services/backend_job_rules.h"
 #include "services/drying_sync.h"
 #include "services/local_date.h"
 #include "services/tag_spool_match.h"
@@ -23,11 +24,11 @@
 #define LABEL_DATE_TIMEOUT_MS  4000
 // The browser's dates are fetched on a task of their own, the shape of the
 // other backend workers: core 0, below the loop, stack from the heap while
-// it runs. TLS needs the 16 kB.
+// it runs. TLS needs the 16 kB. The heap floor for that stack is not a number
+// here: 60000 at https, 40000 at http (backend_job_rules.h).
 #define LABEL_DATE_STACK_BYTES 16384
 #define LABEL_DATE_PRIORITY    1
 #define LABEL_DATE_CORE        0
-#define LABEL_DATE_MIN_HEAP    60000
 #define LABEL_DATE_URL_LEN     160
 // Above this a temperature is a typo or a unit mix-up, not a setting.
 #define LABEL_TEMP_MAX_C       500
@@ -255,10 +256,23 @@ static void dateTask(void*) {
   vTaskDelete(NULL);
 }
 
+// The gate of the "not fetched" line; only the loop starts the job.
+static LogGate s_date_gate;
+
 // False when the task could not start; the caller then gives up on the dates.
 static bool startDateJob(int id) {
-  if (ESP.getFreeHeap() < LABEL_DATE_MIN_HEAP) {
-    logSDf("Label: dates not fetched, heap %u", (unsigned)ESP.getFreeHeap());
+  // The floor follows the address copied into s_job.url below, the one the
+  // request goes to (fetchDates, then backendGetSpoolJson).
+  const uint32_t min_heap  = backendJobMinHeap(backendBaseUrl());
+  const uint32_t free_heap = (uint32_t)ESP.getFreeHeap();
+  if (free_heap < min_heap) {
+    // Every label asks once more: one line a minute, with the refusals it
+    // stands for.
+    if (logGateDue(&s_date_gate, millis(), BACKEND_JOB_REFUSAL_LOG_MS)) {
+      logSDf("Label: dates not fetched, heap %u < %u (%u more refusals since the last line)",
+             (unsigned)free_heap, (unsigned)min_heap,
+             (unsigned)logGateTakeSuppressed(&s_date_gate));
+    }
     return false;
   }
   s_job = DateJob{};
@@ -273,6 +287,8 @@ static bool startDateJob(int id) {
     logSD("Label: date task creation failed");
     return false;
   }
+  // Started: what was refused before is over, the next refusal gets a line.
+  logGateReset(&s_date_gate);
   return true;
 }
 

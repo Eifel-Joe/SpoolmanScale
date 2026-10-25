@@ -5,16 +5,18 @@
 
 #include "app/app_state.h"
 #include "hardware/sd_logger.h"
+#include "services/backend.h"
 #include "services/backend_api.h"
+#include "services/backend_job_rules.h"
 
 // The numbers the web jobs run with, for the same reasons: an https backend
 // does its handshake on this stack, the task sits below the loop so the
 // display keeps its share, and it lives on the other core. The heap floor is
-// checked before the stack is taken from it.
+// checked before the stack is taken from it, and is not a number here: 60000
+// at https, 40000 at http (backend_job_rules.h).
 #define DRIED_BATCH_STACK_BYTES  16384
 #define DRIED_BATCH_PRIORITY     1
 #define DRIED_BATCH_CORE         0
-#define DRIED_BATCH_MIN_HEAP     60000
 // Per spool, the same the single write on the card waits.
 #define DRIED_BATCH_TIMEOUT_MS   5000
 
@@ -24,6 +26,8 @@ static DriedBatchResult         s_res;
 // The Spoolman address as it stood when the batch started. Copied because
 // the settings screen writes cfg_spoolman_base in place.
 static char                     s_base[sizeof(cfg_spoolman_base)] = "";
+// The gate of the "not started" line; only the loop starts a batch.
+static LogGate                  s_start_gate;
 
 static void driedBatchTask(void* arg) {
   (void)arg;
@@ -47,14 +51,32 @@ static void driedBatchTask(void* arg) {
   vTaskDelete(NULL);
 }
 
+// The floor for the addresses a batch writes to. backendPatchSpoolLastDried()
+// goes to the active backend and, for a BamBuddy that keeps its spools on a
+// Spoolman server, straight to that server (backendFdbBaseUrl() names it, the
+// active backend otherwise). Two addresses can be asked: the higher floor
+// wins, so an https one on either side keeps 60000.
+static uint32_t driedBatchMinHeap() {
+  const uint32_t active = backendJobMinHeap(backendBaseUrl());
+  const uint32_t behind = backendJobMinHeap(backendFdbBaseUrl());
+  return behind > active ? behind : active;
+}
+
 bool driedBatchStart(int printer_id, uint8_t ams_id, const int* spool_ids,
                      uint8_t n, const char* iso) {
   if (s_state != DBS_IDLE || !spool_ids || n == 0 || !iso || !iso[0]) return false;
   // Checked here rather than inside the task: the stack comes out of the
   // heap the moment the task is created, so testing afterwards would be
   // testing the wrong number.
-  if (ESP.getFreeHeap() < DRIED_BATCH_MIN_HEAP) {
-    logSDf("DRIEDBATCH: not started, heap %u", (unsigned)ESP.getFreeHeap());
+  const uint32_t min_heap  = driedBatchMinHeap();
+  const uint32_t free_heap = (uint32_t)ESP.getFreeHeap();
+  if (free_heap < min_heap) {
+    // One line a minute, with the refusals it stands for.
+    if (logGateDue(&s_start_gate, millis(), BACKEND_JOB_REFUSAL_LOG_MS)) {
+      logSDf("DRIEDBATCH: not started, heap %u < %u (%u more refusals since the last line)",
+             (unsigned)free_heap, (unsigned)min_heap,
+             (unsigned)logGateTakeSuppressed(&s_start_gate));
+    }
     return false;
   }
 
@@ -81,6 +103,8 @@ bool driedBatchStart(int printer_id, uint8_t ams_id, const int* spool_ids,
     logSD("DRIEDBATCH: task creation failed");
     return false;
   }
+  // Started: what was refused before is over, the next refusal gets a line.
+  logGateReset(&s_start_gate);
   return true;
 }
 

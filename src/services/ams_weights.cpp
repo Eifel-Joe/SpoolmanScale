@@ -4,15 +4,18 @@
 #include <string.h>
 
 #include "hardware/sd_logger.h"
+#include "services/backend.h"
 #include "services/backend_api.h"
+#include "services/backend_job_rules.h"
 #include "services/dried_batch.h"
 #include "services/spool_detail.h"
 
-// The numbers the other workers run with, and for the same reasons.
+// The numbers the other workers run with, and for the same reasons. The heap
+// floor for the stack is not a number here: 60000 at https, 40000 at http
+// (backend_job_rules.h).
 #define AMS_WEIGHTS_STACK_BYTES  16384
 #define AMS_WEIGHTS_PRIORITY     1
 #define AMS_WEIGHTS_CORE         0
-#define AMS_WEIGHTS_MIN_HEAP     60000
 // Per request. Shorter than a write: nothing is lost when this gives up, the
 // grid simply keeps the percentage it already shows.
 #define AMS_WEIGHTS_TIMEOUT_MS   5000
@@ -22,6 +25,8 @@ static AmsWeightsResult         s_res;
 // The bays to ask about, filled before the task starts.
 static AmsSlotSpool             s_bay[AMS_WEIGHTS_MAX];
 static uint8_t                  s_bay_count = 0;
+// The gate of the "not started" line; only the loop starts the task.
+static LogGate                  s_start_gate;
 
 static void amsWeightsTask(void* arg) {
   (void)arg;
@@ -110,8 +115,18 @@ bool amsWeightsStart(int printer_id, const AmsSlotState& st) {
   }
   if (s_bay_count == 0) return false;
 
-  if (ESP.getFreeHeap() < AMS_WEIGHTS_MIN_HEAP) {
-    logSDf("AMSWEIGHTS: not started, heap %u", (unsigned)ESP.getFreeHeap());
+  // The floor follows the address both requests of the task read, the active
+  // backend's (backendFindPrinterSpools and backendGetSpoolDetail).
+  const uint32_t min_heap  = backendJobMinHeap(backendBaseUrl());
+  const uint32_t free_heap = (uint32_t)ESP.getFreeHeap();
+  if (free_heap < min_heap) {
+    // The grid asks again with every refresh: one line a minute, with the
+    // refusals it stands for.
+    if (logGateDue(&s_start_gate, millis(), BACKEND_JOB_REFUSAL_LOG_MS)) {
+      logSDf("AMSWEIGHTS: not started, heap %u < %u (%u more refusals since the last line)",
+             (unsigned)free_heap, (unsigned)min_heap,
+             (unsigned)logGateTakeSuppressed(&s_start_gate));
+    }
     return false;
   }
 
@@ -128,6 +143,8 @@ bool amsWeightsStart(int printer_id, const AmsSlotState& st) {
     logSD("AMSWEIGHTS: task creation failed");
     return false;
   }
+  // Started: what was refused before is over, the next refusal gets a line.
+  logGateReset(&s_start_gate);
   return true;
 }
 

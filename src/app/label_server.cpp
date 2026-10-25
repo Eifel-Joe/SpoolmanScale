@@ -8,6 +8,7 @@
 #include "hardware/sd_logger.h"
 #include "services/backend.h"
 #include "services/backend_api.h"
+#include "services/backend_job_rules.h"
 #include "services/prefs_store.h"
 
 #define LS_KEY_PRESET         "lbl_fm_preset"
@@ -21,11 +22,11 @@
 // A preview older than this is fetched again: the preset may have changed.
 #define LS_PREVIEW_MAX_AGE_MS 30000
 // The editor's fetches run like the label dates: core 0, below the loop,
-// TLS needs the 16 kB of stack.
+// TLS needs the 16 kB of stack. The heap floor for that stack is not a number
+// here: 60000 at https, 40000 at http (backend_job_rules.h).
 #define LS_STACK_BYTES        16384
 #define LS_PRIORITY           1
 #define LS_CORE               0
-#define LS_MIN_HEAP           60000
 #define LS_WAIT_STEP_MS       20
 
 // Which label a raster is: spool, preset, print row, roll orientation,
@@ -130,10 +131,23 @@ static void jobTask(void*) {
   vTaskDelete(NULL);
 }
 
+// The gate of the "not started" line; only the loop starts a fetch.
+static LogGate s_start_gate;
+
 // False when the task could not start; the caller marks the fetch failed.
 static bool startJob(JobKind kind, const LabelKey& key) {
-  if (ESP.getFreeHeap() < LS_MIN_HEAP) {
-    logSDf("Label: server fetch not started, heap %u", (unsigned)ESP.getFreeHeap());
+  // The floor follows the address both fetches read, the active backend's
+  // (backendLabelPresets and backendLabelRender in backend_api.cpp).
+  const uint32_t min_heap  = backendJobMinHeap(backendBaseUrl());
+  const uint32_t free_heap = (uint32_t)ESP.getFreeHeap();
+  if (free_heap < min_heap) {
+    // A refused fetch is asked for again (the list every 20 s): one line a
+    // minute, with the refusals it stands for.
+    if (logGateDue(&s_start_gate, millis(), BACKEND_JOB_REFUSAL_LOG_MS)) {
+      logSDf("Label: server fetch not started, heap %u < %u (%u more refusals since the last line)",
+             (unsigned)free_heap, (unsigned)min_heap,
+             (unsigned)logGateTakeSuppressed(&s_start_gate));
+    }
     return false;
   }
   memset(&s_job, 0, sizeof(s_job));
@@ -147,6 +161,8 @@ static bool startJob(JobKind kind, const LabelKey& key) {
     logSD("Label: server fetch task creation failed");
     return false;
   }
+  // Started: what was refused before is over, the next refusal gets a line.
+  logGateReset(&s_start_gate);
   return true;
 }
 
