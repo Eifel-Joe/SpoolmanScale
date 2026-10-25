@@ -159,35 +159,45 @@ static void webJobTask(void* arg) {
   vTaskDelete(NULL);
 }
 
-// The floor of a job follows the address it talks to, which its kind decides:
-// the host test and the spool list go to the active backend, the net probe to
-// the address it is handed (the backend's again, see web_net_probe.cpp), and
-// everything else to GitHub (the release check, its notes, BambuStudio's
-// colour table), always https. The floors are in backend_job_rules.h.
-static uint32_t webJobMinHeap(WebJobKind kind, const char* arg) {
+// Which kinds talk to GitHub (the release check, its notes, BambuStudio's
+// colour table), always https: everything but the host test, the spool list
+// and the net probe, which go to the backend. Decided here and nowhere else,
+// because two things hang on it: the floor the job starts at
+// (webJobMinHeap) and what it waits for (webJobStart).
+static bool webJobTalksToGithub(WebJobKind kind) {
   switch (kind) {
     case WJ_HOST_TEST:
-    case WJ_SPOOLS:    return backendJobMinHeap(backendBaseUrl());
-    case WJ_NET_PROBE: return backendJobMinHeap(arg);
-    default:           return backendJobMinHeap("https://api.github.com");
+    case WJ_SPOOLS:
+    case WJ_NET_PROBE: return false;
+    default:           return true;
   }
+}
+
+// The floor of a job follows the address it talks to, which its kind decides:
+// GitHub (see above) or the backend, the active one for the host test and the
+// spool list, the address it is handed for the net probe (the backend's
+// again, see web_net_probe.cpp). The floors are in backend_job_rules.h.
+static uint32_t webJobMinHeap(WebJobKind kind, const char* arg) {
+  if (webJobTalksToGithub(kind)) return backendJobMinHeap("https://api.github.com");
+  return backendJobMinHeap(kind == WJ_NET_PROBE ? arg : backendBaseUrl());
 }
 
 bool webJobStart(WebJobKind kind, const char* arg, bool flag) {
   if (s_state != WJS_IDLE || kind == WJ_NONE) return false;
   // One inventory at a time, device wide, see backend_job.h.
   if (kind == WJ_SPOOLS && backendJobState() == BJS_RUNNING) return false;
-  // A GitHub job (the kinds webJobMinHeap sends to GitHub: everything but the
-  // host test, the spool list and the net probe) is a TLS request like the
-  // daily update check, and the floor is for one such request: two stacks
-  // side by side would take what it leaves free. The check waits for the web
-  // jobs the same way (maybeStartCheck), and "Check" on the scale waits for
-  // both. Nothing is logged, the pages and the catalog sync ask again. The
-  // jobs for the backend are not held up here: on the 7B a running check
-  // leaves less than their floor (40 kB at http, 50 kB at https), and boards
-  // with more heap have room for both.
-  if (kind != WJ_HOST_TEST && kind != WJ_SPOOLS && kind != WJ_NET_PROBE &&
-      updateCheckBusy()) {
+  // A GitHub job is a TLS request like the daily update check, and the floor
+  // is for one such request: two stacks side by side would take what it
+  // leaves free. So it does not start while the daily check runs, nor while
+  // the inventory list does (its task takes a stack of the same size). The
+  // check waits for the web jobs and the list the same way (maybeStartCheck),
+  // and "Check" on the scale waits for the check and the web jobs. Nothing
+  // is logged, the pages and the catalog sync ask again. The jobs for the
+  // backend are not held up here: on the 7B a running check leaves less than
+  // their floor (40 kB at http, 50 kB at https), and boards with more heap
+  // have room for both.
+  if (webJobTalksToGithub(kind) &&
+      (updateCheckBusy() || backendJobState() == BJS_RUNNING)) {
     return false;
   }
   // Checked here rather than inside the task: the stack comes out of the

@@ -47,7 +47,8 @@
 //  the list worker. The floor is meant for one background request, and a
 //  second stack from the same heap would take what it leaves, so the daily
 //  check does not start while a web job or the inventory list runs, and the
-//  GitHub jobs of the web pages do not start while the daily check runs.
+//  GitHub jobs of the web pages do not start while the daily check or the
+//  inventory list runs.
 //
 //  A refused start is asked for again on every pass of the loop, and so is a
 //  task that could not be created, so each of those two log lines goes

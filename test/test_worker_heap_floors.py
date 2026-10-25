@@ -20,14 +20,22 @@ FLOOR_USERS = {
     "services/backend_http.cpp": "backendJobMinHeap(backendBaseUrl())",
 }
 
-# Two TLS jobs never run side by side: their stacks would add up in the
-# internal heap. The daily update check waits for the web jobs and for the
-# inventory list, and the GitHub jobs of the web pages wait for the daily
-# check (the "Check" button on the scale already waits for both).
+# Encrypted background requests do not run side by side: their stacks would
+# add up in the internal heap. The daily update check waits for the web jobs
+# and for the inventory list, and the GitHub jobs of the web pages wait for the
+# daily check and for the inventory list (the "Check" button on the scale
+# already waits for the first two).
 WAITS = {
     "services/update_check.cpp": ["webJobState() == WJS_RUNNING", "backendJobState() == BJS_RUNNING"],
     "web/web_jobs.cpp": ["updateCheckBusy()"],
 }
+
+# The web jobs that talk to GitHub are decided in one place, so that the floor
+# and the waiting cannot disagree about which kinds they are. The refusal in
+# webJobStart() must name both things a GitHub job waits for.
+WEB_JOBS = "web/web_jobs.cpp"
+GITHUB_KINDS = "webJobTalksToGithub("
+GITHUB_WAITS = ["updateCheckBusy()", "backendJobState() == BJS_RUNNING"]
 
 # The workers that talk to a backend. Each must ask the rules for its floor
 # and gate the log line of a refused start.
@@ -141,7 +149,51 @@ for rel, needles in WAITS.items():
         if needle not in text:
             errors.append(f"src/{rel}: does not wait on {needle}")
 
-# 6. Verdict.
+# 6. The GitHub web jobs wait for the daily check and for the inventory list,
+# and the kinds that count as GitHub are named once: the helper is defined
+# once, webJobMinHeap() asks it for the floor and webJobStart() for the wait.
+# A bare mention of backendJobState() is not enough, webJobStart() already
+# holds the spool list back with it; what counts is the condition that comes
+# with the helper's call, up to the refusal it leads to.
+def function_body(text, signature):
+    """The text between the braces of the function that starts with signature, comments left out."""
+    start = text.find(signature)
+    if start < 0:
+        return None
+    text = re.sub(r"(?<!:)//.*", "", text[start:])   # a comment, not the // of a URL
+    depth = 0
+    begin = None
+    for index, char in enumerate(text):
+        if char == "{":
+            if depth == 0:
+                begin = index + 1
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return text[begin:index]
+    return None
+
+web_jobs_path = src / WEB_JOBS
+if web_jobs_path.is_file():
+    web_jobs_text = web_jobs_path.read_text(encoding="utf-8", errors="replace")
+    if web_jobs_text.count("static bool webJobTalksToGithub(") != 1:
+        errors.append(f"src/{WEB_JOBS}: does not define static bool webJobTalksToGithub( exactly once")
+    floor_body = function_body(web_jobs_text, "static uint32_t webJobMinHeap(")
+    if floor_body is None or GITHUB_KINDS not in floor_body:
+        errors.append(f"src/{WEB_JOBS}: webJobMinHeap() does not ask {GITHUB_KINDS}")
+    start_body = function_body(web_jobs_text, "bool webJobStart(")
+    call = start_body.find(GITHUB_KINDS) if start_body else -1
+    if call < 0:
+        errors.append(f"src/{WEB_JOBS}: webJobStart() does not ask {GITHUB_KINDS}")
+    else:
+        # From the helper's call to the first refusal that follows it.
+        condition = start_body[call:start_body.find("return false;", call)]
+        for needle in GITHUB_WAITS:
+            if needle not in condition:
+                errors.append(f"src/{WEB_JOBS}: a GitHub web job does not wait on {needle}")
+
+# 7. Verdict.
 if errors:
     print("worker heap floors: FAILED")
     for error in errors:
