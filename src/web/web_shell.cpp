@@ -226,7 +226,7 @@ String webShellLinks() {
   h.reserve(2600);
   h += F(
     "<div class='links'>"
-    "<a href='https://github.com/Niko11111/SpoolmanScale' target='_blank' rel='noopener'>"
+    "<a href='https://github.com/" FW_REPO "' target='_blank' rel='noopener'>"
     SVG_OPEN
     "M12 .5C5.37.5 0 5.87 0 12.5c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58"
     "v-2.03c-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75."

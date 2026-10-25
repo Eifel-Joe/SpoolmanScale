@@ -61,8 +61,16 @@
 // send people to a flasher whose "Update" hands them the previous release with
 // the old table, a downgrade. Set to 1 in the release commit and leave it.
 #define FLASHER_HAS_CURRENT_LAYOUT  1
+// Where updates come from: the repo whose releases the device downloads and
+// the GitHub Pages site (branch gh-pages) with version.json and the web
+// flasher. One place for all three, so the download, the version check and the
+// flasher link cannot drift apart. This is the fork, not the original: the
+// images for the Waveshare boards exist only in its releases, and an update
+// source that does not carry them would hand those boards nothing.
+#define FW_REPO       "Eifel-Joe/SpoolmanScale"
+#define FW_PAGES_URL  "https://eifel-joe.github.io/SpoolmanScale/"
 // The public web flasher, where the hint sends a device on the old layout.
-#define FLASHER_URL "https://niko11111.github.io/SpoolmanScale/"
+#define FLASHER_URL FW_PAGES_URL
 // The manual. A German page lives under de/, the English one at the root.
 #define DOCS_URL "https://niko11111.github.io/SpoolmanScale-Docs/"
 

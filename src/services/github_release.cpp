@@ -10,11 +10,14 @@
 #include <string.h>
 #include "mbedtls/sha256.h"
 
+#include "app_config.h"
 #include "boards/board.h"
 #include "hardware/sd_logger.h"
 #include "services/ota_state.h"
 
-#define GH_REPO "Niko11111/SpoolmanScale"
+// The repo the releases are read and downloaded from, the same one the version
+// check and the flasher link name (app_config.h).
+#define GH_REPO FW_REPO
 // The release asset the device flashes, see githubFlashTag(). Every board has
 // its own: an image only runs on the board it was built for. A release that
 // carries none for this board has a size of 0 here and a 404 on the download.

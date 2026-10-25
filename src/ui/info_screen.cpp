@@ -23,7 +23,7 @@ static_assert(QR_PRINTERS == 5, "QR_PRINTERS is the last entry of the arrays bel
 static const char* QR_TITLES[QR_COUNT] = { "Ko-fi", "GitHub", "Discord", "MakerWorld", nullptr, nullptr };
 static const char* QR_URLS[QR_COUNT]   = {
   "https://ko-fi.com/formfollowsfunction",
-  "https://github.com/Niko11111/SpoolmanScale",
+  "https://github.com/" FW_REPO,   // the fork the updates come from
   "https://discord.gg/K3KmKnrWhP",
   "https://makerworld.com/de/@FormFollowsF/upload",
   "https://niko11111.github.io/SpoolmanScale-Docs/",
@@ -31,7 +31,7 @@ static const char* QR_URLS[QR_COUNT]   = {
 };
 static const char* QR_URLS_DISPLAY[QR_COUNT] = {
   "ko-fi.com/formfollowsfunction",
-  "github.com/Niko11111/SpoolmanScale",
+  "github.com/" FW_REPO,
   "discord.gg/K3KmKnrWhP",
   "makerworld.com/de/@FormFollowsF/upload",
   "niko11111.github.io/SpoolmanScale-Docs",

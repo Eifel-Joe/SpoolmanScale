@@ -23,13 +23,13 @@
 
 namespace {
 
-// Served from GitHub Pages next to manifest.json and written by the release
-// workflow. Deliberately not api.github.com: that endpoint allows 60 requests
-// per hour and IP, which users behind carrier grade NAT share, and its answer
-// for the release list is over a hundred kilobytes. This file is a few hundred
-// bytes and has no rate limit.
-constexpr const char* VERSION_URL =
-  "https://niko11111.github.io/SpoolmanScale/version.json";
+// Served from our GitHub Pages (branch gh-pages of the fork, FW_PAGES_URL)
+// next to manifest.json and written by the release workflow. Deliberately not
+// api.github.com: that endpoint allows 60 requests per hour and IP, which
+// users behind carrier grade NAT share, and its answer for the release list is
+// over a hundred kilobytes. This file is a few hundred bytes and has no rate
+// limit.
+constexpr const char* VERSION_URL = FW_PAGES_URL "version.json";
 
 // The first check waits until the boot is long over. Display, NFC, scale and
 // the backend are all up well before this, and the heap has settled.
