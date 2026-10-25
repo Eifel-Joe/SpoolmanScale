@@ -24,6 +24,7 @@ static_assert(SPOOL_TYPE_DEVIATION_G == 5.0f, "5 g off is the same spool");
 static_assert(SPOOL_TYPE_UNUSED_G == 0.5f, "0.5 g is noise");
 static_assert(NEW_SPOOL_TARE_MIN_G == 30.0f, "a tare below 30 g is no spool");
 static_assert(NEW_SPOOL_TARE_MAX_G == 600.0f, "a tare above 600 g is no spool");
+static_assert(BB_CAP_TOLERANCE_G == 2.0f, "2 g over the label is still full");
 
 // True when the first n indices are exactly the ones wanted, in that order.
 static bool idxIs(const int* got, int n, std::initializer_list<int> want) {
@@ -194,6 +195,24 @@ int main() {
   assert(w.tare_g == 200);
   assert(w.label_g == 1000);
   assert(closeTo(w.rest_g, 1000.0f));
+
+  // Whether a weighing asks before it is written: (BamBuddy, label weight,
+  // rest). BamBuddy keeps no rest above the label, in its own inventory and
+  // behind Spoolman alike, so a rest more than 2 g over a known label asks to
+  // raise it. Spool 19 on 25.10.2026: 1035.9 g against a 1000 g label was
+  // stored as 1000 g without a word.
+  assert(spoolLabelAsk(true, 1000.0f, 1035.9f));
+  assert(spoolLabelAsk(true, 1015.0f, 1019.2f));
+  assert(spoolLabelAsk(true, 1000.0f, 1002.1f));
+  // Up to 2 g over is a full spool, not a mislabelled one.
+  assert(!spoolLabelAsk(true, 1000.0f, 1002.0f));
+  assert(!spoolLabelAsk(true, 1000.0f, 980.0f));
+  // No label known, or no reading: nothing to compare.
+  assert(!spoolLabelAsk(true, 0.0f, 1200.0f));
+  assert(!spoolLabelAsk(true, 1000.0f, NAN));
+  // Other servers stay as they were: Spoolman on its own and FilaMan never
+  // asked, and nothing here measured them.
+  assert(!spoolLabelAsk(false, 1000.0f, 1035.9f));
 
   // What the scale asks first: (label weight, filament left, the bare
   // reading, whether the spool has a tare of its own, the tare stored for it).
