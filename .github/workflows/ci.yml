@@ -138,34 +138,17 @@ jobs:
         # What the platform does not do is fail the build when that merge goes
         # wrong, it only prints a line. A broken image must not reach someone
         # who has no screen to find out with, so look at the result here.
-        run: |
-          OUT=.pio/build/${{ matrix.env }}
-          FACTORY="$OUT/firmware.factory.bin"
-          if [ ! -f "$FACTORY" ]; then
-            echo "::error::$FACTORY was not written, the platform's merge step failed"
-            exit 1
-          fi
-          FW_SIZE=$(stat -c %s "$OUT/firmware.bin")
-          FACTORY_SIZE=$(stat -c %s "$FACTORY")
-          echo "firmware.factory.bin: $FACTORY_SIZE bytes, firmware.bin $FW_SIZE bytes at 0x10000"
-          # The file ends where the firmware ends, and what sits at 0x10000 is
-          # the firmware just built, byte for byte.
-          if [ "$FACTORY_SIZE" -ne $((FW_SIZE + 65536)) ] || ! cmp -s -i 65536:0 "$FACTORY" "$OUT/firmware.bin"; then
-            echo "::error::firmware.factory.bin does not hold firmware.bin at 0x10000"
-            exit 1
-          fi
-          # 0xE9 opens every ESP32 image (the bootloader at 0x0), 0xAA 0x50
-          # opens the partition table at 0x8000.
-          BOOT_MAGIC=$(od -An -tx1 -N1 "$FACTORY" | tr -d ' \n')
-          TABLE_MAGIC=$(od -An -tx1 -j32768 -N2 "$FACTORY" | tr -d ' \n')
-          if [ "$BOOT_MAGIC" != "e9" ] || [ "$TABLE_MAGIC" != "aa50" ]; then
-            echo "::error::firmware.factory.bin has no bootloader at 0x0 or no partition table at 0x8000 ($BOOT_MAGIC, $TABLE_MAGIC)"
-            exit 1
-          fi
-          # A name of its own, so that images of different boards cannot be
-          # mixed up once downloaded (same scheme as the release's factory
-          # file). To flash: esptool --chip esp32s3 write-flash 0x0 <file>
-          cp "$FACTORY" "SpoolmanScale-${{ matrix.env }}_factory.bin"
+        #
+        # The look is scripts/factory_image.py (test/test_factory_image.py
+        # holds it to what it must refuse), so that the release workflow checks
+        # its factory file with the same code. It prints the sizes, refuses a
+        # file that does not hold this build's firmware at 0x10000 or lacks the
+        # bootloader and the partition table, and only then copies.
+        #
+        # The copy gets a name of its own, so that images of different boards
+        # cannot be mixed up once downloaded (same scheme as the release's
+        # factory file). To flash: esptool --chip esp32s3 write-flash 0x0 <file>
+        run: python3 scripts/factory_image.py .pio/build/${{ matrix.env }} SpoolmanScale-${{ matrix.env }}_factory.bin
       - name: Upload factory image
         uses: actions/upload-artifact@v4
         with:
