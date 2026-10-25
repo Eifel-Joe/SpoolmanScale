@@ -149,6 +149,37 @@ bool otaGithubScreenVisible() {
          !lv_obj_has_flag(scr_ota_github, LV_OBJ_FLAG_HIDDEN);
 }
 
+// The switch "Auto check" builds this screen again before the check it brings
+// forward has run, and the answer, seconds later in updateCheckTick(), used to
+// set only the badges: the open screen showed nothing until it was opened
+// again (7B, 25.10.2026). So the answer comes here, and the screen is built
+// again from what the check stored: buildOtaGithubScreen() already turns a
+// stored update into the status, both version lines and a live "Install"
+// button, as on entry. Writing the labels one by one was not taken: that is a
+// second copy of the drawing in buildOtaGithubScreen() and doGithubOtaCheck(),
+// and the two would drift. A failed check leaves the status empty; its line
+// is in the log, and "Check" gives the reason.
+// test/test_update_screen.py pins the guard and the texts.
+void otaGithubShowCheckAnswer(GhCheckAnswer answer, const char* version) {
+  if (!otaGithubScreenVisible()) return;
+  otaGithubForgetLabels();
+  lv_obj_del(scr_ota_github);
+  scr_ota_github = nullptr;
+  buildOtaGithubScreen();
+  if (!scr_ota_github) return;
+  lv_obj_clear_flag(scr_ota_github, LV_OBJ_FLAG_HIDDEN);
+  if (!lbl_gh_status) return;
+  if (answer == GH_ANSWER_UP_TO_DATE) {
+    lv_label_set_text(lbl_gh_status, T(STR_GH_OTA_UP_TO_DATE));
+    lv_obj_set_style_text_color(lbl_gh_status, lv_color_hex(UI_COL_OK_TEXT_2), 0);
+  } else if (answer == GH_ANSWER_TOO_BIG && version && version[0]) {
+    char big[96];
+    snprintf(big, sizeof(big), T(STR_GH_OTA_TOO_BIG), version);
+    lv_label_set_text(lbl_gh_status, big);
+    lv_obj_set_style_text_color(lbl_gh_status, lv_color_hex(UI_COL_WARN), 0);
+  }
+}
+
 void doGithubOtaCheck() {
   if (!lbl_gh_status) return;
 
@@ -408,6 +439,14 @@ void buildOtaGithubScreen() {
     if (scr_ota_github) { lv_obj_del(scr_ota_github); scr_ota_github = nullptr; }
     buildOtaGithubScreen();
     if (scr_ota_github) lv_obj_clear_flag(scr_ota_github, LV_OBJ_FLAG_HIDDEN);
+    // The screen above is built before the check has run, so it says what
+    // comes: the answer replaces this line (otaGithubShowCheckAnswer). Without
+    // WiFi the check waits for it, as the manual check says.
+    if (g_upd_autocheck && lbl_gh_status) {
+      lv_label_set_text(lbl_gh_status, T(wifi_ok ? STR_GH_OTA_CHECKING : STR_GH_OTA_NO_WIFI));
+      lv_obj_set_style_text_color(lbl_gh_status,
+          lv_color_hex(wifi_ok ? UI_COL_CAPTION : UI_COL_BAD_TEXT), 0);
+    }
   }, LV_EVENT_CLICKED, NULL);
 
   lv_obj_t *lbl_auto = lv_label_create(btn_auto);

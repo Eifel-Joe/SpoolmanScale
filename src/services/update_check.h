@@ -15,7 +15,9 @@
 void updateCheckScheduleFirstRun();
 
 // Bring the next check forward, used when the user switches the option back on
-// and expects to see a result rather than to wait a day.
+// and expects to see a result rather than to wait a day. The answer of that
+// check is also shown on the OTA screen if it is still open
+// (otaGithubShowCheckAnswer); later daily checks are not.
 void updateCheckScheduleIn(unsigned long delay_ms);
 
 // Call once per loop pass. Starts the task when a check is due and applies the

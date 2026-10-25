@@ -111,6 +111,11 @@ volatile uint32_t s_found_size = 0;
 unsigned long s_due_ms = 0;
 bool s_scheduled = false;
 
+// The next answer was asked for on the OTA screen (updateCheckScheduleIn) and
+// goes there too, see otaGithubShowCheckAnswer(). Loop task only, like the
+// schedule; taken back with the answer, so a later daily check is not shown.
+bool s_answer_to_screen = false;
+
 // The request itself, in a function of its own that returns. It used to be the
 // body of updateCheckTask(), which ends with vTaskDelete(NULL): that call does
 // not return, so the destructors of the client, the connection and the document
@@ -348,6 +353,7 @@ void updateCheckScheduleFirstRun() {
 void updateCheckScheduleIn(unsigned long delay_ms) {
   s_due_ms = millis() + delay_ms;
   s_scheduled = true;
+  s_answer_to_screen = true;
 }
 
 void updateCheckTick() {
@@ -358,6 +364,11 @@ void updateCheckTick() {
   bool answered = (result == RES_AVAILABLE || result == RES_UP_TO_DATE);
   if (result != RES_NONE) {
     s_result = RES_NONE;
+    // Taken with the answer it belongs to: a check the OTA screen asked for
+    // shows its answer there (s_answer_to_screen), the next daily one does not.
+    const bool to_screen = s_answer_to_screen;
+    s_answer_to_screen = false;
+    GhCheckAnswer shown = GH_ANSWER_FAILED;
     // For every line of a check that ran (all but the skipped one, which
     // started no request); 0 reads n/a.
     char low_txt[12];
@@ -372,6 +383,7 @@ void updateCheckTick() {
           partitionNoteTooBig(s_found_version, s_found_size);
           logSDf("Update check: %s too big for this slot (installed %s), internal heap %u at start, low %s",
                  s_found_version, FW_VERSION, (unsigned)s_heap_at_start, low_txt);
+          shown = GH_ANSWER_TOO_BIG;
           break;
         }
         strncpy(gh_latest_version, s_found_version, sizeof(gh_latest_version) - 1);
@@ -384,6 +396,7 @@ void updateCheckTick() {
         showUpdateBadges(true);
         logSDf("Update check: %s available (installed %s), internal heap %u at start, low %s",
                gh_latest_version, FW_VERSION, (unsigned)s_heap_at_start, low_txt);
+        shown = GH_ANSWER_AVAILABLE;
         break;
       case RES_UP_TO_DATE:
         // A clean result has to take the badge down again, not just leave the
@@ -394,7 +407,9 @@ void updateCheckTick() {
         // Not while that screen is open, though: the user may be looking at
         // the result of a manual check, and pulling the labels out from under
         // it would be the device arguing with itself. The next check settles it.
-        if (!otaGithubScreenVisible()) {
+        // Unless the screen asked for this answer itself: then it is the
+        // result the user is waiting for, and the screen shows it below.
+        if (!otaGithubScreenVisible() || to_screen) {
           gh_latest_version[0] = '\0';
           gh_latest_sha[0] = '\0';
           gh_latest_sha_tag[0] = '\0';
@@ -405,6 +420,7 @@ void updateCheckTick() {
         // what the start floor is measured against, and once a day is no noise.
         logSDf("Update check: up to date (%s), internal heap %u at start, low %s",
                FW_VERSION, (unsigned)s_heap_at_start, low_txt);
+        shown = GH_ANSWER_UP_TO_DATE;
         break;
       case RES_FAIL_HTTP:
         logSDf("Update check: HTTP %d, internal heap %u at start, low %s",
@@ -424,6 +440,9 @@ void updateCheckTick() {
       default:
         break;
     }
+    // After the switch, with the stored update and the badges already set:
+    // the screen is built again from them.
+    if (to_screen) otaGithubShowCheckAnswer(shown, s_found_version);
   }
 
   uint32_t epoch = s_persist_epoch;

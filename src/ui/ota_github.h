@@ -28,3 +28,16 @@ void otaGithubOverlayHide();
 // True while the user is looking at the GitHub OTA screen. The background
 // check uses this to leave a manual result on screen alone.
 bool otaGithubScreenVisible();
+
+// What the background check found, for the screen that asked for it.
+enum GhCheckAnswer : uint8_t {
+  GH_ANSWER_FAILED,      // no answer to show: HTTP error, bad file, no memory
+  GH_ANSWER_UP_TO_DATE,
+  GH_ANSWER_AVAILABLE,   // stored in gh_latest_version, update_available set
+  GH_ANSWER_TOO_BIG,     // the version in `version` does not fit this slot
+};
+
+// The answer of the check that the switch "Auto check" on this screen brought
+// forward, shown while the screen is still open; nothing once it is gone.
+// Called by updateCheckTick() on the loop task, for that check only.
+void otaGithubShowCheckAnswer(GhCheckAnswer answer, const char* version);
