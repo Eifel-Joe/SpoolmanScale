@@ -19,6 +19,7 @@
 #include "dried_action.h"
 #include "more_info_screen.h"
 #include "app/deferred_actions.h"
+#include "app/id_spool.h"
 #include "spoolman_screen.h"
 #include "tare_entry.h"
 #include "lang.h"
@@ -775,6 +776,14 @@ void showConfirmPopup(const char* msg, int action) {
     lv_obj_set_style_text_font(l6, &lv_font_montserrat_ext_14, 0);
     lv_obj_set_style_text_align(l6, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_center(l6);
+
+    // A spool shown by its id is never weighed on its own, so the switch has
+    // nothing to switch here; the right-hand button takes the row.
+    if (idSpoolActive()) {
+      lv_obj_add_flag(btn5, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_set_width(btn6, BOX_W - 2*EDGE);
+      lv_obj_set_x(btn6, XL);
+    }
 
     // ── Row 4: cancel (full width) ──
     const int BW_FULL = BOX_W - 2*EDGE;
