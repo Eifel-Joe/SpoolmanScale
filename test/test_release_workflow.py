@@ -1,4 +1,4 @@
-"""Read the release workflow as text, without running it, and check that it publishes for this fork: no own esptool merge (it fails for want of rich_click), nothing written to main (a mirror of the original) and no name of the original's repo; the factory images come from scripts/factory_image.py, the ranking, version.json, the flasher manifests and the release title from scripts/release_files.py; version.json and the flasher go to gh-pages, and only after the GitHub release exists; release and pages happen on a tag push only, and a pre-release title carries the German date; the boards built besides the matrix one are exactly the boards in src/boards, in the workflow and in release_files.py alike; one release runs at a time, and the release step fails on a file that is missing. Before anything is released, scripts/board_marker.py reads every image (the device file, the file for the browser upload and the factory image of every board) for the line of the board it is meant for, and the CI build does the same for the firmware.bin of every board: version.json carries the checksum of whatever file sits under a board's name, so a swapped file would otherwise pass the checksum.
+"""Read the release workflow as text, without running it, and check that it publishes for this fork: no own esptool merge (it fails for want of rich_click), nothing written to main (a mirror of the original) and no name of the original's repo; the factory images come from scripts/factory_image.py, the ranking, version.json, the flasher manifests and the release title from scripts/release_files.py; version.json and the flasher go to gh-pages, and only after the GitHub release exists; release and pages happen on a tag push only, and a pre-release title carries the German date; the boards built besides the matrix one are exactly the boards in src/boards, in the workflow and in release_files.py alike; one release runs at a time, and the release step fails on a file that is missing. Before anything is released, scripts/board_marker.py reads every image (the device file, the file for the browser upload and the factory image of every board) for the line of the board it is meant for, and the CI build does the same for the firmware.bin of every board: version.json carries the checksum of whatever file sits under a board's name, so a swapped file would otherwise pass the checksum, and the first failing call stops that check in any shell. The release job is shown as "Build and release all boards", not as "build (wt32-sc01-plus)": GitHub appends the matrix values to a job's name unless the name itself holds a matrix expression.
 
 The workflow cannot be tried before a real tag (tags are public), so this is what holds it together between releases."""
 import re
@@ -172,8 +172,9 @@ if release is not None:
 #    of whatever file the workflow put under a board's name, so a file under
 #    the wrong name would pass the scale's checksum: scripts/board_marker.py
 #    reads each file for the line of the board it is meant for. A failing call
-#    stops the step (bash -e), and the step stands before the checksums are
-#    taken (Update version.json), before the release and before the pages. It
+#    stops the step (its run block starts with `set -euo pipefail`, so that
+#    no shell setting decides it), and the step stands before the checksums
+#    are taken (Update version.json), before the release and before the pages. It
 #    runs on a manual run as well: no `if:`. The test fills in the step's
 #    variables for every board (the matrix board, and each of OTHER_BOARDS in
 #    the loop that names it) and compares the calls with the files the
@@ -255,6 +256,20 @@ if marker_step is not None:
            not any(depth == indent + 2 and line.startswith("if:") for depth, line in block))
     expect(f"step '{MARKER_STEP}' must not continue on error",
            not any(re.match(r"^continue-on-error:\s*true\b", line) for _, line in block))
+    # The default shell of a run step on Linux is `bash -e {0}`, which stops on
+    # the first failing call, but nothing in the file says so. The run block
+    # says it itself, as its first command, and the step names no shell of its
+    # own: another shell would not read that line the same way.
+    expect(f"step '{MARKER_STEP}' must not name a shell: (its run block sets its own options)",
+           not any(depth == indent + 2 and line.startswith("shell:") for depth, line in block))
+    run_keys = [at for at, (depth, line) in enumerate(block)
+                if depth == indent + 2 and re.match(r"^run:\s*\|", line)]
+    expect(f"step '{MARKER_STEP}' must have one `run: |` block", len(run_keys) == 1, f"{len(run_keys)} run key(s)")
+    if len(run_keys) == 1:
+        commands = [line for depth, line in block[run_keys[0] + 1:]
+                    if depth > indent + 2 and line and not line.startswith("#")]
+        expect(f"step '{MARKER_STEP}' must start its run block with `set -euo pipefail`",
+               bool(commands) and commands[0] == "set -euo pipefail", commands[0] if commands else "no command")
     marker_at = re.search(r"^\s*-\s*name:\s*" + re.escape(MARKER_STEP) + r"\s*$", text, re.MULTILINE)
     build_other = re.search(r"^\s*-\s*name:\s*Build the other boards\s*$", text, re.MULTILINE)
     json_step = re.search(r"^\s*-\s*name:\s*Update version\.json\s*$", text, re.MULTILINE)
@@ -290,7 +305,55 @@ else:
     if ci_build and ci_check:
         expect("the board line check in ci.yml must come after the build", ci_build.start() < ci_check.start())
 
-# 11. Verdict.
+# 11. The display name of the release job. The job builds and releases all
+#     three boards (the matrix board and OTHER_BOARDS), but GitHub shows a job
+#     of a matrix as "<name> (<matrix values>)", here "build (wt32-sc01-plus)",
+#     which reads as if only the WT32 were built. The suffix stays unless the
+#     name itself holds a matrix expression, so the name ends in an expression
+#     that names the matrix and evaluates to the empty string (`&&` hands back
+#     its last operand). The line is pinned as a whole: a plain name would bring
+#     the suffix back, and the odd-looking expression is not to be tidied away.
+#     Only the name is new: the job id stays `build`, the matrix and the steps
+#     are held by the checks above.
+JOB_ID = "build"
+JOB_NAME = "name: Build and release all boards${{ matrix.env && '' }}"
+
+
+def job_lines(job_id):
+    """The lines of the job `<job_id>:` under `jobs:` as (indent, line) pairs, up
+    to the next job; None when there is no such job."""
+    all_lines = text.splitlines()
+    in_jobs = False
+    for at, line in enumerate(all_lines):
+        if re.match(r"^jobs:\s*$", line):
+            in_jobs = True
+            continue
+        if not in_jobs:
+            continue
+        m = re.match(r"^(\s+)" + re.escape(job_id) + r":\s*$", line)
+        if m:
+            indent = len(m.group(1))
+            block = []
+            for follow in all_lines[at + 1:]:
+                if follow.strip() and len(follow) - len(follow.lstrip()) <= indent:
+                    break
+                block.append((len(follow) - len(follow.lstrip()), follow.strip()))
+            return indent, block
+    return None
+
+
+job = job_lines(JOB_ID)
+expect(f"must have the job '{JOB_ID}'", job is not None)
+if job is not None:
+    indent, block = job
+    names = [line for depth, line in block if depth == indent + 2 and line.startswith("name:")]
+    expect(f"job '{JOB_ID}' must have exactly one name:", len(names) == 1, f"{len(names)} name key(s)")
+    for line in names:
+        expect(f"job '{JOB_ID}' must be named exactly `{JOB_NAME}`", line == JOB_NAME, line)
+        for board in sorted(board_ids):
+            expect(f"the name of job '{JOB_ID}' must not name a board ({board})", board not in line, line)
+
+# 12. Verdict.
 if errors:
     print("release workflow: FAILED")
     for error in errors:
