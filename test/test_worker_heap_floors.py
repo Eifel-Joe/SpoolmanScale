@@ -339,7 +339,94 @@ if SELF_DELETE_KNOWN not in self_deleting:
     errors.append(f"src/{SELF_DELETE_KNOWN[0]}: the scan for self-deleting tasks did not find "
                   f"{SELF_DELETE_KNOWN[1]}()")
 
-# 9. Verdict.
+# 9. The low point is on every line a request leads to, the failed ones too:
+# query and download write their low point to the log (Spec 5.3 T), and a
+# check that failed went through the same handshake as one that got an
+# answer. The daily check hands the low point to the tick before s_result on
+# every way out of its request; every line the tick writes for a check that
+# ran carries where the heap started and how low it went (only the skipped
+# line has neither, no request ran), and the up to date line is written
+# always, not only in verbose mode: once a day is not noise. The requests of
+# github_release.cpp write their own lines: from every end of a measurement
+# to the next return there is a line with the low point.
+UPDATE_CHECK = "services/update_check.cpp"
+GITHUB_RELEASE = "services/github_release.cpp"
+TICK_LOW = "internal heap %u at start, low %s"
+TICK_LINES = ["Update check: up to date (%s), ", "Update check: HTTP %d, ", "Update check: bad response, ",
+              "Update check: connection setup failed, "]
+TICK_SKIPPED = "Update check: skipped"
+LOW_TEXT = re.compile(r"\blow[ =]%s")
+REFUSED_LINE = "OTA: %s refused - %s, internal low %s"
+LOG_CALL = re.compile(r'\blogSDf?\(\s*((?:"(?:[^"\\\n]|\\.)*"\s*)+)')
+VERBOSE_UP_TO_DATE = re.compile(r'if\s*\(\s*sd_verbose\s*\)\s*logSDf?\(\s*"[^"]*up to date')
+
+
+def log_formats(text):
+    """(format, offset) of every logSD/logSDf call in text, the literals of its format joined."""
+    for call in LOG_CALL.finditer(text):
+        yield "".join(re.findall(r'"((?:[^"\\\n]|\\.)*)"', call.group(1))), call.start()
+
+
+update_path = src / UPDATE_CHECK
+if update_path.is_file():
+    update_text = update_path.read_text(encoding="utf-8", errors="replace")
+    run_body = function_body(update_text, "static void runUpdateCheck(")
+    tick_body = function_body(update_text, "void updateCheckTick(")
+    if run_body is None or tick_body is None:
+        errors.append(f"src/{UPDATE_CHECK}: runUpdateCheck() or updateCheckTick() is not there")
+    else:
+        # The request: every end of the measurement goes to s_check_low, and
+        # every result is published after one of them.
+        ends = run_body.count(HEAP_LOW_END)
+        handed = len(re.findall(r"s_check_low\s*=\s*heapLowEnd\(", run_body))
+        if ends != handed:
+            errors.append(f"src/{UPDATE_CHECK}: runUpdateCheck() ends the measurement {ends} time(s), "
+                          f"hands the low point over {handed} time(s)")
+        for result in re.finditer(r"\bs_result\s*=(?!=)", run_body):
+            if not re.search(r"s_check_low\s*=\s*heapLowEnd\(", run_body[:result.start()]):
+                errors.append(f"src/{UPDATE_CHECK}: runUpdateCheck() publishes a result "
+                              f"({run_body[result.start():result.start() + 30].strip()}) before the low point")
+        # The tick: every line of a check that ran carries the low point.
+        formats = list(log_formats(tick_body))
+        for fmt, _ in formats:
+            if fmt.startswith("Update check:") and not fmt.startswith(TICK_SKIPPED) and TICK_LOW not in fmt:
+                errors.append(f'src/{UPDATE_CHECK}: updateCheckTick() writes "{fmt}" without "{TICK_LOW}"')
+        for line in TICK_LINES:
+            if not any(fmt.startswith(line) and TICK_LOW in fmt for fmt, _ in formats):
+                errors.append(f'src/{UPDATE_CHECK}: updateCheckTick() has no line "{line}... {TICK_LOW}"')
+        if VERBOSE_UP_TO_DATE.search(tick_body):
+            errors.append(f"src/{UPDATE_CHECK}: updateCheckTick() writes the up to date line only in verbose mode")
+        # An image too big for the slot: the check got an answer, so a line.
+        big = tick_body.find("partitionNoteTooBig(")
+        stop = tick_body.find("break;", big)
+        if big < 0 or not any(big < at < stop and fmt.startswith("Update check:") and TICK_LOW in fmt
+                              for fmt, at in formats):
+            errors.append(f'src/{UPDATE_CHECK}: updateCheckTick() writes no "Update check: ... {TICK_LOW}" '
+                          "line for an image too big for the slot")
+
+release_path = src / GITHUB_RELEASE
+if release_path.is_file():
+    release_text = release_path.read_text(encoding="utf-8", errors="replace")
+    for signature in HEAP_LOW_REQUESTS[GITHUB_RELEASE]:
+        body = function_body(release_text, signature)
+        if body is None:
+            continue  # reported in 7
+        # function_body() drops comments but keeps the newlines, so the file
+        # line of an offset in the body can be counted back.
+        sig_at = release_text.find(signature)
+        first_line = (release_text[:sig_at].count("\n")
+                      + re.sub(r"(?<!:)//.*", "", release_text[sig_at:]).split(body, 1)[0].count("\n") + 1)
+        for done in re.finditer(re.escape(HEAP_LOW_END), body):
+            leave = RETURN.search(body, done.end())
+            segment = body[done.start():leave.start() if leave else len(body)]
+            if not any(LOW_TEXT.search(fmt) for fmt, _ in log_formats(segment)):
+                errors.append(f"src/{GITHUB_RELEASE}:{first_line + body[:done.start()].count(chr(10))}: "
+                              f"{signature.split('(')[0].split()[-1]}() ends a measurement and returns "
+                              "without a line that carries the low point")
+    if REFUSED_LINE not in release_text:
+        errors.append(f'src/{GITHUB_RELEASE}: a refused download does not write "{REFUSED_LINE}"')
+
+# 10. Verdict.
 if errors:
     print("worker heap floors: FAILED")
     for error in errors:
