@@ -66,6 +66,13 @@ if screen is not None:
         if guard is None or build < 0 or guard.start() > build:
             errors.append(f"src/{OTA_SCREEN}: {ANSWER}() must return while the screen is not shown, "
                           "before it builds the screen again")
+        # A dialog on this screen (the downgrade question) sits on the active
+        # screen; a screen built again is appended above it and would hide a
+        # question that still waits. Then only the status line is written.
+        modal = body.find("uiModalWaiting()")
+        if modal < 0 or build < 0 or modal > build:
+            errors.append(f"src/{OTA_SCREEN}: {ANSWER}() builds the screen again without asking "
+                          "uiModalWaiting() first, a waiting dialog would end up under it")
         for text in ("STR_GH_OTA_UP_TO_DATE", "STR_GH_OTA_TOO_BIG"):
             if text not in body:
                 errors.append(f"src/{OTA_SCREEN}: {ANSWER}() does not say {text}")
@@ -124,6 +131,41 @@ if check is not None:
         if not re.search(r"\bif\s*\(\s*!\s*otaGithubScreenVisible\(\)\s*\|\|\s*(?:" + names + r")\s*\)", tick):
             errors.append(f"src/{UPDATE_CHECK}: updateCheckTick() keeps the stored update on the open screen "
                           f"even when the screen asked (if (!otaGithubScreenVisible() || {name}))")
+        # All of it belongs to a result: inside if (result != RES_NONE), the
+        # flag taken before the switch and the answer handed on after it, once
+        # the stored update and the badges are set.
+        handled = re.search(r"\bif\s*\(\s*result\s*!=\s*RES_NONE\s*\)", tick)
+        block = block_after(tick, handled.end()) if handled else None
+        switch = re.search(r"\bswitch\s*\(\s*result\s*\)", block or "")
+        if block is None or switch is None:
+            errors.append(f"src/{UPDATE_CHECK}: updateCheckTick() has no if (result != RES_NONE) with a switch")
+        else:
+            switch_body = block_after(block, switch.end())
+            switch_end = block.find(switch_body) + len(switch_body) if switch_body else -1
+            inner_copy = re.search(r"\b(?:const\s+)?bool\s+\w+\s*=\s*" + name + r"\s*;", block)
+            inner_call = re.search(r"\b" + ANSWER + r"\s*\(", block)
+            if inner_copy is None or inner_copy.start() > switch.start():
+                errors.append(f"src/{UPDATE_CHECK}: updateCheckTick() does not take {name} inside "
+                              "if (result != RES_NONE), before the switch")
+            if inner_call is None or inner_call.start() < switch_end:
+                errors.append(f"src/{UPDATE_CHECK}: updateCheckTick() does not hand the answer on inside "
+                              "if (result != RES_NONE), after the switch")
+            # Each result says which answer it is; the ones not named stay
+            # GH_ANSWER_FAILED, the value the answer starts with.
+            if not re.search(r"\bGhCheckAnswer\s+(\w+)\s*=\s*GH_ANSWER_FAILED\s*;", block[:switch.start()]):
+                errors.append(f"src/{UPDATE_CHECK}: updateCheckTick() does not start the answer at "
+                              "GH_ANSWER_FAILED before the switch")
+            cases = {m.group(1): m.end() for m in re.finditer(r"\bcase\s+(RES_\w+)\s*:", switch_body or "")}
+            for result, answers in (("RES_AVAILABLE", ("GH_ANSWER_AVAILABLE", "GH_ANSWER_TOO_BIG")),
+                                    ("RES_UP_TO_DATE", ("GH_ANSWER_UP_TO_DATE",))):
+                if result not in cases:
+                    errors.append(f"src/{UPDATE_CHECK}: updateCheckTick() has no case {result}")
+                    continue
+                later = [offset for offset in cases.values() if offset > cases[result]]
+                case_text = switch_body[cases[result]:min(later) if later else len(switch_body)]
+                for answer in answers:
+                    if not re.search(r"=\s*" + answer + r"\s*;", case_text):
+                        errors.append(f"src/{UPDATE_CHECK}: case {result} does not set the answer {answer}")
 
 # 3. Verdict.
 if errors:
