@@ -638,24 +638,43 @@ void tareEntryForgetAsked() {
 }
 
 bool tareEntryHoldsAutoWeigh() {
-  // Asked on this placement: the rest stays as the server has it after a
-  // pick, and rest and tare stay untouched after "later", so that the
-  // question comes again after a restart.
+  // Asked on this placement: automatic weighing writes no rest in between (a
+  // type picked writes its own, fwPicked(); "take measured" leaves the rest as
+  // the server has it), and rest and tare stay untouched after "later", so
+  // that the question comes again after a restart.
   if (s_fw_hold_id != 0 && tag_present && sm_id == s_fw_hold_id) return true;
   // Not looked at yet: it may still be asked, also once a dialog that holds
   // the question back is gone.
   return fwSpoolHere() && !fwAsked(sm_id);
 }
 
-// From the list, in the loop, after it closed itself. The type goes to the
-// spool as its empty weight by the job the scope question's Spool button
-// parks; no weight is written (design 3), and a spool swapped meanwhile
-// drops it there.
+// From the list, in the loop, after it closed itself. A spool swapped
+// meanwhile drops the parked job there (confirm_popup.cpp).
+//
+// V19 (spec 5.3 M), a type from the catalog (also one just added): the rest
+// is written too, by the job of the full spool (CJ_FULL_SPOOL): tare, label
+// weight, rest, each only after the one before it. The fill is the label
+// weight sm_total, the reading the one without the parts on the spool.
+// Root: the tare alone left the rest as the server had it, and a spool
+// holding more than its label (spool 2, 25.10.2026: 1184 g on a 167 g type,
+// 1017 g of rest, label 1000 g) cannot be given its rest by a plain weight
+// write: Spoolman and Bambuddy cut a rest above the label silently. So the
+// label is lifted first; the job does it in whole grams
+// (spoolTypeFullSpoolWrite, test_spool_type_rules.py).
+// "Take measured" (no name) writes the tare alone, as before.
+// NOT-TO-DO: no write sequence of its own here (a second copy of the order
+// and the rounding rules), and not a tare job followed by a weight job (one
+// job slot, and the rest would be worked out against the unrounded tare).
 static void fwPicked(float grams, const char *name) {
   s_list_mine = false;
-  logSDf("UI: first weighing of spool %d: '%s' %.1f g taken",
-         s_spool_id, name ? name : "", grams);
-  confirmParkTare(TARE_SCOPE_SPOOL, grams, s_spool_id, false);
+  const bool with_rest = name && name[0];
+  logSDf("UI: first weighing of spool %d: '%s' %.1f g taken, %s",
+         s_spool_id, name ? name : "", grams,
+         with_rest ? "rest written too" : "empty weight only");
+  if (with_rest)
+    confirmParkFullSpool(grams, sm_total, spoolExtrasBareReading(), s_spool_id);
+  else
+    confirmParkTare(TARE_SCOPE_SPOOL, grams, s_spool_id, false);
 }
 
 // "Later", or back: the spool stays asked until the next restart.

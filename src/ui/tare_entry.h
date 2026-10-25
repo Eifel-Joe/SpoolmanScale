@@ -15,8 +15,11 @@ void showTareChoice();
 // The first weighing (Bambuddy in Spoolman mode, design 3): a spool with a
 // tag that lies still on the pad is asked once per session which empty spool
 // it sits on, with the list of spool types (spool_type_list.h) as
-// spoolTypeFirstAsk() decides. A pick is stored as the spool's empty weight;
-// "later" holds until the next restart. Opened from tareEntryTick().
+// spoolTypeFirstAsk() decides. A type picked is stored as the spool's empty
+// weight and the rest follows it (V19, as for the full spool, label weight
+// raised first where the spool holds more); "take measured" stores the empty
+// weight alone; "later" holds until the next restart. Opened from
+// tareEntryTick().
 
 // Both dialogs of this file, for the navigation, and with them the empty
 // spool screen of the settings, the list of spool types and a name entry for
@@ -34,9 +37,10 @@ bool isTareEntryOpen();
 // Automatic weighing waits for the first weighing: true while the spool on
 // the pad may still be asked (it passes the first weighing's own conditions,
 // a dialog standing or not, and was not looked at yet), and from the moment
-// its question opened until its tag is gone or another spool is loaded. The
-// rest stays as it was after an answer, and "later" leaves rest and tare
-// untouched, so the question comes again after a restart.
+// its question opened until its tag is gone or another spool is loaded. A type
+// picked writes the rest itself and "take measured" leaves it as it was, and
+// "later" leaves rest and tare untouched, so the question comes again after a
+// restart.
 bool tareEntryHoldsAutoWeigh();
 
 // Every loop pass. Runs the ticks of the list of spool types, the name entry
