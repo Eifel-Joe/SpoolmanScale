@@ -18,22 +18,21 @@ int tagCreateTare(const TagCreateInput& in, const TagFilamentPlan& plan,
                   uint8_t* from, TareQuality* quality) {
   int w = 0;
   uint8_t src = TARE_NONE;
-  TareQuality q = TARE_Q_NONE;
   if (plan.state == TFS_FOUND && plan.found_spool_weight_g > 0) {
-    w = plan.found_spool_weight_g; src = TARE_FILAMENT; q = TARE_Q_KNOWN;
+    w = plan.found_spool_weight_g; src = TARE_FILAMENT;
   } else if (plan.vendor_spool_weight_g > 0) {
-    w = plan.vendor_spool_weight_g; src = TARE_VENDOR; q = TARE_Q_KNOWN;
+    w = plan.vendor_spool_weight_g; src = TARE_VENDOR;
   } else if (plan.spool_weight_g > 0 || in.spool_weight_g > 0) {
     // The plan's is the database entry's, or the input's copied over; the
-    // input's is a catalog pick or the fixed core. Only the fixed core is a
-    // default, and an entry that happens to say the same number is none
-    // better.
+    // input's is a catalog pick or the fixed core.
     w = plan.spool_weight_g > 0 ? plan.spool_weight_g : in.spool_weight_g;
     src = TARE_SPOOL;
-    q = (in.spool_weight_default && w == in.spool_weight_g) ? TARE_Q_DEFAULT : TARE_Q_KNOWN;
   }
+  // Only the fixed core is a default, and an entry that says the same number
+  // is none better - the filament's and the brand's included, which the
+  // scale filled with that core when it created them (spoolTareQuality()).
   if (from) *from = src;
-  if (quality) *quality = q;
+  if (quality) *quality = spoolTareQuality(w, in.spool_weight_default, in.spool_weight_g);
   return w;
 }
 

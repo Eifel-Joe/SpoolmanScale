@@ -29,7 +29,6 @@
 #define LABEL_DATE_PRIORITY    1
 #define LABEL_DATE_CORE        0
 #define LABEL_DATE_MIN_HEAP    60000
-#define LABEL_DATE_URL_LEN     160
 // Above this a temperature is a typo or a unit mix-up, not a setting.
 #define LABEL_TEMP_MAX_C       500
 
@@ -242,9 +241,10 @@ void labelSpoolFetchDates(SpoolLabelData* d) {
 }
 
 // The worker for the browser's dates. Everything it reads is set before it
-// starts and everything it writes is read only after s_job_done says so.
+// starts and everything it writes is read only after s_job_done says so:
+// also where the backend is, which the loop may change while the task runs.
 struct DateJob {
-  char url[LABEL_DATE_URL_LEN];
+  BackendTarget at;
   int id;
   uint32_t gen;        // backendGeneration() at the start
   bool ok;
@@ -255,8 +255,8 @@ struct DateJob {
 static DateJob s_job;
 
 static void dateTask(void*) {
-  if (s_job.want_link) labelLinkFetch(&s_job.link);
-  s_job.ok = fetchDates(s_job.url, s_job.id, &s_job.extras);
+  if (s_job.want_link) labelLinkFetchAt(s_job.at, s_job.gen, &s_job.link);
+  s_job.ok = fetchDates(s_job.at.base, s_job.id, &s_job.extras);
   __sync_synchronize();
   s_job_done = true;
   vTaskDelete(NULL);
@@ -269,7 +269,7 @@ static bool startDateJob(int id) {
     return false;
   }
   s_job = DateJob{};
-  snprintf(s_job.url, sizeof(s_job.url), "%s", backendBaseUrl());
+  backendTargetSnapshot(&s_job.at);
   s_job.id = id;
   s_job.gen = backendGeneration();
   s_job.want_link = labelLinkDue();

@@ -38,7 +38,7 @@ static void buildChip() {
   lv_obj_set_style_bg_color(s_chip, lv_color_hex(UI_COL_PRESS_FILL), LV_STATE_PRESSED);
   lv_obj_set_style_border_width(s_chip, 1, 0);
   lv_obj_set_style_border_color(s_chip, lv_color_hex(UI_COL_LINE), 0);
-  lv_obj_set_style_radius(s_chip, SC_CHIP_H / 2, 0);
+  lv_obj_set_style_radius(s_chip, LV_RADIUS_CIRCLE, 0);
   lv_obj_set_style_shadow_width(s_chip, 0, 0);
   lv_obj_set_style_pad_all(s_chip, 0, 0);
   lv_obj_set_ext_click_area(s_chip, SC_CHIP_EXT_X);

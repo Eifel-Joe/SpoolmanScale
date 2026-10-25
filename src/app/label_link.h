@@ -36,8 +36,15 @@ const char* labelLinkBase();
 // an address. Loop task.
 bool labelLinkDue();
 
-// Asks the server. Makes an HTTP request, from any task.
+// Asks the server. Makes an HTTP request. Loop task: it reads where the
+// backend is as it goes.
 void labelLinkFetch(LabelLinkAnswer* out);
+
+// The same against a snapshot the loop took (backendTargetSnapshot()) and the
+// generation it took it under, so a backend switched in the meantime neither
+// shapes the request nor owns the answer. From any task.
+struct BackendTarget;
+void labelLinkFetchAt(const BackendTarget& at, uint32_t gen, LabelLinkAnswer* out);
 
 // Keeps an answer, unless it came from a server the scale has since left.
 // Loop task.

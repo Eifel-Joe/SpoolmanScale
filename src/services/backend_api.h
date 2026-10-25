@@ -9,6 +9,7 @@ bool backendLastListPartial();
 #include <stddef.h>
 #include <stdint.h>
 #include "services/ams_slots.h"
+#include "services/backend.h"
 #include "services/filaman_labels.h"
 #include "services/spool_detail.h"
 #include "services/tag_create.h"
@@ -68,6 +69,22 @@ bool backendGetVersion(const char* base_url, char* out_version, size_t out_size,
 // server holds it, "" when unset. Returns the HTTP code; BACKEND_NOT_SUPPORTED
 // on FilaMan, where each label design carries its own.
 int  backendGetLinkBase(char* out, size_t out_size, uint32_t timeout_ms = 3000);
+
+// Where the backend is, taken on the loop task for a request made on another
+// one: mode, address and key may change under a task while it runs, and a
+// request built from a half-written address goes to nobody. As long as the
+// buffers behind backendBaseUrl() and the keys in backend.cpp.
+#define BACKEND_TARGET_BASE_LEN 80
+#define BACKEND_TARGET_KEY_LEN  80
+struct BackendTarget {
+  BackendMode mode;
+  char base[BACKEND_TARGET_BASE_LEN];
+  char key[BACKEND_TARGET_KEY_LEN];   // FilaMan's API key, BamBuddy's, "" on Spoolman
+};
+void backendTargetSnapshot(BackendTarget* out);   // loop task
+// backendGetLinkBase() against a snapshot, from any task.
+int  backendGetLinkBaseAt(const BackendTarget& at, char* out, size_t out_size,
+       uint32_t timeout_ms = 3000);
 int  backendCountActiveSpools(const char* base_url, uint32_t timeout_ms = 6000);
 
 // A fingerprint of the active inventory: how many spools, and the id of one
