@@ -49,6 +49,13 @@ static CopyLook copy_template_look     = {};
 static bool     copy_template_has_look = false;
 // The spool type chosen for the copy (BBS), 0: none, the template's.
 static float    s_copy_core            = 0.0f;
+// The list of types was answered for this copy, a type or "without type":
+// copyCreateRequest() takes it along with the values for the create, which
+// marks the new spool for the first weighing (tareEntryFirstWeighDone()).
+// Set with s_copy_core, cleared with it for every new confirmation.
+static bool     s_copy_type_asked      = false;
+
+bool copyTypeAsked() { return s_copy_type_asked; }
 
 void closeCopyConfirmPopup() {
   releaseScreen(&scr_copy_confirm);
@@ -221,12 +228,14 @@ static void buildCopyCard() {
 }
 
 static void copyTypePicked(float grams, const char*) {
-  s_copy_core = grams;
+  s_copy_core       = grams;
+  s_copy_type_asked = true;
   buildCopyCard();
 }
 
 static void copyTypeWithout() {
-  s_copy_core = 0.0f;
+  s_copy_core       = 0.0f;
+  s_copy_type_asked = true;
   buildCopyCard();
 }
 
@@ -243,7 +252,8 @@ void showCopyConfirmPopup(int template_spool_id, int template_filament_id,
   copy_template_name[sizeof(copy_template_name)-1] = '\0';
   copy_template_has_look = look != nullptr;
   if (look) copy_template_look = *look;
-  s_copy_core = 0.0f;
+  s_copy_core       = 0.0f;
+  s_copy_type_asked = false;
 
   (void)template_remaining;   // the weight the template had is not the new spool's
 

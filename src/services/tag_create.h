@@ -74,6 +74,10 @@ struct TagCreateInput {
   // The new spool's own empty weight (design note L20); spool_weight_g stays
   // what a filament or a vendor made on the way is given.
   int   spool_type_g;   // chosen at the scale for this spool alone (BBS), 0: none; never a filament's or vendor's
+  // Our list of spool types was answered for this spool on the way (a type
+  // or "without type", db_pick_core_popup.cpp): the first weighing does not
+  // ask it again (tareEntryFirstWeighDone()). False for a tag's input.
+  bool  spool_type_asked;
   float diameter_mm;         // 0 when unknown
   int   temp_min;
   int   temp_max;

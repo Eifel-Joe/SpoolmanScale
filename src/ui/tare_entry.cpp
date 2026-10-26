@@ -610,6 +610,22 @@ void tareEntryForgetAsked() {
   s_fw_hold_id = 0;
 }
 
+// Root: since U a spool created at the scale without a type of its own, under
+// a filament or brand with an empty weight, keeps that weight inherited (L21),
+// so it has no tare of its own and firstWeighTick() asked for its type on the
+// same placement, right after our list had asked it during the create.
+// Fix: the create marks the new id the way firstWeighTick() marks a spool it
+// looked at, and only when the create's own input carries the answer
+// (TagCreateInput::spool_type_asked, copy_flow.cpp copy_create_asked).
+// NOT-TO-DO: no flag "skip the next new spool" set when the list answers: a
+// create cancelled or failed after the answer would leave it set for the
+// next, different spool.
+void tareEntryFirstWeighDone(int spool_id) {
+  if (spool_id <= 0) return;
+  if (!fwAsked(spool_id)) fwRemember(spool_id);
+  logSDf("UI: first weighing of spool %d: answered at creation", spool_id);
+}
+
 bool tareEntryHoldsAutoWeigh() {
   // Asked on this placement: automatic weighing writes no rest in between (a
   // type picked writes its own, fwPicked(); "take measured" leaves the rest as
