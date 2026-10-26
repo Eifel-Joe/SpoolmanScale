@@ -29,6 +29,9 @@ extern bool show_backend_pending;
 // task has 16 kB, and that nesting is what overflowed it before.
 extern bool backend_mode_change_pending;
 extern uint8_t pending_backend_mode;
+// The same for exchanging the active server set for the parked one
+// (backendApplySetSwap()), from the web page and later from the device.
+extern bool server_set_swap_pending;
 extern bool show_filaman_options_pending;
 extern bool show_ams_assign_pending;
 // The AMS view. A flag rather than a direct call because building it ends in

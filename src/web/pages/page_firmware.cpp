@@ -165,7 +165,7 @@ static String body() {
   }
   h += F("<div class='card wide'><h2>");
   h += T(STR_W_C_FIRMWARE);
-  h += F("</h2><div class='rows' style='margin-bottom:16px'>"
+  h += F("</h2><div class='rows'>"
          "<div class='row'><span class='k'>");
   h += T(STR_W_FW_INSTALLED);
   h += F("</span><span class='v mono'>");
@@ -215,7 +215,7 @@ static String body() {
   // two screens cannot end up looking at different release lists.
   h += F("<div class='card wide'><h2>");
   h += T(STR_W_C_FW_GITHUB);
-  h += F("</h2><div class='rows' style='margin-bottom:16px'>"
+  h += F("</h2><div class='rows'>"
          "<div class='row'><span class='k'>");
   h += T(STR_W_FW_CHANNEL);
   h += F("</span><span class='v'>"

@@ -3981,6 +3981,42 @@ const char* const STRINGS[][3] = {
   { "Der Original-Tag trägt Crealitys Seriennummer statt der Spool-ID. Damit verknüpft CFSync die falsche Spule. Material und Farbe bleiben gleich.",
     "The original tag carries Creality's serial instead of the spool ID, so CFSync links the wrong spool. Material and colour stay the same.",
     "Le tag d'origine porte le numéro de Creality au lieu de l'ID de bobine, CFSync lie donc la mauvaise bobine. Matériau et couleur restent." },  // STR_TW_CFS_SID_HINT
+  // Backend page: a second, parked server set
+  // %s is the parked set's name, or its address when it has none.
+  { "Zweiter Server",
+    "Second server",
+    "Second serveur" },  // STR_W_C_SERVER_SETS
+  { "Die Waage merkt sich zwei Server-Sätze: Adressen und Zugangsdaten aller drei Backends und die AMS-Quelle. Wechseln tauscht sie aus, zum Beispiel zwischen Heimserver und Test-Pi. Welches Backend aktiv ist, bleibt gleich.",
+    "The scale keeps two server sets: the addresses and credentials of all three backends and the AMS source. Switching exchanges them, between a home server and a test Pi, say. Which backend is active stays the same.",
+    "La balance garde deux jeux de serveurs : adresses et identifiants des trois backends, et la source AMS. Basculer les échange, par exemple entre un serveur maison et un Pi de test. Le backend actif reste le même." },  // STR_W_SETS_HINT
+  { "Aktiv",
+    "Active",
+    "Actif" },  // STR_W_SETS_ACTIVE
+  { "Geparkt",
+    "Parked",
+    "En réserve" },  // STR_W_SETS_PARKED
+  { "Wechseln zu: %s",
+    "Switch to: %s",
+    "Passer à : %s" },  // STR_SETS_SWITCH_TO
+  { "Den jetzigen Satz parken? Danach sind alle Adressen leer, bis die des zweiten Servers eingetragen sind.",
+    "Park the current set? Every address is empty afterwards, until the second server's are entered.",
+    "Mettre le jeu actuel en réserve ? Toutes les adresses restent ensuite vides jusqu'à ce que vous saisissiez celles du second serveur." },  // STR_W_SETS_CREATE_ASK
+  { "z. B. Zuhause",
+    "e.g. Home",
+    "p. ex. Maison" },  // STR_W_SETS_NAME_PH
+  { "Für zwei Installationen, etwa Heimserver und Test-Pi: Die Waage merkt sich beide und wechselt mit einem Klick.",
+    "For two installations, a home server and a test Pi, say: the scale keeps both and switches with one click.",
+    "Pour deux installations, par exemple un serveur maison et un Pi de test : la balance garde les deux et bascule en un clic." },  // STR_W_SETS_OFF_HINT
+  { "Bearbeiten",
+    "Edit",
+    "Modifier" },  // STR_W_SETS_EDIT
+  { "Zweiten Server löschen",
+    "Remove second server",
+    "Supprimer le second serveur" },  // STR_W_SETS_DELETE
+  // %s is the parked set's name, or its address when it has none.
+  { "Den geparkten Satz %s löschen? Seine Adressen und Zugangsdaten sind dann weg. Der aktive Satz bleibt.",
+    "Delete the parked set %s? Its addresses and credentials are gone then. The active set stays.",
+    "Supprimer le jeu en réserve %s ? Ses adresses et identifiants sont alors perdus. Le jeu actif reste." },  // STR_W_SETS_DELETE_ASK
 };
 
 StringID tagWriteResultString(uint8_t code) {

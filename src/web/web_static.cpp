@@ -189,6 +189,13 @@ static const char APP_CSS[] PROGMEM =
       ".sig i:nth-child(3){height:10px}.sig i:nth-child(4){height:13px}"
       // forms
       ".field{display:flex;flex-direction:column;gap:7px}.field+.field{margin-top:16px}"
+      // The same step around a field or a list of values whatever stands next
+      // to it, so a save button or a hint is never glued to the control. Pairs
+      // used to be spaced one by one, and every new pair started at 0 px.
+      // :where() keeps it at zero specificity: any margin a class or a style
+      // attribute sets still wins.
+      ":where(:is(.card,details)>:is(.field,.rows)+*,:is(.card,.rows)>.row+:not(.row),"
+      ":is(.card,details)>:not(h2,summary)+.field,:is(.card,details)>.inrow+.inrow){margin-top:16px}"
       ".field label{font-size:13px;color:var(--ink-2)}"
       ".hint{font-size:12px;color:var(--ink-soft);line-height:1.55}"
       ".inrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}"
