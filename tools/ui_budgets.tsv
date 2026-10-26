@@ -570,3 +570,14 @@ STR_UNK_TILE_COPY	14	93	NEVER	src/ui/unknown_spool_popup.cpp tile caption, a row
 STR_DBPICK_BTN	14	93	WRAP:2	src/ui/unknown_spool_popup.cpp tile caption, a row of four
 STR_SORT_BTN	14	93	WRAP:2	src/ui/unknown_spool_popup.cpp tile caption, a row of four
 STR_SORT_BTN	16	120	WRAP:2	src/ui/unknown_spool_popup.cpp tile caption, a row of three
+# Info & Support: the line under a tile's name. Tile 222 wide, the icon disc
+# and the paddings leave 156 px.
+STR_INFO_SUB_KOFI	12	156	NEVER	src/ui/info_screen.cpp tile subtitle
+STR_INFO_SUB_GITHUB	12	156	NEVER	src/ui/info_screen.cpp tile subtitle
+STR_INFO_SUB_DISCORD	12	156	NEVER	src/ui/info_screen.cpp tile subtitle
+STR_INFO_SUB_MAKER	12	156	NEVER	src/ui/info_screen.cpp tile subtitle
+# The web hand-off: the step line over the address card and the hint under
+# the large QR code, both across the screen less the margins.
+STR_WEB_STEP_CREDS	14	456	NEVER	src/ui/ota_browser.cpp step line
+STR_WEB_STEP_CREDS_BB	14	456	NEVER	src/ui/ota_browser.cpp step line
+STR_WEB_QR_HINT	12	456	NEVER	src/ui/ota_browser.cpp under the QR code

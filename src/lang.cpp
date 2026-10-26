@@ -182,9 +182,6 @@ const char* const STRINGS[][3] = {
   { "Browser öffnen und aufrufen:",
     "Open browser and go to:",
     "Ouvrez un navigateur et allez à :" },  // STR_OTA_OPEN_BROWSER
-  { "Datei auswählen: SpoolmanScale vX.Y.Z.bin",
-    "Select file: SpoolmanScale vX.Y.Z.bin",
-    "Choisissez le fichier : SpoolmanScale vX.Y.Z.bin" },  // STR_OTA_FILE_HINT
   { LV_SYMBOL_WIFI "  Warte auf Upload...",
     LV_SYMBOL_WIFI "  Waiting for upload...",
     LV_SYMBOL_WIFI "  Attente de l'envoi..." },  // STR_OTA_WAITING
@@ -201,12 +198,6 @@ const char* const STRINGS[][3] = {
     LV_SYMBOL_CLOSE "  Stop server",
     LV_SYMBOL_CLOSE "  Arrêter le serveur" },  // STR_BTN_STOP_SERVER
   { "Aktuell: %s", "Current: %s", "Actuelle : %s" },  // STR_OTA_CURRENT
-
-  // Info Screen
-  { "SpoolmanScale  %s", "SpoolmanScale  %s", "SpoolmanScale  %s" },  // STR_INFO_VERSION
-  { "Tippe einen Button um den QR-Code anzuzeigen.",
-    "Tap a button to show the QR code.",
-    "Touchez un bouton pour afficher le QR code." },  // STR_INFO_HINT
 
   // QR Popups
   { "Projekt gefällt dir? Kauf mir einen Kaffee!",
@@ -846,15 +837,7 @@ const char* const STRINGS[][3] = {
 
   // Web interface. The same server serves the firmware upload and the
   // FilaMan credentials, so the screen title stays neutral.
-  { "Weboberfläche", "Web interface", "Interface web" },  // STR_WEB_TITLE
-  { "Adresse am Rechner im Browser öffnen und dort API-Key und Gerätecode eintragen. Der Status unten aktualisiert sich von selbst.",
-    "Open this address in a browser on your computer and enter the API key and device code there. The status below updates on its own.",
-    "Ouvrez cette adresse dans un navigateur sur votre ordinateur, et saisissez-y la clé d'API et le code d'appareil. L'état ci-dessous se met à jour tout seul." },  // STR_WEB_SETUP_HINT
-  // BamBuddy has one credential where FilaMan has two, so the sentence that
-  // tells the user what to type differs.
-  { "Adresse am Rechner im Browser öffnen und dort den API-Key eintragen. Der Status unten aktualisiert sich von selbst.",
-    "Open this address in a browser on your computer and enter the API key there. The status below updates on its own.",
-    "Ouvrez cette adresse dans un navigateur sur votre ordinateur, et saisissez-y la clé d'API. L'état ci-dessous se met à jour tout seul." },  // STR_WEB_SETUP_HINT_BB
+  { "Weboberfläche",         "Web interface",     "Interface web" },  // STR_WEB_TITLE
   { "Im Browser einrichten", "Set up in browser", "Config. navigateur" },  // STR_BTN_WEB_SETUP
   { "Fertig",                "Done",              "Terminer" },  // STR_BTN_FINISH
   { "Weiter",                "Next",              "Suivant" },  // STR_BTN_NEXT
@@ -2428,15 +2411,13 @@ const char* const STRINGS[][3] = {
   { "Bereits mit einem WLAN verbunden.",
     "Already connected to WiFi.",
     "Déjà connectée à un réseau WiFi." },  // STR_WIFI_ALREADY_CONNECTED
-  { "WLAN ändern",                  "Change WiFi",              "Changer de WiFi" },  // STR_BTN_WIFI_CHANGE
-  { "Per Handy einrichten",         "Set up by phone",          "Configurer par mobile" },  // STR_BTN_WIFI_PORTAL
-  { "WLAN per Handy einrichten", "Set up WiFi by phone",
-    "Configurer le WiFi par mobile" },  // STR_PORTAL_TITLE
-  { "1. WLAN der Waage beitreten", "1. Join the scale's WiFi",
-    "1. Rejoignez le WiFi affiché" },  // STR_PORTAL_STEP_JOIN
-  { "2. Seite öffnen",              "2. Open the page",         "2. Ouvrez la page" },  // STR_PORTAL_STEP_OPEN
-  { "WLAN: %s",                     "WiFi: %s",                 "WiFi : %s" },  // STR_PORTAL_NET_FMT
-  { "Passwort: %s",                 "Password: %s",             "Mot de passe : %s" },  // STR_PORTAL_PASS_FMT
+  { "WLAN ändern",                  "Change WiFi",             "Changer de WiFi" },  // STR_BTN_WIFI_CHANGE
+  { "Per Handy einrichten",         "Set up by phone",         "Configurer par mobile" },  // STR_BTN_WIFI_PORTAL
+  { "WLAN per Handy einrichten",    "Set up WiFi by phone",    "Configurer le WiFi par mobile" },  // STR_PORTAL_TITLE
+  { "WLAN beitreten",               "Join the WiFi",           "Rejoignez le WiFi" },  // STR_PORTAL_STEP_JOIN
+  { "Seite öffnen",                 "Open the page",           "Ouvrez la page" },  // STR_PORTAL_STEP_OPEN
+  { "WLAN: %s",                     "WiFi: %s",                "WiFi : %s" },  // STR_PORTAL_NET_FMT
+  { "Passwort: %s",                 "Password: %s",            "Mot de passe : %s" },  // STR_PORTAL_PASS_FMT
   { "Öffnet sich meist von selbst", "Usually opens by itself",
     "S'ouvre le plus souvent tout seul" },  // STR_PORTAL_OPENS_ITSELF
   { "Meldet das Handy \"kein Internet\", verbunden bleiben.",
@@ -4197,6 +4178,51 @@ const char* const STRINGS[][3] = {
   { "Noch nicht gesucht",
     "Not checked yet",
     "Pas encore vérifié" },  // STR_GH_OTA_NOT_CHECKED
+  // The product name beside the version chip on Info & Support.
+  { "SpoolmanScale",
+    "SpoolmanScale",
+    "SpoolmanScale" },  // STR_INFO_PRODUCT
+  // Info & Support: the line under each tile's name.
+  { "Projekt unterstützen",
+    "Support the project",
+    "Soutenir le projet" },  // STR_INFO_SUB_KOFI
+  { "Code und Fehler melden",
+    "Code and bug reports",
+    "Code et signalements" },  // STR_INFO_SUB_GITHUB
+  { "Fragen und Austausch",
+    "Questions and chat",
+    "Questions et échanges" },  // STR_INFO_SUB_DISCORD
+  { "Gehäuse zum Drucken",
+    "Case to print",
+    "Boîtier à imprimer" },  // STR_INFO_SUB_MAKER
+  // Under a QR code.
+  { "Mit der Handykamera scannen",
+    "Scan with your phone camera",
+    "Scannez avec votre téléphone" },  // STR_QR_SCAN_HINT
+  // The web hand-off: the button that shows the address as a QR code, and its page.
+  { "QR-Code",
+    "QR code",
+    "QR code" },  // STR_WEB_QR_BTN
+  { "Mit der Handykamera scannen, Tippen schließt",
+    "Scan with your phone camera, tap to close",
+    "Scannez avec votre téléphone, touchez pour fermer" },  // STR_WEB_QR_HINT
+  // Before the IP address under the name.
+  { "oder",
+    "or",
+    "ou" },  // STR_WEB_OR
+  { "Im Browser API-Key und Gerätecode eintragen:",
+    "Enter the API key and device code in a browser:",
+    "Saisissez clé d'API et code d'appareil dans le navigateur :" },  // STR_WEB_STEP_CREDS
+  { "Im Browser den API-Key eintragen:",
+    "Enter the API key in a browser:",
+    "Saisissez la clé d'API dans le navigateur :" },  // STR_WEB_STEP_CREDS_BB
+  { "Dort die Grenzwerte für die Trocknungserinnerung einstellen.",
+    "Set the limits for the drying reminder there.",
+    "Réglez-y les seuils du rappel de séchage." },  // STR_WEB_DRY_HINT
+  // The file the firmware upload expects, under its status.
+  { "SpoolmanScale vX.Y.Z.bin",
+    "SpoolmanScale vX.Y.Z.bin",
+    "SpoolmanScale vX.Y.Z.bin" },  // STR_OTA_FILE_NAME
   // ── A copy behind Bambuddy on Spoolman: what it takes over ──
   { "Profil: %s",
     "Profile: %s",

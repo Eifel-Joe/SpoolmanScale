@@ -1,6 +1,6 @@
 {
   "created": "2026-10-26",
-  "commit": "920c85f",
+  "commit": "3969d87",
   "metrics": {
     "german_comment_lines": 73,
     "http_in_handler": 0,
@@ -16,9 +16,9 @@
     "lines:src/ui/more_info_screen.cpp": 1363,
     "lines:src/ui/spool_flow.cpp": 4125,
     "lines:src/ui/spoolman_lookup.cpp": 1602,
-    "obj_del_in_handler": 15,
+    "obj_del_in_handler": 11,
     "params_over_limit": 110,
     "raw_color_hex": 0,
-    "strncpy_with_T": 9
+    "strncpy_with_T": 6
   }
 }

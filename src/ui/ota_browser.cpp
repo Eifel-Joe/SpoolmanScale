@@ -17,16 +17,33 @@
 #include "services/wifi_manager.h"
 #include "ui_common.h"
 #include "theme.h"
+#include "icons.h"
+#include "extra/libs/qrcode/lv_qrcode.h"
 
-// The credential rows start below the address block. The address line grew
-// when the IP moved from font 14 to font 18, and at the old 158 the two
-// touched.
-#define CRED_ROW_Y0    168
-#define CRED_ROW_STEP   34
-
-// One row of font 12. The notice is only ever one line, so everything below
-// it shifts by this fixed step rather than by a measured label height.
-#define GATE_NOTE_H     20
+// The address card under the step line: the QR button on its left, the
+// address beside it. W5 of the hand-off mock-ups (Nikolai, 26.10.2026).
+#define WEB_STEP_Y       58
+#define WEB_CARD_X       12
+#define WEB_CARD_Y       80
+#define WEB_CARD_W      456
+#define WEB_CARD_H      124
+#define WEB_QR_BTN_PX   108
+#define WEB_QR_BTN_INSET  8
+#define WEB_TEXT_X      132   // inside the card, right of the button
+#define WEB_TEXT_W      314   // to the card's inner edge
+#define WEB_PILL_Y      212
+// The row of status and action under the card, in halves or across.
+#define WEB_ROW_Y       246
+#define WEB_ROW_H        54
+#define WEB_HALF_W      222
+#define WEB_HALF_X2     246
+// The QR page the button opens.
+#define WEB_QR_FRAME_PX 200
+#define WEB_QR_CODE_PX  180
+#define WEB_QR_FRAME_Y   52
+#define WEB_QR_URL_Y    262
+#define WEB_QR_HINT_Y   290
+#define WEB_URL_MAX      96
 
 // Which entry point brought the user here. Kept between show and build
 // because buildOtaBrowserScreen() is also reached through the generic
@@ -114,41 +131,69 @@ void showOtaBrowserScreen(WebScreenContext ctx) {
   webServerSyncState();
 }
 
-// One credential row: name on the left, state on the right. Returns the value
-// label so it can be updated without rebuilding the screen.
-static lv_obj_t* addCredentialRow(lv_obj_t *parent, int y, const char *name,
-                                  bool present) {
-  char name_buf[32];
-  strncpy(name_buf, name, sizeof(name_buf) - 1);
-  name_buf[sizeof(name_buf) - 1] = '\0';
 
+// The address the QR page encodes, set while the card is built. The IP when
+// the scale has one beside its name: a phone that does not resolve .local
+// gets there all the same.
+static char s_qr_url[WEB_URL_MAX] = "";
+static lv_obj_t *s_qr_page = nullptr;
+
+static lv_obj_t* webLabel(lv_obj_t *parent, const char *text, const lv_font_t *font, uint32_t col) {
   lv_obj_t *l = lv_label_create(parent);
-  lv_label_set_text(l, name_buf);
-  lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_INK_2), 0);
-  lv_obj_set_style_text_font(l, &lv_font_montserrat_ext_16, 0);
-  lv_obj_set_pos(l, 40, y);
+  lv_label_set_text(l, text);
+  lv_obj_set_style_text_font(l, font, 0);
+  lv_obj_set_style_text_color(l, lv_color_hex(col), 0);
+  return l;
+}
 
-  char val_buf[24];
-  strncpy(val_buf, present ? T(STR_BACKEND_SET) : T(STR_BACKEND_MISSING),
-          sizeof(val_buf) - 1);
-  val_buf[sizeof(val_buf) - 1] = '\0';
+// A quiet box in the row under the card: what is on, what is waiting.
+static lv_obj_t* webRowBox(lv_obj_t *parent, int x, int w) {
+  lv_obj_t *box = lv_obj_create(parent);
+  lv_obj_set_size(box, w, WEB_ROW_H);
+  lv_obj_set_pos(box, x, WEB_ROW_Y);
+  lv_obj_set_style_bg_color(box, lv_color_hex(UI_COL_ROW), 0);
+  lv_obj_set_style_border_width(box, 1, 0);
+  lv_obj_set_style_border_color(box, lv_color_hex(UI_COL_ROW_PRESSED), 0);
+  lv_obj_set_style_radius(box, UI_RADIUS_ROW, 0);
+  lv_obj_set_style_pad_hor(box, 14, 0);
+  lv_obj_set_style_pad_ver(box, 0, 0);
+  lv_obj_clear_flag(box, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_clear_flag(box, LV_OBJ_FLAG_CLICKABLE);
+  return box;
+}
 
-  lv_obj_t *v = lv_label_create(parent);
-  lv_label_set_text(v, val_buf);
-  lv_obj_set_style_text_color(v, lv_color_hex(present ? UI_COL_OK_TEXT_2 : UI_COL_WARN), 0);
-  lv_obj_set_style_text_font(v, &lv_font_montserrat_ext_16, 0);
-  lv_obj_align(v, LV_ALIGN_TOP_RIGHT, -40, y);
-  return v;
+// The button beside a row box: stop the server, or finish the setup.
+static lv_obj_t* webRowButton(lv_obj_t *parent, uint32_t bg, uint32_t bg_pressed, uint32_t line) {
+  lv_obj_t *b = lv_btn_create(parent);
+  lv_obj_set_size(b, WEB_HALF_W, WEB_ROW_H);
+  lv_obj_set_pos(b, WEB_HALF_X2, WEB_ROW_Y);
+  lv_obj_set_style_bg_color(b, lv_color_hex(bg), 0);
+  lv_obj_set_style_bg_color(b, lv_color_hex(bg_pressed), LV_STATE_PRESSED);
+  lv_obj_set_style_border_width(b, 1, 0);
+  lv_obj_set_style_border_color(b, lv_color_hex(line), 0);
+  lv_obj_set_style_radius(b, UI_RADIUS_ROW, 0);
+  lv_obj_set_style_shadow_width(b, 0, 0);
+  return b;
 }
 
 static void setCredentialRow(lv_obj_t *label, bool present) {
   if (!label) return;
-  char val_buf[24];
-  strncpy(val_buf, present ? T(STR_BACKEND_SET) : T(STR_BACKEND_MISSING),
-          sizeof(val_buf) - 1);
-  val_buf[sizeof(val_buf) - 1] = '\0';
-  lv_label_set_text(label, val_buf);
+  lv_label_set_text(label, present ? T(STR_BACKEND_SET) : T(STR_BACKEND_MISSING));
   lv_obj_set_style_text_color(label, lv_color_hex(present ? UI_COL_OK_TEXT_2 : UI_COL_WARN), 0);
+}
+
+// One credential in a row box: name on the left, state on the right, moved
+// off the middle by y_ofs when two share a box. Two in one half take the
+// small font: "Jeton d'appareil" and "en mémoire" overlap at 14. Returns the
+// state label so it can be updated without rebuilding the screen.
+static lv_obj_t* addCredentialLine(lv_obj_t *box, int y_ofs, int name_id, bool present) {
+  const lv_font_t *font = y_ofs ? UI_FONT_CAPTION : UI_FONT_SMALL;
+  lv_obj_t *l = webLabel(box, T(name_id), font, UI_COL_INK_2);
+  lv_obj_align(l, LV_ALIGN_LEFT_MID, 0, y_ofs);
+  lv_obj_t *v = webLabel(box, "", font, UI_COL_WARN);
+  lv_obj_align(v, LV_ALIGN_RIGHT_MID, 0, y_ofs);
+  setCredentialRow(v, present);
+  return v;
 }
 
 // Remembers what the rows currently say. Rewriting a label invalidates it and
@@ -190,220 +235,184 @@ void refreshWebCredentialRows() {
   }
 }
 
-void buildOtaBrowserScreen() {
-  logSD("BUILD: OtaBrowserScreen");
-  releaseScreen(&scr_ota_browser);
-  s_lbl_key_val = nullptr;
-  s_lbl_token_val = nullptr;
-  scr_ota_browser = buildOverlayScreen();
+// The address as a QR code over the whole screen. A tap anywhere closes it,
+// the X included: it is drawn, but the tap goes through it to the page, so it
+// closes the page rather than the whole screen.
+static void webCloseQrPage(lv_event_t *e) {
+  if (s_qr_page) lv_obj_del_async(s_qr_page);
+  s_qr_page = nullptr;
+}
 
-  char title_buf[40];
-  strncpy(title_buf, isFirmwareContext() ? T(STR_OTA_BROWSER_TITLE) : T(STR_WEB_TITLE),
-          sizeof(title_buf) - 1);
-  title_buf[sizeof(title_buf) - 1] = '\0';
+static void webShowQrPage(lv_event_t *e) {
+  if (s_qr_page || !scr_ota_browser) return;
+  logSDf("BTN: Web interface -> QR code (%s)", s_qr_url);
+  s_qr_page = lv_obj_create(scr_ota_browser);
+  lv_obj_set_size(s_qr_page, 480, 320);
+  lv_obj_set_pos(s_qr_page, 0, 0);
+  lv_obj_set_style_bg_color(s_qr_page, lv_color_hex(UI_COL_GROUND), 0);
+  lv_obj_set_style_border_width(s_qr_page, 0, 0);
+  lv_obj_set_style_radius(s_qr_page, 0, 0);
+  lv_obj_set_style_pad_all(s_qr_page, 0, 0);
+  lv_obj_clear_flag(s_qr_page, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_event_cb(s_qr_page, webCloseQrPage, LV_EVENT_CLICKED, NULL);
 
-  if (s_web_ctx == WEB_CTX_SETUP) {
-    // No way back during setup, the previous step is already behind us.
-    // A plain title keeps the screen consistent with the other setup steps.
-    lv_obj_t *lbl_title = lv_label_create(scr_ota_browser);
-    lv_label_set_text(lbl_title, title_buf);
-    lv_obj_set_style_text_color(lbl_title, lv_color_hex(UI_COL_ACCENT), 0);
-    lv_obj_set_style_text_font(lbl_title, &lv_font_montserrat_ext_18, 0);
-    lv_obj_align(lbl_title, LV_ALIGN_TOP_MID, 0, 12);
+  lv_obj_align(webLabel(s_qr_page, T(STR_WEB_QR_BTN), UI_FONT_TITLE, UI_COL_ACCENT), LV_ALIGN_TOP_MID, 0, 12);
+  lv_obj_clear_flag(addCloseButton(s_qr_page), LV_OBJ_FLAG_CLICKABLE);
+
+  lv_obj_t *frame = lv_obj_create(s_qr_page);
+  lv_obj_set_size(frame, WEB_QR_FRAME_PX, WEB_QR_FRAME_PX);
+  lv_obj_align(frame, LV_ALIGN_TOP_MID, 0, WEB_QR_FRAME_Y);
+  lv_obj_set_style_bg_color(frame, lv_color_hex(UI_COL_QR_LIGHT), 0);
+  lv_obj_set_style_border_width(frame, 0, 0);
+  lv_obj_set_style_radius(frame, UI_RADIUS_BOX, 0);
+  lv_obj_clear_flag(frame, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_clear_flag(frame, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_t *qr = lv_qrcode_create(frame, WEB_QR_CODE_PX, lv_color_hex(UI_COL_QR_DARK), lv_color_hex(UI_COL_QR_LIGHT));
+  if (!qr) {
+    logSD("Web: no room for the QR code in the LVGL pool");
   } else {
-    buildSubHeader(scr_ota_browser, title_buf,
-      [](lv_event_t *e){
-        logSD("BTN: Web interface -> Back");
-        // Back does not close the server. Whether it listens is the master
-        // switch's business, and closing it here behind that switch's back
-        // is exactly what used to leave port 80 dead until the next reboot.
-        // Back goes where the user came from, not always to the update menu.
-        switch (s_web_ctx) {
-          case WEB_CTX_BACKEND: show_backend_pending         = true; break;
-          case WEB_CTX_DRYING:  show_drying_reminder_pending  = true; break;
-          default:              show_ota_pending              = true; break;
-        }
-      });
+    if (lv_qrcode_update(qr, s_qr_url, strlen(s_qr_url)) != LV_RES_OK) logSD("Web: QR code update failed");
+    lv_obj_center(qr);
   }
 
-  if (!wifi_ok) {
-    lv_obj_t *lbl_err = lv_label_create(scr_ota_browser);
-    char err_buf[64];
-    copyT(err_buf, sizeof(err_buf), STR_OTA_NO_WIFI);
-    lv_label_set_text(lbl_err, err_buf);
-    lv_obj_set_style_text_color(lbl_err, lv_color_hex(UI_COL_BAD_TEXT), 0);
-    lv_obj_set_style_text_font(lbl_err, &lv_font_montserrat_ext_16, 0);
-    lv_obj_set_style_text_align(lbl_err, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(lbl_err, LV_ALIGN_CENTER, 0, 0);
-    return;
-  }
+  lv_obj_align(webLabel(s_qr_page, s_qr_url, UI_FONT_BODY, UI_COL_ACCENT), LV_ALIGN_TOP_MID, 0, WEB_QR_URL_Y);
+  lv_obj_align(webLabel(s_qr_page, T(STR_WEB_QR_HINT), UI_FONT_CAPTION, UI_COL_CAPTION), LV_ALIGN_TOP_MID, 0, WEB_QR_HINT_Y);
+}
 
-  char ip_buf[DEVICE_FQDN_MAX + 32];
-  IPAddress ip = wifiManagerLocalIP();
-  if (ip == IPAddress(0,0,0,0) && wifi_ok) {
-    // Only happens right after connecting. No lv_timer_handler() in here:
-    // this screen is now also opened from button callbacks, and running the
-    // LVGL handler from inside one would dispatch touch events again while
-    // the screen is half built.
-    unsigned long t = millis();
-    while (wifiManagerLocalIP() == IPAddress(0,0,0,0) && millis() - t < 3000) {
-      delay(50);
-    }
-    ip = wifiManagerLocalIP();
-  }
-  // "/" is the status page now, so send each flow to the page that carries
-  // its form. One table decides that, see webTargetFor() - the path is
-  // deliberately not named after a backend either, it used to be "/filaman",
-  // which sent BamBuddy users to a FilaMan URL.
-  const char *path = webTargetFor(s_web_ctx).path;
+static void webBuildQrButton(lv_obj_t *card) {
+  lv_obj_t *b = lv_btn_create(card);
+  lv_obj_set_size(b, WEB_QR_BTN_PX, WEB_QR_BTN_PX);
+  lv_obj_set_pos(b, WEB_QR_BTN_INSET, WEB_QR_BTN_INSET);
+  lv_obj_set_style_bg_color(b, lv_color_hex(UI_COL_ACCENT_CHIP), 0);
+  lv_obj_set_style_bg_color(b, lv_color_hex(UI_COL_GO_BG_PRESSED), LV_STATE_PRESSED);
+  lv_obj_set_style_border_width(b, 1, 0);
+  lv_obj_set_style_border_color(b, lv_color_hex(UI_COL_ACCENT), 0);
+  lv_obj_set_style_radius(b, UI_RADIUS_ROW, 0);
+  lv_obj_set_style_shadow_width(b, 0, 0);
+  lv_obj_set_flex_flow(b, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_flex_align(b, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_pad_row(b, 8, 0);
+  lv_obj_add_event_cb(b, webShowQrPage, LV_EVENT_CLICKED, NULL);
 
-  // The name goes on the big line and the address stays underneath in small
-  // type. Not either-or: some Android versions still will not resolve a
-  // .local name, a DNS name only works where the network serves it, and the
-  // person standing at the scale has no way to know that before trying.
-  char addr_buf[64] = "";
+  lv_obj_t *img = lv_img_create(b);
+  lv_img_set_src(img, &ICON_QR);
+  lv_obj_set_style_img_recolor(img, lv_color_hex(UI_COL_ACCENT), 0);
+  lv_obj_set_style_img_recolor_opa(img, LV_OPA_COVER, 0);
+  webLabel(b, T(STR_WEB_QR_BTN), UI_FONT_SMALL, UI_COL_ACCENT);
+}
+
+// The address beside the button: the scheme small, the name large, and the
+// IP under it for a phone or a network that does not resolve the name. Some
+// Android versions still will not resolve a .local name, a DNS name only
+// works where the network serves it, and the person at the scale cannot know
+// which before trying.
+static void webBuildAddress(lv_obj_t *card, const char *path) {
   char base[DEVICE_FQDN_MAX + 16];
   deviceBrowserUrl(base, sizeof(base));
-  snprintf(ip_buf, sizeof(ip_buf), "%s%s", base, path);
-  deviceAltAddress(addr_buf, sizeof(addr_buf));
+  char alt[48] = "";
+  deviceAltAddress(alt, sizeof(alt));
 
-  char hint_buf[192];
-  const char* hint_src = !showsCredentials() ? T(STR_OTA_OPEN_BROWSER)
-                       : backendIsBamBuddy()  ? T(STR_WEB_SETUP_HINT_BB)
-                                              : T(STR_WEB_SETUP_HINT);
-  strncpy(hint_buf, hint_src, sizeof(hint_buf) - 1);
-  hint_buf[sizeof(hint_buf) - 1] = '\0';
+  const char *scheme_end = strstr(base, "://");
+  const char *host = scheme_end ? scheme_end + 3 : base;
+  char big[WEB_URL_MAX];
+  snprintf(big, sizeof(big), "%s%s", host, path);
+  if (alt[0]) snprintf(s_qr_url, sizeof(s_qr_url), "http://%s%s", alt, path);
+  else        snprintf(s_qr_url, sizeof(s_qr_url), "%s%s", base, path);
 
-  lv_obj_t *lbl_hint = lv_label_create(scr_ota_browser);
-  lv_label_set_text(lbl_hint, hint_buf);
-  lv_obj_set_style_text_color(lbl_hint, lv_color_hex(UI_COL_CAPTION), 0);
-  lv_obj_set_style_text_font(lbl_hint, &lv_font_montserrat_ext_14, 0);
-  lv_obj_set_style_text_align(lbl_hint, LV_TEXT_ALIGN_CENTER, 0);
-  lv_label_set_long_mode(lbl_hint, LV_LABEL_LONG_WRAP);
-  lv_obj_set_width(lbl_hint, 440);
-  lv_obj_align(lbl_hint, LV_ALIGN_TOP_MID, 0, showsCredentials() ? 50 : 58);
+  char scheme[16];
+  snprintf(scheme, sizeof(scheme), "%.*s", scheme_end ? (int)(scheme_end - base + 3) : 0, base);
+  lv_obj_set_pos(webLabel(card, scheme, UI_FONT_SMALL, UI_COL_CAPTION), WEB_TEXT_X, 16);
 
-  const int addr_y = showsCredentials() ? 108 : 80;
+  // A long device name drops a size rather than run past the card.
+  const lv_font_t *font = UI_FONT_HEADLINE;
+  if (lv_txt_get_width(big, strlen(big), font, 0, LV_TEXT_FLAG_NONE) > WEB_TEXT_W) font = UI_FONT_BODY;
+  lv_obj_t *name = webLabel(card, big, font, UI_COL_ACCENT);
+  lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
+  lv_obj_set_width(name, WEB_TEXT_W);
+  lv_obj_set_pos(name, WEB_TEXT_X, 36);
+  if (!alt[0]) return;
 
-  lv_obj_t *lbl_ip = lv_label_create(scr_ota_browser);
-  lv_label_set_text(lbl_ip, ip_buf);
-  lv_obj_set_style_text_color(lbl_ip, lv_color_hex(UI_COL_ACCENT), 0);
-  lv_obj_set_style_text_font(lbl_ip, &lv_font_montserrat_ext_20, 0);
-  lv_obj_align(lbl_ip, LV_ALIGN_TOP_MID, 0, addr_y);
+  char ip[WEB_URL_MAX];
+  snprintf(ip, sizeof(ip), "%s%s", alt, path);
+  lv_obj_t *or_lbl = webLabel(card, T(STR_WEB_OR), UI_FONT_SMALL, UI_COL_CAPTION);
+  lv_obj_set_pos(or_lbl, WEB_TEXT_X, 78);
+  lv_obj_t *ip_lbl = webLabel(card, ip, UI_FONT_TITLE, UI_COL_INK_2);
+  lv_obj_align_to(ip_lbl, or_lbl, LV_ALIGN_OUT_RIGHT_BOTTOM, 8, 2);
+}
 
-  if (addr_buf[0]) {
-    // Font 18 in the secondary text colour, not 14 in the hint colour. This
-    // is the address someone types when the .local name does not resolve -
-    // an Android phone, a router that filters multicast - so it has to be
-    // readable from arm's length, not decorative. It stays one step below
-    // the name above it and no further.
-    lv_obj_t *lbl_fallback = lv_label_create(scr_ota_browser);
-    lv_label_set_text(lbl_fallback, addr_buf);
-    lv_obj_set_style_text_color(lbl_fallback, lv_color_hex(UI_COL_INK_2), 0);
-    lv_obj_set_style_text_font(lbl_fallback, &lv_font_montserrat_ext_18, 0);
-    lv_obj_align(lbl_fallback, LV_ALIGN_TOP_MID, 0, addr_y + 28);
+static void webBuildCard(lv_obj_t *scr, const char *path) {
+  lv_obj_t *card = lv_obj_create(scr);
+  lv_obj_set_size(card, WEB_CARD_W, WEB_CARD_H);
+  lv_obj_set_pos(card, WEB_CARD_X, WEB_CARD_Y);
+  lv_obj_set_style_bg_color(card, lv_color_hex(UI_COL_SURFACE), 0);
+  lv_obj_set_style_border_width(card, 1, 0);
+  lv_obj_set_style_border_color(card, lv_color_hex(UI_COL_LINE_SOFT), 0);
+  lv_obj_set_style_radius(card, UI_RADIUS_BOX, 0);
+  lv_obj_set_style_pad_all(card, 0, 0);
+  lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_clear_flag(card, LV_OBJ_FLAG_CLICKABLE);
+  webBuildQrButton(card);
+  webBuildAddress(card, path);
+}
+
+// Says what just happened, right under the address it made reachable, in the
+// amber this screen uses for "not there yet".
+static void webBuildGatePill(lv_obj_t *scr) {
+  lv_obj_t *pill = webLabel(scr, T(STR_WEB_GATE_OPENED), UI_FONT_CAPTION, UI_COL_WARN);
+  lv_obj_set_style_bg_color(pill, lv_color_hex(UI_COL_AMBER_BG), 0);
+  lv_obj_set_style_bg_opa(pill, LV_OPA_COVER, 0);
+  lv_obj_set_style_border_width(pill, 1, 0);
+  lv_obj_set_style_border_color(pill, lv_color_hex(UI_COL_AMBER_LINE), 0);
+  lv_obj_set_style_radius(pill, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_pad_hor(pill, 12, 0);
+  lv_obj_set_style_pad_ver(pill, 4, 0);
+  lv_obj_align(pill, LV_ALIGN_TOP_MID, 0, WEB_PILL_Y);
+}
+
+// FilaMan's two credentials in halves, BamBuddy's one across; during the
+// setup they share the left half and Done takes the right.
+static void webBuildCredentials(lv_obj_t *scr) {
+  const bool bb = backendIsBamBuddy();
+  const bool setup = s_web_ctx == WEB_CTX_SETUP;
+  s_key_shown   = bb ? (bambuddyApiKey()[0] != '\0') : (filamanApiKey()[0] != '\0');
+  s_token_shown = !bb && (filamanDeviceToken()[0] != '\0');
+  s_lbl_token_val = nullptr;
+
+  const int key_w = (bb && !setup) ? WEB_CARD_W : WEB_HALF_W;
+  lv_obj_t *box = webRowBox(scr, WEB_CARD_X, key_w);
+  const int key_ofs = (setup && !bb) ? -10 : 0;
+  s_lbl_key_val = addCredentialLine(box, key_ofs, STR_BACKEND_APIKEY, s_key_shown);
+  if (!bb) {
+    lv_obj_t *token_box = setup ? box : webRowBox(scr, WEB_HALF_X2, WEB_HALF_W);
+    s_lbl_token_val = addCredentialLine(token_box, setup ? 10 : 0, STR_BACKEND_DEVICE_TOKEN, s_token_shown);
   }
+  if (!setup) return;
 
-  // Says what just happened, right under the address it made reachable. Amber
-  // is the colour this screen already uses for "not there yet", and font 12
-  // keeps it to one line in both languages at this width - which is what lets
-  // everything below shift by a constant.
-  const int note_h = s_gate_opened ? GATE_NOTE_H : 0;
-  if (s_gate_opened) {
-    char note_buf[64];
-    copyT(note_buf, sizeof(note_buf), STR_WEB_GATE_OPENED);
+  lv_obj_t *done = webRowButton(scr, UI_COL_ACCENT, UI_COL_GO_BG_PRESSED, UI_COL_ACCENT);
+  lv_obj_add_event_cb(done, [](lv_event_t *e){
+    logSD("BTN: Web interface -> Setup done");
+    // Deferred: showMainScreen() deletes this very screen, which must not
+    // happen while its own button callback is still running.
+    finish_setup_pending = true;
+  }, LV_EVENT_CLICKED, NULL);
+  char done_buf[32];
+  snprintf(done_buf, sizeof(done_buf), LV_SYMBOL_OK "  %s", T(STR_BTN_FINISH));
+  lv_obj_center(webLabel(done, done_buf, UI_FONT_BODY, UI_COL_ON_ACCENT));
+}
 
-    lv_obj_t *lbl_note = lv_label_create(scr_ota_browser);
-    lv_label_set_text(lbl_note, note_buf);
-    lv_obj_set_style_text_color(lbl_note, lv_color_hex(UI_COL_WARN), 0);
-    lv_obj_set_style_text_font(lbl_note, &lv_font_montserrat_ext_12, 0);
-    lv_obj_set_style_text_align(lbl_note, LV_TEXT_ALIGN_CENTER, 0);
-    lv_label_set_long_mode(lbl_note, LV_LABEL_LONG_WRAP);
-    lv_obj_set_width(lbl_note, 440);
-    // Clears the fallback address, which is font 18 and ends around +50.
-    lv_obj_align(lbl_note, LV_ALIGN_TOP_MID, 0, addr_y + (addr_buf[0] ? 52 : 30));
-  }
+// The upload's status on the left, written by the web upload from the loop,
+// the file it wants under it; the stop button on the right.
+static void webBuildFirmwareRow(lv_obj_t *scr) {
+  lv_obj_t *box = webRowBox(scr, WEB_CARD_X, WEB_HALF_W);
+  lv_obj_set_flex_flow(box, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_flex_align(box, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+  lbl_ota_status = webLabel(box, T(STR_OTA_WAITING), UI_FONT_SMALL, UI_COL_WARN);
+  lv_label_set_long_mode(lbl_ota_status, LV_LABEL_LONG_WRAP);
+  lv_obj_set_width(lbl_ota_status, lv_pct(100));
+  webLabel(box, T(STR_OTA_FILE_NAME), UI_FONT_CAPTION, UI_COL_CAPTION);
 
-  if (showsCredentials()) {
-    if (backendIsBamBuddy()) {
-      // One credential, so one row - and it is left where the FilaMan pair
-      // starts rather than centred between them, which would make the screen
-      // jump when switching backends.
-      s_key_shown   = (bambuddyApiKey()[0] != '\0');
-      s_token_shown = false;
-      s_lbl_key_val   = addCredentialRow(scr_ota_browser, CRED_ROW_Y0 + note_h,
-                                         T(STR_BACKEND_APIKEY), s_key_shown);
-      s_lbl_token_val = nullptr;
-    } else {
-      s_key_shown   = (filamanApiKey()[0]      != '\0');
-      s_token_shown = (filamanDeviceToken()[0] != '\0');
-      s_lbl_key_val   = addCredentialRow(scr_ota_browser, CRED_ROW_Y0 + note_h,
-                                         T(STR_BACKEND_APIKEY), s_key_shown);
-      s_lbl_token_val = addCredentialRow(scr_ota_browser,
-                                         CRED_ROW_Y0 + note_h + CRED_ROW_STEP,
-                                         T(STR_BACKEND_DEVICE_TOKEN), s_token_shown);
-    }
-
-    if (s_web_ctx == WEB_CTX_SETUP) {
-      lv_obj_t *btn_done = lv_btn_create(scr_ota_browser);
-      lv_obj_set_size(btn_done, 200, 48);
-      lv_obj_align(btn_done, LV_ALIGN_BOTTOM_MID, 0, -20);
-      lv_obj_set_style_bg_color(btn_done, lv_color_hex(UI_COL_GO_BG), 0);
-      lv_obj_set_style_bg_color(btn_done, lv_color_hex(UI_COL_GO_BG_PRESSED), LV_STATE_PRESSED);
-      lv_obj_set_style_radius(btn_done, 8, 0);
-      lv_obj_set_style_shadow_width(btn_done, 0, 0);
-      lv_obj_set_style_border_width(btn_done, 0, 0);
-      lv_obj_add_event_cb(btn_done, [](lv_event_t *e){
-        logSD("BTN: Web interface -> Setup done");
-        // Deferred: showMainScreen() deletes this very screen, which must not
-        // happen while its own button callback is still running.
-        finish_setup_pending = true;
-      }, LV_EVENT_CLICKED, NULL);
-      lv_obj_t *lbl_done = lv_label_create(btn_done);
-      char done_buf[24];
-      copyT(done_buf, sizeof(done_buf), STR_BTN_FINISH);
-      lv_label_set_text(lbl_done, done_buf);
-      lv_obj_set_style_text_color(lbl_done, lv_color_hex(UI_COL_OK_TEXT_2), 0);
-      lv_obj_set_style_text_font(lbl_done, &lv_font_montserrat_ext_16, 0);
-      lv_obj_center(lbl_done);
-    }
-    return;
-  }
-
-  // Only the firmware context continues below: the .bin hint, the upload
-  // status and the stop button make no sense when the browser is opened to
-  // edit drying thresholds.
-  if (!isFirmwareContext()) return;
-
-  lv_obj_t *lbl_hint2 = lv_label_create(scr_ota_browser);
-  char file_buf[160];
-  copyT(file_buf, sizeof(file_buf), STR_OTA_FILE_HINT);
-  lv_label_set_text(lbl_hint2, file_buf);
-  lv_obj_set_style_text_color(lbl_hint2, lv_color_hex(UI_COL_INK_FAINT), 0);
-  lv_obj_set_style_text_font(lbl_hint2, &lv_font_montserrat_ext_12, 0);
-  lv_obj_set_style_text_align(lbl_hint2, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(lbl_hint2, LV_ALIGN_TOP_MID, 0, (addr_buf[0] ? 134 : 112) + note_h);
-  lv_label_set_long_mode(lbl_hint2, LV_LABEL_LONG_WRAP);
-  lv_obj_set_width(lbl_hint2, 440);
-
-  lbl_ota_status = lv_label_create(scr_ota_browser);
-  char wait_buf[64];
-  copyT(wait_buf, sizeof(wait_buf), STR_OTA_WAITING);
-  lv_label_set_text(lbl_ota_status, wait_buf);
-  lv_obj_set_style_text_color(lbl_ota_status, lv_color_hex(UI_COL_WARN), 0);
-  lv_obj_set_style_text_font(lbl_ota_status, &lv_font_montserrat_ext_16, 0);
-  lv_obj_set_style_text_align(lbl_ota_status, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(lbl_ota_status, LV_ALIGN_CENTER, 0, 40);
-
-  lv_obj_t *btn_stop = lv_btn_create(scr_ota_browser);
-  lv_obj_set_size(btn_stop, 200, 48);
-  lv_obj_align(btn_stop, LV_ALIGN_BOTTOM_MID, 0, -20);
-  lv_obj_set_style_bg_color(btn_stop, lv_color_hex(UI_COL_BAD_BG), 0);
-  lv_obj_set_style_bg_color(btn_stop, lv_color_hex(UI_COL_BAD_BG_PRESSED), LV_STATE_PRESSED);
-  lv_obj_set_style_radius(btn_stop, 8, 0);
-  lv_obj_set_style_shadow_width(btn_stop, 0, 0);
-  lv_obj_set_style_border_width(btn_stop, 0, 0);
-  lv_obj_add_event_cb(btn_stop, [](lv_event_t *e){
+  lv_obj_t *stop = webRowButton(scr, UI_COL_BAD_BG, UI_COL_BAD_BG_PRESSED, UI_COL_CLOSE_LINE);
+  lv_obj_add_event_cb(stop, [](lv_event_t *e){
     logSD("BTN: OtaBrowser -> Stop server");
     // Turns the master switch off rather than the socket. A socket closed
     // behind the switch's back came straight back up on the next sync, so
@@ -413,11 +422,75 @@ void buildOtaBrowserScreen() {
     webServerSyncState();
     show_ota_pending = true;
   }, LV_EVENT_CLICKED, NULL);
-  lv_obj_t *lbl_stop = lv_label_create(btn_stop);
-  char stop_buf[32];
-  copyT(stop_buf, sizeof(stop_buf), STR_BTN_STOP_SERVER);
-  lv_label_set_text(lbl_stop, stop_buf);
-  lv_obj_set_style_text_color(lbl_stop, lv_color_hex(UI_COL_BAD_TEXT), 0);
-  lv_obj_set_style_text_font(lbl_stop, &lv_font_montserrat_ext_16, 0);
-  lv_obj_center(lbl_stop);
+  lv_obj_center(webLabel(stop, T(STR_BTN_STOP_SERVER), UI_FONT_BODY, UI_COL_BAD_TEXT));
+}
+
+static void webBuildDryingRow(lv_obj_t *scr) {
+  lv_obj_t *box = webRowBox(scr, WEB_CARD_X, WEB_CARD_W);
+  lv_obj_t *l = webLabel(box, T(STR_WEB_DRY_HINT), UI_FONT_SMALL, UI_COL_INK_2);
+  lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+  lv_obj_set_width(l, lv_pct(100));
+  lv_obj_align(l, LV_ALIGN_LEFT_MID, 0, 0);
+}
+
+static void webBuildHeader(lv_obj_t *scr, const char *title) {
+  if (s_web_ctx == WEB_CTX_SETUP) {
+    // No way back during setup, the previous step is already behind us.
+    // A plain title keeps the screen consistent with the other setup steps.
+    lv_obj_align(webLabel(scr, title, UI_FONT_TITLE, UI_COL_ACCENT), LV_ALIGN_TOP_MID, 0, 12);
+    return;
+  }
+  buildSubHeader(scr, title, [](lv_event_t *e){
+    logSD("BTN: Web interface -> Back");
+    // Back does not close the server. Whether it listens is the master
+    // switch's business, and closing it here behind that switch's back
+    // is exactly what used to leave port 80 dead until the next reboot.
+    // Back goes where the user came from, not always to the update menu.
+    switch (s_web_ctx) {
+      case WEB_CTX_BACKEND: show_backend_pending         = true; break;
+      case WEB_CTX_DRYING:  show_drying_reminder_pending  = true; break;
+      default:              show_ota_pending              = true; break;
+    }
+  });
+}
+
+// Only right after connecting. No lv_timer_handler() in here: this screen is
+// also opened from button callbacks, and running the LVGL handler from inside
+// one would dispatch touch events again while the screen is half built.
+static void webWaitForIp() {
+  unsigned long t = millis();
+  while (wifiManagerLocalIP() == IPAddress(0,0,0,0) && millis() - t < 3000) {
+    delay(50);
+  }
+}
+
+void buildOtaBrowserScreen() {
+  logSD("BUILD: OtaBrowserScreen");
+  releaseScreen(&scr_ota_browser);
+  s_lbl_key_val = nullptr;
+  s_lbl_token_val = nullptr;
+  s_qr_page = nullptr;
+  scr_ota_browser = buildOverlayScreen();
+  webBuildHeader(scr_ota_browser, isFirmwareContext() ? T(STR_OTA_BROWSER_TITLE) : T(STR_WEB_TITLE));
+
+  if (!wifi_ok) {
+    lv_obj_t *lbl_err = webLabel(scr_ota_browser, T(STR_OTA_NO_WIFI), UI_FONT_BODY, UI_COL_BAD_TEXT);
+    lv_obj_set_style_text_align(lbl_err, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(lbl_err, LV_ALIGN_CENTER, 0, 0);
+    return;
+  }
+  webWaitForIp();
+
+  const int step_id = !showsCredentials() ? STR_OTA_OPEN_BROWSER
+                    : backendIsBamBuddy()  ? STR_WEB_STEP_CREDS_BB
+                                           : STR_WEB_STEP_CREDS;
+  lv_obj_align(webLabel(scr_ota_browser, T(step_id), UI_FONT_SMALL, UI_COL_INK_SOFT), LV_ALIGN_TOP_MID, 0, WEB_STEP_Y);
+  // "/" is the status page, so each flow goes to the page that carries its
+  // form, see webTargetFor().
+  webBuildCard(scr_ota_browser, webTargetFor(s_web_ctx).path);
+  if (s_gate_opened) webBuildGatePill(scr_ota_browser);
+
+  if (showsCredentials())      webBuildCredentials(scr_ota_browser);
+  else if (isFirmwareContext()) webBuildFirmwareRow(scr_ota_browser);
+  else if (s_web_ctx == WEB_CTX_DRYING) webBuildDryingRow(scr_ota_browser);
 }

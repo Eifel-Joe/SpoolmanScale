@@ -146,17 +146,12 @@ enum StringID {
   STR_OTA_BROWSER_TITLE,
   STR_OTA_NO_WIFI,
   STR_OTA_OPEN_BROWSER,
-  STR_OTA_FILE_HINT,
   STR_OTA_WAITING,
   STR_OTA_UPLOADING,
   STR_OTA_SUCCESS,
   STR_OTA_FAIL,
   STR_BTN_STOP_SERVER,
   STR_OTA_CURRENT,
-
-  // Info Screen
-  STR_INFO_VERSION,
-  STR_INFO_HINT,
 
   // QR Popups
   STR_QR_KOFI_DESC,
@@ -478,8 +473,6 @@ enum StringID {
 
   // Web interface, shared by the firmware upload and the credential entry
   STR_WEB_TITLE,
-  STR_WEB_SETUP_HINT,
-  STR_WEB_SETUP_HINT_BB,
   STR_BTN_WEB_SETUP,
   STR_BTN_FINISH,
   STR_BTN_NEXT,
@@ -1925,6 +1918,19 @@ enum StringID {
   STR_W_SHOT_COPIED,
   STR_W_SHOT_COPY_HINT,
   STR_GH_OTA_NOT_CHECKED,
+  STR_INFO_PRODUCT,
+  STR_INFO_SUB_KOFI,
+  STR_INFO_SUB_GITHUB,
+  STR_INFO_SUB_DISCORD,
+  STR_INFO_SUB_MAKER,
+  STR_QR_SCAN_HINT,
+  STR_WEB_QR_BTN,
+  STR_WEB_QR_HINT,
+  STR_WEB_OR,
+  STR_WEB_STEP_CREDS,
+  STR_WEB_STEP_CREDS_BB,
+  STR_WEB_DRY_HINT,
+  STR_OTA_FILE_NAME,
 
   // A copy behind Bambuddy on Spoolman: what it takes over (design note J)
   STR_COPY_CARD_PROFILE,    // copy card: %s the template's profile, "-" without one
