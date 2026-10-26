@@ -1,4 +1,4 @@
-"""Compile the production rule of the filament name BamBuddy keeps and check it: the material, then the line when there is one, cut at a UTF-8 boundary, and the round trip through the way BamBuddy reads a line out of a name (services/bambuddy_name.h)."""
+"""Compile the production rules of the filament name BamBuddy keeps and check them: the material, then the line when there is one, cut at a UTF-8 boundary, the round trip through the way BamBuddy reads a line out of a name, and the colour that finds such a filament again since the name no longer tells colours apart (services/bambuddy_name.h)."""
 import subprocess
 import tempfile
 from pathlib import Path
@@ -123,6 +123,48 @@ int main() {
   char sentinel[4] = {'x', 'y', 'z', '\0'};
   bambuddyFilamentName("ABS", "Matte", sentinel, 0);
   assert(strcmp(sentinel, "xyz") == 0);
+
+  // The colour. A single colour wanted: the six digits, with or without the
+  // '#', in any case, and an alpha pair behind them does not count.
+  assert(bambuddyColourFits("000000", "", false, "000000", ""));
+  assert(bambuddyColourFits("000000", nullptr, false, "000000", nullptr));
+  assert(bambuddyColourFits("000000FF", "", false, "000000", ""));
+  assert(bambuddyColourFits("#90ee90", "", false, "90EE90", ""));
+  assert(bambuddyColourFits("90EE90FF", "", false, "#90ee90", ""));
+  // A clear filament (alpha 00) is no black one, another hue is no fit, and a
+  // filament that has a list of colours is no single colour.
+  assert(!bambuddyColourFits("00000000", "", false, "000000", ""));
+  assert(!bambuddyColourFits("111111", "", false, "000000", ""));
+  assert(!bambuddyColourFits("000000", "000000,FFFFFF", false, "000000", ""));
+  // Nothing to compare fits nothing.
+  assert(!bambuddyColourFits(nullptr, nullptr, false, "000000", ""));
+  assert(!bambuddyColourFits("", "", false, "000000", ""));
+  assert(!bambuddyColourFits(nullptr, "", false, "000000", ""));
+  assert(!bambuddyColourFits("", nullptr, false, "000000", ""));
+
+  // A clear colour wanted: Spoolman keeps it as 00000000, a see-through one
+  // as a hue with alpha 00; a hue with no alpha, or nothing, is not clear.
+  assert(bambuddyColourFits("00000000", "", true, "", ""));
+  assert(bambuddyColourFits("FFFFFF00", "", true, "", nullptr));
+  assert(bambuddyColourFits("ffffff00", nullptr, true, "", ""));
+  assert(!bambuddyColourFits("000000", "", true, "", ""));
+  assert(!bambuddyColourFits("000000FF", "", true, "", ""));
+  assert(!bambuddyColourFits("", "", true, "", ""));
+  assert(!bambuddyColourFits(nullptr, nullptr, true, "", ""));
+
+  // Colours side by side or along: the same list in the same order, for the
+  // order is the direction of a gradient. The first colour rides along as the
+  // input's color_hex does; the filament's own color_hex is not looked at.
+  assert(bambuddyColourFits("", "9cdbd9,ffffff", false, "9CDBD9", "9CDBD9,FFFFFF"));
+  assert(bambuddyColourFits("", "9CDBD9,FFFFFF", false, "9CDBD9", "9CDBD9,FFFFFF"));
+  assert(bambuddyColourFits("", "#9CDBD9,#FFFFFF", false, "9CDBD9", "9CDBD9,FFFFFF"));
+  assert(bambuddyColourFits(nullptr, "9CDBD9,FFFFFF", false, "9CDBD9", "9CDBD9,FFFFFF"));
+  assert(!bambuddyColourFits("", "FFFFFF,9CDBD9", false, "9CDBD9", "9CDBD9,FFFFFF"));
+  assert(!bambuddyColourFits("", "9CDBD9", false, "9CDBD9", "9CDBD9,FFFFFF"));
+  assert(!bambuddyColourFits("9CDBD9", "9CDBD9", false, "9CDBD9", "9CDBD9,FFFFFF"));
+  assert(!bambuddyColourFits("", "", false, "9CDBD9", "9CDBD9,FFFFFF"));
+  assert(!bambuddyColourFits("9CDBD9", nullptr, false, "9CDBD9", "9CDBD9,FFFFFF"));
+  assert(!bambuddyColourFits("", "9CDBD9,FFFFFF,000000", false, "9CDBD9", "9CDBD9,FFFFFF"));
   return 0;
 }
 '''
