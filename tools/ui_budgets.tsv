@@ -223,6 +223,7 @@ STR_PRN_NET_SENT_TITLE	20	360	NEVER	src/ui/print_card.cpp result title
 STR_PRN_NET_SENT_MSG	16	360	WRAP:3	src/ui/print_card.cpp result text
 STR_PRN_NET_REPLY_TITLE	20	360	NEVER	src/ui/print_card.cpp result title
 STR_PRN_NET_REPLY_MSG	16	360	NEVER	src/ui/print_card.cpp result text, one line, the printer's bytes on the two under it
+STR_PRN_NET_BROKEN_TITLE	20	360	NEVER	src/ui/print_card.cpp result title
 STR_PRN_NET_BROKEN_MSG	16	360	WRAP:3	src/ui/print_card.cpp result text
 STR_PRN_ERR_NOT_NIIMBOT	16	360	WRAP:3	src/ui/print_card.cpp result text
 STR_PRN_ERR_COVER	16	360	WRAP:3	src/ui/print_card.cpp result text

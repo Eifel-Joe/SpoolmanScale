@@ -1336,6 +1336,7 @@ enum StringID {
   STR_PRN_NET_SENT_MSG,
   STR_PRN_NET_REPLY_TITLE,    // a Brother said something while its line was held
   STR_PRN_NET_REPLY_MSG,      // above the bytes it sent
+  STR_PRN_NET_BROKEN_TITLE,   // the line to it broke while it was held
   STR_PRN_NET_BROKEN_MSG,
   STR_PRN_FAIL_TITLE,
   // Below the device list while it hides the nameless ones

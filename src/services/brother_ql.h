@@ -27,9 +27,9 @@
 //  loop looks at it once per pass (brotherQlTick()), and the
 //  scale is free as soon as the bytes are out. The printer's
 //  close ends the hold quietly; bytes from it, or a line that
-//  breaks, are handed to the screen (brotherQlTakeReply()). A
-//  new job closes a held line first and prints at once (Joerg,
-//  26.10.2026). NOT-TO-DO: a task of its own for the wait (Spec
+//  breaks, are handed to the screen (brotherQlTakeReply()). The
+//  next print attempt closes a held line first, and a new label
+//  goes out at once (Joerg, 26.10.2026). NOT-TO-DO: a task of its own for the wait (Spec
 //  5.3 L1, V27: none); closing right after the last byte, which
 //  is what leaves the QL-810W busy.
 //
@@ -52,8 +52,8 @@ enum BrotherQlResult : uint8_t {
 
 // `host` is the printer's IPv4 address as typed. Blocking while it connects
 // and sends, from appLoop() only; a line still held from the job before is
-// closed first. `progress` is called about once per row. BQ_SENT leaves the
-// line held (brotherQlTick()).
+// closed first (brotherQlRelease()). `progress` is called about once per row.
+// BQ_SENT leaves the line held (brotherQlTick()).
 BrotherQlResult brotherQlPrint(const char* host, const BrotherQlLabel& label,
                                const LabelRaster& image, BleProgressFn progress);
 
@@ -61,14 +61,19 @@ BrotherQlResult brotherQlPrint(const char* host, const BrotherQlLabel& label,
 // printer closes it, the line breaks or BROTHER_QL_HOLD_MS are over. From the
 // loop on every pass; nothing to do without a hold. The end is in the log.
 void brotherQlTick();
-// True while the line of the last job is held open.
-bool brotherQlHolding();
+// Ends a held line before another print attempt, whichever printer it goes
+// to and however it ends, and drops what the printer said meanwhile that the
+// screen has not taken: a late reply belongs to the label before, and must
+// not take the place of this attempt's answer. From the loop, at the start
+// of every print attempt; brotherQlPrint() calls it as well.
+void brotherQlRelease();
 
 // What the printer said while its line was held.
 enum BrotherQlReplyKind : uint8_t {
   BQR_NONE = 0,
   BQR_BYTES,    // it sent bytes; the first chunk is in `bytes`
-  BQR_BROKEN,   // the line broke (a reset or another error, in `err`)
+  BQR_BROKEN,   // the line broke before any bytes came (a reset, a lost
+                // network or another error, in `err`)
 };
 #define BROTHER_QL_REPLY_MAX 32
 struct BrotherQlReply {

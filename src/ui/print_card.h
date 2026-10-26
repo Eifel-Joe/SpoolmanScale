@@ -10,10 +10,15 @@
 //  sending, printing - and then turns into the answer in the same place:
 //  confirmed by the printer, sent without a confirmation (a Brother's
 //  "sent" among them), or not printed and why. A confirmed print closes
-//  on its own after a few seconds; a problem waits for OK.
+//  on its own after a few seconds, a Brother's "sent" after 2 s; a problem
+//  waits for OK.
 //
 //  The session blocks the loop, so while it runs the card is drawn by
 //  printCardTick(), which the session calls as its progress callback.
+//
+//  One answer comes later and on its own: what a Brother says in the 10 s
+//  its line is held after the label (printer_screen.cpp, brother_ql.h). It
+//  takes the place of an answer still on screen, and waits for OK.
 // ============================================================
 
 // Opens the card in its busy state, "preparing the label".
@@ -23,8 +28,10 @@ void printCardShow();
 // redraws, at most every few tens of milliseconds.
 void printCardTick();
 
-// The answer. text_id is labelPrintResultString(result) for a failure.
-// detail: a line of the server's own under it, where it gave one.
+// The answer, after printCardShow() or on its own (a Brother's reply), in
+// place of an answer still shown. text_id is labelPrintResultString(result)
+// for a failure. detail: the server's own line under it, where it gave one,
+// or the bytes a Brother sent.
 // offer_own_layout: a second button that prints the same spool with the
 // scale's own layout (sets print_own_layout_pending).
 void printCardResult(LabelPrintResult result, const char* detail = nullptr,

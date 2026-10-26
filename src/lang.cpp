@@ -2871,9 +2871,12 @@ const char* const STRINGS[][3] = {
   { "Nach dem Etikett kam vom Drucker:",
     "After the label the printer sent:",
     "Après l'étiquette, l'imprimante a envoyé :" },  // STR_PRN_NET_REPLY_MSG
-  { "Der Drucker hat die Verbindung nach dem Etikett getrennt. Ist das Etikett vollständig?",
-    "The printer dropped the connection after the label. Is the label complete?",
-    "L'imprimante a coupé la connexion après l'étiquette. Est-elle complète ?" },  // STR_PRN_NET_BROKEN_MSG
+  { "Verbindung abgebrochen",
+    "Connection broken",
+    "Connexion coupée" },  // STR_PRN_NET_BROKEN_TITLE
+  { "Die Verbindung zum Drucker ist nach dem Etikett abgebrochen. Ist das Etikett vollständig?",
+    "The connection to the printer broke after the label. Is the label complete?",
+    "La connexion à l'imprimante a été coupée après l'étiquette. Est-elle complète ?" },  // STR_PRN_NET_BROKEN_MSG
   { "Nicht gedruckt",
     "Not printed",
     "Non imprimé" },  // STR_PRN_FAIL_TITLE

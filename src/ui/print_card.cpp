@@ -69,8 +69,8 @@ static lv_obj_t* makeLabel(lv_obj_t* parent, const lv_font_t* font, uint32_t col
   return l;
 }
 
-void printCardShow() {
-  if (s_scr) return;
+// The card in its busy state, not yet drawn.
+static void buildCard() {
   logSD("SHOW: PrintCard");
   s_shown_phase = -1;
   s_shown_pct   = -1;
@@ -118,6 +118,11 @@ void printCardShow() {
   s_text = makeLabel(s_box, UI_FONT_BODY, UI_COL_INK_SOFT, PC_BUSY_TEXT_Y);
 
   s_last_tick = millis();
+}
+
+void printCardShow() {
+  if (s_scr) return;
+  buildCard();
   lv_refr_now(NULL);
 }
 
@@ -197,7 +202,9 @@ void printCardResult(LabelPrintResult result, const char* detail, bool offer_own
   // A card that already shows an answer gives way to this one: what a Brother
   // says after its label can come while that label's card still counts down.
   if (s_scr && !s_arc) closeCard();
-  if (!s_scr) printCardShow();
+  // Built, not drawn: an answer that comes on its own, a printer's reply,
+  // would otherwise show the busy card for a frame first.
+  if (!s_scr) buildCard();
   if (s_arc) { lv_obj_del(s_arc); s_arc = nullptr; }
 
   const bool ok = (result == LP_OK);
@@ -214,7 +221,8 @@ void printCardResult(LabelPrintResult result, const char* detail, bool offer_own
   const uint32_t tone = ok ? UI_COL_GOOD : (unconfirmed ? UI_COL_WARN : UI_COL_BAD);
   const int title = ok ? STR_PRN_DONE_TITLE
                   : net_sent ? STR_PRN_NET_SENT_TITLE
-                  : net_reply ? STR_PRN_NET_REPLY_TITLE
+                  : result == LP_NET_REPLY ? STR_PRN_NET_REPLY_TITLE
+                  : result == LP_NET_BROKEN ? STR_PRN_NET_BROKEN_TITLE
                   : unconfirmed ? STR_PRN_UNCONF_TITLE : STR_PRN_FAIL_TITLE;
   // A label that went onto thermal paper gets the one thing to know about
   // it: the dryer blackens it (Nikolai, 30.09.2026). "The printer confirmed"
@@ -236,8 +244,9 @@ void printCardResult(LabelPrintResult result, const char* detail, bool offer_own
   lv_label_set_text(s_title, T(title));
   lv_obj_align(s_title, LV_ALIGN_TOP_MID, 0, UI_CARD_TITLE_Y);
   if (detail && detail[0]) {
-    // The server's own words under ours: why it would not draw the label.
-    // Cut so the card keeps its height: two lines fit above the buttons.
+    // The server's own words under ours (why it would not draw the label),
+    // or the bytes a Brother sent after its label. Cut so the card keeps
+    // its height: two lines fit above the buttons.
     char cut[PC_DETAIL_CUT + 1], both[PC_DETAIL_LEN];
     utf8Cut(detail, PC_DETAIL_CUT, cut, sizeof(cut));
     snprintf(both, sizeof(both), "%s\n%s", T(text), cut);

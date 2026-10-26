@@ -59,8 +59,6 @@ void brotherQlBytes(size_t* sent, size_t* total) {
   if (total) *total = s_total;
 }
 
-bool brotherQlHolding() { return s_hold.open; }
-
 bool brotherQlTakeReply(BrotherQlReply* out) {
   if (!s_reply_new) return false;
   s_reply_new = false;
@@ -89,6 +87,16 @@ static void holdEnd(const char* how) {
   s_hold.open = false;
   logSDf("Printer: Brother %s line %s after %u ms, %u B from the printer",
          s_hold.host, how, (unsigned)(millis() - s_hold.from), (unsigned)s_hold.heard);
+}
+
+void brotherQlRelease() {
+  // Two labels directly after each other are about 2 s apart, and a QL-810W
+  // that has not closed its line by then is the case befunde 3 calls busy:
+  // the next label is not held back for it (Joerg, 26.10.2026: print at
+  // once), and the acceptance shows whether the QL-820NWBc takes two in a
+  // row. Two lines to one printer at once are not tried.
+  if (s_hold.open) holdEnd(BQ_HOLD_NEXT);
+  s_reply_new = false;
 }
 
 // Hands bytes to the socket and counts what it took. A short write is a
@@ -126,16 +134,13 @@ static bool sendJob(WiFiClient& client, const BrotherQlLabel& label, const Label
 
 static BrotherQlResult runJob(const char* host, const BrotherQlLabel& label,
                               const LabelRaster& image, BleProgressFn progress, BqRun& run) {
+  // The line of the label before ends here at the latest, on every way out
+  // below; the screen has normally done it at the start of the attempt.
+  brotherQlRelease();
   if (!labelRasterValid(image) || image.row_bytes != BROTHER_QL_ROW_BYTES ||
       image.height != label.dots_h)
     return BQ_BAD_RASTER;
   run.total = brotherQlJobBytes(image.height);
-
-  // The label before has been with the printer for a while by now: its line
-  // is closed and this one prints at once, rather than waiting out the rest
-  // of the hold (Joerg, 26.10.2026). Two lines to one printer are not tried.
-  if (s_hold.open) holdEnd(BQ_HOLD_NEXT);
-  s_reply_new = false;
 
   if (WiFi.status() != WL_CONNECTED) return BQ_NO_WIFI;
 
@@ -220,10 +225,14 @@ void brotherQlTick() {
       holdEnd(BQ_HOLD_TIMEOUT);
       return;
     case BQH_ABORT: {
-      s_reply.kind = BQR_BROKEN;
-      s_reply.n    = 0;
-      s_reply.err  = err;
-      s_reply_new  = true;
+      // A line that breaks after the printer's bytes keeps those on the
+      // card: they say more than the break, which goes to the log.
+      if (s_hold.heard == 0) {
+        s_reply.kind = BQR_BROKEN;
+        s_reply.n    = 0;
+        s_reply.err  = err;
+        s_reply_new  = true;
+      }
       char how[40];
       snprintf(how, sizeof(how), "broken (errno %d)", err);
       holdEnd(how);

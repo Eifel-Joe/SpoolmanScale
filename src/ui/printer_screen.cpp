@@ -36,6 +36,25 @@ static int keptForLink(const KeptResult& r) {
   return r.link == labelPrinterLink() ? r.text : -1;
 }
 
+// The verdict a Brother's "sent" was kept in, the test's or the label's: what
+// the printer says in the 10 s after replaces it (brotherReplyTick()), so the
+// browser's line and the test row do not keep saying "sent" when the card
+// said otherwise. Null when the last attempt was not a Brother's "sent".
+static KeptResult* s_brother_kept = nullptr;
+
+// The start of every print attempt: the line the Brother's label before still
+// holds ends here (brother_ql.h), so a late reply cannot take the place of
+// this attempt's answer, nor overwrite its kept verdict.
+static void printAttemptStart() {
+  brotherQlRelease();
+  s_brother_kept = nullptr;
+}
+
+static void keepVerdict(KeptResult& kept, LabelPrintResult result, LabelPrinterLink link) {
+  kept = { labelPrintResultString(result), link };
+  if (result == LP_NET_SENT) s_brother_kept = &kept;
+}
+
 // A label that needs no spool, the test label or the calibration page, under
 // the print card; the verdict is kept for the browser's last-print line.
 static void printFixedLabel(bool (*render)(const LabelPrinterConfig&, LabelRaster*),
@@ -43,6 +62,7 @@ static void printFixedLabel(bool (*render)(const LabelPrinterConfig&, LabelRaste
   printerOffsetFlush();
   const LabelPrinterLink link = labelPrinterLink();
   const LabelPrinterConfig c = labelPrinterLoadConfig();
+  printAttemptStart();
   // The one question behind every print button (design L1, ruling 9).
   LabelPrintResult result = labelPrinterReadiness();
   if (result == LP_OK) {
@@ -53,7 +73,7 @@ static void printFixedLabel(bool (*render)(const LabelPrinterConfig&, LabelRaste
     labelRasterFree(&raster);
   }
   logSDf("Printer: %s result=%d", what, (int)result);
-  s_last_test = { labelPrintResultString(result), link };
+  keepVerdict(s_last_test, result, link);
   printCardResult(result);
 }
 int printerLastTestResult() { return keptForLink(s_last_test); }
@@ -90,6 +110,7 @@ static void printSpoolLabel(SpoolLabelData spool, bool own_layout = false,
   const LabelPrinterLink link = labelPrinterLink();
   const LabelPrinterConfig c = labelPrinterLoadConfig();
   const bool server = !own_layout && kind == LABEL_KIND_SPOOL && labelServerInUse();
+  printAttemptStart();
   LabelPrintResult result = labelPrinterReadiness();
   if (result == LP_OK) {
     printCardShow();
@@ -101,7 +122,7 @@ static void printSpoolLabel(SpoolLabelData spool, bool own_layout = false,
   logSDf("Printer: spool #%d %s label (%s) result=%d", spool.id,
          kind == LABEL_KIND_FILAMENT ? "filament" : "spool",
          server ? "FilaMan preset" : "own layout", (int)result);
-  s_last_label = { labelPrintResultString(result), link };
+  keepVerdict(s_last_label, result, link);
   // Never switched over unasked: the card offers the scale's own layout.
   if (result == LP_SERVER_LABEL) {
     s_own_layout_spool = spool;
@@ -398,7 +419,12 @@ static void brotherReplyTick() {
   brotherQlTick();
   BrotherQlReply reply;
   if (!brotherQlTakeReply(&reply)) return;
-  if (reply.kind == BQR_BYTES) {
+  const bool bytes = (reply.kind == BQR_BYTES);
+  // The kept verdict of that label says it too: its title for the bytes,
+  // which only the card shows, the sentence for a broken line.
+  if (s_brother_kept)
+    s_brother_kept->text = bytes ? STR_PRN_NET_REPLY_TITLE : STR_PRN_NET_BROKEN_MSG;
+  if (bytes) {
     char hex[BROTHER_REPLY_SHOWN * 3];
     brotherQlBytesHex(reply.bytes, reply.n, hex, sizeof(hex));
     printCardResult(LP_NET_REPLY, hex);
