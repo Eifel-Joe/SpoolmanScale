@@ -82,9 +82,12 @@ bool labelLayoutHasCode(const LabelLayout& layout) {
 // measured: from 40 x 30 by the height, since its 271 dots at 300 dpi are 183
 // at 203 dpi instead of 240 while the head block keeps its height; upright
 // like 30 x 50. To be measured on the previews at the Brother's acceptance
-// (plan L1, task 6 step 2) and set right then.
+// (plan L1, task 6 step 2) and set right then. They are for that shape
+// only: a Bluetooth stock kept from earlier betas, such as 75 x 50, is wide
+// as well and keeps the rows it had.
 #define LL_LONG_ROLL_MM 50
 #define LL_WIDE_ROLL_MM 62
+#define LL_NARROW_ROLL_MM 29
 enum CapacityRow {
   CAP_FLAT_40, CAP_FLAT_50, CAP_UPRIGHT_40, CAP_UPRIGHT_50, CAP_FLAT_62, CAP_UPRIGHT_62, CAP_ROWS
 };
@@ -112,10 +115,11 @@ static const uint8_t FACT_CAPACITY_NO_CODE[CAP_ROWS][LABEL_PRESET_COUNT] = {
 int labelFactCapacity(const LabelLayout& layout, uint16_t width_mm, uint16_t length_mm) {
   const uint8_t preset = layout.preset < LABEL_PRESET_COUNT ? layout.preset : LABEL_PRESET_STANDARD;
   const uint16_t longer = width_mm > length_mm ? width_mm : length_mm;
-  const bool wide_roll = longer >= LL_WIDE_ROLL_MM;
+  const uint16_t shorter = width_mm > length_mm ? length_mm : width_mm;
+  const bool brother_roll = longer >= LL_WIDE_ROLL_MM && shorter <= LL_NARROW_ROLL_MM;
   const bool long_roll = longer >= LL_LONG_ROLL_MM;
   const bool upright = labelLayoutOption(layout, LO_PORTRAIT);
-  const CapacityRow row = wide_roll ? (upright ? CAP_UPRIGHT_62 : CAP_FLAT_62)
+  const CapacityRow row = brother_roll ? (upright ? CAP_UPRIGHT_62 : CAP_FLAT_62)
                         : long_roll ? (upright ? CAP_UPRIGHT_50 : CAP_FLAT_50)
                         : (upright ? CAP_UPRIGHT_40 : CAP_FLAT_40);
   return labelLayoutHasCode(layout) ? FACT_CAPACITY[row][preset]
