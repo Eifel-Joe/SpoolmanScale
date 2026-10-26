@@ -433,10 +433,10 @@ static void showTarePad(bool fill) {
 //  Weigh, type, spool type or full spool
 // ---------------------------------------------------------------------------
 
-static lv_obj_t *choiceButton(lv_obj_t *box, int x, int y, int w, int h, const char *text) {
+static lv_obj_t *choiceButton(lv_obj_t *box, int y, int w, int h, const char *text) {
   lv_obj_t *b = lv_btn_create(box);
   lv_obj_set_size(b, w, h);
-  lv_obj_set_pos(b, x, y);
+  lv_obj_set_pos(b, 12, y);
   lv_obj_set_style_bg_color(b, lv_color_hex(UI_COL_CHIP), 0);
   lv_obj_set_style_bg_color(b, lv_color_hex(UI_COL_PRESS_FILL), LV_STATE_PRESSED);
   lv_obj_set_style_radius(b, UI_RADIUS_BTN, 0);
@@ -471,6 +471,9 @@ void showTareChoice() {
   // one above the other, weighing offered with the pad empty as well (the
   // press takes the reading then, an empty reel may be put down meanwhile).
   // Both have two rows, so the cancel row and the box height share a sum.
+  // choiceButton() is upstream's and puts a button at the column's x of 12;
+  // every button here gets its own x right after it (lv_obj_set_x), so the
+  // grid needs no sixth parameter (house rule, at most five).
   const bool grid   = spoolTypesActive();
   const bool on_pad = padHoldsSpool();
   const int BORDER = 2, BTN_H = 70, TOP = 44, BOTTOM = 10;
@@ -502,7 +505,8 @@ void showTareChoice() {
     char weigh_buf[96];
     // The empty spool without the parts on it: they are not the spool's.
     snprintf(weigh_buf, sizeof(weigh_buf), T(STR_TARE_CHOICE_WEIGH), spoolExtrasBareReading());
-    lv_obj_t *weigh = choiceButton(box, EDGE, TOP, BTN_W, BTN_H, weigh_buf);
+    lv_obj_t *weigh = choiceButton(box, TOP, BTN_W, BTN_H, weigh_buf);
+    lv_obj_set_x(weigh, EDGE);
     lv_obj_add_event_cb(weigh, [](lv_event_t *e) {
       // The reading at the moment of the press, as the old button took it.
       const float g = spoolExtrasBareReading();
@@ -513,8 +517,8 @@ void showTareChoice() {
 
   char type_buf[96];
   snprintf(type_buf, sizeof(type_buf), LV_SYMBOL_KEYBOARD "  %s", T(STR_TARE_CHOICE_TYPE));
-  lv_obj_t *type = grid ? choiceButton(box, X_R, TOP, BTN_W, BTN_H, type_buf)
-                        : choiceButton(box, EDGE, ROW2_Y, BTN_W, BTN_H, type_buf);
+  lv_obj_t *type = choiceButton(box, grid ? TOP : ROW2_Y, BTN_W, BTN_H, type_buf);
+  lv_obj_set_x(type, grid ? X_R : EDGE);
   lv_obj_add_event_cb(type, [](lv_event_t *e) {
     releaseScreen(&s_choice);
     showTarePad(false);
@@ -522,8 +526,8 @@ void showTareChoice() {
 
   if (grid) {
     // The maker's types, the one nearest the spool's empty weight marked.
-    lv_obj_t *by_type = choiceButton(box, EDGE, ROW2_Y, BTN_W, BTN_H,
-                                     T(STR_TARE_CHOICE_TYPES));
+    lv_obj_t *by_type = choiceButton(box, ROW2_Y, BTN_W, BTN_H, T(STR_TARE_CHOICE_TYPES));
+    lv_obj_set_x(by_type, EDGE);
     lv_obj_add_event_cb(by_type, [](lv_event_t *e) {
       SpoolTypeListReq req = {};
       req.mode = STL_VENDOR;
@@ -536,8 +540,8 @@ void showTareChoice() {
   }
 
   if (grid && on_pad) {
-    lv_obj_t *full = choiceButton(box, X_R, ROW2_Y, BTN_W, BTN_H,
-                                  T(STR_TARE_CHOICE_FULL));
+    lv_obj_t *full = choiceButton(box, ROW2_Y, BTN_W, BTN_H, T(STR_TARE_CHOICE_FULL));
+    lv_obj_set_x(full, X_R);
     lv_obj_add_event_cb(full, [](lv_event_t *e) {
       releaseScreen(&s_choice);
       showTarePad(true);
