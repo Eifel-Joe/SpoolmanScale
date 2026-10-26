@@ -30,6 +30,7 @@
 #include "web/web_access.h"
 #include "web/web_jobs.h"
 #include "web/pages/page_backend_embed.h"
+#include "web/pages/page_backend_sets.h"
 #include "web/web_shell.h"
 #include "ui/theme.h"
 // Last on purpose: T() is a macro and ArduinoJson uses T as a template
@@ -299,8 +300,13 @@ static String body() {
   h += T(STR_W_LOADING);
   h += F("</p></div></div>");
 
-  // Last, because it is needed once while setting things up.
+  // Near the end, because it is needed once while setting things up.
   h += backendEmbedCard();
+
+  // ---- the second server set ---------------------------------------------
+  // Last: most people have one server, and until a second one is set up this
+  // is a single line.
+  h += backendSetsCard();
 
   h += F("</div>");
   if (can_restart) h += webShellRestartUi();
@@ -522,6 +528,8 @@ static String settingsJson() {
 }
 
 static void routes(WebServer &srv) {
+  backendSetsRoutes(srv);
+
   // Switching the backend. Only the intent is recorded: this runs in the loop
   // task, already deep in the WebServer stack, and backendApplyMode() rebuilds
   // screens and makes requests of its own. appLoop() carries it out.

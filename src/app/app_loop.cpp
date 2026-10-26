@@ -905,6 +905,14 @@ void appLoop() {
       show_backend_pending = true;
     }
   }
+  // The same for the server set: the backend screen shows the new address.
+  if (server_set_swap_pending) {
+    server_set_swap_pending = false;
+    backendApplySetSwap();
+    if (scr_backend && !lv_obj_has_flag(scr_backend, LV_OBJ_FLAG_HIDDEN)) {
+      show_backend_pending = true;
+    }
+  }
   if (show_backend_pending) {
     show_backend_pending = false;
     buildBackendScreen();          // releases the previous instance itself

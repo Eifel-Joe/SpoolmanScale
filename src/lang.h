@@ -1908,6 +1908,18 @@ enum StringID {
   STR_TW_CFS_OVR_HINT,
   STR_TW_CFS_SID_TITLE,
   STR_TW_CFS_SID_HINT,
+  // Backend page: a second, parked server set
+  STR_W_C_SERVER_SETS,
+  STR_W_SETS_HINT,
+  STR_W_SETS_ACTIVE,
+  STR_W_SETS_PARKED,
+  STR_SETS_SWITCH_TO,
+  STR_W_SETS_CREATE_ASK,
+  STR_W_SETS_NAME_PH,
+  STR_W_SETS_OFF_HINT,
+  STR_W_SETS_EDIT,
+  STR_W_SETS_DELETE,
+  STR_W_SETS_DELETE_ASK,
 
   // A copy behind Bambuddy on Spoolman: what it takes over (design note J)
   STR_COPY_CARD_PROFILE,    // copy card: %s the template's profile, "-" without one

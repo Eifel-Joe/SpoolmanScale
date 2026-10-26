@@ -32,6 +32,12 @@ void backendApplyHost(const char *host);
 // value does not fit; nothing is changed then.
 bool backendApplyAmsSource(const char *host, const char *key);
 
+// Exchanging the active server set for the parked one (services/server_sets.h):
+// every address and credential at once, the mode stays. Lets go of the same
+// things a change of mode does, because every server the scale talked to is
+// left behind. False when NVS refused part of the swap.
+bool backendApplySetSwap();
+
 // Counts every switch of mode or host. Work that runs on another task takes
 // it at the start, and a result that comes back under a different number is
 // about a server the scale no longer talks to: it is dropped, never shown and
