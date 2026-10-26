@@ -1883,6 +1883,21 @@ enum StringID {
   STR_SORT_NO_LINE,           // the first tile of the line step: the sort has no line
   STR_SORT_LINE_TITLE,        // %s: the material chosen; the line step's title
 
+  // A filament entered at the scale: colour, hue, weight and diameter (ui/sort_entry_pick.cpp)
+  STR_SORT_COLOUR_TITLE,      // %s %s: the vendor, the material with the line; the colour step's title
+  STR_SORT_THIS_MAKER,        // caption over the maker's colours (database, other materials)
+  STR_SORT_COMMON,            // caption over the common colours
+  STR_SORT_KEY_COLOUR,        // the keyboard's title on the colour step
+  STR_SORT_RASTER_TITLE,      // %s: the colour typed new; the colour grid's title
+  STR_SORT_HUE_HINT,          // on top of the colour grid: the hue is what finds the filament again
+  STR_SORT_HEX,               // the tile under the colour grid: the keyboard for a hue
+  STR_SORT_KEY_HEX,           // the keyboard's title for a hue
+  STR_SORT_HEX_BAD,           // under the field when the hue is not six hex digits
+  STR_SORT_WEIGHT_TITLE,      // the weight step's title
+  STR_SORT_TYPE_GRAMS,        // the last tile of the weight step: the keyboard for the grams
+  STR_SORT_KEY_GRAMS,         // the keyboard's title for the grams
+  STR_SORT_GRAMS_BAD,         // under the field when the grams are out of range
+
   STR_COUNT
 };
 

@@ -173,7 +173,8 @@ void sortKeysTick() {
   }
   if (!s_parked) return;
   s_parked = false;
-  if (!s_text[0]) {
+  // Nothing, or only blanks and hyphens, which the rules take for no name.
+  if (!s_text[0] || !sortEntrySame(s_text, s_text)) {
     sortKeysSay(T(STR_SORT_EMPTY));
     return;
   }

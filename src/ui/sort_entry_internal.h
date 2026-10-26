@@ -35,7 +35,8 @@
 #define SORT_ROW_W    452
 #define SORT_ROW_H    44
 
-enum SortStep : uint8_t { SS_CLOSED = 0, SS_MAKER, SS_MATERIAL, SS_LINE, SS_COLOUR, SS_WEIGHT };
+// SS_RASTER: the colour grid, the hue of a colour typed new.
+enum SortStep : uint8_t { SS_CLOSED = 0, SS_MAKER, SS_MATERIAL, SS_LINE, SS_COLOUR, SS_RASTER, SS_WEIGHT };
 
 // What a tap parks; arg says which entry. The steps after the maker add
 // theirs.
@@ -51,7 +52,13 @@ enum SortNav : uint8_t {
   SN_LAST,      // the maker chosen last
   SN_MATERIAL,  // arg: an entry of sortData()->materials
   SN_LINE,      // arg: an entry of sortData()->lines
-  SN_NO_LINE    // "no line" on the line step
+  SN_NO_LINE,   // "no line" on the line step
+  SN_COLOUR,    // arg: an entry of sortData()->colours
+  SN_SWATCH,    // arg: a field of the colour grid (SORT_COMMON)
+  SN_HEX,       // "Enter hex" under the colour grid: the keyboard for a hue
+  SN_DIAMETER,  // arg 0: 1.75 mm, 1: 2.85 mm
+  SN_WEIGHT,    // arg: an entry of sortData()->weights
+  SN_GRAMS      // "Type in" on the weight step: the keyboard for the grams
 };
 
 // The entry's state. entry fills step by step and starts empty at every
@@ -108,8 +115,9 @@ void sortChooseMaker(const char* name);
 // line for a word under it. SK_GRAMS has the number keys and takes digits
 // only, SK_HEX takes '#' and hex digits. OK parks the text without the
 // blanks around it; sortKeysTick() hands it to done on the loop, where done
-// may ask the inventory and build the next step. An empty text is answered
-// with "please type something" and done is not called. After done the keys
+// may ask the inventory and build the next step. An empty text, and one of
+// blanks and hyphens only (no name to sortEntrySame()), is answered with
+// "please type something" and done is not called. After done the keys
 // close, unless done said something under the field (sortKeysSay(): the
 // text is refused, the keys stay open) or opened the keys anew. Cancel
 // closes the keys and leaves the step under them as it was.
@@ -125,9 +133,14 @@ void sortKeysTick();
 // (plan Festlegung 5), anything else a new one (Festlegung 7); either way on
 // to sortChooseMaker(). The same on the material step against the
 // materials and on the line step against the lines (sort_entry_steps.cpp).
+// On the colour step (sort_entry_pick.cpp) a colour of the list is that
+// entry, with its hue (and an inventory filament's own line and number,
+// plan Festlegung 9); anything else is a new colour, and the colour grid
+// asks for its hue.
 void sortMakerTyped(const char* text);
 void sortMaterialTyped(const char* text);
 void sortLineTyped(const char* text);
+void sortColourTyped(const char* text);
 // The steps after the maker, each built from its list in sortData()
 // (sort_entry_steps.cpp: material and line, sort_entry_pick.cpp: colour and
 // weight).
@@ -139,6 +152,12 @@ void sortShowWeights();
 // SN_NO_LINE), carried out from sortEntryTick(). False for a nav it does not
 // know.
 bool sortStepsNav(uint8_t nav, int arg);
+// The same for the colour step, the colour grid and the weight step
+// (SN_COLOUR, SN_SWATCH, SN_HEX, SN_DIAMETER, SN_WEIGHT, SN_GRAMS). A weight
+// chosen or typed hands the entry on: the spool type (BBS), the empty spool
+// and the card, as a database entry of the picker; the entry stays under
+// them at the weight step.
+bool sortPickNav(uint8_t nav, int arg);
 // The database loads of the chosen material, with what sortSourceTick()
 // answered this pass: the waiting card while they run, then the lines and
 // the line step. Cancel on the card leaves the material step on screen.

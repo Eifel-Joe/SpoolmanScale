@@ -4075,6 +4075,45 @@ const char* const STRINGS[][3] = {
   { "%s: Linie wählen",
     "%s: choose line",
     "%s : choisir la gamme" },  // STR_SORT_LINE_TITLE
+  { "%s %s: Farbe",
+    "%s %s: colour",
+    "%s %s : couleur" },  // STR_SORT_COLOUR_TITLE
+  { "Dieser Hersteller",
+    "This vendor",
+    "Ce fabricant" },  // STR_SORT_THIS_MAKER
+  { "Gängige Farben",
+    "Common colours",
+    "Couleurs courantes" },  // STR_SORT_COMMON
+  { "Neuer Farbname",
+    "New colour name",
+    "Nouveau nom de couleur" },  // STR_SORT_KEY_COLOUR
+  { "Farbton für %s",
+    "Colour for %s",
+    "Teinte pour %s" },  // STR_SORT_RASTER_TITLE
+  { "Spoolman erkennt die Sorte später nur am genau gleichen Farbton.",
+    "Spoolman finds this filament again only by this exact colour.",
+    "Spoolman ne retrouve ce filament qu'à cette teinte exacte." },  // STR_SORT_HUE_HINT
+  { "Hex eingeben",
+    "Enter hex",
+    "Saisir en hex" },  // STR_SORT_HEX
+  { "Farbton als Hex (z. B. 90EE90)",
+    "Colour as hex (e.g. 90EE90)",
+    "Teinte en hex (ex. 90EE90)" },  // STR_SORT_KEY_HEX
+  { "6 Zeichen 0-9 und A-F",
+    "6 characters 0-9 and A-F",
+    "6 caractères 0-9 et A-F" },  // STR_SORT_HEX_BAD
+  { "Füllmenge (Filament ohne Spule)",
+    "Net weight (filament only)",
+    "Poids net (filament seul)" },  // STR_SORT_WEIGHT_TITLE
+  { "Eintippen",
+    "Type in",
+    "Saisir" },  // STR_SORT_TYPE_GRAMS
+  { "Füllmenge in g",
+    "Net weight in g",
+    "Poids net en g" },  // STR_SORT_KEY_GRAMS
+  { "50 bis 10000 g",
+    "50 to 10000 g",
+    "50 à 10000 g" },  // STR_SORT_GRAMS_BAD
 };
 
 StringID tagWriteResultString(uint8_t code) {

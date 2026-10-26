@@ -608,6 +608,7 @@ static void indexTick() {
 static void goBack() {
   switch (s_ui.step) {
     case SS_WEIGHT:   sortShowColours(); break;
+    case SS_RASTER:   sortShowColours(); break;
     case SS_COLOUR:   sortShowLines(); break;
     case SS_LINE:     sortShowMaterials(); break;
     case SS_MATERIAL: showMakers(); break;
@@ -627,6 +628,8 @@ static void newEntry() {
     sortKeysShow(SK_TEXT, STR_SORT_KEY_MATERIAL, sizeof(s_ui.entry.material) - 1, sortMaterialTyped);
   else if (s_ui.step == SS_LINE)
     sortKeysShow(SK_TEXT, STR_SORT_KEY_LINE, sizeof(s_ui.entry.line) - 1, sortLineTyped);
+  else if (s_ui.step == SS_COLOUR)
+    sortKeysShow(SK_TEXT, STR_SORT_KEY_COLOUR, sizeof(s_ui.entry.colour) - 1, sortColourTyped);
 }
 
 static void runNav(uint8_t nav, int arg) {
@@ -646,7 +649,9 @@ static void runNav(uint8_t nav, int arg) {
       if (arg < brandCount()) sortChooseMaker(sortData()->brands.item[arg].name);
       break;
     case SN_LAST:   sortChooseMaker(s_ui.last_vendor); break;
-    default:        sortStepsNav(nav, arg); break;
+    default:
+      if (!sortStepsNav(nav, arg)) sortPickNav(nav, arg);
+      break;
   }
 }
 
