@@ -31,16 +31,14 @@ static void printFixedLabel(bool (*render)(const LabelPrinterConfig&, LabelRaste
                             const char* what) {
   printerOffsetFlush();
   const LabelPrinterConfig c = labelPrinterLoadConfig();
-  LabelPrintResult result = LP_NO_PRINTER;
-  if (labelPrinterConfigured(c)) {
-    if (!bleEnabled()) result = LP_BLE_OFF;
-    else {
-      printCardShow();
-      LabelRaster raster{};
-      if (!render(c, &raster)) result = LP_BAD_RASTER;
-      else result = labelPrinterPrint(c, raster, printCardTick);
-      labelRasterFree(&raster);
-    }
+  // The one question behind every print button (design L1, ruling 9).
+  LabelPrintResult result = labelPrinterReadiness();
+  if (result == LP_OK) {
+    printCardShow();
+    LabelRaster raster{};
+    if (!render(c, &raster)) result = LP_BAD_RASTER;
+    else result = labelPrinterPrint(c, raster, printCardTick);
+    labelRasterFree(&raster);
   }
   logSDf("Printer: %s result=%d", what, (int)result);
   s_last_test = labelPrintResultString(result);
@@ -81,16 +79,13 @@ static void printSpoolLabel(SpoolLabelData spool, bool own_layout = false,
                             LabelKind kind = LABEL_KIND_SPOOL) {
   const LabelPrinterConfig c = labelPrinterLoadConfig();
   const bool server = !own_layout && kind == LABEL_KIND_SPOOL && labelServerInUse();
-  LabelPrintResult result = LP_NO_PRINTER;
-  if (labelPrinterConfigured(c)) {
-    if (!bleEnabled()) result = LP_BLE_OFF;
-    else {
-      printCardShow();
-      LabelRaster raster{};
-      result = spoolRaster(c, spool, server, kind, &raster);
-      if (result == LP_OK) result = labelPrinterPrint(c, raster, printCardTick);
-      labelRasterFree(&raster);
-    }
+  LabelPrintResult result = labelPrinterReadiness();
+  if (result == LP_OK) {
+    printCardShow();
+    LabelRaster raster{};
+    result = spoolRaster(c, spool, server, kind, &raster);
+    if (result == LP_OK) result = labelPrinterPrint(c, raster, printCardTick);
+    labelRasterFree(&raster);
   }
   logSDf("Printer: spool #%d %s label (%s) result=%d", spool.id,
          kind == LABEL_KIND_FILAMENT ? "filament" : "spool",
@@ -131,7 +126,7 @@ void closePrinterScreen() {
   if (scr_printer) { lv_obj_del(scr_printer); scr_printer = nullptr; }
   closeChoiceGrid();
   // Closed by the X or by "Devices" as well as by its back button: the next
-  // opening, from the Bluetooth screen, must lead back there.
+  // opening, from the label printer screen, must lead back there.
   s_back_to_sheet = false;
 }
 
@@ -144,24 +139,28 @@ static void saveAndRebuild(const LabelPrinterConfig& c) {
 }
 
 static void modelPicked(int index) {
-  if (index < 0 || index >= LABEL_PRINTER_MODEL_COUNT) return;
+  int count = 0;
+  const LabelPrinterModel* models = labelPrinterModels(labelPrinterLink(), &count);
+  if (index < 0 || index >= count) return;
   LabelPrinterConfig c = labelPrinterLoadConfig();
-  if (c.model == LABEL_PRINTER_MODELS[index]) return;
-  c.model = LABEL_PRINTER_MODELS[index];
+  if (c.model == models[index]) return;
+  c.model = models[index];
   logSDf("Printer: model -> %s", labelPrinterProfile(c.model).name);
   // A stock the new model cannot take falls back to its default in the save.
   saveAndRebuild(c);
 }
 
-// Every model in the table's order: recommended ones say so, experimental
-// ones warn.
+// Every model of the chosen link in the table's order: recommended ones say
+// so, experimental ones warn. Under WLAN that is the one Brother.
 static void showModelPicker() {
   const LabelPrinterModel now = labelPrinterLoadConfig().model;
+  int count = 0;
+  const LabelPrinterModel* models = labelPrinterModels(labelPrinterLink(), &count);
   ChoiceCard cards[CHOICE_GRID_MAX] = {};
   int current = -1;
-  const int n = LABEL_PRINTER_MODEL_COUNT < CHOICE_GRID_MAX ? LABEL_PRINTER_MODEL_COUNT : CHOICE_GRID_MAX;
+  const int n = count < CHOICE_GRID_MAX ? count : CHOICE_GRID_MAX;
   for (int i = 0; i < n; i++) {
-    const LabelPrinterProfile& p = labelPrinterProfile(LABEL_PRINTER_MODELS[i]);
+    const LabelPrinterProfile& p = labelPrinterProfile(models[i]);
     ChoiceCard& card = cards[i];
     card.caption = p.brand;
     snprintf(card.value, sizeof(card.value), "%s", p.name);
@@ -173,7 +172,8 @@ static void showModelPicker() {
     }
     if (p.model == now) current = i;
   }
-  showChoiceGrid(STR_PRN_MODEL, cards, n, current, 3, modelPicked);
+  // A lone card takes the width, as on the stock grid.
+  showChoiceGrid(STR_PRN_MODEL, cards, n, current, n < 3 ? n : 3, modelPicked);
 }
 
 // The sizes offered in the grid, in its order; filled when it opens.
@@ -202,13 +202,15 @@ static void addMediaCard(ChoiceCard* cards, int* n, const LabelMediaSize& s, boo
 }
 
 // The sizes the model takes, each drawn to scale, then the planned ones it
-// would take, greyed.
+// would take, greyed: a Brother takes none of those, its sizes are its own.
 static void showMediaPicker() {
   const LabelPrinterConfig c = labelPrinterLoadConfig();
+  int count = 0;
+  const LabelMediaSize* sizes = labelPrinterMediaSizes(c.model, &count);
   ChoiceCard cards[CHOICE_GRID_MAX] = {};
   int n = 0, current = -1;
-  for (int i = 0; i < LABEL_MEDIA_SIZE_COUNT; i++) {
-    const LabelMediaSize& s = LABEL_MEDIA_SIZES[i];
+  for (int i = 0; i < count; i++) {
+    const LabelMediaSize& s = sizes[i];
     if (!labelPrinterTakesMedia(c.model, s.width_mm, s.length_mm)) continue;
     if (s.width_mm == c.media_width_mm && s.length_mm == c.media_length_mm) current = n;
     addMediaCard(cards, &n, s, true);
@@ -236,8 +238,9 @@ void buildPrinterScreen() {
         show_print_sheet_pending = true;
         return;
       }
-      logSD("BTN: Back -> Bluetooth");
-      // Deferred and a rebuild: the Bluetooth screen's row names the printer.
+      logSD("BTN: Back -> Label printer");
+      // Deferred and a rebuild: the label printer screen's row names the
+      // printer.
       show_bluetooth_pending = true;
     });
   addHeaderHelp(scr_printer, STR_PRN_TITLE, STR_PRN_HELP);
@@ -245,10 +248,20 @@ void buildPrinterScreen() {
   const LabelPrinterConfig c = labelPrinterLoadConfig();
   const LabelPrinterProfile& p = labelPrinterProfile(c.model);
   const bool have = labelPrinterConfigured(c);
+  const bool wlan = (labelPrinterLink() == LP_LINK_WLAN);
   lv_obj_t *list = buildOptionList(scr_printer);
 
-  // The device: what was picked on the device card, and the way there.
-  { char buf_t[40]; copyT(buf_t, sizeof(buf_t), STR_PRN_DEVICE);
+  // The device: what was picked on the device card, and the way there. The
+  // Brother has its address instead, set in the browser like its label and
+  // offset (design L1, ruling 2); tapped, the row says so.
+  if (wlan) { char buf_t[40]; copyT(buf_t, sizeof(buf_t), STR_PRN_DEVICE);
+    char buf_s[64];
+    if (!have) copyT(buf_s, sizeof(buf_s), STR_PRN_HOST_NONE);
+    else snprintf(buf_s, sizeof(buf_s), "%s", c.address);
+    lv_obj_t *btn = makeListBtn(list, LV_SYMBOL_WIFI, buf_t, buf_s, have);
+    lv_obj_add_event_cb(btn, infoPopupEventCb, LV_EVENT_CLICKED,
+                        INFO_POPUP_ARG(STR_PRN_DEVICE, STR_PRN_HOST_HELP));
+  } else { char buf_t[40]; copyT(buf_t, sizeof(buf_t), STR_PRN_DEVICE);
     char buf_s[64];
     if (!have) copyT(buf_s, sizeof(buf_s), STR_PRN_DEVICE_NONE);
     else snprintf(buf_s, sizeof(buf_s), "%s  %s", c.name[0] ? c.name : T(STR_BT_UNNAMED), c.address);
@@ -335,7 +348,8 @@ void buildPrinterScreen() {
       show_printer_offset_pending = true;
     }, LV_EVENT_CLICKED, NULL); }
 
-  if (have) {
+  // Not for the Brother: its address is emptied in the browser.
+  if (have && !wlan) {
     char buf_t[40]; copyT(buf_t, sizeof(buf_t), STR_PRN_FORGET);
     lv_obj_t *btn = makeListBtn(list, LV_SYMBOL_TRASH, buf_t, "");
     // In the red of every row that deletes something, like the factory reset

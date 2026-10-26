@@ -5,11 +5,13 @@
 // ============================================================
 //  LABEL PRINTER
 //
-//  The screen behind the "Printer" row of the Bluetooth
+//  The screen behind the "Printer" row of the label printer
 //  screen: which device is the printer (picked on the device
 //  card), its model, the label stock in it, a test print, and
 //  the way to drop it. The one-time settings; the browser gets
-//  the same ones for those who set up from the desk.
+//  the same ones for those who set up from the desk. For the
+//  Brother on the WLAN the device row is its address, which
+//  only the browser sets.
 //
 //  Every change and the test print run from appLoop(): a
 //  change rebuilds the screen the row sits on, and the print
@@ -31,5 +33,5 @@ void printerPrintPadLabel(LabelKind kind);
 // sheet and the browser's editor showed. From the loop, like the one above.
 void printerPrintLastLabel(LabelKind kind);
 // The next build of the screen is entered from the print sheet: its back
-// button leads there instead of to the Bluetooth screen.
+// button leads there instead of to the label printer screen.
 void printerScreenFromSheet();

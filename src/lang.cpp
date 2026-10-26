@@ -2721,6 +2721,24 @@ const char* const STRINGS[][3] = {
   { "Als Drucker",           "As printer",       "Imprimante" },  // STR_BT_CARD_USE_PRINTER
   { "Eingestellter Drucker", "The printer",      "Imprimante choisie" },  // STR_BT_CARD_IS_PRINTER
   { "Entfernen",             "Remove",           "Retirer" },  // STR_BT_CARD_FORGET_PRINTER
+  { "Etikettendrucker",
+    "Label printer",
+    "Étiqueteuse" },  // STR_LP_TITLE
+  { "Worauf die Waage Etiketten druckt: Bluetooth (Phomemo, NIIMBOT; dafür startet die Waage neu) oder WLAN (Brother QL-810W/820NWB, gilt sofort). Die Einstellungen des Bluetooth-Druckers bleiben gespeichert.",
+    "What the scale prints its labels on: Bluetooth (Phomemo, NIIMBOT; the scale restarts for it) or WiFi (Brother QL-810W/820NWB, takes effect at once). The Bluetooth printer's settings stay saved.",
+    "Sur quoi la balance imprime : Bluetooth (Phomemo, NIIMBOT ; la balance redémarre pour cela) ou WiFi (Brother QL-810W/820NWB, effet immédiat). Les réglages de l'imprimante Bluetooth restent enregistrés." },  // STR_LP_HELP
+  { "Kein Etikettendruck",
+    "No label printing",
+    "Aucune impression" },  // STR_LP_OFF_SUB
+  { "Phomemo, NIIMBOT - mit Neustart",
+    "Phomemo, NIIMBOT - with a restart",
+    "Phomemo, NIIMBOT - redémarrage" },  // STR_LP_BLE_SUB
+  { "WLAN",
+    "WiFi",
+    "WiFi" },  // STR_LP_WLAN
+  { "Brother QL - sofort",
+    "Brother QL - at once",
+    "Brother QL - direct" },  // STR_LP_WLAN_SUB
 
   // The label printer: its screen, its rows, what a print came back with
   { "Drucker", "Printer",
@@ -2731,6 +2749,12 @@ const char* const STRINGS[][3] = {
     "Appareil" },  // STR_PRN_DEVICE
   { "Keines gewählt, auf der Gerätekarte wählen", "None picked, pick one on the device card",
     "Aucun, à choisir dans la liste" },  // STR_PRN_DEVICE_NONE
+  { "IP-Adresse im Browser eintragen",
+    "Enter the IP address in the browser",
+    "Saisir l'IP dans le navigateur" },  // STR_PRN_HOST_NONE
+  { "IP-Adresse, Etikett und Versatz stellst du im Browser ein (Seite Drucker). Am Brother einmal den Befehlsmodus \"Raster\" einstellen.",
+    "The IP address, label and offset are set in the browser (Printer page). On the Brother, set the command mode to \"Raster\" once.",
+    "IP, étiquette et décalage : dans le navigateur (page Imprimante). Sur la Brother, réglez une fois le mode de commande « Raster »." },  // STR_PRN_HOST_HELP
   { "Modell", "Model",
     "Modèle" },  // STR_PRN_MODEL
   { "(experimentell, ungetestet)", "(experimental, untested)",

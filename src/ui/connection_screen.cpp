@@ -8,8 +8,9 @@
 
 #include "hardware/sd_logger.h"
 #include "services/backend.h"
-#include "services/ble_service.h"
+#include "services/label_printer.h"
 #include "lang.h"
+#include "bluetooth_screen.h"
 #include "theme.h"
 #include "ui_common.h"
 
@@ -26,7 +27,7 @@ void buildConnectionScreen() {
   buildSubHeader(scr_connection, T(STR_TILE_CONNECTION),
     [](lv_event_t *e){ logSD("BTN: Back -> Settings"); showSettingsScreen(); });
 
-  // Three rows of 80 px tiles. WiFi and Bluetooth share the first row, which
+  // Three rows of 80 px tiles. WiFi and the label printer share the first row, which
   // is what makes room for the fourth: the way straight into the current
   // filament manager's options, one tap shorter than through its screen.
   const int BTN_W = 456, BTN_H = 80, BTN_X = 12;
@@ -70,38 +71,40 @@ void buildConnectionScreen() {
     show_wifi_menu_pending = true;
   }, LV_EVENT_CLICKED, NULL);
 
-  // Bluetooth. The subtitle is the master switch, so the state can be read
-  // here without opening the screen.
-  lv_obj_t *btn_bt = lv_btn_create(scr_connection);
-  lv_obj_set_size(btn_bt, HALF_W, BTN_H);
-  lv_obj_set_pos(btn_bt, HALF_X2, BTN_Y[0]);
-  lv_obj_set_style_bg_color(btn_bt, lv_color_hex(UI_COL_ROW), 0);
-  lv_obj_set_style_bg_color(btn_bt, lv_color_hex(UI_COL_ROW_PRESS_FILL), LV_STATE_PRESSED);
-  lv_obj_set_style_radius(btn_bt, UI_RADIUS_ROW, 0);
-  lv_obj_set_style_shadow_width(btn_bt, 0, 0);
-  lv_obj_set_style_border_width(btn_bt, 1, 0);
-  lv_obj_set_style_border_color(btn_bt, lv_color_hex(UI_COL_ROW_PRESSED), 0);
-  { lv_obj_t *ico = lv_label_create(btn_bt);
-    lv_label_set_text(ico, LV_SYMBOL_BLUETOOTH);
+  // The label printer, the Bluetooth tile that was. The subtitle and the sign
+  // are the choice - off, Bluetooth or WLAN - so it can be read here without
+  // opening the screen.
+  const LabelPrinterLink link = labelPrinterLink();
+  lv_obj_t *btn_lp = lv_btn_create(scr_connection);
+  lv_obj_set_size(btn_lp, HALF_W, BTN_H);
+  lv_obj_set_pos(btn_lp, HALF_X2, BTN_Y[0]);
+  lv_obj_set_style_bg_color(btn_lp, lv_color_hex(UI_COL_ROW), 0);
+  lv_obj_set_style_bg_color(btn_lp, lv_color_hex(UI_COL_ROW_PRESS_FILL), LV_STATE_PRESSED);
+  lv_obj_set_style_radius(btn_lp, UI_RADIUS_ROW, 0);
+  lv_obj_set_style_shadow_width(btn_lp, 0, 0);
+  lv_obj_set_style_border_width(btn_lp, 1, 0);
+  lv_obj_set_style_border_color(btn_lp, lv_color_hex(UI_COL_ROW_PRESSED), 0);
+  { lv_obj_t *ico = lv_label_create(btn_lp);
+    lv_label_set_text(ico, labelPrinterLinkSymbol(link));
     lv_obj_set_style_text_color(ico, lv_color_hex(UI_COL_ACCENT), 0);
     lv_obj_set_style_text_font(ico, UI_FONT_ICON, 0);
     lv_obj_align(ico, LV_ALIGN_CENTER, 0, -24);
-    lv_obj_t *lbl = lv_label_create(btn_bt);
-    lv_label_set_text(lbl, T(STR_BT_TITLE));
+    lv_obj_t *lbl = lv_label_create(btn_lp);
+    lv_label_set_text(lbl, T(STR_LP_TITLE));
     lv_obj_set_style_text_color(lbl, lv_color_hex(UI_COL_INK), 0);
     lv_obj_set_style_text_font(lbl, UI_FONT_TITLE, 0);
     lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(lbl, LV_ALIGN_CENTER, 0, 4);
-    lv_obj_t *sub = lv_label_create(btn_bt);
-    lv_label_set_text(sub, T(bleEnabled() ? STR_ON : STR_OFF));
+    lv_obj_t *sub = lv_label_create(btn_lp);
+    lv_label_set_text(sub, T(labelPrinterLinkTitle(link)));
     lv_obj_set_style_text_color(sub, lv_color_hex(UI_COL_CAPTION), 0);
     lv_obj_set_style_text_font(sub, UI_FONT_SMALL, 0);
     lv_obj_set_style_text_align(sub, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(sub, HALF_SUB_W);
     lv_label_set_long_mode(sub, LV_LABEL_LONG_DOT);
     lv_obj_align(sub, LV_ALIGN_CENTER, 0, 26); }
-  lv_obj_add_event_cb(btn_bt, [](lv_event_t *e){
-    logSD("BTN: Conn -> Bluetooth");
+  lv_obj_add_event_cb(btn_lp, [](lv_event_t *e){
+    logSD("BTN: Conn -> Label printer");
     show_bluetooth_pending = true;
   }, LV_EVENT_CLICKED, NULL);
 

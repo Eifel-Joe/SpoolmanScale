@@ -808,12 +808,12 @@ void buildMoreInfoScreen() {
   }
 
   // Print label, left of the X. Only when it can do anything: a spool the
-  // backend knows, and Bluetooth on with a printer picked - or, without one,
+  // backend knows, and a label printer ready to print - or, without one,
   // FilaMan, which prints on the PC instead (ui/pc_print_popup.h). The print
-  // itself runs from the loop; it starts the BLE stack and blocks for seconds.
-  const bool bt_print = bleEnabled() && labelPrinterConfigured(labelPrinterLoadConfig());
-  const bool pc_print = !bt_print && backendIsFilaMan();
-  if ((bt_print || pc_print) && sm_found && sm_id > 0) {
+  // itself runs from the loop and blocks for seconds.
+  const bool lp_print = labelPrinterReadiness() == LP_OK;
+  const bool pc_print = !lp_print && backendIsFilaMan();
+  if ((lp_print || pc_print) && sm_found && sm_id > 0) {
     lv_obj_t *btn_print = lv_btn_create(hdr);
     lv_obj_set_size(btn_print, 116, 34);
     lv_obj_set_pos(btn_print, 282, 9);
@@ -828,8 +828,8 @@ void buildMoreInfoScreen() {
     lv_obj_add_event_cb(btn_print, [](lv_event_t *e) {
       const bool on_pc = (bool)(intptr_t)lv_event_get_user_data(e);
       logSD(on_pc ? "BTN: MoreInfo -> print label on the PC" : "BTN: MoreInfo -> print label");
-      // Over Bluetooth the print sheet first, unless the printer screen
-      // switched it off.
+      // On the label printer the print sheet first, unless the printer
+      // screen switched it off.
       if (on_pc) show_pc_print_pending = true;
       else if (labelPrinterAskFirst()) show_print_sheet_pending = true;
       else print_spool_label_pending = true;

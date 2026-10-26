@@ -1267,12 +1267,21 @@ enum StringID {
   STR_BT_CARD_USE_PRINTER,    // the card's action: make this the printer
   STR_BT_CARD_IS_PRINTER,     // the card's role line
   STR_BT_CARD_FORGET_PRINTER, // the card's action when it is the printer
+  // The label printer the Bluetooth tile became: off, Bluetooth or WLAN
+  STR_LP_TITLE,               // tile and screen title
+  STR_LP_HELP,                // the ? on the screen
+  STR_LP_OFF_SUB,             // under the choice "off" (STR_OFF)
+  STR_LP_BLE_SUB,             // under the choice "Bluetooth" (STR_BT_TITLE)
+  STR_LP_WLAN,                // the choice WLAN, and the tile's subtitle
+  STR_LP_WLAN_SUB,
 
   // The label printer: its screen, its rows, what a print came back with
   STR_PRN_TITLE,              // row on the Bluetooth screen, the screen, popups
   STR_PRN_NONE,               // the row's subtitle without a printer
   STR_PRN_DEVICE,             // the device row
   STR_PRN_DEVICE_NONE,        // its subtitle without a printer
+  STR_PRN_HOST_NONE,          // the Brother's rows without an IP address
+  STR_PRN_HOST_HELP,          // its device row: where the address is set
   STR_PRN_MODEL,
   STR_PRN_EXPERIMENTAL,       // after a model nobody printed on yet
   STR_PRN_MEDIA,              // the label stock row

@@ -337,6 +337,25 @@ STR_BT_REC_OTHER_SUB	12	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn sub, t
 STR_BT_REC_LABELS	16	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn title, text_w 320
 STR_BT_REC_RIBBON	16	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn title, text_w 320
 STR_BT_REC_SUPPLY_SUB	12	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn sub, text_w 320
+# The label printer screen the Bluetooth screen became, and its tile on the
+# Connection screen: a 222 px half tile, title f18 and subtitle f14 in HALF_SUB_W.
+STR_LP_TITLE	18	206	NEVER	src/ui/connection_screen.cpp half tile title, HALF_SUB_W = 222 - 16
+STR_LP_TITLE	18	276	NEVER	src/ui/bluetooth_screen.cpp sub header title beside the help at x 386, 2 * (386 - 8 - 240)
+STR_LP_TITLE	18	424	NEVER	src/ui/info_popup.cpp:225 title of the screen's help popup
+STR_LP_WLAN	14	206	NEVER	src/ui/connection_screen.cpp half tile subtitle, HALF_SUB_W
+STR_BT_TITLE	14	206	NEVER	src/ui/connection_screen.cpp half tile subtitle, HALF_SUB_W
+STR_OFF	14	206	NEVER	src/ui/connection_screen.cpp half tile subtitle, HALF_SUB_W
+STR_OFF	16	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn title, text_w 320
+STR_BT_TITLE	16	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn title, text_w 320
+STR_LP_WLAN	16	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn title, text_w 320
+STR_LP_OFF_SUB	12	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn sub, text_w 320
+STR_LP_BLE_SUB	12	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn sub, text_w 320
+STR_LP_WLAN_SUB	12	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn sub, text_w 320
+STR_PRN_HOST_NONE	12	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn sub, text_w 320
+STR_PRN_HOST_NONE	12	320	NEVER	src/ui/printer_screen.cpp makeListBtn sub, text_w 320
+STR_PRN_DEVICE	16	320	NEVER	src/ui/printer_screen.cpp the Brother's device row title, text_w 320
+STR_PRN_DEVICE	18	424	NEVER	src/ui/info_popup.cpp:225 title of that row's help popup
+STR_PRN_NET_SENT_TITLE	12	320	NEVER	src/ui/bluetooth_screen.cpp test print row sub, text_w 320
 STR_PRN_TAG_RECOMMENDED	12	136	NEVER	src/ui/choice_grid.cpp card tag, 3 columns, text_w 136
 STR_PRN_TAG_EXPERIMENTAL	12	136	NEVER	src/ui/choice_grid.cpp card tag, 3 columns, text_w 136
 STR_PRN_MEDIA_NO_LAYOUT	12	136	NEVER	src/ui/choice_grid.cpp card tag, 3 columns, text_w 136
