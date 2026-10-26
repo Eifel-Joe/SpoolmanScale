@@ -54,8 +54,8 @@
 #define UNK_TILE_TEXT_Y   48   // a caption of two lines still ends inside
 // Four tiles to a row are 97 px each, and the German caption of the first one
 // is 97 px wide in the body font: the whole tile. A row of four sets its captions
-// in the small font, across the tile less its border and 2 px of air on each
-// side (measured, tools/ui_budgets.tsv).
+// in the small font, across the tile less 1 px border plus 1 px of air on each
+// side, 93 px (measured, tools/ui_budgets.tsv).
 #define UNK_TILES_NARROW   4
 #define UNK_TILE_AIR       4
 // More spools than chips: the last chip says how many more there are.

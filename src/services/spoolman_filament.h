@@ -23,9 +23,11 @@
 // bambuddy_names: BamBuddy sits in front of this Spoolman. It reads a
 // filament's line out of its name and writes the name anew as "<material>
 // <line>" on every spool edit (services/bambuddy_name.h), so a filament the
-// scale creates is named that way from the start, and a typed or picked sort
-// is found again by that name as well. False for Spoolman used directly: the
-// names stay as they are there (SpoolmanDB's style, the line then the colour).
+// scale creates is named that way from the start, and a typed sort is found
+// again by that name and by its colour (the name does not tell colours apart),
+// a pick from the database by its external_id. False for Spoolman used
+// directly: the names stay as they are there (SpoolmanDB's style, the line
+// then the colour).
 void spoolmanPlanTagFilament(const char* base_url, const TagCreateInput& in, TagFilamentPlan* plan,
                              bool bambuddy_names);
 

@@ -73,46 +73,49 @@ static bool colorsFit(JsonVariantConst single, const TagCreateInput& in) {
   return tagCreateSameHex(single | "", in.color_hex);
 }
 
+// Behind BamBuddy a filament is named "<material> <line>" ("ABS Basic" is each
+// colour of the line), so its name no longer tells colours apart, and colorsFit()
+// lets a clear or multi colour spool through for the name to decide. The colour
+// has to fit as well, as Spoolman keeps it, a clear or listed one included.
+static bool bambuddyColourOk(JsonObjectConst fil, const TagCreateInput& in) {
+  char list[TAG_CREATE_COLOURS * 7 + 1] = "";
+  if (in.color_count >= 2) tagCreateColorList(in, list, sizeof(list));
+  return bambuddyColourFits(fil["color_hex"] | "", hexList(fil["multi_color_hexes"]).c_str(),
+                            in.clear, in.color_hex, list);
+}
+
 // A filament someone created by hand: same maker, material and colour, and
 // a name that starts with the product line.
 static bool acceptByLook(JsonObjectConst fil, const TagCreateInput& in) {
   if (!vendorIs(fil, in)) return false;
   if (strcasecmp(fil["material"] | "", in.material) != 0) return false;
   if (!colorsFit(fil["color_hex"], in)) return false;
+  if (s_bambuddy_names && !bambuddyColourOk(fil, in)) return false;
   // A database pick has the database's own name: PolyLite and PolyTerra
-  // Black share maker, material and nearly the colour, never the name.
-  // Behind BamBuddy the filament made from it has BamBuddy's name instead, and
-  // one BamBuddy renamed on the way has it too.
-  if (in.db_name[0]) {
-    if (strcasecmp(fil["name"] | "", in.db_name) == 0) return true;
-    if (!s_bambuddy_names) return false;
-    char bb[sizeof(TagFilamentPlan::name)];
-    bambuddyFilamentName(in.material, in.subtype, bb, sizeof(bb));
-    return strcasecmp(fil["name"] | "", bb) == 0;
-  }
+  // Black share maker, material and nearly the colour, never the name. (Behind
+  // BamBuddy a filament made from a pick is found by its external_id, before
+  // this, planExisting().)
+  if (in.db_name[0]) return strcasecmp(fil["name"] | "", in.db_name) == 0;
   return tagCreateNameMatches(fil["name"] | "", in);
 }
 
 // A spool typed at the scale is the filament of the same name as a new
 // filament would get, whatever the case, blanks and hyphens (sortEntrySame):
 // "light green" typed twice must not make two filaments. The hue is compared
-// as for any filament; a clear spool is told by its name alone.
+// as for any filament; a clear spool is told by its name alone. Behind BamBuddy
+// the name is "<material> <line>" for every colour, so there the colour tells
+// them apart (bambuddyColourOk()), a clear one as well.
 static bool acceptByTypedName(JsonObjectConst fil, const TagCreateInput& in) {
   if (!vendorIs(fil, in)) return false;
   if (strcasecmp(fil["material"] | "", in.material) != 0) return false;
   if (!colorsFit(fil["color_hex"], in)) return false;
+  if (s_bambuddy_names && !bambuddyColourOk(fil, in)) return false;
   // Cut to the plan's name field, the name a filament created from it keeps:
   // BamBuddy's behind BamBuddy (the colour's name is on the spool there).
   char want[sizeof(TagFilamentPlan::name)];
   if (s_bambuddy_names) bambuddyFilamentName(in.material, in.subtype, want, sizeof(want));
   else                  tagCreateSpoolmanName(in, want, sizeof(want));
   return sortEntrySame(fil["name"] | "", want);
-}
-
-// Spoolman keeps a clear filament as 00000000: no hue, alpha 00. Six digits
-// alone cannot tell it from black.
-static bool isClearHex(const char* hex) {
-  return strlen(hex) == 8 && strcmp(hex + 6, "00") == 0;
 }
 
 // The same maker, material and hue under any name, for a typed spool. A
@@ -149,6 +152,9 @@ static int findFilament(const char* base_url, const String& query, FilamentAccep
   // What a spool created under it is weighed against (tagCreateTare()).
   f["spool_weight"]                 = true;
   f["vendor"]["empty_spool_weight"] = true;
+  // Behind BamBuddy the colour tells filaments apart (bambuddyColourOk()),
+  // also those of several colours.
+  if (s_bambuddy_names) f["multi_color_hexes"] = true;
 
   JsonDocument doc;
   const int code = spoolmanGetJson(base_url, (String("/api/v1/filament?") + query).c_str(),
@@ -280,8 +286,8 @@ static bool findInDatabase(const char* base_url, const TagCreateInput& in, TagFi
 // and filament_db.h brought everything the plan takes from it.
 static void takePickedEntry(const TagCreateInput& in, TagFilamentPlan* plan) {
   snprintf(plan->external_id, sizeof(plan->external_id), "%s", in.db_id);
-  // Behind BamBuddy the new filament is named as BamBuddy keeps it, the
-  // database's name is for finding one again (acceptByLook).
+  // Behind BamBuddy the new filament is named as BamBuddy keeps it; the
+  // external_id above is what finds one made from this entry again.
   if (s_bambuddy_names) bambuddyFilamentName(in.material, in.subtype, plan->name, sizeof(plan->name));
   else                  snprintf(plan->name, sizeof(plan->name), "%s", in.db_name);
   plan->density        = in.db_density;

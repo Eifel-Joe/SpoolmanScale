@@ -36,6 +36,11 @@
 // boundary, never through a sequence.
 void bambuddyFilamentName(const char* material, const char* line, char* out, size_t out_size);
 
+// Spoolman keeps a clear filament as 00000000: no hue, alpha 00; a see-through
+// one is a hue with alpha 00. True for eight digits that end in 00. Six digits
+// alone cannot tell a clear filament from a black one.
+bool isClearHex(const char* hex);
+
 // Whether a filament of the inventory has the colour that is wanted, the way
 // Spoolman keeps it: fil_hex is its color_hex (six digits, perhaps an alpha
 // pair behind them; a clear filament is 00000000, alpha 00) and fil_multi its
