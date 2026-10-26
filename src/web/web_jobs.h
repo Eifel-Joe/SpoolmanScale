@@ -48,7 +48,8 @@ struct WebJobResult {
   int    code;        // the HTTP code behind the answer, where there is one
   char   err[80];     // why not, when ok is false
   char   tag[40];     // GH check: the tag found
-  char   pub[24];     // GH check: when it was published
+  char   sha[65];     // GH check: its checksum from version.json, "" without one
+  char   pub[24];     // the colour table: how it was asked for
   uint32_t image_size; // GH check: the firmware image's size, 0 when unknown
   String body;        // a ready made reply body, for the jobs that have one
 };

@@ -15,12 +15,18 @@ extern bool gh_prerelease;
 extern char gh_latest_version[40];
 
 // The checksum the release workflow published for gh_latest_version, and
-// the tag it belongs to. Only the background check learns it (version.json
-// carries it, the GitHub API does not), so the two are kept as a pair and
-// otaExpectedSha() hands the checksum out only for that tag.
+// the tag it belongs to, from version.json, which every check reads
+// (version_file.h). Kept as a pair, and otaExpectedSha() hands the checksum
+// out only for that tag.
 extern char gh_latest_sha[65];
 extern char gh_latest_sha_tag[40];
 const char* otaExpectedSha(const char *tag);
+
+// What a check found: gh_latest_version and, as one pair with it, the
+// checksum, which only a sha of 64 characters under a tag sets ("" or a null
+// clears it). The one way the pair is written (test_update_source.py): a tag
+// that came without a checksum must not keep the one of the tag before.
+void otaSetLatest(const char *tag, const char *sha);
 
 // True while doGithubOtaFlash() is writing the new image. The background check
 // must not open a second TLS connection while an image is being flashed.

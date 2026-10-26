@@ -229,17 +229,18 @@ void doGithubOtaCheck() {
     return;
   }
 
-  char tag[40] = "", cerr[80] = "";
+  char tag[40] = "", sha[65] = "", cerr[80] = "";
   uint32_t image_size = 0;
-  if (!githubLatestTag(gh_prerelease, tag, sizeof(tag), nullptr, 0,
+  if (!githubLatestTag(gh_prerelease, tag, sizeof(tag), sha, sizeof(sha),
                        cerr, sizeof(cerr), &image_size)) {
     lv_label_set_text(lbl_gh_status, cerr[0] ? cerr : T(STR_GH_OTA_FLASH_FAIL));
     lv_obj_set_style_text_color(lbl_gh_status, lv_color_hex(UI_COL_BAD_TEXT), 0);
     return;
   }
 
-  strncpy(gh_latest_version, tag, sizeof(gh_latest_version)-1);
-  gh_latest_version[sizeof(gh_latest_version)-1] = 0;
+  // With its checksum, so "Install" right after this check is verified as
+  // after the daily one (version_file.h).
+  otaSetLatest(tag, sha);
 
   if (lbl_gh_installed) {
     char inst[48]; snprintf(inst, sizeof(inst), T(STR_GH_OTA_INSTALLED), FW_VERSION);

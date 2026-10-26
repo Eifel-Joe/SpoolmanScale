@@ -22,6 +22,14 @@ const char* otaExpectedSha(const char *tag) {
   return (strcmp(tag, gh_latest_sha_tag) == 0) ? gh_latest_sha : "";
 }
 
+void otaSetLatest(const char *tag, const char *sha) {
+  const char *t = tag ? tag : "";
+  snprintf(gh_latest_version, sizeof(gh_latest_version), "%s", t);
+  const bool has_sha = t[0] && sha && strlen(sha) == 64;
+  snprintf(gh_latest_sha, sizeof(gh_latest_sha), "%s", has_sha ? sha : "");
+  snprintf(gh_latest_sha_tag, sizeof(gh_latest_sha_tag), "%s", has_sha ? t : "");
+}
+
 volatile bool gh_flash_active = false;
 
 bool g_upd_autocheck = true;

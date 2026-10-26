@@ -20,16 +20,19 @@ void githubTrust(WiFiClientSecure &client);
 // LVGL screen, painting into its labels as they went, so nothing else could
 // reach them.
 
-// Newest release tag, and when it was published - the list already carries
-// the date, so asking for it costs nothing over asking for the tag. published
-// may be null for a caller that only wants the tag. err carries a short reason
-// on failure, fit to be shown as it is.
+// The release this board takes, from the version file on our pages, the one
+// the daily check reads (version_file.h), with the checksum the workflow
+// published for it: 64 hex characters into sha, or "" from a file written
+// before checksums. sha may be null for a caller that only wants the tag; a
+// buffer for it needs 65 characters. err carries a short reason on failure,
+// fit to be shown as it is.
 // image_size, when given, receives the size of the release's firmware image,
-// 0 when it carries none: asked before a download that would not fit the app
-// slot of a device on the old partition table. Handed back rather than kept
-// in a global, because the loop and the web worker both look releases up.
+// 0 when the file does not say: asked before a download that would not fit
+// the app slot of a device on the old partition table. Handed back rather
+// than kept in a global, because the loop and the web worker both look
+// releases up. The file has no release date; the notes of the tag have it.
 bool githubLatestTag(bool prerelease, char *tag, size_t tag_len,
-                     char *published, size_t pub_len,
+                     char *sha, size_t sha_len,
                      char *err, size_t err_len,
                      uint32_t *image_size = nullptr);
 
@@ -56,8 +59,8 @@ typedef void (*OtaProgressFn)(uint32_t done, uint32_t total);
 // place and the device is still running - restarting is the caller's call.
 //
 // sha256_hex is the checksum the release workflow published for this tag in
-// version.json, 64 hex characters, or empty when none is known (a tag picked
-// by hand on the GitHub screen). Given, it is checked against what was
+// version.json, 64 hex characters, or empty when none is known (a file
+// written before the workflow published checksums). Given, it is checked against what was
 // written, and a mismatch is a refusal. The image is only committed when
 // every byte the server announced has arrived: a dropped connection used to
 // finalise a half image and report success. The image must also name this

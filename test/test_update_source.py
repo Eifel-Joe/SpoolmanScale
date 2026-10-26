@@ -117,7 +117,10 @@ READERS = {
     "services/update_check.cpp": "runUpdateCheck",
     "services/github_release.cpp": "githubLatestTag",
 }
-LIST_REQUEST = re.compile(r'"/releases(?:\?|/latest")')
+# The list capped ("/releases?per_page="), uncapped ("/releases") and its
+# newest entry ("/releases/latest"); the notes of one tag and the download
+# (/releases/tags/, /releases/download/) are not the list.
+LIST_REQUEST = re.compile(r'"/releases(?:\?|/latest"|")')
 
 
 def body_of(rel, name):
@@ -187,6 +190,30 @@ for rel, name in SETTERS.items():
 gh_job = body_of("web/web_jobs.cpp", "runGhCheck")
 if gh_job is not None and not re.search(r"\bs_res\.sha\b", gh_job):
     errors.append("src/web/web_jobs.cpp: runGhCheck() does not hand the checksum on (s_res.sha)")
+
+# The checksum a check by hand read is the one it sets, not an empty one: the
+# scale's check hands a buffer to githubLatestTag() and that very buffer to
+# otaSetLatest(), and the web page's handler takes the job's r.sha and sets
+# it. A literal, a nullptr or another variable there is the bug back.
+# githubLatestTag(channel, tag, sizeof(tag), sha, sizeof(sha), ...): group 2.
+SHA_BUFFER = re.compile(r"githubLatestTag\(\s*\w+\s*,\s*(\w+)\s*,\s*sizeof\(\s*\1\s*\)\s*,"
+                        r"\s*(\w+)\s*,\s*sizeof\(\s*\2\s*\)")
+device_check = body_of("ui/ota_github.cpp", "doGithubOtaCheck")
+if device_check is not None:
+    passed = SHA_BUFFER.search(device_check)
+    if not passed:
+        errors.append("src/ui/ota_github.cpp: doGithubOtaCheck() does not hand githubLatestTag() a sha buffer")
+    elif not re.search(r"otaSetLatest\(\s*\w+\s*,\s*" + re.escape(passed.group(2)) + r"\s*\)", device_check):
+        errors.append(f"src/ui/ota_github.cpp: doGithubOtaCheck() does not set the sha it read "
+                      f"(otaSetLatest(tag, {passed.group(2)}))")
+web_finish = body_of("web/pages/page_firmware.cpp", "ghCheckFinish")
+if web_finish is not None:
+    copied = re.search(r"\b(?:strncpy|snprintf|strlcpy)\(\s*(\w+)\s*,[^;]*\br\.sha\b", web_finish)
+    if not copied:
+        errors.append("src/web/pages/page_firmware.cpp: ghCheckFinish() does not take the job's checksum (r.sha)")
+    elif not re.search(r"otaSetLatest\(\s*\w+\s*,\s*" + re.escape(copied.group(1)) + r"\s*\)", web_finish):
+        errors.append(f"src/web/pages/page_firmware.cpp: ghCheckFinish() does not set the checksum it took "
+                      f"(otaSetLatest(tag, {copied.group(1)}))")
 
 # 8. Verdict.
 if errors:

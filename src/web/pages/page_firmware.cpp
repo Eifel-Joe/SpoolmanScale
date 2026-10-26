@@ -47,6 +47,10 @@ static unsigned long ota_last_paint = 0;
 // never leave.
 static bool gh_web_flash_pending = false;
 static char gh_web_flash_tag[40] = "";
+// Its checksum, taken with the tag when the install is asked for: by the time
+// the loop runs it, a daily check answered meanwhile may have cleared the
+// stored pair, and the image would go in unchecked.
+static char gh_web_flash_sha[65] = "";
 
 // The last answer the network gave, and what it was asked. Opening the page
 // checks by itself, so without this every visit - and every hop back to this
@@ -58,7 +62,6 @@ static unsigned long s_check_ms  = 0;     // 0 = no check yet this boot
 static bool          s_check_pre = false; // the channel it was for
 static bool          s_check_new = false;
 static bool          s_check_old = false;  // found something below the running build
-static char          s_check_pub[24] = "";  // when that release was published
 static bool          s_check_big = false;   // newer, but larger than this device's slot
 
 // How far the GitHub download has got. Read by /api/ota/progress, which is the
@@ -125,7 +128,7 @@ void otaWebGithubTick() {
   otaGithubOverlayShow();
 
   char err[80] = "";
-  if (githubFlashTag(gh_web_flash_tag, otaExpectedSha(gh_web_flash_tag),
+  if (githubFlashTag(gh_web_flash_tag, gh_web_flash_sha,
                      webFlashProgress, err, sizeof(err))) {
     logSD("Reboot: GitHub update written");
     if (lbl_ota_status) lv_label_set_text(lbl_ota_status, T(STR_OTA_SUCCESS));
@@ -309,9 +312,11 @@ static String body() {
          "(d.error==='busy'?G.busy:G.fail+(d.error?': '+d.error:''));}"
          "function fmtDate(s){if(!s)return G.unknown;"
          "var d=new Date(s);return isNaN(d)?s:d.toLocaleDateString();}"
-         "function setLatest(tag,pub){"
-         "document.getElementById('ghlt').textContent=tag;"
-         "document.getElementById('ghrel').textContent=pub?fmtDate(pub):'-';}"
+         // The version file the check reads has no date: a new tag shows '-'
+         // until its notes, which carry one, are opened (ghNotes).
+         "function setLatest(tag){"
+         "var l=document.getElementById('ghlt');if(l.textContent===tag)return;"
+         "l.textContent=tag;document.getElementById('ghrel').textContent='-';}"
          // One request on load fills the three rows and keeps the body, so
          // opening the notes afterwards costs nothing.
          "var INST=null;"
@@ -431,7 +436,7 @@ static String body() {
          "setTimeout(()=>ghCheck(auto,n+1),1000);return null;}return r.json();}).then(d=>{"
          "if(!d)return;"
          "if(!d.ok){if(!auto)ghSay(ghErr(d),true);return;}"
-         "setLatest(d.tag,d.published);"
+         "setLatest(d.tag);"
          // Either direction is something to act on. Older only ever gets
          // here through a check that answered, so a silent automatic failure
          // leaves the button as the server rendered it: off.
@@ -454,7 +459,8 @@ static String body() {
          "fetch('/api/ota/notes?tag='+encodeURIComponent(tag)).then(r=>{"
          "if(r.status===202){again=true;setTimeout(ghNotes,1000);return null;}return r.json();})"
          ".then(d=>{if(!d)return;if(!d.ok){ghSay(ghErr(d),true);return;}"
-         "LATEST=d;toggle('ghn','ghnb',G.whatsnew,G.hide,d.notes);})"
+         "LATEST=d;document.getElementById('ghrel').textContent=fmtDate(d.published);"
+         "toggle('ghn','ghnb',G.whatsnew,G.hide,d.notes);})"
          ".catch(()=>ghSay(G.fail,true))"
          ".finally(()=>{if(!again)b.disabled=false;});}"
          // The device is unreachable from the moment it starts downloading
@@ -567,7 +573,6 @@ static void routes(WebServer &srv) {
       srv.send(200, "application/json",
                "{\"ok\":true,\"cached\":true,\"tag\":\"" + jsonEsc(gh_latest_version) +
                "\",\"installed\":\"" + jsonEsc(FW_VERSION) +
-               "\",\"published\":\"" + jsonEsc(s_check_pub) +
                "\",\"update\":" + (s_check_new ? "true" : "false") +
                ",\"older\":" + (s_check_old ? "true" : "false") +
                ",\"toobig\":" + (s_check_big ? "true" : "false") + "}");
@@ -626,15 +631,16 @@ static void ghCheckFinish(WebServer &srv) {
     srv.send(200, "application/json", reply);
     return;
   }
-  char tag[40], pub[24];
+  char tag[40], sha[65];
   strncpy(tag, r.tag, sizeof(tag) - 1); tag[sizeof(tag) - 1] = '\0';
-  strncpy(pub, r.pub, sizeof(pub) - 1); pub[sizeof(pub) - 1] = '\0';
+  strncpy(sha, r.sha, sizeof(sha) - 1); sha[sizeof(sha) - 1] = '\0';
   const uint32_t image_size = r.image_size;
   webJobTake();
 
   {
-    strncpy(gh_latest_version, tag, sizeof(gh_latest_version) - 1);
-    gh_latest_version[sizeof(gh_latest_version) - 1] = '\0';
+    // With its checksum, so the install this page starts next is verified as
+    // after the daily check (version_file.h).
+    otaSetLatest(tag, sha);
     const uint64_t remote = parseVersion(tag), running = parseVersion(FW_VERSION);
     // Newer but larger than this device's slot: not offered, the way to the
     // flasher instead - the same rule as the device's own check.
@@ -661,13 +667,11 @@ static void ghCheckFinish(WebServer &srv) {
     s_check_new = newer;
     s_check_old = older;
     s_check_big = too_big;
-    snprintf(s_check_pub, sizeof(s_check_pub), "%s", pub);
     logSDf("OTA check: web asked, latest %s%s", tag,
            newer ? " (newer)" : (older ? " (older)" : ""));
     srv.send(200, "application/json",
              "{\"ok\":true,\"tag\":\"" + jsonEsc(tag) +
              "\",\"installed\":\"" + jsonEsc(FW_VERSION) +
-             "\",\"published\":\"" + jsonEsc(pub) +
              "\",\"update\":" + (newer ? "true" : "false") +
              ",\"older\":" + (older ? "true" : "false") +
              ",\"toobig\":" + (too_big ? "true" : "false") + "}");
@@ -700,6 +704,7 @@ static void routesTail(WebServer &srv) {
     }
     strncpy(gh_web_flash_tag, gh_latest_version, sizeof(gh_web_flash_tag) - 1);
     gh_web_flash_tag[sizeof(gh_web_flash_tag) - 1] = '\0';
+    snprintf(gh_web_flash_sha, sizeof(gh_web_flash_sha), "%s", otaExpectedSha(gh_web_flash_tag));
     gh_web_flash_pending = true;
     srv.send(200, "application/json", "{\"ok\":true}");
   });

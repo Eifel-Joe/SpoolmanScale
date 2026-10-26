@@ -104,7 +104,7 @@ static void runSpools() {
 static void runGhCheck() {
   s_res.image_size = 0;
   s_res.ok = githubLatestTag(s_flag, s_res.tag, sizeof(s_res.tag),
-                             s_res.pub, sizeof(s_res.pub),
+                             s_res.sha, sizeof(s_res.sha),
                              s_res.err, sizeof(s_res.err), &s_res.image_size);
 }
 
@@ -220,6 +220,7 @@ bool webJobStart(WebJobKind kind, const char* arg, bool flag) {
   s_res.code   = 0;
   s_res.err[0] = '\0';
   s_res.tag[0] = '\0';
+  s_res.sha[0] = '\0';
   s_res.pub[0] = '\0';
   s_res.body   = "";
   s_arg[0] = '\0';

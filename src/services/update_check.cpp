@@ -22,18 +22,19 @@
 #include "web/web_server.h"
 #include "services/prefs_store.h"
 #include "services/version_compare.h"
+#include "services/version_file.h"
 #include "ui/ota_github.h"
 #include "ui/update_badges.h"
 
 namespace {
 
 // Served from our GitHub Pages (branch gh-pages of the fork, FW_PAGES_URL)
-// next to the web flasher and written by the release workflow. Deliberately not
-// api.github.com: that endpoint allows 60 requests per hour and IP, which
-// users behind carrier grade NAT share, and its answer for the release list is
-// over a hundred kilobytes. This file is a few hundred bytes and has no rate
-// limit.
-constexpr const char* VERSION_URL = FW_PAGES_URL "version.json";
+// next to the web flasher and written by the release workflow; the check by
+// hand reads the same file (version_file.h). Deliberately not api.github.com:
+// that endpoint allows 60 requests per hour and IP, which users behind
+// carrier grade NAT share, and its answer for the release list is over fifty
+// kilobytes. This file is about a kilobyte and has no rate limit.
+constexpr const char* VERSION_URL = VERSION_FILE_URL;
 
 // The first check waits until the boot is long over. Display, NFC, scale and
 // the backend are all up well before this, and the heap has settled.
@@ -175,34 +176,16 @@ static void runUpdateCheck() {
     return;
   }
 
-  // With pre-releases on, fall back to the stable tag when the file carries no
-  // separate pre-release, which is the case right after a public release.
-  // The first board's keys are the file's top level, where every firmware
-  // since the first has read them. Any other board has the same keys in an
-  // object of its own under "boards", and the top level is not for it: that
-  // tag may have no image this board could run.
-  const bool own_node = (BOARD_VERSION_NODE[0] != '\0');
-  JsonVariantConst node = doc.as<JsonVariantConst>();
-  if (own_node) node = doc["boards"][BOARD_VERSION_NODE];
+  // The release this board takes, by the rule the check by hand follows too
+  // (version_file.h): its own node or the first board's top level, the
+  // pre-release when asked for and there, else the stable one.
+  VersionPick pick;
+  const VersionFileVerdict verdict = versionFilePick(doc.as<JsonVariantConst>(), gh_prerelease, &pick);
+  s_found_size = pick.size;
 
-  const char* tag = nullptr;
-  const char* sha = nullptr;
-  uint32_t size = 0;
-  if (gh_prerelease) {
-    tag = node["prerelease"].as<const char*>();
-    sha = node["prerelease_sha256"].as<const char*>();
-    size = node["prerelease_size"] | 0u;
-  }
-  if (!tag || tag[0] == '\0') {
-    tag = node["stable"].as<const char*>();
-    sha = node["stable_sha256"].as<const char*>();
-    size = node["stable_size"] | 0u;
-  }
-  s_found_size = size;
-
-  if (!tag || tag[0] == '\0') {
+  if (verdict != VF_RELEASE) {
     // Nothing published for this board yet is an answer, not a broken file.
-    if (own_node) {
+    if (verdict == VF_NONE_FOR_BOARD) {
       Serial.println("[upd] version.json has no release for " BOARD_ID);
       time_t checked = time(nullptr);
       if ((uint32_t)checked > TIME_IS_SYNCED) s_persist_epoch = (uint32_t)checked;
@@ -213,15 +196,12 @@ static void runUpdateCheck() {
     return;
   }
 
-  strncpy(s_found_version, tag, sizeof(s_found_version) - 1);
+  strncpy(s_found_version, pick.tag, sizeof(s_found_version) - 1);
   s_found_version[sizeof(s_found_version) - 1] = '\0';
   // Published next to the tag by the release workflow. A version.json from
-  // before that carries none, and the flash then runs on TLS alone.
-  s_found_sha[0] = '\0';
-  if (sha && strlen(sha) == 64) {
-    strncpy(s_found_sha, sha, sizeof(s_found_sha) - 1);
-    s_found_sha[sizeof(s_found_sha) - 1] = '\0';
-  }
+  // before that carries none (""), and the flash then runs on TLS alone.
+  strncpy(s_found_sha, pick.sha, sizeof(s_found_sha) - 1);
+  s_found_sha[sizeof(s_found_sha) - 1] = '\0';
 
   uint64_t installed = parseVersion(FW_VERSION);
   uint64_t remote    = parseVersion(s_found_version);
@@ -330,16 +310,9 @@ void updateCheckRestoreBadge() {
   if (stored[0] == '\0') return;
   if (parseVersion(stored) <= parseVersion(FW_VERSION)) return;
 
-  strncpy(gh_latest_version, stored, sizeof(gh_latest_version) - 1);
-  gh_latest_version[sizeof(gh_latest_version) - 1] = '\0';
-  // The checksum that came with it, if the workflow published one.
+  // With the checksum that came with it, if the workflow published one.
   String sha_s = prefsGetString("upd_sha", "");
-  if (sha_s.length() == 64) {
-    strncpy(gh_latest_sha, sha_s.c_str(), sizeof(gh_latest_sha) - 1);
-    gh_latest_sha[sizeof(gh_latest_sha) - 1] = '\0';
-    strncpy(gh_latest_sha_tag, gh_latest_version, sizeof(gh_latest_sha_tag) - 1);
-    gh_latest_sha_tag[sizeof(gh_latest_sha_tag) - 1] = '\0';
-  }
+  otaSetLatest(stored, sha_s.c_str());
   update_available = true;
   showUpdateBadges(true);
   logSDf("Update badge restored from NVS: %s > %s", stored, FW_VERSION);
@@ -386,12 +359,7 @@ void updateCheckTick() {
           shown = GH_ANSWER_TOO_BIG;
           break;
         }
-        strncpy(gh_latest_version, s_found_version, sizeof(gh_latest_version) - 1);
-        gh_latest_version[sizeof(gh_latest_version) - 1] = '\0';
-        strncpy(gh_latest_sha, s_found_sha, sizeof(gh_latest_sha) - 1);
-        gh_latest_sha[sizeof(gh_latest_sha) - 1] = '\0';
-        strncpy(gh_latest_sha_tag, s_found_version, sizeof(gh_latest_sha_tag) - 1);
-        gh_latest_sha_tag[sizeof(gh_latest_sha_tag) - 1] = '\0';
+        otaSetLatest(s_found_version, s_found_sha);
         update_available = true;
         showUpdateBadges(true);
         logSDf("Update check: %s available (installed %s), internal heap %u at start, low %s",
@@ -410,9 +378,7 @@ void updateCheckTick() {
         // Unless the screen asked for this answer itself: then it is the
         // result the user is waiting for, and the screen shows it below.
         if (!otaGithubScreenVisible() || to_screen) {
-          gh_latest_version[0] = '\0';
-          gh_latest_sha[0] = '\0';
-          gh_latest_sha_tag[0] = '\0';
+          otaSetLatest("", "");
           update_available = false;
           showUpdateBadges(false);
         }

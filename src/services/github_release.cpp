@@ -16,27 +16,16 @@
 #include "services/board_image.h"
 #include "services/heap_low.h"
 #include "services/ota_state.h"
+#include "services/version_file.h"
 
 // The repo the releases are read and downloaded from, the same one the version
 // check and the flasher link name (app_config.h).
 #define GH_REPO FW_REPO
 // The release asset the device flashes, see githubFlashTag(). Every board has
 // its own: an image only runs on the board it was built for. A release that
-// carries none for this board has a size of 0 here and a 404 on the download.
+// carries none for this board is not in this board's node of version.json,
+// and its download would be a 404.
 #define GH_IMAGE_ASSET BOARD_OTA_ASSET
-
-// A board with an image of its own cannot take a release that was cut before
-// it was supported, or by a fork that does not build it: such a release is
-// passed over as if it were not there. The first board's image has been in
-// every release, so nothing changes for it.
-static constexpr bool BOARD_HAS_OWN_ASSET = (BOARD_VERSION_NODE[0] != '\0');
-
-// The image's size out of a release's asset list.
-static uint32_t imageSizeOf(JsonVariantConst rel) {
-  for (JsonObjectConst a : rel["assets"].as<JsonArrayConst>())
-    if (strcmp(a["name"] | "", GH_IMAGE_ASSET) == 0) return a["size"] | 0u;
-  return 0;
-}
 
 // No bytes for this long while the socket is still open: the download is
 // stuck, not slow. GitHub's CDN streams a 2 MB image in a few seconds.
@@ -54,32 +43,35 @@ void githubTrust(WiFiClientSecure &client) {
 }
 
 bool githubLatestTag(bool prerelease, char *tag, size_t tag_len,
-                     char *published, size_t pub_len,
+                     char *sha, size_t sha_len,
                      char *err, size_t err_len, uint32_t *image_size) {
   if (!tag || tag_len == 0) return false;
   tag[0] = '\0';
-  uint32_t found_size = 0;
   if (image_size) *image_size = 0;
-  if (published && pub_len) published[0] = '\0';
+  if (sha && sha_len) sha[0] = '\0';
   if (err && err_len) err[0] = '\0';
 
   WiFiClientSecure client;
   githubTrust(client);
   HTTPClient http;
-  // per_page caps the list. Unbounded it answers with every release ever cut -
-  // 109 KB at the time of writing, against roughly 145 KB of free heap.
-  String url = prerelease
-    ? "https://api.github.com/repos/" GH_REPO "/releases?per_page=3"
-    : "https://api.github.com/repos/" GH_REPO "/releases/latest";
-  // The low point of this one request, for the log line below. Every way out
-  // of here ends it (heapLowEnd after http.end), the failed ones too.
+  // The version file the daily check reads (version_file.h), not GitHub's
+  // release list: the list carries no checksum, and at 55 kB as one String it
+  // came back cut at 32 KiB once. The low point of this one request, for the
+  // log line below. Every way out of here ends it (heapLowEnd after
+  // http.end), the failed ones too.
   heapLowBegin();
-  http.begin(client, url);
+  if (!http.begin(client, VERSION_FILE_URL)) {
+    const uint32_t low = heapLowEnd();
+    char low_txt[12];
+    logSDf("OTA check: connection setup failed, low=%s", heapLowText(low, low_txt, sizeof(low_txt)));
+    if (err && err_len) snprintf(err, err_len, "%s", "Connection setup failed");
+    return false;
+  }
   http.addHeader("User-Agent", "SpoolmanScale-ESP32");
   http.setTimeout(8000);
   const uint32_t heap_before = ESP.getFreeHeap();
   int code = http.GET();
-  Serial.printf("GitHub API: %d\n", code);
+  Serial.printf("Version file: %d\n", code);
 
   if (code != 200) {
     if (err && err_len) snprintf(err, err_len, "HTTP %d", code);
@@ -92,105 +84,39 @@ bool githubLatestTag(bool prerelease, char *tag, size_t tag_len,
     return false;
   }
 
-  // Read as a String rather than straight off the socket. http.getStream()
-  // hands back the raw client, which skips HTTPClient's chunked decoding - and
-  // this endpoint answers chunked as soon as the list is not capped. The
-  // memory win never came from the stream anyway: it comes from per_page and
-  // from the filter, which is what keeps the parsed document small. With
-  // per_page=3 the body is around 27 kB and bounded.
-  String payload = http.getString();
-  const int    payload_len = payload.length();
+  // Parsed straight off the stream, as the daily check does: the file is
+  // about a kilobyte and comes with a length, not chunked.
+  JsonDocument doc;
+  const DeserializationError jerr = deserializeJson(doc, http.getStream());
   const uint32_t heap_parse = ESP.getFreeHeap();
   http.end();
   const uint32_t heap_low = heapLowEnd();
 
-  DeserializationError jerr;
-  int entries = 0;
-
-  if (prerelease) {
-    // add<JsonObject>() rather than the createNestedObject() the older filters
-    // in this repo use - same result, and it is the form ArduinoJson 7 keeps.
-    JsonDocument filter;
-    JsonObject f = filter.to<JsonArray>().add<JsonObject>();
-    f["tag_name"] = true;
-    f["published_at"] = true;
-    f["draft"] = true;
-    f["assets"][0]["name"] = true;
-    f["assets"][0]["size"] = true;
-
-    JsonDocument doc;
-    jerr = deserializeJson(doc, payload, DeserializationOption::Filter(filter));
-    if (!jerr) {
-      for (JsonVariant v : doc.as<JsonArray>()) {
-        entries++;
-        JsonObject rel = v.as<JsonObject>();
-        if (rel["draft"] | false) continue;
-        if (BOARD_HAS_OWN_ASSET && imageSizeOf(rel) == 0) continue;
-        const char* t = rel["tag_name"] | "";
-        if (t[0] != '\0') {
-          // Copied while the document is still alive. The pointer dies with it.
-          strncpy(tag, t, tag_len - 1);
-          tag[tag_len - 1] = '\0';
-          if (published && pub_len) {
-            strncpy(published, rel["published_at"] | "", pub_len - 1);
-            published[pub_len - 1] = '\0';
-          }
-          found_size = imageSizeOf(rel);
-          if (image_size) *image_size = found_size;
-          break;
-        }
-      }
-    }
-  } else {
-    JsonDocument filter;
-    filter["tag_name"] = true;
-    filter["published_at"] = true;
-    filter["assets"][0]["name"] = true;
-    filter["assets"][0]["size"] = true;
-
-    JsonDocument doc;
-    jerr = deserializeJson(doc, payload, DeserializationOption::Filter(filter));
-    if (!jerr) {
-      entries = 1;
-      const char* t = doc["tag_name"] | "";
-      strncpy(tag, t, tag_len - 1);
-      tag[tag_len - 1] = '\0';
-      if (published && pub_len) {
-        strncpy(published, doc["published_at"] | "", pub_len - 1);
-        published[pub_len - 1] = '\0';
-      }
-      found_size = imageSizeOf(doc);
-      if (image_size) *image_size = found_size;
-      if (BOARD_HAS_OWN_ASSET && found_size == 0) tag[0] = '\0';
-    }
+  VersionPick pick = {"", "", 0};
+  const VersionFileVerdict verdict =
+      jerr ? VF_BROKEN : versionFilePick(doc.as<JsonVariantConst>(), prerelease, &pick);
+  // Copied while the document is still alive. The pointers die with it.
+  if (verdict == VF_RELEASE) {
+    snprintf(tag, tag_len, "%s", pick.tag);
+    if (sha && sha_len) snprintf(sha, sha_len, "%s", pick.sha);
+    if (image_size) *image_size = pick.size;
   }
 
-  // Enough to diagnose the next failure without guessing. "No release found"
-  // and "JSON error" looked identical from the outside before this, and both
-  // have several possible causes.
+  // Enough to diagnose the next failure without guessing.
   char low_txt[12];
-  logSDf("OTA check: HTTP %d len=%d heap %u->%u pre=%d err=%s entries=%d tag='%s' image=%u low=%s",
-         code, payload_len, (unsigned)heap_before, (unsigned)heap_parse,
-         prerelease ? 1 : 0, jerr.c_str(), entries, tag, (unsigned)found_size,
+  logSDf("OTA check: version file HTTP %d heap %u->%u pre=%d err=%s tag='%s' sha=%s image=%u low=%s",
+         code, (unsigned)heap_before, (unsigned)heap_parse, prerelease ? 1 : 0, jerr.c_str(),
+         tag, pick.sha[0] ? "yes" : "none", (unsigned)pick.size,
          heapLowText(heap_low, low_txt, sizeof(low_txt)));
-  Serial.printf("OTA check: len=%d heap %u->%u err=%s entries=%d tag='%s'\n",
-                payload_len, (unsigned)heap_before, (unsigned)heap_parse,
-                jerr.c_str(), entries, tag);
 
   if (jerr) {
-    // The first 60 characters say more than any error name: a chunk length, an
-    // HTML error page or a truncated body are all obvious at a glance.
-    logSDf("OTA check: body starts '%s'", payload.substring(0, 60).c_str());
     if (err && err_len) snprintf(err, err_len, "JSON: %s", jerr.c_str());
     return false;
   }
-
-  if (tag[0] == '\0') {
-    if (entries == 0) logSD("OTA check: list was empty");
-    else              logSD("OTA check: entries had no usable tag_name");
+  if (verdict != VF_RELEASE) {
     if (err && err_len) snprintf(err, err_len, "%s",
-                                 entries == 0 ? "Empty release list"
-                                              : "No usable release");
+                                 verdict == VF_NONE_FOR_BOARD ? "No release for this board"
+                                                              : "No usable release");
     return false;
   }
   return true;
@@ -473,7 +399,7 @@ bool githubFlashTag(const char *tag, const char *sha256_hex,
   } else if (!boardImageScanAccepts()) {
     // The whole image came down and names no board, on a board that never had
     // an image without one. Its own test and not part of the checksum's: a
-    // tag picked by hand carries no sum, and this must refuse there as well.
+    // tag without a published sum must be refused here as well.
     fail = "No board line in the image";
     board_note = " (this is " BOARD_ID ")";
   }

@@ -272,11 +272,11 @@ jobs:
           # line version.json draws (a -beta.N tag fills only its "prerelease"
           # keys). The flag does not change what a device installs: it
           # downloads a release by its tag, releases/download/<tag>/<asset>
-          # (src/services/github_release.cpp). Together with version.json it
-          # decides who is offered it. With the "Pre-release" switch off, the
-          # daily check reads the "stable" keys of version.json and a check by
-          # hand asks releases/latest, which skips pre-releases; a stable tag
-          # marked pre-release would stay hidden from that check.
+          # (src/services/github_release.cpp). Who is offered it is decided
+          # by version.json alone, which the daily check and the check by hand
+          # both read (src/services/version_file.h); the flag labels the
+          # release on GitHub and gives the web page the channel of the
+          # installed build (its notes).
           prerelease: ${{ contains(github.ref_name, '-beta.') }}
           # A file named below and not built fails the step, before the pages
           # name a release that lacks the image a device would download.
