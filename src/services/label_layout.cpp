@@ -83,8 +83,10 @@ bool labelLayoutHasCode(const LabelLayout& layout) {
 // head block keeps its height), upright like 30 x 50, and then checked on
 // the scale's previews with every fact switched on (26.10.2026): flat, the
 // big code's fourth line ran off the bottom, so it takes three; every other
-// row printed whole. Upright, standard and compact leave room for more, to
-// be raised with the label layouts. Flat, standard, compact and material
+// row printed whole. Upright, standard and compact left about 100 dots
+// under the code, three fact lines of 33: they take two more each, one line
+// kept in hand, to be checked on the previews again (Joerg asked for more
+// lines there, 26.10.2026). Flat, standard, compact and material
 // big print no code at all: under the head block 23 mm leave about 10 mm,
 // too little for a spool's address - a layout question, not a count. They
 // are for that shape only: a Bluetooth stock kept from earlier betas, such
@@ -102,7 +104,7 @@ static const uint8_t FACT_CAPACITY[CAP_ROWS][LABEL_PRESET_COUNT] = {
   { 3, 4, 2, 2, 6 },   // 30 x 40
   { 5, 6, 4, 3, 6 },   // 30 x 50
   { 3, 4, 3, 2, 3 },   // 62 x 29, checked on the previews
-  { 5, 6, 4, 3, 6 },   // 29 x 62, checked on the previews
+  { 7, 8, 4, 3, 6 },   // 29 x 62, checked on the previews, standard and compact raised
 };
 // The same with the code switched off: the facts get its room, in two
 // columns where they fit. Flat, a date line is too wide for half the label,

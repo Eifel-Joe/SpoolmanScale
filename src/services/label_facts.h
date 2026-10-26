@@ -12,7 +12,10 @@
 //  renderer decides how large they come out.
 // ============================================================
 
-#define LABEL_MAX_FACTS 6    // every fact line on, the maker among them
+// The most any row of the capacity table asks for (label_layout.cpp): eight
+// on the Brother's 62 x 29 upright, compact, the maker among them. Two lists
+// live on the loop's stack while a label is drawn, 120 bytes a line each.
+#define LABEL_MAX_FACTS 8
 
 // One fact as its caption and its value; either may be missing (the maker
 // has no caption, the project name no value).
