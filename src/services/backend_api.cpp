@@ -12,6 +12,7 @@
 #include "services/bambuddy_api.h"
 #include "services/bambuddy_device.h"
 #include "services/bambuddy_filament_db.h"
+#include "services/copy_bbs.h"
 #include "services/filaman_api.h"
 #include "services/filaman_filament.h"
 #include "services/filaman_filament_db.h"
@@ -707,38 +708,12 @@ int backendCreateSpool(const char* base_url, int template_spool_id, int filament
                                 initial_weight, spool_weight, remaining_weight,
                                 nullptr, out_spool_id, timeout_ms);
     case BACKEND_BAMBUDDY: {
-      // No filament_id here: the template is read back, raw, because the mapped
-      // form folds subtype and color_name into one name and trims rgba to six
-      // characters - a copy built from it would be poorer than its template.
+      // No filament_id here: the copy is built from template_spool_id, in both
+      // inventory modes (services/copy_bbs.h).
       if (template_spool_id <= 0) return notSupported("CreateSpool");
-
-      // Plain document: one spool is a couple of kilobytes, not the inventory
-      // listing that needs PSRAM (as for the field probe above).
-      JsonDocument tpl;
-      int code = bbGetSpoolRawJson(backendBaseUrl(), bambuddyApiKey(), template_spool_id,
-                                   tpl, timeout_ms);
-      if (code != 200) {
-        logSDf("BamBuddy: copy template %d unreadable (HTTP %d), nothing created",
-               template_spool_id, code);
-        return code;
-      }
-
-      BbNewSpool ns;
-      ns.material   = tpl["material"]   | "";
-      ns.subtype    = tpl["subtype"]    | "";
-      ns.brand      = tpl["brand"]      | "";
-      ns.color_name = tpl["color_name"] | "";
-      ns.rgba       = tpl["rgba"]       | "";
-      // How big from the template, how full from the reading; the empty spool: backend_api.h.
-      ns.label_weight = tpl["label_weight"] | (int)lroundf(initial_weight);
-      const bool inherited = tpl["core_weight_is_inherited"] | false;   // the proxy only
-      ns.core_weight = chosen_core_g > 0.0f ? (int)lroundf(chosen_core_g)
-                     : inherited ? 0 : (tpl["core_weight"] | (int)lroundf(spool_weight));
-      ns.weight_used  = (float)ns.label_weight - remaining_weight;
-      if (ns.weight_used < 0.0f) ns.weight_used = 0.0f;
-
-      return bbCreateSpool(backendBaseUrl(), bambuddyApiKey(), ns, out_spool_id,
-                           timeout_ms);
+      const CopyBbsCreate in = { template_spool_id, initial_weight, remaining_weight,
+                                 chosen_core_g, spool_weight };
+      return copyBbsCreate(in, out_spool_id, nullptr);
     }
     default:
       return spoolmanCreateSpool(base_url, filament_id, initial_weight, spool_weight,

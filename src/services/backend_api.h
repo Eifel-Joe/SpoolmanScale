@@ -260,13 +260,10 @@ bool backendCanTareFilamentOrVendor();
 // so it reads template_spool_id back and replicates those. Each branch uses
 // the anchor it can, the other is ignored.
 //
-// BamBuddy's empty spool for the copy (design note L21): chosen_core_g, a
-// spool type chosen at the scale for this copy (Bambuddy on Spoolman), when
-// above 0; else the template's own, read fresh here. A template whose empty
-// spool is inherited (the proxy's core_weight_is_inherited) gives none: 0
-// stays out of the request and the copy inherits as its template does,
-// rather than taking the inherited weight as its own. spool_weight is the
-// fallback for a template without core_weight; the other backends take
+// BamBuddy's copy is copyBbsCreate() (services/copy_bbs.h): which fields go
+// along, the empty spool (chosen_core_g, a spool type chosen at the scale;
+// spool_weight, the fallback for a template without core_weight) and what a
+// copy behind Spoolman takes over beyond that. The other backends take
 // spool_weight as it is and ignore chosen_core_g.
 int  backendCreateSpool(const char* base_url, int template_spool_id, int filament_id,
        float initial_weight, float spool_weight, float remaining_weight,
