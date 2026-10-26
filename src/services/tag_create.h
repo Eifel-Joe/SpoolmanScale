@@ -82,6 +82,8 @@ struct TagCreateInput {
   int   temp_min;
   int   temp_max;
   bool  names_known;         // article and colour name are known
+  bool  typed;               // entered at the scale, ui/sort_entry_screen.h: the spool's name must match a found filament
+  int   known_filament_id;   // the inventory filament picked at the scale for it, 0 none: the plan takes it as found
   // Picked from the backend's filament database (services/filament_db.h)
   // rather than read off a tag: the entry's id and name as the database has
   // them, and what it says that no tag does. Empty and 0 for a tag.
@@ -165,6 +167,16 @@ struct TagFilamentPlan {
   // entry, for the card to merge in and compare (tag_db_match.h).
   bool       db_found;
   TagDbEntry db;
+  // A sort entered at the scale (TagCreateInput::typed) names its filament
+  // by line and colour, and the inventory may hold the same maker, material
+  // and hue under another name. Only noted here, never taken: the card asks.
+  int   twin_id;               // typed input: same vendor, material and hue under another name; 0: none
+  char  twin_name[64];
+  int   twin_spool_weight_g;   // that filament's own empty spool, for tagCreateTare() once it is taken
+  // Set with TFS_FAILED when the filament cannot be created for lack of the
+  // density Spoolman requires, so the card can say so instead of showing a
+  // search that failed with HTTP 0.
+  bool  no_density;            // TFS_FAILED because neither the database nor Spoolman's materials know a density
 };
 
 void tagFilamentPlanClear(TagFilamentPlan* plan);

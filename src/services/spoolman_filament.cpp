@@ -7,6 +7,8 @@
 #include <strings.h>
 
 #include "../hardware/sd_logger.h"
+#include "bambuddy_name.h"
+#include "sort_entry_rules.h"
 #include "spoolman_api.h"
 #include "spoolman_filament_db.h"
 
@@ -27,6 +29,13 @@
 // ------------------------------------------------------------
 
 typedef bool (*FilamentAccept)(JsonObjectConst fil, const TagCreateInput& in);
+
+// Set at the top of spoolmanPlanTagFilament() and read by what names a new
+// filament or compares a name below: BamBuddy sits in front of this Spoolman
+// and keeps every filament as "<material> <line>" (bambuddy_name.h). A flag
+// of the call, kept here so that FilamentAccept and the helpers keep their
+// shape; the loop task is the only caller, and each plan sets it afresh.
+static bool s_bambuddy_names = false;
 
 static bool vendorIs(JsonObjectConst fil, const TagCreateInput& in) {
   const char* v = fil["vendor"]["name"] | "";
@@ -64,16 +73,69 @@ static bool colorsFit(JsonVariantConst single, const TagCreateInput& in) {
   return tagCreateSameHex(single | "", in.color_hex);
 }
 
+// Behind BamBuddy a filament is named "<material> <line>" ("ABS Basic" is each
+// colour of the line), so its name no longer tells colours apart, and colorsFit()
+// lets a clear or multi colour spool through for the name to decide. The colour
+// has to fit as well, as Spoolman keeps it, a clear or listed one included.
+static bool bambuddyColourOk(JsonObjectConst fil, const TagCreateInput& in) {
+  char list[TAG_CREATE_COLOURS * 7 + 1] = "";
+  if (in.color_count >= 2) tagCreateColorList(in, list, sizeof(list));
+  return bambuddyColourFits(fil["color_hex"] | "", hexList(fil["multi_color_hexes"]).c_str(),
+                            in.clear, in.color_hex, list);
+}
+
 // A filament someone created by hand: same maker, material and colour, and
 // a name that starts with the product line.
 static bool acceptByLook(JsonObjectConst fil, const TagCreateInput& in) {
   if (!vendorIs(fil, in)) return false;
   if (strcasecmp(fil["material"] | "", in.material) != 0) return false;
   if (!colorsFit(fil["color_hex"], in)) return false;
+  if (s_bambuddy_names && !bambuddyColourOk(fil, in)) return false;
   // A database pick has the database's own name: PolyLite and PolyTerra
-  // Black share maker, material and nearly the colour, never the name.
+  // Black share maker, material and nearly the colour, never the name. (Behind
+  // BamBuddy a filament made from a pick is found by its external_id, before
+  // this, planExisting().)
   if (in.db_name[0]) return strcasecmp(fil["name"] | "", in.db_name) == 0;
   return tagCreateNameMatches(fil["name"] | "", in);
+}
+
+// A spool typed at the scale is the filament of the same name as a new
+// filament would get, whatever the case, blanks and hyphens (sortEntrySame):
+// "light green" typed twice must not make two filaments. The hue is compared
+// as for any filament; a clear spool is told by its name alone. Behind BamBuddy
+// the name is "<material> <line>" for every colour, so there the colour tells
+// them apart (bambuddyColourOk()), a clear one as well.
+static bool acceptByTypedName(JsonObjectConst fil, const TagCreateInput& in) {
+  if (!vendorIs(fil, in)) return false;
+  if (strcasecmp(fil["material"] | "", in.material) != 0) return false;
+  if (!colorsFit(fil["color_hex"], in)) return false;
+  if (s_bambuddy_names && !bambuddyColourOk(fil, in)) return false;
+  // Cut to the plan's name field, the name a filament created from it keeps:
+  // BamBuddy's behind BamBuddy (the colour's name is on the spool there).
+  char want[sizeof(TagFilamentPlan::name)];
+  if (s_bambuddy_names) bambuddyFilamentName(in.material, in.subtype, want, sizeof(want));
+  else                  tagCreateSpoolmanName(in, want, sizeof(want));
+  return sortEntrySame(fil["name"] | "", want);
+}
+
+// The same maker, material and hue under any name, for a typed spool. A
+// clear spool has no hue to compare: it is the clear filaments, and a hue
+// is never a clear one. A spool of several colours has no twin.
+static bool acceptByTwin(JsonObjectConst fil, const TagCreateInput& in) {
+  if (!vendorIs(fil, in)) return false;
+  if (strcasecmp(fil["material"] | "", in.material) != 0) return false;
+  const char* hex = fil["color_hex"] | "";
+  if (in.clear) return isClearHex(hex);
+  return in.color_count == 1 && !isClearHex(hex) && colorsFit(fil["color_hex"], in);
+}
+
+// What a found filament tells the plan: its name, and the empty spools it and
+// its brand have on file, which tagCreateTare() reads for a spool created
+// under it.
+static void takeFound(JsonObjectConst fil, TagFilamentPlan* plan) {
+  snprintf(plan->name, sizeof(plan->name), "%s", fil["name"] | "");
+  plan->found_spool_weight_g  = (int)lroundf(fil["spool_weight"] | 0.0f);
+  plan->vendor_spool_weight_g = (int)lroundf(fil["vendor"]["empty_spool_weight"] | 0.0f);
 }
 
 // The lowest id among the filaments the query returns and accept() takes.
@@ -90,6 +152,9 @@ static int findFilament(const char* base_url, const String& query, FilamentAccep
   // What a spool created under it is weighed against (tagCreateTare()).
   f["spool_weight"]                 = true;
   f["vendor"]["empty_spool_weight"] = true;
+  // Behind BamBuddy the colour tells filaments apart (bambuddyColourOk()),
+  // also those of several colours.
+  if (s_bambuddy_names) f["multi_color_hexes"] = true;
 
   JsonDocument doc;
   const int code = spoolmanGetJson(base_url, (String("/api/v1/filament?") + query).c_str(),
@@ -103,9 +168,7 @@ static int findFilament(const char* base_url, const String& query, FilamentAccep
     hits++;
     if (best == 0 || id < best) {
       best = id;
-      snprintf(plan->name, sizeof(plan->name), "%s", fil["name"] | "");
-      plan->found_spool_weight_g  = (int)lroundf(fil["spool_weight"] | 0.0f);
-      plan->vendor_spool_weight_g = (int)lroundf(fil["vendor"]["empty_spool_weight"] | 0.0f);
+      takeFound(fil, plan);
     }
   }
   if (hits > 1) logSDf("Spoolman: %d filaments fit %s, taking #%d", hits, query.c_str(), best);
@@ -148,11 +211,14 @@ static void noteDbEntry(JsonObjectConst e, TagDbEntry* db) {
   db->bed_temp     = e["bed_temp"] | 0;
 }
 
-static void takeDbEntry(JsonObjectConst e, TagFilamentPlan* plan) {
+static void takeDbEntry(const TagCreateInput& in, JsonObjectConst e, TagFilamentPlan* plan) {
   noteDbEntry(e, &plan->db);
   plan->db_found = true;
   snprintf(plan->external_id, sizeof(plan->external_id), "%s", e["id"] | "");
-  snprintf(plan->name, sizeof(plan->name), "%s", e["name"] | "");
+  // The filament created from the entry is named as BamBuddy keeps it; the
+  // entry's own name stays in plan->db, which the card compares.
+  if (s_bambuddy_names) bambuddyFilamentName(in.material, in.subtype, plan->name, sizeof(plan->name));
+  else                  snprintf(plan->name, sizeof(plan->name), "%s", e["name"] | "");
   plan->density        = e["density"] | 0.0f;
   plan->spool_weight_g = (int)lroundf(e["spool_weight"] | 0.0f);
   plan->extruder_temp  = e["extruder_temp"] | 0;
@@ -172,7 +238,7 @@ struct DbLookup {
 static void lookupElement(JsonObjectConst e, void* p) {
   DbLookup* l = (DbLookup*)p;
   if (l->found || !dbEntryFits(e, *l->in)) return;
-  takeDbEntry(e, l->plan);
+  takeDbEntry(*l->in, e, l->plan);
   l->found = true;
 }
 
@@ -210,7 +276,7 @@ static bool findInDatabase(const char* base_url, const TagCreateInput& in, TagFi
   }
   for (JsonObjectConst e : doc.as<JsonArrayConst>()) {
     if (!dbEntryFits(e, in)) continue;
-    takeDbEntry(e, plan);
+    takeDbEntry(in, e, plan);
     return true;
   }
   return false;
@@ -220,7 +286,10 @@ static bool findInDatabase(const char* base_url, const TagCreateInput& in, TagFi
 // and filament_db.h brought everything the plan takes from it.
 static void takePickedEntry(const TagCreateInput& in, TagFilamentPlan* plan) {
   snprintf(plan->external_id, sizeof(plan->external_id), "%s", in.db_id);
-  snprintf(plan->name, sizeof(plan->name), "%s", in.db_name);
+  // Behind BamBuddy the new filament is named as BamBuddy keeps it; the
+  // external_id above is what finds one made from this entry again.
+  if (s_bambuddy_names) bambuddyFilamentName(in.material, in.subtype, plan->name, sizeof(plan->name));
+  else                  snprintf(plan->name, sizeof(plan->name), "%s", in.db_name);
   plan->density        = in.db_density;
   plan->spool_weight_g = in.spool_weight_g;
   plan->extruder_temp  = in.temp_max;
@@ -320,6 +389,71 @@ static int findVendor(const char* base_url, const char* vendor, TagFilamentPlan*
 //  The plan
 // ------------------------------------------------------------
 
+// A filament picked from the inventory at the scale is that filament, however
+// it is named and coloured: Bambuddy names one by material and line ("ABS
+// Basic") and keeps the colour's name on the spool, so neither name nor hue
+// would find it again. True when that decided: found, or the server failed.
+// Gone, or no longer of the maker and material it was picked under, the
+// search goes on as if none had been picked.
+static bool planKnown(const char* base_url, const TagCreateInput& in, TagFilamentPlan* plan) {
+  JsonDocument filter;
+  filter["id"]                           = true;
+  filter["name"]                         = true;
+  filter["material"]                     = true;
+  filter["vendor"]["name"]               = true;
+  filter["spool_weight"]                 = true;
+  filter["vendor"]["empty_spool_weight"] = true;
+
+  // One filament, not a list: the answer is an object.
+  JsonDocument doc;
+  const int code = spoolmanGetJson(base_url,
+                                   (String("/api/v1/filament/") + in.known_filament_id).c_str(),
+                                   doc, SM_FIL_TIMEOUT_MS, &filter);
+  if (code == 404) {
+    logSDf("Spoolman: filament #%d picked at the scale is gone, searching", in.known_filament_id);
+    return false;
+  }
+  if (code != 200) { plan->http_code = code; plan->state = TFS_FAILED; return true; }
+
+  JsonObjectConst fil = doc.as<JsonObjectConst>();
+  if ((fil["id"] | 0) != in.known_filament_id || !vendorIs(fil, in) ||
+      strcasecmp(fil["material"] | "", in.material) != 0) {
+    logSDf("Spoolman: filament #%d is no longer %s %s, searching", in.known_filament_id,
+           in.vendor, in.material);
+    return false;
+  }
+  takeFound(fil, plan);
+  plan->state       = TFS_FOUND;
+  plan->filament_id = in.known_filament_id;
+  logSDf("Spoolman: filament #%d picked at the scale, taking it", in.known_filament_id);
+  return true;
+}
+
+// A typed spool's hue under another name: only noted in the plan, the card
+// asks. 0 whether one was found or not, -1 when the server could not be asked.
+static int noteTwin(const char* base_url, const String& query, const TagCreateInput& in,
+                    TagFilamentPlan* plan) {
+  // findFilament() writes what it finds into the plan as the filament found.
+  // Here the hit is a question, and the plan may hold the name of a database
+  // entry the new filament is created by: nothing of it stays but twin_*.
+  char name[sizeof(plan->name)];
+  memcpy(name, plan->name, sizeof(name));
+  const int found_g  = plan->found_spool_weight_g;
+  const int vendor_g = plan->vendor_spool_weight_g;
+  const int id = findFilament(base_url, query, acceptByTwin, in, plan);
+  if (id > 0) {
+    plan->twin_id = id;
+    snprintf(plan->twin_name, sizeof(plan->twin_name), "%s", plan->name);
+    plan->twin_spool_weight_g = plan->found_spool_weight_g;
+    logSDf("Spoolman: filament #%d \"%s\" has the hue of the typed %s %s", id, plan->twin_name,
+           in.vendor, in.color_name_en);
+  }
+  memcpy(plan->name, name, sizeof(name));
+  plan->found_spool_weight_g  = found_g;
+  plan->vendor_spool_weight_g = vendor_g;
+  return id < 0 ? -1 : 0;
+}
+
 // Steps through the ways a filament can already be there. True when one
 // decided: found, or the server failed.
 static bool planExisting(const char* base_url, const TagCreateInput& in, TagFilamentPlan* plan) {
@@ -333,7 +467,11 @@ static bool planExisting(const char* base_url, const TagCreateInput& in, TagFila
     // spool is compared here, among the vendor's filaments of the material.
     String q = exactTerm("vendor.name", in.vendor) + "&" + exactTerm("material", in.material);
     if (in.color_count == 1) q += String("&color_similarity_threshold=0&color_hex=") + in.color_hex;
-    id = findFilament(base_url, q, acceptByLook, in, plan);
+    // A tag's rules stay as they are; a spool typed at the scale is told by
+    // the name it would get, and another name for its hue is a twin.
+    const FilamentAccept accept = in.typed ? acceptByTypedName : acceptByLook;
+    id = findFilament(base_url, q, accept, in, plan);
+    if (id == 0 && in.typed) id = noteTwin(base_url, q, in, plan);
   }
   if (id > 0) { plan->state = TFS_FOUND; plan->filament_id = id; return true; }
   if (id < 0) { plan->state = TFS_FAILED; return true; }
@@ -349,16 +487,23 @@ static void planFromTag(const char* base_url, const TagCreateInput& in, TagFilam
   if (plan->density <= 0.0f) {
     logSDf("Spoolman: no density known for %s, filament not created", in.material);
     plan->state = TFS_FAILED;
+    plan->no_density = true;
     return;
   }
-  tagCreateSpoolmanName(in, plan->name, sizeof(plan->name));
+  // A label and a typed sort alike: BamBuddy's name behind BamBuddy, the colour
+  // goes to the spool (backend_api.cpp, bambuddyCreateUnderSpoolman()).
+  if (s_bambuddy_names) bambuddyFilamentName(in.material, in.subtype, plan->name, sizeof(plan->name));
+  else                  tagCreateSpoolmanName(in, plan->name, sizeof(plan->name));
   plan->spool_weight_g = in.spool_weight_g;
   plan->state = TFS_CREATE_TAG;
 }
 
-void spoolmanPlanTagFilament(const char* base_url, const TagCreateInput& in,
-                             TagFilamentPlan* plan) {
+void spoolmanPlanTagFilament(const char* base_url, const TagCreateInput& in, TagFilamentPlan* plan,
+                             bool bambuddy_names) {
   tagFilamentPlanClear(plan);
+  s_bambuddy_names = bambuddy_names;
+  // A filament picked from the inventory at the scale is the one, before any search.
+  if (in.typed && in.known_filament_id > 0 && planKnown(base_url, in, plan)) return;
   // The database first: its id also finds a filament imported from it.
   const bool picked = in.db_id[0] != '\0';
   if (picked) takePickedEntry(in, plan);
@@ -374,6 +519,7 @@ void spoolmanPlanTagFilament(const char* base_url, const TagCreateInput& in,
   if (picked && plan->density <= 0.0f) {
     logSDf("Spoolman: no density known for %s, filament not created", in.material);
     plan->state = TFS_FAILED;
+    plan->no_density = true;
     return;
   }
   if (in_db) { plan->state = TFS_CREATE_DB; return; }

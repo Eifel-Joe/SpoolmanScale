@@ -4114,6 +4114,102 @@ const char* const STRINGS[][3] = {
   { "Preis pro kg",
     "Price per kg",
     "Prix par kg" },  // STR_PRICE_PAD_TITLE_KG
+  { "Neue Sorte anlegen?",
+    "Create new filament?",
+    "Créer un filament ?" },  // STR_SORT_CARD_TITLE
+  { "Neues Filament - Farbton merken",
+    "New filament - note its colour",
+    "Nouveau filament - notez la teinte" },  // STR_SORT_NEW_FILAMENT
+  { "Dichte unbekannt: Material in Spoolman anlegen oder ein vorhandenes wählen",
+    "Density unknown: add the material in Spoolman or pick one it has",
+    "Densité inconnue : ajoutez le matériau à Spoolman ou prenez-en un existant" },  // STR_SORT_NO_DENSITY
+  { "Gleicher Farbton",
+    "Same colour",
+    "Même teinte" },  // STR_SORT_TWIN_TITLE
+  { "Gibt es schon als \"%s\". Dieses nehmen oder ein neues Filament anlegen?",
+    "Already there as \"%s\". Take it or create a new filament?",
+    "Existe déjà sous \"%s\". Le prendre ou créer un nouveau filament ?" },  // STR_SORT_TWIN_TEXT
+  { "Nehmen",
+    "Take it",
+    "Le prendre" },  // STR_SORT_TWIN_TAKE
+  { "Neu anlegen",
+    "Create new",
+    "Nouveau filament" },  // STR_SORT_TWIN_NEW
+  { "Sorte eingeben",
+    "Enter filament",
+    "Saisir filament" },  // STR_SORT_BTN
+  { "Nicht dabei? Sorte eingeben",
+    "Not listed? Enter it here",
+    "Absent ? Saisissez-le ici" },  // STR_SORT_NOT_LISTED
+  { "Zuletzt",
+    "Last used",
+    "Dernier" },  // STR_SORT_LAST
+  { "Nicht dabei - neu anlegen",
+    "Not listed - add new",
+    "Absent - ajouter" },  // STR_SORT_NEW
+  { "Gibt es schon: %s",
+    "Already there: %s",
+    "Existe déjà : %s" },  // STR_SORT_EXISTS
+  { "Neuer Hersteller",
+    "New vendor",
+    "Nouveau fabricant" },  // STR_SORT_KEY_MAKER
+  { "Neues Material",
+    "New material",
+    "Nouveau matériau" },  // STR_SORT_KEY_MATERIAL
+  { "Neue Linie",
+    "New line",
+    "Nouvelle gamme" },  // STR_SORT_KEY_LINE
+  { "Bitte etwas eingeben",
+    "Please type something",
+    "Veuillez saisir quelque chose" },  // STR_SORT_EMPTY
+  { "Weitere Materialien",
+    "Other materials",
+    "Autres matériaux" },  // STR_SORT_OTHER_MATERIALS
+  { "ohne Linie",
+    "no line",
+    "sans gamme" },  // STR_SORT_NO_LINE
+  { "%s: Linie wählen",
+    "%s: choose line",
+    "%s : choisir la gamme" },  // STR_SORT_LINE_TITLE
+  { "%s %s: Farbe",
+    "%s %s: colour",
+    "%s %s : couleur" },  // STR_SORT_COLOUR_TITLE
+  { "Dieser Hersteller",
+    "This vendor",
+    "Ce fabricant" },  // STR_SORT_THIS_MAKER
+  { "Gängige Farben",
+    "Common colours",
+    "Couleurs courantes" },  // STR_SORT_COMMON
+  { "Neuer Farbname",
+    "New colour name",
+    "Nouveau nom de couleur" },  // STR_SORT_KEY_COLOUR
+  { "Farbton für %s",
+    "Colour for %s",
+    "Teinte pour %s" },  // STR_SORT_RASTER_TITLE
+  { "Spoolman erkennt die Sorte später nur am genau gleichen Farbton.",
+    "Spoolman finds this filament again only by this exact colour.",
+    "Spoolman ne retrouve ce filament qu'à cette teinte exacte." },  // STR_SORT_HUE_HINT
+  { "Hex eingeben",
+    "Enter hex",
+    "Saisir en hex" },  // STR_SORT_HEX
+  { "Farbton als Hex (z. B. 90EE90)",
+    "Colour as hex (e.g. 90EE90)",
+    "Teinte en hex (ex. 90EE90)" },  // STR_SORT_KEY_HEX
+  { "6 Zeichen 0-9 und A-F",
+    "6 characters 0-9 and A-F",
+    "6 caractères 0-9 et A-F" },  // STR_SORT_HEX_BAD
+  { "Füllmenge (Filament ohne Spule)",
+    "Net weight (filament only)",
+    "Poids net (filament seul)" },  // STR_SORT_WEIGHT_TITLE
+  { "Eintippen",
+    "Type in",
+    "Saisir" },  // STR_SORT_TYPE_GRAMS
+  { "Füllmenge in g",
+    "Net weight in g",
+    "Poids net en g" },  // STR_SORT_KEY_GRAMS
+  { "50 bis 10000 g",
+    "50 to 10000 g",
+    "50 à 10000 g" },  // STR_SORT_GRAMS_BAD
 };
 
 StringID tagWriteResultString(uint8_t code) {

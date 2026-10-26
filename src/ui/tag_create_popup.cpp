@@ -25,6 +25,7 @@
 #include "services/user_options.h"
 #include "ui/main_screen_helpers.h"
 #include "ui/price_pad.h"
+#include "ui/sort_twin_popup.h"
 #include "ui/spool_flow_internal.h"
 #include "ui/tag_db_diff_popup.h"
 #include "ui/tare_entry.h"
@@ -43,6 +44,7 @@
 enum TcpJob : uint8_t { TCP_IDLE = 0, TCP_PLAN, TCP_CREATE };
 
 static lv_obj_t*       s_scr    = nullptr;
+static lv_obj_t*       s_title  = nullptr;
 static lv_obj_t*       s_status = nullptr;
 static lv_obj_t*       s_btn_ok = nullptr;
 static lv_obj_t*       s_lbl_price = nullptr;
@@ -68,6 +70,12 @@ static bool            s_close_pending = false;
 // than made twice; and after a switch of backend or host.
 static bool            s_plan_stale = false;
 static uint32_t        s_plan_gen   = 0;
+// What was answered to "same colour under another name", and for which
+// filament. Kept for the card: a plan asked again before the create finds the
+// same twin and applies it, instead of asking twice.
+enum TcpTwin : uint8_t { TCP_TWIN_OPEN = 0, TCP_TWIN_NEW, TCP_TWIN_TAKE };
+static TcpTwin         s_twin_answer = TCP_TWIN_OPEN;
+static int             s_twin_id     = 0;
 
 lv_obj_t* tagCreatePopupScreen() { return s_scr; }
 
@@ -84,7 +92,9 @@ void tagCreateEntryTap(lv_event_t*) {
 void closeTagCreatePopup() {
   closePricePad();
   closeTagDbDiffPopup();
+  closeSortTwinPopup();
   releaseScreen(&s_scr);
+  s_title = nullptr;
   s_status = nullptr;
   s_btn_ok = nullptr;
   s_lbl_price = nullptr;
@@ -145,6 +155,8 @@ static void showStatus(const char* text, uint32_t color, bool can_create) {
   if (!s_status) return;
   lv_label_set_text(s_status, text);
   lv_obj_set_style_text_color(s_status, lv_color_hex(color), 0);
+  // Every line is one body line; the no-density hint sets its own after this.
+  lv_obj_set_style_text_font(s_status, UI_FONT_BODY, 0);
   if (!s_btn_ok) return;
   if (can_create) lv_obj_clear_state(s_btn_ok, LV_STATE_DISABLED);
   else            lv_obj_add_state(s_btn_ok, LV_STATE_DISABLED);
@@ -164,10 +176,19 @@ static void showPlan() {
       else
         showStatus(T(backendIsFilaMan() ? STR_TAGNEW_FROM_FDB : STR_TAGNEW_FROM_DB), UI_COL_ACCENT, true);
       break;
-    case TFS_CREATE_TAG:    showStatus(T(STR_TAGNEW_FROM_TAG), UI_COL_ACCENT, true);        break;
+    case TFS_CREATE_TAG:
+      // A sort typed in is a new filament whose colour finds it again.
+      showStatus(T(s_in.typed ? STR_SORT_NEW_FILAMENT : STR_TAGNEW_FROM_TAG), UI_COL_ACCENT, true);
+      break;
     case TFS_NOT_NEEDED:    showStatus(T(STR_TAGNEW_BAMBUDDY), UI_COL_INK_SOFT, true);      break;
     case TFS_NEEDS_CATALOG: showStatus(T(STR_TAGNEW_NEEDS_CATALOG), UI_COL_WARN, false);    break;
     default:
+      if (s_plan.no_density) {
+        // Two lines of the small font end where the answer row starts.
+        showStatus(T(STR_SORT_NO_DENSITY), UI_COL_WARN, false);
+        if (s_status) lv_obj_set_style_text_font(s_status, UI_FONT_SMALL, 0);
+        break;
+      }
       snprintf(buf, sizeof(buf), T(STR_TAGNEW_FAILED), s_plan.http_code);
       showStatus(buf, UI_COL_BAD_TEXT, false);
       break;
@@ -201,6 +222,17 @@ static lv_obj_t* buildBox() {
   return box;
 }
 
+// The title. A sort typed in is a new filament, "Neue Sorte anlegen?",
+// unless it is one the inventory has: picked from the inventory's colours
+// (known_filament_id) or taken as the twin of a colour typed. Then, as for a
+// database entry, a new spool; a tag's own title for a tag.
+static void refreshTitle() {
+  if (!s_title) return;
+  int id = s_picked ? STR_COPY_CONFIRM_TITLE : STR_NEWTAG_TITLE;
+  if (s_in.typed && s_in.known_filament_id <= 0 && s_twin_answer != TCP_TWIN_TAKE) id = STR_SORT_CARD_TITLE;
+  lv_label_set_text(s_title, T(id));
+}
+
 static void buildHead(lv_obj_t* box) {
   lv_obj_t* icon = lv_label_create(box);
   lv_label_set_text(icon, LV_SYMBOL_PLUS);
@@ -208,13 +240,13 @@ static void buildHead(lv_obj_t* box) {
   lv_obj_set_style_text_font(icon, UI_FONT_ICON, 0);
   lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, UI_CARD_ICON_Y);
 
-  lv_obj_t* title = lv_label_create(box);
-  lv_label_set_text(title, T(s_picked ? STR_COPY_CONFIRM_TITLE : STR_NEWTAG_TITLE));
-  lv_obj_set_style_text_color(title, lv_color_hex(UI_COL_INK), 0);
-  lv_obj_set_style_text_font(title, UI_FONT_HEADLINE, 0);
-  lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_set_width(title, UI_POPUP_W - UI_CARD_TEXT_PAD);
-  lv_obj_align(title, LV_ALIGN_TOP_MID, 0, UI_CARD_TITLE_Y);
+  s_title = lv_label_create(box);
+  lv_obj_set_style_text_color(s_title, lv_color_hex(UI_COL_INK), 0);
+  lv_obj_set_style_text_font(s_title, UI_FONT_HEADLINE, 0);
+  lv_obj_set_style_text_align(s_title, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_set_width(s_title, UI_POPUP_W - UI_CARD_TEXT_PAD);
+  lv_obj_align(s_title, LV_ALIGN_TOP_MID, 0, UI_CARD_TITLE_Y);
+  refreshTitle();
 }
 
 // Line 1: the colour and the product, as one centred group.
@@ -377,6 +409,8 @@ static void buildAnswers(lv_obj_t* box) {
 static void buildCard() {
   s_label_weight = labelWeight();
   s_price = 0.0f;
+  s_twin_answer = TCP_TWIN_OPEN;
+  s_twin_id = 0;
   tagFilamentPlanClear(&s_plan);
 
   lv_obj_t* box = buildBox();
@@ -438,6 +472,49 @@ static void mergeDbEntry() {
   if (s_diff_n > 0) showTagDbDiffPopup(s_diffs, s_diff_n, onDiffAnswer);
 }
 
+// The twin taken: the plan is the found filament's from here on, with its
+// own empty spool for the weights, and the card makes a new spool of it.
+static void takeTwin() {
+  s_plan.state = TFS_FOUND;
+  s_plan.filament_id = s_plan.twin_id;
+  s_plan.found_spool_weight_g = s_plan.twin_spool_weight_g;
+  showPlan();
+  refreshMeta();
+  refreshTitle();
+}
+
+// The user's answer to the twin: that filament, or a new one as planned.
+static void onTwinAnswer(bool take) {
+  logSDf("TagCreate: twin #%d \"%s\", %s", s_plan.twin_id, s_plan.twin_name,
+         take ? "taken" : "new one made");
+  s_twin_answer = take ? TCP_TWIN_TAKE : TCP_TWIN_NEW;
+  s_twin_id = s_plan.twin_id;
+  if (take) takeTwin();
+  else      showPlan();   // the create button is free again
+}
+
+// A sort typed in whose colour the inventory has under another name: the
+// card asks, and holds the create button until it is answered. A plan asked
+// again for the same twin applies the answer given before. A failed plan
+// says nothing about the twin and leaves the answer alone.
+static void settleTwin() {
+  if (!s_in.typed) return;
+  if (s_plan.state != TFS_CREATE_TAG && s_plan.state != TFS_CREATE_DB) return;
+  if (s_plan.twin_id <= 0) {
+    s_twin_answer = TCP_TWIN_OPEN;
+    s_twin_id = 0;
+    return;
+  }
+  if (s_twin_answer != TCP_TWIN_OPEN && s_twin_id == s_plan.twin_id) {
+    logSDf("TagCreate: twin #%d, the answer given before applies", s_plan.twin_id);
+    if (s_twin_answer == TCP_TWIN_TAKE) takeTwin();
+    return;
+  }
+  s_twin_answer = TCP_TWIN_OPEN;
+  if (s_btn_ok) lv_obj_add_state(s_btn_ok, LV_STATE_DISABLED);
+  showSortTwinPopup(s_plan.twin_name, onTwinAnswer);
+}
+
 static void runPlan() {
   s_plan_stale = false;
   s_plan_gen   = backendGeneration();
@@ -447,6 +524,10 @@ static void runPlan() {
   showPlan();
   refreshMeta();   // the plan may have brought an empty spool weight
   if (s_plan.state == TFS_CREATE_DB && s_plan.db_found && !s_in.db_id[0]) mergeDbEntry();
+  settleTwin();
+  // A plan asked again may have found another twin, or none: the answer
+  // given before no longer holds, and neither does its title.
+  refreshTitle();
 }
 
 // What the create button can act on.
@@ -470,7 +551,8 @@ static void runCreate() {
   if (s_plan_stale || s_plan_gen != backendGeneration()) {
     logSD("TagCreate: plan asked again before the create");
     runPlan();
-    if (!planCanCreate(s_plan.state)) return;   // showPlan() has said why
+    // showPlan() has said why; a new twin is asked before anything is made.
+    if (!planCanCreate(s_plan.state) || sortTwinPopupOpen()) return;
   }
   TagCreateResult r;
   const SpoolStart start = startValues();
@@ -521,6 +603,7 @@ static void runCreate() {
 void tagCreatePopupTick() {
   pricePadTick();
   tagDbDiffPopupTick();
+  sortTwinPopupTick();
   if (s_close_pending) {
     s_close_pending = false;
     closeTagCreatePopup();

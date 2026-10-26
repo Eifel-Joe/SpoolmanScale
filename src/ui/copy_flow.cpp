@@ -39,6 +39,7 @@
 #include "ui/theme.h"
 #include "ui/db_pick_screen.h"
 #include "ui/entry_tile.h"
+#include "ui/sort_entry_screen.h"
 #include "ui/tag_create_popup.h"
 #include "ui/tare_entry.h"
 
@@ -612,11 +613,12 @@ void showCopySpoolList() {
 }
 
 // The entry popup's tiles: the active spools, the archived ones and, where
-// the tag or the backend allows it, a new spool, all alike; under them the
-// Spoolman ID and Cancel. Without a way to a new spool the two lists share
-// the row.
+// the tag or the backend allows it, a new spool and a filament entered at the
+// scale (last), all alike; under them the Spoolman ID and Cancel. Without a
+// way to a new spool the two lists share the row.
 static void copyEntryTiles(bool offer_from_tag, bool offer_from_db) {
-  const int n = (offer_from_tag || offer_from_db) ? 3 : 2;
+  const bool offer_sort = sortEntryOffered();
+  const int n = 2 + (offer_from_tag || offer_from_db) + offer_sort;
   entryTile(scr_copy_entry, entryTileRect(0, n), LV_SYMBOL_LIST, T(STR_COPY_ACTIVE_BTN),
             [](lv_event_t *e) {
     logSD("BTN: CopyEntry -> Active spools");
@@ -633,6 +635,8 @@ static void copyEntryTiles(bool offer_from_tag, bool offer_from_db) {
     entryTile(scr_copy_entry, entryTileRect(2, n), LV_SYMBOL_PLUS, T(STR_NEWTAG_BTN), tagCreateEntryTap);
   if (offer_from_db)
     entryTile(scr_copy_entry, entryTileRect(2, n), LV_SYMBOL_PLUS, T(STR_DBPICK_BTN), dbPickEntryTap);
+  if (offer_sort)
+    entryTile(scr_copy_entry, entryTileRect(n - 1, n), LV_SYMBOL_EDIT, T(STR_SORT_BTN), sortEntryEntryTap);
 
   // The ID works for active and archived spools alike, the way for a
   // library too long to scroll.

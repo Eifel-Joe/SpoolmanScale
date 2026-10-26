@@ -864,11 +864,11 @@ void backendPlanTagFilament(const TagCreateInput& in, TagFilamentPlan* plan) {
       filamanPlanTagFilament(backendBaseUrl(), filamanApiKey(), in, plan);
       break;
     case BACKEND_BAMBUDDY:
-      if (bambuddyBehindSpoolman()) spoolmanPlanTagFilament(backendFdbBaseUrl(), in, plan);
+      if (bambuddyBehindSpoolman()) spoolmanPlanTagFilament(backendFdbBaseUrl(), in, plan, true);
       else                          planBamBuddyColor(in, plan);
       break;
     default:
-      spoolmanPlanTagFilament(backendBaseUrl(), in, plan);
+      spoolmanPlanTagFilament(backendBaseUrl(), in, plan, false);
       break;
   }
   // A maker's fixed core gives way to an empty spool the brand has on file:

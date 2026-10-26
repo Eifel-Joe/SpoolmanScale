@@ -81,6 +81,10 @@ jobs:
         run: python3 test/test_copy_rules.py
       - name: Test spool start rules
         run: python3 test/test_spool_start.py
+      - name: Test sort entry rules
+        run: python3 test/test_sort_entry_rules.py
+      - name: Test bambuddy name rules
+        run: python3 test/test_bambuddy_name.py
 
   build:
     name: Build ${{ matrix.env }}

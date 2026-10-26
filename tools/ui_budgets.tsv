@@ -276,12 +276,15 @@ STR_PRICE_PAD_TITLE_KG	14	460	NEVER	src/ui/price_pad.cpp title above the keypad,
 STR_PRICE_PAD_INFO	12	168	WRAP:3	src/ui/price_pad.cpp right column, PP_COL_W
 
 # --- the database picker (db_pick_screen.cpp), widths read off its constants ----
-# The copy popup's tiles (src/ui/entry_tile.cpp): three of 144 px, the caption
-# 12 px narrower, wrapped under the symbol to two lines at most.
-STR_DBPICK_BTN	16	132	WRAP:2	src/ui/copy_flow.cpp copyEntryTiles, tile caption
-STR_NEWTAG_BTN	16	132	WRAP:2	src/ui/copy_flow.cpp copyEntryTiles, tile caption
-STR_COPY_ACTIVE_BTN	16	132	WRAP:2	src/ui/copy_flow.cpp copyEntryTiles, tile caption
-STR_COPY_ARCHIVED_BTN	16	132	WRAP:2	src/ui/copy_flow.cpp copyEntryTiles, tile caption
+# The copy popup's tiles (src/ui/entry_tile.cpp): up to four of 106 px with
+# "Enter filament" (STR_SORT_BTN), the caption 12 px narrower, wrapped under the
+# symbol to two lines at most. "Neu aus Tag anlegen" and "Créer depuis le tag"
+# take three lines at 94 px; the tile for a tag only comes with a Bambu tag
+# (tag_create.cpp), which never gets the fourth tile, so it stays in a row of three.
+STR_DBPICK_BTN	16	94	WRAP:2	src/ui/copy_flow.cpp copyEntryTiles, tile caption
+STR_NEWTAG_BTN	16	94	WRAP:3	src/ui/copy_flow.cpp copyEntryTiles, tile caption
+STR_COPY_ACTIVE_BTN	16	94	WRAP:2	src/ui/copy_flow.cpp copyEntryTiles, tile caption
+STR_COPY_ARCHIVED_BTN	16	94	WRAP:2	src/ui/copy_flow.cpp copyEntryTiles, tile caption
 STR_DBPICK_LOADING	20	360	WRAP:2	src/ui/db_pick_screen.cpp:597 wait card title, UI_POPUP_W - UI_CARD_TEXT_PAD
 STR_DBPICK_MAKER_TITLE	16	376	NEVER	src/ui/db_pick_screen.cpp:341 header title, 480 - 2 * (44 + 2 * 4)
 STR_DBPICK_OWNED	14	452	NEVER	src/ui/db_pick_screen.cpp caption, DBP_ROW_W
@@ -476,3 +479,65 @@ STR_COPY_PART_PRESETS	14	155	NEVER	src/ui/copy_flow.cpp lbl_status, HDR_STATUS_W
 STR_COPY_PART_SUPPLIERS	14	155	NEVER	src/ui/copy_flow.cpp lbl_status, HDR_STATUS_W 292 less the sentence (137 px)
 STR_COPY_PART_KPROFILES	14	155	NEVER	src/ui/copy_flow.cpp lbl_status, HDR_STATUS_W 292 less the sentence (137 px)
 STR_COPY_PART_FILAMENT	14	155	NEVER	src/ui/copy_flow.cpp lbl_status, HDR_STATUS_W 292 less the sentence (137 px)
+# --- a filament entered at the scale (ui/tag_create_popup.cpp, ui/sort_twin_popup.cpp) --------
+# The card's title is centred in the card's text width; the hint replaces the status line.
+STR_SORT_CARD_TITLE	20	360	NEVER	src/ui/tag_create_popup.cpp buildHead title, UI_POPUP_W - UI_CARD_TEXT_PAD
+STR_SORT_NEW_FILAMENT	16	360	NEVER	src/ui/tag_create_popup.cpp status line of the card, UI_POPUP_W - UI_CARD_TEXT_PAD
+STR_SORT_NO_DENSITY	14	360	WRAP:2	src/ui/tag_create_popup.cpp status line in the small font, two lines (2 x 16 px) end at UI_CARD_ROW_Y
+# The twin box over the card: title and text in the card's text width, two buttons of 184 px.
+STR_SORT_TWIN_TITLE	20	360	NEVER	src/ui/sort_twin_popup.cpp title, UI_POPUP_W - UI_CARD_TEXT_PAD
+STR_SORT_TWIN_TEXT	16	360	WRAP:3	src/ui/sort_twin_popup.cpp question, UI_POPUP_W - UI_CARD_TEXT_PAD, %s is a filament name
+STR_SORT_TWIN_TAKE	16	164	NEVER	src/ui/sort_twin_popup.cpp button, STP_BTN_W minus 10 px air each side
+STR_SORT_TWIN_NEW	16	164	NEVER	src/ui/sort_twin_popup.cpp button, STP_BTN_W minus 10 px air each side
+# --- a filament entered at the scale: the ways in and the steps (ui/sort_entry_*.cpp) --------
+# The copy popup's fourth tile: (448 - 3 x 8) / 4 = 106 px, the caption 12 px narrower.
+STR_SORT_BTN	16	94	WRAP:2	src/ui/copy_flow.cpp copyEntryTiles, tile caption
+# Tiles across the list (DBP_ROW_W, SORT_ROW_W: 452), one label: minus 2 x (pad 2 + border 1).
+STR_SORT_NOT_LISTED	14	446	NEVER	src/ui/sort_entry_screen.cpp sortEntryPickTile, at the end of db_pick_screen.cpp's lists
+STR_SORT_NEW	14	446	NEVER	src/ui/sort_entry_screen.cpp sortNewTile, the last tile of every step
+STR_SORT_LAST	14	452	NEVER	src/ui/sort_entry_screen.cpp sortCaption, SORT_ROW_W
+STR_SORT_EXISTS	14	452	WRAP:2	src/ui/sort_entry_*.cpp caption on top of the step after a typed name, SORT_ROW_W, %s a name
+# --- a filament entered at the scale: the keys, the material and the line (ui/sort_entry_keys.cpp, ui/sort_entry_steps.cpp) --------
+# The keyboard is a full screen with no buttons in its head, its title as wide as the one of "New spool type".
+STR_SORT_KEY_MAKER	18	460	NEVER	src/ui/sort_entry_keys.cpp sortKeysShow title, 480 - 2 * SORT_KEYS_SIDE (10)
+STR_SORT_KEY_MATERIAL	18	460	NEVER	src/ui/sort_entry_keys.cpp sortKeysShow title, 480 - 2 * SORT_KEYS_SIDE (10)
+STR_SORT_KEY_LINE	18	460	NEVER	src/ui/sort_entry_keys.cpp sortKeysShow title, 480 - 2 * SORT_KEYS_SIDE (10)
+STR_SORT_EMPTY	14	440	NEVER	src/ui/sort_entry_keys.cpp word line under the field, SORT_KEYS_FIELD_W (it wraps, two lines end above the keyboard)
+STR_SORT_OTHER_MATERIALS	14	452	NEVER	src/ui/sort_entry_steps.cpp sortCaption, SORT_ROW_W
+# A tile of three to a row (SORT_TILE_W 148), one label: minus 2 x (pad 2 + border 1).
+STR_SORT_NO_LINE	14	142	NEVER	src/ui/sort_entry_steps.cpp sortTile, the first tile of the line step
+# The header title, as the maker step's; %s is a material of up to 16 bytes, the label ends in dots beyond.
+STR_SORT_LINE_TITLE	16	376	NEVER	src/ui/sort_entry_steps.cpp sortTitle, 480 - 2 * (44 + 2 * 4)
+# --- a filament entered at the scale: colour, hue, weight and diameter (ui/sort_entry_pick.cpp) --------
+# The header title, as the line step's; a long vendor, material, line or colour name ends in dots.
+STR_SORT_COLOUR_TITLE	16	376	NEVER	src/ui/sort_entry_pick.cpp sortTitle, 480 - 2 * (44 + 2 * 4), %s %s vendor and material with line
+STR_SORT_RASTER_TITLE	16	376	NEVER	src/ui/sort_entry_pick.cpp sortTitle, 480 - 2 * (44 + 2 * 4), %s the colour typed new
+STR_SORT_WEIGHT_TITLE	16	376	NEVER	src/ui/sort_entry_pick.cpp sortTitle, 480 - 2 * (44 + 2 * 4)
+# Captions across the list (SORT_ROW_W); the hint over the colour grid wraps.
+STR_SORT_THIS_MAKER	14	452	NEVER	src/ui/sort_entry_pick.cpp sortCaption, SORT_ROW_W
+STR_SORT_COMMON	14	452	NEVER	src/ui/sort_entry_pick.cpp sortCaption, SORT_ROW_W
+STR_SORT_HUE_HINT	14	452	WRAP:2	src/ui/sort_entry_pick.cpp sortCaption on top of the colour grid, SORT_ROW_W
+# The keyboard's title and its word line, as on the other steps.
+STR_SORT_KEY_COLOUR	18	460	NEVER	src/ui/sort_entry_keys.cpp sortKeysShow title, 480 - 2 * SORT_KEYS_SIDE (10)
+STR_SORT_KEY_HEX	18	460	NEVER	src/ui/sort_entry_keys.cpp sortKeysShow title, 480 - 2 * SORT_KEYS_SIDE (10)
+STR_SORT_KEY_GRAMS	18	460	NEVER	src/ui/sort_entry_keys.cpp sortKeysShow title, 480 - 2 * SORT_KEYS_SIDE (10)
+STR_SORT_HEX_BAD	14	440	NEVER	src/ui/sort_entry_keys.cpp word line under the field, SORT_KEYS_FIELD_W
+STR_SORT_GRAMS_BAD	14	440	NEVER	src/ui/sort_entry_keys.cpp word line under the field, SORT_KEYS_FIELD_W
+# "Enter hex" across the list right under the hint over the grid (SORT_ROW_W), one label: minus 2 x (pad 2 + border 1).
+STR_SORT_HEX	14	446	NEVER	src/ui/sort_entry_pick.cpp sortTile widened to SORT_ROW_W, under the hint, above the colour grid
+# A tile of three to a row (SORT_TILE_W 148), one label: minus 2 x (pad 2 + border 1).
+STR_SORT_TYPE_GRAMS	14	142	NEVER	src/ui/sort_entry_pick.cpp sortTile, the last tile of the weight step
+
+# --- the tiles of the unknown spool's card, with "Enter filament" as a fourth (unknown_spool_popup.cpp) ---
+# Four tiles to a row are (UNK_ROW_W 412 - 3 * UNK_GAP 8) / 4 = 97 px, and the German
+# "Verknüpfen" is 97 px in the body font (16), the whole tile: a row of four sets the
+# captions in the small font (14) across 97 - UNK_TILE_AIR (4) = 93 px, two lines at most
+# (the symbol at y 16, the caption from y 48, the tile 96 high). fit_check --measure 14:
+# Verknüpfen 87, Datenbank 82, Nouvelle de 87, eingeben 71, filament 62, Kopie 42.
+# A row of three (a tag that is not a Bambu one, no database) is 132 px, body font,
+# the caption 132 - UNK_X (12) = 120 px: "Sorte eingeben" (125 px) wraps to two lines.
+STR_REMOTE_LINK_CONFIRM	14	93	NEVER	src/ui/unknown_spool_popup.cpp tile caption, a row of four
+STR_UNK_TILE_COPY	14	93	NEVER	src/ui/unknown_spool_popup.cpp tile caption, a row of four
+STR_DBPICK_BTN	14	93	WRAP:2	src/ui/unknown_spool_popup.cpp tile caption, a row of four
+STR_SORT_BTN	14	93	WRAP:2	src/ui/unknown_spool_popup.cpp tile caption, a row of four
+STR_SORT_BTN	16	120	WRAP:2	src/ui/unknown_spool_popup.cpp tile caption, a row of three
