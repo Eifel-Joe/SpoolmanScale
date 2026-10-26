@@ -40,9 +40,10 @@
 //  (section 3). Every way off the card that creates nothing clears what was
 //  read: Cancel, back from the list of types, a read that failed; the create
 //  clears it in doCopySpoolCreate(). A card closed from outside the flow
-//  (hideSpoolFlowOverlays()) leaves it to the next read, which replaces it:
-//  nothing is created from it in between, a create comes only from this
-//  card and this card only after a read.
+//  (hideSpoolFlowOverlays()) leaves it to the next card: behind Bambuddy on
+//  Spoolman its read replaces it, outside it the card clears it as it opens.
+//  Nothing is created from it in between, a create comes only from this
+//  card and this card only after that.
 // ============================================================
 
 // The lines of the card.
@@ -123,8 +124,19 @@ static void copyPriceRefresh() {
 // The pad's answer, from the loop (pricePadTick()): the price of the new
 // spool, 0 for an emptied field; a cancelled pad does not call. A card that
 // was closed meanwhile takes no price: nothing is created from it.
+//
+// Wurzel: OK calls back with whatever the field holds, also with the price it
+// was filled in with, and that is the spool's price (the template's price per
+// kg times the label), not a price per kg: taken for a typed one it goes back
+// through the label, and 24.99 per kg on a 250 g label, shown as 6.25, would
+// be sent as 25.00. Fix: nothing typed before and the value within half a cent
+// of the template's price for this label is no typed price; the template's
+// price per kg stays untouched unless a different price was typed.
+// NOT-TO-DO: copyBbsSetPrice() for it, the double rounding that copy_rules.h
+// marks as not to do.
 static void copyPriceTyped(float price) {
   if (!scr_copy_confirm || !s_copy_bbs) return;
+  if (!s_copy_price_typed && fabsf(price - s_copy_price_tpl) < 0.005f) return;
   s_copy_price_typed = true;
   s_copy_price       = price;
   copyBbsSetPrice(price);
@@ -428,6 +440,10 @@ void showCopyConfirmPopup(int template_spool_id, int template_filament_id,
   // template that cannot be read gets that read's hint, and the way back is
   // Cancel's: no card for a copy that would create nothing (Festlegung 8).
   s_copy_bbs = spoolTypesActive();
+  // A card outside it starts with nothing read: a BBS card closed from outside
+  // the flow left its template and a typed price behind, and a create for the
+  // same template would reuse them once the mode is back.
+  if (!s_copy_bbs) copyBbsClear();
   if (s_copy_bbs && !copyBbsLoad(template_spool_id)) {
     copyBackToList();
     showInfoPopup(STR_SERVER_DOWN_TITLE, STR_SERVER_DOWN_TEXT, INFO_WARN);
