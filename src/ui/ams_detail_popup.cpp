@@ -23,6 +23,7 @@
 #include "status_picker.h"
 #include "theme.h"
 #include "ui_common.h"
+#include "ui/color_tile_popup.h"
 
 // Last, and after everything that pulls in ArduinoJson: its template
 // parameter T collides with the T() macro this header defines.
@@ -51,6 +52,7 @@
 #define AMSD_VF           16
 
 #define AMSD_SWATCH       42
+#define AMSD_SWATCH_TAP_EXT_PX 4   // a tap this far past the swatch opens the colour tile
 #define AMSD_ID_X         60
 #define AMSD_ID_W         46
 #define AMSD_MAT_X        114
@@ -613,6 +615,13 @@ static void buildDivider(lv_obj_t* box, int y) {
   lv_obj_set_style_pad_all(d, 0, 0);
 }
 
+// The bay's colour in large: its colour name where the backend has one,
+// the trade name otherwise.
+static ColorTileSpec amsTileSpec() {
+  const char* name = s_det.color_name[0] ? s_det.color_name : s_det.name;
+  return ColorTileSpec{s_det.color, SpoolColor{}, name};
+}
+
 // Swatch, id, material, trade name - what identifies the spool, on one line.
 static void buildIdentity(lv_obj_t* box, const AmsSpoolDetail& d) {
   lv_obj_t* sw = lv_obj_create(box);
@@ -626,6 +635,7 @@ static void buildIdentity(lv_obj_t* box, const AmsSpoolDetail& d) {
     lv_obj_clear_flag(sw, LV_OBJ_FLAG_SCROLLABLE);
     if (d.color.valid) swatchPaint(sw, d.color);
     else lv_obj_set_style_bg_color(sw, lv_color_hex(UI_COL_EMPTY), 0);
+    colorTileAttach(sw, amsTileSpec, AMSD_SWATCH_TAP_EXT_PX);
   }
 
   // The id caption doubles as the place the tag binding is reported: a spool

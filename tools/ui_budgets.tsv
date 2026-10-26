@@ -445,6 +445,11 @@ STR_IDPAD_NOT_FOUND_HINT	12	148	WRAP:5	src/ui/spool_id_pad.cpp answer card under
 # Status line, narrow variant 262, minus the clear button (40) and its gap (8).
 STR_ID_SPOOL_STATUS	14	214	NEVER	src/app/id_spool.cpp lbl_status, clear button behind it
 
+# Colour tile: the kind right of the codes. Two codes "#RRGGBBAA  #RRGGBBAA" at
+# font 16 end near x 214, the label ends at 426; 180 keeps a gap between them.
+STR_COLOR_TILE_TWO	14	180	NEVER	src/ui/color_tile_popup.cpp kind beside the codes
+STR_COLOR_TILE_CLEAR	14	180	NEVER	src/ui/color_tile_popup.cpp kind beside the codes
+
 # --- the copy card behind Bambuddy on Spoolman (design note J) --------------
 # src/ui/copy_confirm_popup.cpp, only with spoolTypesActive(): the card grows
 # to 304 px for two f14 lines under line 2, and the answers become

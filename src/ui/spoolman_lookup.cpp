@@ -564,7 +564,7 @@ void applyServerColor(const String& sm_color, bool is_bambu_tag) {
   spoolColorParse(sm_color.c_str(), &server);
   const SpoolColor shown = is_bambu_tag ? spoolColorResolve(g_tag.color, server) : server;
   if (!shown.valid) return;
-  swatchPaint(lbl_color_swatch, shown);
+  mainSwatchPaint(shown, is_bambu_tag ? tagSecondColor(shown) : nullptr);
   // The raw server value rather than the parsed one, so a malformed colour is
   // visible in the log instead of silently reading as grey.
   Serial.printf("Color set: tag %s, server '%s'\n", g_tag.color_hex, sm_color.c_str());
@@ -1198,7 +1198,7 @@ void querySpoolman(const char* tray_uuid, LookupOrigin origin) {
   if (!is_bambu_tag && !tagCachedHasRecord()) {
     lv_label_set_text(lbl_material, "-");
     lv_label_set_text(lbl_vendor, "-");
-    swatchPaint(lbl_color_swatch, SpoolColor{});
+    mainSwatchPaint(SpoolColor{}, nullptr);
   }
   sm_last_dried[0] = '\0';
   sm_article_nr[0] = '\0';

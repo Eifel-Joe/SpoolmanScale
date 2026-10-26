@@ -1920,6 +1920,8 @@ enum StringID {
   STR_W_SETS_EDIT,
   STR_W_SETS_DELETE,
   STR_W_SETS_DELETE_ASK,
+  STR_COLOR_TILE_TWO,
+  STR_COLOR_TILE_CLEAR,
 
   // A copy behind Bambuddy on Spoolman: what it takes over (design note J)
   STR_COPY_CARD_PROFILE,    // copy card: %s the template's profile, "-" without one
