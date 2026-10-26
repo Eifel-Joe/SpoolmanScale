@@ -61,8 +61,10 @@ int spoolTypeFilter(const SpoolType* list, int n, const char* vendor, int* out, 
   return count;
 }
 
-int spoolTypeNear(const SpoolType* list, int n, const char* vendor, float grams, float tol,
-                  int* out, int out_max) {
+int spoolTypeNear(const SpoolType* list, int n, const SpoolTypeNearQuery& q, int* out, int out_max) {
+  const char* vendor = q.vendor;
+  const float grams  = q.grams;
+  const float tol    = q.tol;
   if (!list || !out || n <= 0 || out_max <= 0) return 0;
   // The negated comparisons also catch a value that is not a number.
   if (!isfinite(grams) || grams <= 0.0f) return 0;

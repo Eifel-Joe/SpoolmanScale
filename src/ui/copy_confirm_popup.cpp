@@ -86,6 +86,13 @@ static lv_obj_t* s_copy_price_lbl      = nullptr;
 static float     s_copy_price_tpl      = 0.0f;   // the template's, for this label
 static bool      s_copy_price_typed    = false;
 static float     s_copy_price          = 0.0f;   // typed; 0: emptied, no price
+// The list of types was answered for this copy, a type or "without type":
+// copyCreateRequest() takes it along with the values for the create, which
+// marks the new spool for the first weighing (tareEntryFirstWeighDone()).
+// Set with s_copy_core, cleared with it for every new confirmation.
+static bool     s_copy_type_asked      = false;
+
+bool copyTypeAsked() { return s_copy_type_asked; }
 
 void closeCopyConfirmPopup() {
   releaseScreen(&scr_copy_confirm);
@@ -403,12 +410,14 @@ static void buildCopyCard() {
 }
 
 static void copyTypePicked(float grams, const char*) {
-  s_copy_core = grams;
+  s_copy_core       = grams;
+  s_copy_type_asked = true;
   buildCopyCard();
 }
 
 static void copyTypeWithout() {
-  s_copy_core = 0.0f;
+  s_copy_core       = 0.0f;
+  s_copy_type_asked = true;
   buildCopyCard();
 }
 
@@ -425,7 +434,8 @@ void showCopyConfirmPopup(int template_spool_id, int template_filament_id,
   copy_template_name[sizeof(copy_template_name)-1] = '\0';
   copy_template_has_look = look != nullptr;
   if (look) copy_template_look = *look;
-  s_copy_core = 0.0f;
+  s_copy_core       = 0.0f;
+  s_copy_type_asked = false;
   // A new card starts from the template's price, as the read below forgets a
   // price typed for the one before.
   s_copy_price_typed = false;

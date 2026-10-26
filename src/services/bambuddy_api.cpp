@@ -541,6 +541,23 @@ bool bbGetVersion(const char* base_url, const char* api_key,
   return true;
 }
 
+int bbGetExternalUrl(const char* base_url, const char* api_key,
+                     char* out, size_t out_size, uint32_t timeout_ms) {
+  if (!out || out_size == 0) return -1;
+  out[0] = '\0';
+  if (!hasBaseUrl(base_url)) return -1;
+
+  char url[160];
+  snprintf(url, sizeof(url), "%s/api/v1/settings/", base_url);
+  // The settings are a long list; only the one field is kept.
+  JsonDocument filter;
+  filter["external_url"] = true;
+  JsonDocument doc;
+  const int code = getJson(url, api_key, doc, timeout_ms, nullptr, &filter);
+  if (code == 200) snprintf(out, out_size, "%s", doc["external_url"] | "");
+  return code;
+}
+
 int bbGetSpoolRawJson(const char* base_url, const char* api_key, int spool_id,
                       JsonDocument& doc, uint32_t timeout_ms,
                       DeserializationError* out_err) {

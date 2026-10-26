@@ -1837,6 +1837,27 @@ enum StringID {
   STR_TAGNEW_W_OVER_TARE, // the same, with an inherited empty spool to check
   STR_COPY_CARD_TARE,     // copy card line 3: the weight line and the template's empty spool
 
+  // Printing on the PC through FilaMan (ui/pc_print_popup.cpp)
+  STR_PCP_TITLE,          // the card's title
+  STR_PCP_SUB,            // under it: what it takes on the PC
+  STR_PCP_SPOOL,          // the two kinds of label
+  STR_PCP_FILAMENT,
+  STR_PCP_SENDING,        // while the request is on its way
+  STR_PCP_SENT_TITLE,     // filed
+  STR_PCP_SENT_TEXT,      // what to do in the browser, quoting FilaMan's own button
+  STR_PCP_FAIL_TITLE,     // refused; FilaMan's own reason goes under it
+  STR_PCP_NO_ROUTE,       // a FilaMan before 1.4.3
+
+  // Spool by ID (ui/spool_id_pad.cpp, app/id_spool.cpp)
+  STR_BTN_SPOOL_BY_ID,        // the main screen's left slot while empty, and the pad's title
+  STR_IDPAD_INFO,             // beside the keys: where the id is, and that nothing saves on its own
+  STR_IDPAD_SEARCH,           // the pad's action button before a spool was found
+  STR_IDPAD_SEARCHING,        // in the answer column while the server is asked
+  STR_IDPAD_THIS_SPOOL,       // the action button once the spool is shown
+  STR_IDPAD_NOT_FOUND,        // %d: the id that was typed
+  STR_IDPAD_NOT_FOUND_HINT,   // under it
+  STR_ID_SPOOL_STATUS,        // the status line while a spool is shown by its id
+
   // A copy behind Bambuddy on Spoolman: what it takes over (design note J)
   STR_COPY_CARD_PROFILE,    // copy card: %s the template's profile, "-" without one
   STR_COPY_CARD_MODEL,      // behind the profile: %d profile per printer model, one

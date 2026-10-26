@@ -2,6 +2,7 @@
 #include <ArduinoJson.h>
 #include <esp_heap_caps.h>
 #include <math.h>
+#include <string.h>
 
 #include "services/filaman_labels.h"
 
@@ -192,4 +193,34 @@ int filamanLabelRender(const FilamanLabelRequest& req, LabelRaster* out,
          req.spool_id, preset.c_str(), rotated == "1" ? "yes" : "no",
          (unsigned)out->width, (unsigned)out->height, millis() - started);
   return 200;
+}
+
+// Measured on 1.4.3: a POST to a path FilaMan does not route answers 405, not
+// 404. The 404 of a spool that is not there carries a detail of its own.
+static bool noPrintRoute(int code, const char* reason) {
+  return code == 405 || (code == 404 && reason && strcmp(reason, "Not Found") == 0);
+}
+
+int filamanLabelPrintRequest(const char* base_url, const char* api_key, bool filament,
+                             int id, char* reason, size_t reason_size, uint32_t timeout_ms) {
+  if (reason && reason_size) reason[0] = '\0';
+  if (!hasBase(base_url) || id <= 0) return -1;
+
+  const char* kind = filament ? "filament" : "spool";
+  char path[FM_LABEL_PATH_LEN];
+  snprintf(path, sizeof(path), "/api/v1/labels/%s/%d/print-request", kind, id);
+  BackendHttp http;
+  if (!http.begin(String(base_url) + path)) return -1;
+  http.setTimeout(timeout_ms);
+  filamanAddApiKey(http, api_key);
+  const int code = http.POST("");
+  if (code != 201) readReason(http, code, reason, reason_size);
+  http.end();
+  if (code == 201) {
+    logSDf("FilaMan: PC print of %s #%d requested", kind, id);
+    return code;
+  }
+  logSDf("FilaMan: PC print of %s #%d refused, HTTP %d: %s", kind, id, code,
+         reason ? reason : "");
+  return noPrintRoute(code, reason) ? FM_LABEL_NO_PC_PRINT : code;
 }

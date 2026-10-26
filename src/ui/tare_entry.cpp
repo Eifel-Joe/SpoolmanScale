@@ -323,30 +323,6 @@ static void onFullNext(lv_event_t *e) {
   openEntryList(req, entryFullPicked);
 }
 
-static lv_obj_t *padButton(lv_obj_t *parent, int x, int y, int w, int h,
-                           uint32_t bg, uint32_t bg_pressed) {
-  lv_obj_t *b = lv_btn_create(parent);
-  lv_obj_set_size(b, w, h);
-  lv_obj_set_pos(b, x, y);
-  lv_obj_set_style_bg_color(b, lv_color_hex(bg), 0);
-  lv_obj_set_style_bg_color(b, lv_color_hex(bg_pressed), LV_STATE_PRESSED);
-  lv_obj_set_style_radius(b, UI_RADIUS_INPUT, 0);
-  lv_obj_set_style_shadow_width(b, 0, 0);
-  lv_obj_set_style_border_width(b, 1, 0);
-  lv_obj_set_style_border_color(b, lv_color_hex(UI_COL_LINE_SOFT), 0);
-  return b;
-}
-
-static lv_obj_t *padLabel(lv_obj_t *btn, const char *text, uint32_t col, const lv_font_t *font) {
-  lv_obj_t *l = lv_label_create(btn);
-  lv_label_set_text(l, text);
-  lv_obj_set_style_text_color(l, lv_color_hex(col), 0);
-  lv_obj_set_style_text_font(l, font, 0);
-  lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_center(l);
-  return l;
-}
-
 // fill: the full spool's filament (design L5) instead of an empty weight:
 // whole grams, the label weight filled in where the spool has one, and the
 // fill amount buttons above Next.
@@ -360,16 +336,9 @@ static void showTarePad(bool fill) {
     if (label >= 1 && label <= FULL_FILL_MAX_G) snprintf(s_input, sizeof(s_input), "%ld", label);
   }
 
-  lv_obj_t *scr = lv_obj_create(lv_scr_act());
+  lv_obj_t *scr = buildOverlayScreen();
   s_pad = scr;
-  lv_obj_set_size(scr, 480, 320);
-  lv_obj_set_pos(scr, 0, 0);
-  lv_obj_set_style_bg_color(scr, lv_color_hex(UI_COL_GROUND), 0);
-  lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
-  lv_obj_set_style_border_width(scr, 0, 0);
-  lv_obj_set_style_radius(scr, 0, 0);
-  lv_obj_set_style_pad_all(scr, 0, 0);
-  lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_clear_flag(scr, LV_OBJ_FLAG_HIDDEN);
 
   lv_obj_t *title = lv_label_create(scr);
   lv_label_set_text(title, T(fill ? STR_FULL_TITLE : STR_TARE_ENTER_TITLE));
@@ -464,10 +433,10 @@ static void showTarePad(bool fill) {
 //  Weigh, type, spool type or full spool
 // ---------------------------------------------------------------------------
 
-static lv_obj_t *choiceButton(lv_obj_t *box, int x, int y, int w, int h, const char *text) {
+static lv_obj_t *choiceButton(lv_obj_t *box, int y, int w, int h, const char *text) {
   lv_obj_t *b = lv_btn_create(box);
   lv_obj_set_size(b, w, h);
-  lv_obj_set_pos(b, x, y);
+  lv_obj_set_pos(b, 12, y);
   lv_obj_set_style_bg_color(b, lv_color_hex(UI_COL_CHIP), 0);
   lv_obj_set_style_bg_color(b, lv_color_hex(UI_COL_PRESS_FILL), LV_STATE_PRESSED);
   lv_obj_set_style_radius(b, UI_RADIUS_BTN, 0);
@@ -502,6 +471,9 @@ void showTareChoice() {
   // one above the other, weighing offered with the pad empty as well (the
   // press takes the reading then, an empty reel may be put down meanwhile).
   // Both have two rows, so the cancel row and the box height share a sum.
+  // choiceButton() is upstream's and puts a button at the column's x of 12;
+  // every button here gets its own x right after it (lv_obj_set_x), so the
+  // grid needs no sixth parameter (house rule, at most five).
   const bool grid   = spoolTypesActive();
   const bool on_pad = padHoldsSpool();
   const int BORDER = 2, BTN_H = 70, TOP = 44, BOTTOM = 10;
@@ -533,7 +505,8 @@ void showTareChoice() {
     char weigh_buf[96];
     // The empty spool without the parts on it: they are not the spool's.
     snprintf(weigh_buf, sizeof(weigh_buf), T(STR_TARE_CHOICE_WEIGH), spoolExtrasBareReading());
-    lv_obj_t *weigh = choiceButton(box, EDGE, TOP, BTN_W, BTN_H, weigh_buf);
+    lv_obj_t *weigh = choiceButton(box, TOP, BTN_W, BTN_H, weigh_buf);
+    lv_obj_set_x(weigh, EDGE);
     lv_obj_add_event_cb(weigh, [](lv_event_t *e) {
       // The reading at the moment of the press, as the old button took it.
       const float g = spoolExtrasBareReading();
@@ -544,8 +517,8 @@ void showTareChoice() {
 
   char type_buf[96];
   snprintf(type_buf, sizeof(type_buf), LV_SYMBOL_KEYBOARD "  %s", T(STR_TARE_CHOICE_TYPE));
-  lv_obj_t *type = grid ? choiceButton(box, X_R, TOP, BTN_W, BTN_H, type_buf)
-                        : choiceButton(box, EDGE, ROW2_Y, BTN_W, BTN_H, type_buf);
+  lv_obj_t *type = choiceButton(box, grid ? TOP : ROW2_Y, BTN_W, BTN_H, type_buf);
+  lv_obj_set_x(type, grid ? X_R : EDGE);
   lv_obj_add_event_cb(type, [](lv_event_t *e) {
     releaseScreen(&s_choice);
     showTarePad(false);
@@ -553,8 +526,8 @@ void showTareChoice() {
 
   if (grid) {
     // The maker's types, the one nearest the spool's empty weight marked.
-    lv_obj_t *by_type = choiceButton(box, EDGE, ROW2_Y, BTN_W, BTN_H,
-                                     T(STR_TARE_CHOICE_TYPES));
+    lv_obj_t *by_type = choiceButton(box, ROW2_Y, BTN_W, BTN_H, T(STR_TARE_CHOICE_TYPES));
+    lv_obj_set_x(by_type, EDGE);
     lv_obj_add_event_cb(by_type, [](lv_event_t *e) {
       SpoolTypeListReq req = {};
       req.mode = STL_VENDOR;
@@ -567,8 +540,8 @@ void showTareChoice() {
   }
 
   if (grid && on_pad) {
-    lv_obj_t *full = choiceButton(box, X_R, ROW2_Y, BTN_W, BTN_H,
-                                  T(STR_TARE_CHOICE_FULL));
+    lv_obj_t *full = choiceButton(box, ROW2_Y, BTN_W, BTN_H, T(STR_TARE_CHOICE_FULL));
+    lv_obj_set_x(full, X_R);
     lv_obj_add_event_cb(full, [](lv_event_t *e) {
       releaseScreen(&s_choice);
       showTarePad(true);
@@ -635,6 +608,22 @@ void tareEntryForgetAsked() {
   s_fw_asked_next = 0;
   s_fw_id = 0;
   s_fw_hold_id = 0;
+}
+
+// Root: since U a spool created at the scale without a type of its own, under
+// a filament or brand with an empty weight, keeps that weight inherited (L21),
+// so it has no tare of its own and firstWeighTick() asked for its type on the
+// same placement, right after our list had asked it during the create.
+// Fix: the create marks the new id the way firstWeighTick() marks a spool it
+// looked at, and only when the create's own input carries the answer
+// (TagCreateInput::spool_type_asked, copy_flow.cpp copy_create_asked).
+// NOT-TO-DO: no flag "skip the next new spool" set when the list answers: a
+// create cancelled or failed after the answer would leave it set for the
+// next, different spool.
+void tareEntryFirstWeighDone(int spool_id) {
+  if (spool_id <= 0) return;
+  if (!fwAsked(spool_id)) fwRemember(spool_id);
+  logSDf("UI: first weighing of spool %d: answered at creation", spool_id);
 }
 
 bool tareEntryHoldsAutoWeigh() {

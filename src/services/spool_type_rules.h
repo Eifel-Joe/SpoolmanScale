@@ -85,16 +85,25 @@ bool spoolTypeOfVendor(const char* type_name, const char* vendor);
 // no out or a vendor that has none).
 int spoolTypeFilter(const SpoolType* list, int n, const char* vendor, int* out, int out_max);
 
-// The indices of the types within tol grams of the weight (exactly tol
+// What spoolTypeNear() looks for. The list and where the answer goes are the
+// same pairs spoolTypeFilter() takes; what the near search asks on top of the
+// vendor (a weight and how far from it) goes into one struct with the vendor,
+// so the function keeps to five parameters (house rule).
+struct SpoolTypeNearQuery {
+  const char* vendor;   // the maker whose types are looked at
+  float grams;          // the weight the types are compared with
+  float tol;            // how far off a type may be, in grams either side
+};
+
+// The indices of the types within q.tol grams of q.grams (exactly q.tol
 // counts), the closest first, at most out_max of them: the nearest ones of
 // the whole set, not the first ones of the list. At the same distance the
-// order of the list decides. Only the types of that vendor are looked at,
+// order of the list decides. Only the types of q.vendor are looked at,
 // except that a vendor without any type in the list makes it all of them.
 // Returns how many were written, never writes beyond out_max. A weight that
 // is not a number, zero or negative, or a tolerance that is negative or not
 // a number, gives 0.
-int spoolTypeNear(const SpoolType* list, int n, const char* vendor, float grams, float tol,
-                  int* out, int out_max);
+int spoolTypeNear(const SpoolType* list, int n, const SpoolTypeNearQuery& q, int* out, int out_max);
 
 // The tare a full spool on the scale gives: the bare reading minus the
 // weight of the filament in it. Not cut; whether the result can be a spool

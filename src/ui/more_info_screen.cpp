@@ -807,10 +807,13 @@ void buildMoreInfoScreen() {
     });
   }
 
-  // Print label, left of the X. Only when it can do anything: Bluetooth on,
-  // a printer picked, a spool the backend knows. The print itself runs from
-  // the loop; it starts the BLE stack and blocks for seconds.
-  if (bleEnabled() && labelPrinterConfigured(labelPrinterLoadConfig()) && sm_found && sm_id > 0) {
+  // Print label, left of the X. Only when it can do anything: a spool the
+  // backend knows, and Bluetooth on with a printer picked - or, without one,
+  // FilaMan, which prints on the PC instead (ui/pc_print_popup.h). The print
+  // itself runs from the loop; it starts the BLE stack and blocks for seconds.
+  const bool bt_print = bleEnabled() && labelPrinterConfigured(labelPrinterLoadConfig());
+  const bool pc_print = !bt_print && backendIsFilaMan();
+  if ((bt_print || pc_print) && sm_found && sm_id > 0) {
     lv_obj_t *btn_print = lv_btn_create(hdr);
     lv_obj_set_size(btn_print, 116, 34);
     lv_obj_set_pos(btn_print, 282, 9);
@@ -823,11 +826,14 @@ void buildMoreInfoScreen() {
     // Read here, so the tap below finds it cached and never opens NVS itself.
     labelPrinterAskFirst();
     lv_obj_add_event_cb(btn_print, [](lv_event_t *e) {
-      logSD("BTN: MoreInfo -> print label");
-      // The print sheet first, unless the printer screen switched it off.
-      if (labelPrinterAskFirst()) show_print_sheet_pending = true;
+      const bool on_pc = (bool)(intptr_t)lv_event_get_user_data(e);
+      logSD(on_pc ? "BTN: MoreInfo -> print label on the PC" : "BTN: MoreInfo -> print label");
+      // Over Bluetooth the print sheet first, unless the printer screen
+      // switched it off.
+      if (on_pc) show_pc_print_pending = true;
+      else if (labelPrinterAskFirst()) show_print_sheet_pending = true;
       else print_spool_label_pending = true;
-    }, LV_EVENT_CLICKED, NULL);
+    }, LV_EVENT_CLICKED, (void*)(intptr_t)pc_print);
     lv_obj_t *lbl_print = lv_label_create(btn_print);
     lv_label_set_text(lbl_print, T(STR_PRN_LABEL_PRINT));
     lv_obj_set_style_text_color(lbl_print, lv_color_hex(UI_COL_ACCENT), 0);
