@@ -1,4 +1,5 @@
 #include "ota_browser.h"
+#include "app_config.h"
 #include "navigation.h"
 #include "app/app_state.h"
 #include "app/deferred_actions.h"
@@ -37,6 +38,9 @@
 #define WEB_ROW_H        54
 #define WEB_HALF_W      222
 #define WEB_HALF_X2     246
+// The firmware row: status on the left, the installed version on the right.
+#define WEB_FW_STATUS_W 290
+#define WEB_FW_LINE_DY   10
 // The QR page the button opens.
 #define WEB_QR_FRAME_PX 200
 #define WEB_QR_CODE_PX  180
@@ -55,8 +59,12 @@ static WebScreenContext s_web_ctx = WEB_CTX_FIRMWARE;
 static lv_obj_t *s_lbl_key_val   = nullptr;
 static lv_obj_t *s_lbl_token_val = nullptr;
 
-// True when opening this screen had to switch something on. Only affects what
-// the screen says and how far the block below the address sits.
+// The line under the upload status: the file it wants, or what to do after a
+// failure. Only valid while lbl_ota_status is, which is built with it.
+static lv_obj_t *s_lbl_ota_hint = nullptr;
+
+// True when opening this screen had to switch something on for the visit.
+// Only affects what the screen says; the switching back is webVisitEnd()'s.
 static bool s_gate_opened = false;
 
 // Only the two FilaMan entry points need the credential rows. The drying
@@ -70,7 +78,7 @@ static bool showsCredentials() {
 }
 
 // Everything except the firmware upload uses the neutral title and skips the
-// .bin hint and the stop button.
+// upload's status row.
 static bool isFirmwareContext() {
   return s_web_ctx == WEB_CTX_FIRMWARE;
 }
@@ -97,25 +105,22 @@ void showOtaBrowserScreen(WebScreenContext ctx) {
   logSDf("UI: Screen -> Web interface (ctx=%d)", (int)ctx);
   s_web_ctx = ctx;
 
+  // First, because hiding the overlays ends any visit still open - this
+  // screen's own included, when it is shown again from itself.
+  hideAllOverlays();
+
   // Pressing the button is the request. Sending someone to an address that
   // answers 403 because a switch they have never seen is off is not a
   // safeguard, it is a dead end - and during the first time setup there is no
   // menu to go and find that switch in. The master has to come with it:
   // webGateOpen() is master_on && config_on, so the sub gate alone changes
-  // nothing, and "stop server" leaves the master off persistently.
+  // nothing. Open for the visit only: leaving this screen closes again what
+  // it opened, so a maintenance gate nobody switched on in the menu does not
+  // stay open for good (Nikolai, 26.10.2026).
   const WebTarget t = webTargetFor(ctx);
-  s_gate_opened = false;
-  if (!webMasterEnabled()) { webSetMasterEnabled(true); s_gate_opened = true; }
-  if (t.gate == GATE_MAINT && !webMaintenanceEnabled()) {
-    webSetMaintenanceEnabled(true);
-    s_gate_opened = true;
-  } else if (t.gate == GATE_CONFIG && !webConfigEnabled()) {
-    webSetConfigEnabled(true);
-    s_gate_opened = true;
-  }
+  s_gate_opened = webVisitOpen(t.gate);
   if (s_gate_opened) logSDf("Web: gate opened for %s (ctx=%d)", t.path, (int)ctx);
 
-  hideAllOverlays();
   lbl_ota_status = nullptr;
   s_lbl_key_val = nullptr;
   s_lbl_token_val = nullptr;
@@ -401,28 +406,29 @@ static void webBuildCredentials(lv_obj_t *scr) {
 }
 
 // The upload's status on the left, written by the web upload from the loop,
-// the file it wants under it; the stop button on the right.
+// the file it wants under it. The installed version on the right, so the file
+// can be checked against it before it is sent. No stop button: leaving the
+// screen closes what it opened, see showOtaBrowserScreen().
 static void webBuildFirmwareRow(lv_obj_t *scr) {
-  lv_obj_t *box = webRowBox(scr, WEB_CARD_X, WEB_HALF_W);
-  lv_obj_set_flex_flow(box, LV_FLEX_FLOW_COLUMN);
-  lv_obj_set_flex_align(box, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
-  lbl_ota_status = webLabel(box, T(STR_OTA_WAITING), UI_FONT_SMALL, UI_COL_WARN);
-  lv_label_set_long_mode(lbl_ota_status, LV_LABEL_LONG_WRAP);
-  lv_obj_set_width(lbl_ota_status, lv_pct(100));
-  webLabel(box, T(STR_OTA_FILE_NAME), UI_FONT_CAPTION, UI_COL_CAPTION);
+  lv_obj_t *box = webRowBox(scr, WEB_CARD_X, WEB_CARD_W);
+  lbl_ota_status = webLabel(box, T(STR_OTA_WAITING), UI_FONT_BODY, UI_COL_WARN);
+  lv_label_set_long_mode(lbl_ota_status, LV_LABEL_LONG_DOT);
+  lv_obj_set_width(lbl_ota_status, WEB_FW_STATUS_W);
+  lv_obj_align(lbl_ota_status, LV_ALIGN_LEFT_MID, 0, -WEB_FW_LINE_DY);
+  s_lbl_ota_hint = webLabel(box, T(STR_OTA_FILE_NAME), UI_FONT_CAPTION, UI_COL_CAPTION);
+  lv_obj_align(s_lbl_ota_hint, LV_ALIGN_LEFT_MID, 0, WEB_FW_LINE_DY);
 
-  lv_obj_t *stop = webRowButton(scr, UI_COL_BAD_BG, UI_COL_BAD_BG_PRESSED, UI_COL_CLOSE_LINE);
-  lv_obj_add_event_cb(stop, [](lv_event_t *e){
-    logSD("BTN: OtaBrowser -> Stop server");
-    // Turns the master switch off rather than the socket. A socket closed
-    // behind the switch's back came straight back up on the next sync, so
-    // the button used to promise something it could not deliver. This is
-    // persistent and shows as OFF on Settings > System > Web interface.
-    webSetMasterEnabled(false);
-    webServerSyncState();
-    show_ota_pending = true;
-  }, LV_EVENT_CLICKED, NULL);
-  lv_obj_center(webLabel(stop, T(STR_BTN_STOP_SERVER), UI_FONT_BODY, UI_COL_BAD_TEXT));
+  lv_obj_align(webLabel(box, T(STR_OTA_INSTALLED_CAP), UI_FONT_CAPTION, UI_COL_CAPTION),
+               LV_ALIGN_RIGHT_MID, 0, -WEB_FW_LINE_DY);
+  lv_obj_align(webLabel(box, FW_VERSION, UI_FONT_SMALL, UI_COL_INK_2),
+               LV_ALIGN_RIGHT_MID, 0, WEB_FW_LINE_DY);
+}
+
+void otaBrowserShowUploadFailed() {
+  if (!lbl_ota_status) return;
+  lv_label_set_text(lbl_ota_status, T(STR_OTA_FAIL));
+  lv_obj_set_style_text_color(lbl_ota_status, lv_color_hex(UI_COL_BAD_TEXT), 0);
+  lv_label_set_text(s_lbl_ota_hint, T(STR_OTA_RETRY_HINT));
 }
 
 static void webBuildDryingRow(lv_obj_t *scr) {
@@ -442,9 +448,9 @@ static void webBuildHeader(lv_obj_t *scr, const char *title) {
   }
   buildSubHeader(scr, title, [](lv_event_t *e){
     logSD("BTN: Web interface -> Back");
-    // Back does not close the server. Whether it listens is the master
-    // switch's business, and closing it here behind that switch's back
-    // is exactly what used to leave port 80 dead until the next reboot.
+    // Back does not close the server itself. The screen that comes next hides
+    // this one, which ends the visit, and the loop's once-a-second
+    // webServerSyncState() follows the switches from there.
     // Back goes where the user came from, not always to the update menu.
     switch (s_web_ctx) {
       case WEB_CTX_BACKEND: show_backend_pending         = true; break;
@@ -493,4 +499,11 @@ void buildOtaBrowserScreen() {
   if (showsCredentials())      webBuildCredentials(scr_ota_browser);
   else if (isFirmwareContext()) webBuildFirmwareRow(scr_ota_browser);
   else if (s_web_ctx == WEB_CTX_DRYING) webBuildDryingRow(scr_ota_browser);
+}
+
+// Called wherever this screen is hidden or deleted. Ends the visit and lets
+// the socket follow at once, as showing the screen does. An upload cannot be
+// cut off by it: the upload holds the loop, touch included, until it is over.
+void otaBrowserEndVisit() {
+  if (webVisitEnd()) webServerSyncState();
 }

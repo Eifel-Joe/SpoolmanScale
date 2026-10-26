@@ -17,6 +17,7 @@
 #include "ui/extra_fields_screen.h"
 #include "ui/language_screen.h"
 #include "ui/nfc_reset_popup.h"
+#include "ui/ota_browser.h"
 #include "ui/ota_github.h"
 #include "ui/pc_print_popup.h"
 #include "ui/printer_screen.h"
@@ -67,6 +68,7 @@ void hideAllOverlays() {
   if (scr_web)         lv_obj_add_flag(scr_web,         LV_OBJ_FLAG_HIDDEN);
   if (scr_ota)         lv_obj_add_flag(scr_ota,         LV_OBJ_FLAG_HIDDEN);
   if (scr_ota_browser) lv_obj_add_flag(scr_ota_browser, LV_OBJ_FLAG_HIDDEN);
+  otaBrowserEndVisit();
   if (scr_ota_github)  lv_obj_add_flag(scr_ota_github,  LV_OBJ_FLAG_HIDDEN);
   if (scr_factor)      lv_obj_add_flag(scr_factor,      LV_OBJ_FLAG_HIDDEN);
   if (scr_bag)         lv_obj_add_flag(scr_bag,         LV_OBJ_FLAG_HIDDEN);
@@ -128,6 +130,7 @@ void deleteOtaScreens() {
   if (scr_ota)         { lv_obj_del(scr_ota);         scr_ota         = nullptr; }
   lbl_gh_btn_badge = nullptr;
   if (scr_ota_browser) { lv_obj_del(scr_ota_browser); scr_ota_browser = nullptr; }
+  otaBrowserEndVisit();
   lbl_ota_status = nullptr;      // written by the web upload from the loop
   if (scr_ota_github)  { lv_obj_del(scr_ota_github);  scr_ota_github  = nullptr; }
   otaGithubForgetLabels();       // written by the parked check from the loop

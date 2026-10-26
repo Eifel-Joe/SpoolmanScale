@@ -194,9 +194,6 @@ const char* const STRINGS[][3] = {
   { LV_SYMBOL_WARNING "  Update fehlgeschlagen",
     LV_SYMBOL_WARNING "  Update failed",
     LV_SYMBOL_WARNING "  Échec de la mise à jour" },  // STR_OTA_FAIL
-  { LV_SYMBOL_CLOSE "  Server stoppen",
-    LV_SYMBOL_CLOSE "  Stop server",
-    LV_SYMBOL_CLOSE "  Arrêter le serveur" },  // STR_BTN_STOP_SERVER
   { "Aktuell: %s", "Current: %s", "Actuelle : %s" },  // STR_OTA_CURRENT
 
   // QR Popups
@@ -1870,9 +1867,9 @@ const char* const STRINGS[][3] = {
 
   // Web access. The first line is an LVGL label and stays one row wide; the
   // other two are the web footer and carry HTML.
-  { "Weboberfläche dafür freigeschaltet",
-    "Web interface switched on for this",
-    "Interface web activée pour cette action" },  // STR_WEB_GATE_OPENED
+  { "Für diesen Schritt freigeschaltet",
+    "Switched on for this step",
+    "Activée pour cette étape" },  // STR_WEB_GATE_OPENED
   { "sind am Gerät ausgeschaltet und werden nicht ausgeliefert. Einschalten unter",
     "are switched off on the device and are not being served. Switch them on under",
     "sont désactivés sur l'appareil et ne sont pas servis. Activez-les dans" },  // STR_W_FOOT_GATE_OFF
@@ -4063,6 +4060,11 @@ const char* const STRINGS[][3] = {
   { "SpoolmanScale vX.Y.Z.bin",
     "SpoolmanScale vX.Y.Z.bin",
     "SpoolmanScale vX.Y.Z.bin" },  // STR_OTA_FILE_NAME
+  // Over the running version, right in the firmware upload's status row.
+  { "Installiert", "Installed", "Installée" },  // STR_OTA_INSTALLED_CAP
+  // Replaces the file name under the status once an upload failed.
+  { "Im Browser erneut versuchen", "Try again in the browser",
+    "Réessayez dans le navigateur" },  // STR_OTA_RETRY_HINT
 };
 
 StringID tagWriteResultString(uint8_t code) {

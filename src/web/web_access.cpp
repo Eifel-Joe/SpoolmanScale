@@ -77,6 +77,30 @@ void webSetMaintenanceEnabled(bool on) {
   prefsPutBool("web_maint", on);
 }
 
+// What the current visit switched on, so ending it switches off exactly that
+// and leaves alone what was on before.
+static bool s_visit_master = false;
+static bool s_visit_config = false;
+static bool s_visit_maint  = false;
+
+bool webVisitOpen(WebGate g) {
+  if (!master_on) { master_on = true; s_visit_master = true; }
+  if (g == GATE_CONFIG && !config_on)      { config_on = true;      s_visit_config = true; }
+  if (g == GATE_MAINT  && !maintenance_on) { maintenance_on = true; s_visit_maint  = true; }
+  return s_visit_master || s_visit_config || s_visit_maint;
+}
+
+bool webVisitEnd() {
+  if (!s_visit_master && !s_visit_config && !s_visit_maint) return false;
+  if (s_visit_master) master_on      = false;
+  if (s_visit_config) config_on      = false;
+  if (s_visit_maint)  maintenance_on = false;
+  logSDf("Web: visit over, closed%s%s%s", s_visit_master ? " master" : "",
+         s_visit_config ? " config" : "", s_visit_maint ? " maintenance" : "");
+  s_visit_master = s_visit_config = s_visit_maint = false;
+  return true;
+}
+
 bool webGateOpen(WebGate g) {
   switch (g) {
     case GATE_ALWAYS: return true;

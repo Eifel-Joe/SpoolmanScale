@@ -16,6 +16,7 @@
 #include "services/prefs_store.h"
 #include "services/update_check.h"
 #include "services/version_compare.h"
+#include "ui/ota_browser.h"
 #include "ui/ota_github.h"
 #include "ui/update_badges.h"
 #include "web/web_access.h"
@@ -132,7 +133,7 @@ void otaWebGithubTick() {
   }
   otaGithubOverlayHide();
   logSDf("OTA: install failed - %s", err);
-  if (lbl_ota_status) lv_label_set_text(lbl_ota_status, T(STR_OTA_FAIL));
+  otaBrowserShowUploadFailed();
 }
 
 static String body() {
@@ -744,8 +745,7 @@ static void routesTail(WebServer &srv) {
         logSD("Reboot: OTA browser update success");
         ESP.restart();
       } else {
-        if (lbl_ota_status) lv_label_set_text(lbl_ota_status,
-          T(STR_OTA_FAIL));
+        otaBrowserShowUploadFailed();
       }
     },
     // Chunk handler.
@@ -817,7 +817,7 @@ static void routesTail(WebServer &srv) {
         ota_upload_total  = 0;
         otaGithubOverlayHide();
         logSD("OTA: upload aborted by the client");
-        if (lbl_ota_status) lv_label_set_text(lbl_ota_status, T(STR_OTA_FAIL));
+        otaBrowserShowUploadFailed();
       } else if (upload.status == UPLOAD_FILE_WRITE) {
         if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
           logSDf("OTA: write failed after %u bytes, error %u",
@@ -826,7 +826,7 @@ static void routesTail(WebServer &srv) {
           ota_upload_active = false;
           failed = true;
           otaGithubOverlayHide();
-          if (lbl_ota_status) lv_label_set_text(lbl_ota_status, T(STR_OTA_FAIL));
+          otaBrowserShowUploadFailed();
           return;
         }
         ota_upload_done += upload.currentSize;

@@ -35,6 +35,15 @@ void webSetMaintenanceEnabled(bool on);
 
 void webAccessLoad();
 
+// A visit: a device screen that sends the user to a page opens what that
+// page needs, master switch included, for as long as the screen is up. Held
+// in RAM only, never written to NVS, so leaving the screen or a restart -
+// which is how a firmware upload ends - leaves the switches as they were.
+// Both return true when they changed a switch; ending a visit that opened
+// nothing does nothing.
+bool webVisitOpen(WebGate g);
+bool webVisitEnd();
+
 bool webGateOpen(WebGate g);
 
 // The lock on the two writing gates: a numeric password, typed on the device,
