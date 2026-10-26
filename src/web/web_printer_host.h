@@ -22,3 +22,9 @@ void webPrinterHostScript(String& h);
 
 // POST /api/printer/host: an IPv4 address, or nothing for none.
 void webPrinterHostRoutes(WebServer& srv);
+
+// A kept print result, a StringID (printerLastTestResult(),
+// printerLastLabelResult()), as the last-print line of the printer and label
+// pages, plain text for the page's own JSON quoting. A Brother's "sent" is
+// its card's title and then the hint: the hint alone read as a failure.
+String webPrinterResultLine(int result);

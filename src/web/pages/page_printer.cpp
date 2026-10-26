@@ -148,7 +148,7 @@ static String stateJson() {
   j += F("},\"lastTest\":");
   const int last = printerLastTestResult();
   if (last < 0) j += F("null");
-  else { j += '"'; j += jsonText(T(last)); j += '"'; }
+  else { j += '"'; j += jsonText(webPrinterResultLine(last).c_str()); j += '"'; }
   j += '}';
   return j;
 }

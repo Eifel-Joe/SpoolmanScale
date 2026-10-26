@@ -37,6 +37,7 @@
 #include "ui/date_display.h"
 #include "ui/printer_screen.h"
 #include "web/web_access.h"
+#include "web/web_printer_host.h"
 #include "web/web_printer_select.h"
 #include "web/web_shell.h"
 // Last on purpose: T() is a macro and ArduinoJson uses T as a template
@@ -222,7 +223,7 @@ static String stateJson(LabelKind kind) {
   j += F(",\"lastPrint\":");
   const int last = printerLastLabelResult();
   if (last < 0) j += F("null");
-  else { j += '"'; j += jsonEsc(T(last)); j += '"'; }
+  else { j += '"'; j += jsonEsc(webPrinterResultLine(last).c_str()); j += '"'; }
   j += F(",\"lastReason\":\"");
   if (last == STR_PRN_ERR_SERVER_LABEL) j += jsonEsc(labelServerLastReason());
   j += '"';

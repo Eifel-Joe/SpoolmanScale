@@ -73,3 +73,13 @@ void webPrinterHostRoutes(WebServer& srv) {
     srv.send(ok ? 200 : 500, "application/json", ok ? "{\"ok\":true}" : "{\"ok\":false}");
   });
 }
+
+// The print card says "Sent to the printer" over the hint; the line has
+// room for both, the scale's row only for the title.
+String webPrinterResultLine(int result) {
+  if (result != STR_PRN_NET_SENT_MSG) return String(T(result));
+  String s = T(STR_PRN_NET_SENT_TITLE);
+  s += F(". ");
+  s += T(STR_PRN_NET_SENT_MSG);
+  return s;
+}
