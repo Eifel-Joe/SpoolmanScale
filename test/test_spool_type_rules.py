@@ -266,6 +266,22 @@ int main() {
   assert(spoolTypeGrams(199.4f) == 199);
   assert(spoolTypeGrams(-3.0f) == 0);
   assert(spoolTypeGrams(NAN) == 0);
+
+  // U (V25): a type chosen for the spool goes before the chain and is trusted,
+  // also when it says Bambu's fixed 250 g; without one the chain stands as it is.
+  bool t = false;
+  assert(spoolTypeCreateTare(167, 250, false, &t) == 167 && t);
+  assert(spoolTypeCreateTare(250, 250, false, &t) == 250 && t);
+  assert(spoolTypeCreateTare(0, 250, false, &t) == 250 && !t);
+  assert(spoolTypeCreateTare(0, 200, true, &t) == 200 && t);
+  assert(spoolTypeCreateTare(0, 0, false, &t) == 0 && !t);
+  assert(spoolTypeCreateTare(-5, 200, true, &t) == 200 && t);
+  assert(spoolTypeCreateTare(167, 250, false, nullptr) == 167);
+  // L21: an inherited empty spool is not written onto the new one.
+  assert(spoolTypeOwnCore(250, true) == 0);
+  assert(spoolTypeOwnCore(167, false) == 167);
+  assert(spoolTypeOwnCore(0, false) == 0);
+  assert(spoolTypeOwnCore(-3, false) == 0);
   return 0;
 }
 '''
