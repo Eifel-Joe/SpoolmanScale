@@ -1,4 +1,4 @@
-"""Compile the production Brother QL job rules and check the bytes a QL-810W/820NWB takes for a 62 x 29 label, the mirrored raster row, the printable area, the printer's address, and which link an update leaves the printer on."""
+"""Compile the production Brother QL job rules and check the bytes a QL-810W/820NWB takes for a 62 x 29 label, the mirrored raster row, the printable area, the printer's address, how a line held open after the job ends and how the printer's bytes are shown, and which link an update leaves the printer on."""
 import subprocess
 import tempfile
 from pathlib import Path
@@ -23,6 +23,9 @@ static_assert(BROTHER_QL_ROW_BYTES == 90, "720 pins, 8 to a byte");
 static_assert(BROTHER_QL_LINE_BYTES == 93, "67 00 5A and one row");
 static_assert(BROTHER_QL_START_BYTES == 38, "the bytes before the first row");
 static_assert(BROTHER_QL_PRINT == 0x1A, "print with feeding");
+// After the last byte the line stays open for 10 s at most (Spec 5.3 L1), and
+// the loop looks at it on every pass instead of waiting for it.
+static_assert(BROTHER_QL_HOLD_MS == 10000, "the printer's 10 s");
 
 int main() {
   // DK-11209: 62 x 29 die-cut, 696 x 271 dots at 300 dpi (befunde 2).
@@ -66,6 +69,33 @@ int main() {
   assert(labelPrinterLinkFrom(LP_LINK_WLAN, false) == LP_LINK_WLAN && labelPrinterLinkFrom(LP_LINK_WLAN, true) == LP_LINK_WLAN);
   assert(labelPrinterLinkFrom(LP_LINK_OFF, true) == LP_LINK_BLE && labelPrinterLinkFrom(LP_LINK_BLE, false) == LP_LINK_OFF);
   assert(labelPrinterLinkFrom(7, false) == LP_LINK_OFF);
+  // One look at the held line: a recv() that does not wait. Bytes are the
+  // printer's answer and are shown, whenever they come; 0 is the printer's
+  // close, its normal end; nothing yet waits until the 10 s are over; any
+  // other failure is the line broken.
+  assert(brotherQlHoldVerdict(-1, true, 0) == BQH_WAIT);
+  assert(brotherQlHoldVerdict(-1, true, 9999) == BQH_WAIT);
+  assert(brotherQlHoldVerdict(-1, true, 10000) == BQH_TIMEOUT);
+  assert(brotherQlHoldVerdict(-1, true, 60000) == BQH_TIMEOUT);
+  assert(brotherQlHoldVerdict(0, false, 300) == BQH_CLOSED);
+  assert(brotherQlHoldVerdict(0, true, 300) == BQH_CLOSED);
+  assert(brotherQlHoldVerdict(0, false, 12000) == BQH_CLOSED);
+  assert(brotherQlHoldVerdict(32, false, 300) == BQH_DATA);
+  assert(brotherQlHoldVerdict(1, true, 12000) == BQH_DATA);
+  assert(brotherQlHoldVerdict(-1, false, 300) == BQH_ABORT);
+  assert(brotherQlHoldVerdict(-1, false, 12000) == BQH_ABORT);
+  // What the printer sent, for the card and the log: two hex digits a byte,
+  // a blank between them, whole bytes only when the room runs out.
+  const uint8_t got[] = {0x80, 0x20, 0x42, 0x34, 0x0A};
+  char hex[16];
+  assert(brotherQlBytesHex(got, 3, hex, sizeof(hex)) == 8 && strcmp(hex, "80 20 42") == 0);
+  assert(brotherQlBytesHex(got, 5, hex, sizeof(hex)) == 14 && strcmp(hex, "80 20 42 34 0A") == 0);
+  assert(brotherQlBytesHex(got, 5, hex, 12) == 11 && strcmp(hex, "80 20 42 34") == 0);
+  assert(brotherQlBytesHex(got, 5, hex, 3) == 2 && strcmp(hex, "80") == 0);
+  assert(brotherQlBytesHex(got, 5, hex, 2) == 0 && hex[0] == '\0');
+  assert(brotherQlBytesHex(got, 0, hex, sizeof(hex)) == 0 && hex[0] == '\0');
+  assert(brotherQlBytesHex(nullptr, 5, hex, sizeof(hex)) == 0 && hex[0] == '\0');
+  assert(brotherQlBytesHex(got, 5, nullptr, 0) == 0);
   return 0;
 }
 '''
