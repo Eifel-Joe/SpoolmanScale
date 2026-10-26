@@ -26,6 +26,11 @@
 //             more labels), 5 (the driver and its bytes) and 11
 //             (the rules with a host test).
 //
+//  After the job the driver keeps the line open for a while and
+//  the loop looks at it (brotherQlHoldVerdict below): what one
+//  look found decides whether to look again, and what the
+//  printer sent goes on the card as brotherQlBytesHex() writes it.
+//
 //  A job is, in this order:
 //    BROTHER_QL_INVALIDATE null bytes, brotherQlStart()'s 38 bytes,
 //    one brotherQlRow() (93 bytes) for every line of the label, and
@@ -90,3 +95,28 @@ size_t brotherQlJobBytes(uint16_t lines);
 // Nothing else passes, so no blank and no name (the socket is opened by
 // address, not by lookup).
 bool brotherQlHostValid(const char* host);
+
+// How long the line stays open after the last byte, at most (Spec 5.3 L1).
+// A QL-810W closes it once it has read the job, and closing first leaves it
+// busy (befunde 3); the QL-820NWBc keeps it open. Through this time the loop
+// looks at the line once per pass instead of waiting for it.
+#define BROTHER_QL_HOLD_MS      10000
+
+// What one look at the held line found. The look is a recv() that does not
+// wait: `got` is its result (bytes read, 0 for the printer's close, -1 for
+// none), `would_block` says that a -1 only means nothing has come yet, and
+// `held_ms` is the time since the last byte went out.
+enum BrotherQlHold : uint8_t {
+  BQH_WAIT = 0,  // nothing yet, look again on the next pass
+  BQH_CLOSED,    // the printer closed the line without a word: its normal end
+  BQH_DATA,      // the printer sent bytes, whenever they come: they are shown
+  BQH_ABORT,     // the line broke (a reset or another error): that is shown
+  BQH_TIMEOUT,   // BROTHER_QL_HOLD_MS in silence: the scale closes the line
+};
+BrotherQlHold brotherQlHoldVerdict(int got, bool would_block, uint32_t held_ms);
+
+// The bytes as two upper-case hex digits each, a blank between them, into
+// `out`, always terminated: as many whole bytes as `out_len` holds. Returns
+// the characters written, 0 (and "" where there is room) for no bytes or no
+// buffer.
+size_t brotherQlBytesHex(const uint8_t* bytes, size_t n, char* out, size_t out_len);

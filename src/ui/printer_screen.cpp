@@ -11,6 +11,7 @@
 #include "hardware/sd_logger.h"
 #include "lang.h"
 #include "services/ble_service.h"
+#include "services/brother_ql.h"
 #include "services/label_layout.h"
 #include "services/label_printer.h"
 #include "services/label_render.h"
@@ -384,8 +385,31 @@ static void rebuild() {
   lv_obj_clear_flag(scr_printer, LV_OBJ_FLAG_HIDDEN);
 }
 
+// What a Brother said in the 10 s its line is held after a label
+// (brother_ql.h): its bytes, or that it broke the line, on the print card
+// again, which waits for OK (Joerg, 26.10.2026). The printer closing the line
+// without a word is its normal end and only in the log. Looked at once per
+// pass; between labels there is no hold and nothing to do.
+// The bytes the card shows: two lines of hex under its one line of text (a
+// byte takes some 24 px of the 360); the log has every byte of the chunk.
+#define BROTHER_REPLY_SHOWN 24
+
+static void brotherReplyTick() {
+  brotherQlTick();
+  BrotherQlReply reply;
+  if (!brotherQlTakeReply(&reply)) return;
+  if (reply.kind == BQR_BYTES) {
+    char hex[BROTHER_REPLY_SHOWN * 3];
+    brotherQlBytesHex(reply.bytes, reply.n, hex, sizeof(hex));
+    printCardResult(LP_NET_REPLY, hex);
+  } else {
+    printCardResult(LP_NET_BROKEN);
+  }
+}
+
 void handlePrinterDeferredActions() {
   handleChoiceGridDeferredActions();
+  brotherReplyTick();
   printCardLoop();
   printSheetTick();
   printerOffsetTick();

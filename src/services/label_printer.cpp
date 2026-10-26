@@ -634,6 +634,8 @@ int labelPrintResultString(LabelPrintResult r) {
     case LP_NET_CONNECT:        return STR_PRN_ERR_NET_CONNECT;
     case LP_NET_ABORT:          return STR_PRN_ERR_NET_ABORT;
     case LP_PRINTER_OFF:        return STR_PRN_ERR_LINK_OFF;
+    case LP_NET_REPLY:          return STR_PRN_NET_REPLY_MSG;
+    case LP_NET_BROKEN:         return STR_PRN_NET_BROKEN_MSG;
     default:                    return STR_PRN_ERR_WRITE;
   }
 }

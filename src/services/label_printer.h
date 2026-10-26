@@ -142,6 +142,10 @@ enum LabelPrintResult : uint8_t {
   // The label printer is set to off. Not LP_LINK_OFF: that is the link's own
   // value above, and two enumerators of one name do not compile.
   LP_PRINTER_OFF,
+  // What a Brother said after a label, while its line was held (brother_ql.h):
+  // never the answer of a print, the screen raises them on their own.
+  LP_NET_REPLY,         // the printer sent bytes; they are shown
+  LP_NET_BROKEN,        // the printer broke the line
 };
 
 const LabelPrinterProfile& labelPrinterProfile(LabelPrinterModel model);

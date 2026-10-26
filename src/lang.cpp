@@ -2865,6 +2865,15 @@ const char* const STRINGS[][3] = {
   { "Kein Etikett? Deckel, Rolle und Modus \"Raster\" prüfen. Nicht erneut drucken - der Drucker holt es nach.",
     "No label? Check the lid, the roll and mode \"Raster\". Do not print again - the printer catches up.",
     "Pas d'étiquette ? Vérifiez capot, rouleau et mode « Raster ». Ne réimprimez pas - elle sortira plus tard." },  // STR_PRN_NET_SENT_MSG
+  { "Antwort vom Drucker",
+    "Reply from the printer",
+    "Réponse de l'imprimante" },  // STR_PRN_NET_REPLY_TITLE
+  { "Nach dem Etikett kam vom Drucker:",
+    "After the label the printer sent:",
+    "Après l'étiquette, l'imprimante a envoyé :" },  // STR_PRN_NET_REPLY_MSG
+  { "Der Drucker hat die Verbindung nach dem Etikett getrennt. Ist das Etikett vollständig?",
+    "The printer dropped the connection after the label. Is the label complete?",
+    "L'imprimante a coupé la connexion après l'étiquette. Est-elle complète ?" },  // STR_PRN_NET_BROKEN_MSG
   { "Nicht gedruckt",
     "Not printed",
     "Non imprimé" },  // STR_PRN_FAIL_TITLE

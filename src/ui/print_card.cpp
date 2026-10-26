@@ -29,9 +29,15 @@
 
 // A confirmed print closes on its own after this long; a problem waits.
 #define PC_AUTOCLOSE_MS    4000
-// A label handed to a Brother closes on its own too, later: long enough to
-// read the hint under it, without a tap after every label (Joerg, 26.10.2026).
-#define PC_NET_SENT_CLOSE_MS 15000
+// A label handed to a Brother closes on its own too, after 2 s: the scale is
+// free again as soon as the bytes are out, and what the printer says in the
+// 10 s after brings a card of its own (printer_screen.cpp, brother_ql.h).
+// Wurzel: 15 s were for reading the hint under the title, while the driver
+// still held the loop for the printer; with the loop free that long card
+// stood in the way of the next label. NOT-TO-DO: no card at all, which
+// would leave a label that did not come out without its hint (Joerg,
+// 26.10.2026: the card fades after 2 s).
+#define PC_NET_SENT_CLOSE_MS 2000
 
 // Our line and the server's reason under it, that one cut to two lines.
 #define PC_DETAIL_LEN 200
@@ -180,7 +186,17 @@ static void addOwnLayoutButton() {
   lv_obj_center(l);
 }
 
+static void closeCard() {
+  // lv_obj_del() takes the running countdown animation with the fill.
+  lv_obj_del(s_scr);
+  s_scr = s_box = s_arc = s_title = s_text = s_btn_l = nullptr;
+  s_close_req = false;
+}
+
 void printCardResult(LabelPrintResult result, const char* detail, bool offer_own_layout) {
+  // A card that already shows an answer gives way to this one: what a Brother
+  // says after its label can come while that label's card still counts down.
+  if (s_scr && !s_arc) closeCard();
   if (!s_scr) printCardShow();
   if (s_arc) { lv_obj_del(s_arc); s_arc = nullptr; }
 
@@ -190,11 +206,15 @@ void printCardResult(LabelPrintResult result, const char* detail, bool offer_own
   // again" under it - but closes on its own after PC_NET_SENT_CLOSE_MS, like
   // a confirmed print does after PC_AUTOCLOSE_MS (design L1, Festlegung 6).
   const bool net_sent = (result == LP_NET_SENT);
-  const bool unconfirmed = (result == LP_SENT_UNCONFIRMED) || net_sent;
+  // What it said after the label, while its line was held: yellow as well,
+  // and it waits for OK, so it is read.
+  const bool net_reply = (result == LP_NET_REPLY) || (result == LP_NET_BROKEN);
+  const bool unconfirmed = (result == LP_SENT_UNCONFIRMED) || net_sent || net_reply;
   const char* symbol = ok ? LV_SYMBOL_OK : LV_SYMBOL_WARNING;
   const uint32_t tone = ok ? UI_COL_GOOD : (unconfirmed ? UI_COL_WARN : UI_COL_BAD);
   const int title = ok ? STR_PRN_DONE_TITLE
                   : net_sent ? STR_PRN_NET_SENT_TITLE
+                  : net_reply ? STR_PRN_NET_REPLY_TITLE
                   : unconfirmed ? STR_PRN_UNCONF_TITLE : STR_PRN_FAIL_TITLE;
   // A label that went onto thermal paper gets the one thing to know about
   // it: the dryer blackens it (Nikolai, 30.09.2026). "The printer confirmed"
@@ -285,8 +305,5 @@ bool printCardOpen() { return s_scr != nullptr; }
 
 void printCardLoop() {
   if (!s_scr || !s_close_req) return;
-  // lv_obj_del() takes the running countdown animation with the fill.
-  lv_obj_del(s_scr);
-  s_scr = s_box = s_arc = s_title = s_text = s_btn_l = nullptr;
-  s_close_req = false;
+  closeCard();
 }

@@ -101,3 +101,28 @@ bool brotherQlHostValid(const char* host) {
   }
   return *p == '\0';
 }
+
+BrotherQlHold brotherQlHoldVerdict(int got, bool would_block, uint32_t held_ms) {
+  // Bytes first: whatever the printer says is worth showing, also late.
+  if (got > 0) return BQH_DATA;
+  if (got == 0) return BQH_CLOSED;
+  if (!would_block) return BQH_ABORT;
+  return held_ms >= BROTHER_QL_HOLD_MS ? BQH_TIMEOUT : BQH_WAIT;
+}
+
+size_t brotherQlBytesHex(const uint8_t* bytes, size_t n, char* out, size_t out_len) {
+  if (!out || out_len == 0) return 0;
+  out[0] = '\0';
+  if (!bytes) return 0;
+  static const char DIGITS[] = "0123456789ABCDEF";
+  size_t o = 0;
+  for (size_t i = 0; i < n; i++) {
+    // Two digits, a blank before every byte but the first, and the end.
+    if (o + (i ? 3 : 2) + 1 > out_len) break;
+    if (i) out[o++] = ' ';
+    out[o++] = DIGITS[bytes[i] >> 4];
+    out[o++] = DIGITS[bytes[i] & 0x0F];
+  }
+  out[o] = '\0';
+  return o;
+}
