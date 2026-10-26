@@ -2823,6 +2823,12 @@ const char* const STRINGS[][3] = {
   { "Der Drucker hat den Druck nicht bestätigt. Papier und Deckel prüfen.",
     "The printer did not confirm the print. Check the paper and the lid.",
     "L'imprimante n'a pas confirmé. Vérifiez papier et capot." },  // STR_PRN_UNCONF_MSG
+  { "An den Drucker gesendet",
+    "Sent to the printer",
+    "Envoyé à l'imprimante" },  // STR_PRN_NET_SENT_TITLE
+  { "Kein Etikett? Deckel, Rolle und Modus \"Raster\" prüfen. Nicht erneut drucken - der Drucker holt es nach.",
+    "No label? Check the lid, the roll and mode \"Raster\". Do not print again - the printer catches up.",
+    "Pas d'étiquette ? Vérifiez capot, rouleau et mode « Raster ». Ne réimprimez pas - elle sortira plus tard." },  // STR_PRN_NET_SENT_MSG
   { "Nicht gedruckt",
     "Not printed",
     "Non imprimé" },  // STR_PRN_FAIL_TITLE
@@ -3521,6 +3527,15 @@ const char* const STRINGS[][3] = {
   { "FilaMan hat das Etikett nicht gezeichnet.",
     "FilaMan did not draw the label.",
     "FilaMan n'a pas généré l'étiquette." },  // STR_PRN_ERR_SERVER_LABEL
+  { "Drucker nicht erreichbar.",
+    "Printer not reachable.",
+    "Imprimante injoignable." },  // STR_PRN_ERR_NET_CONNECT
+  { "Verbindung abgebrochen.",
+    "Connection lost.",
+    "Connexion interrompue." },  // STR_PRN_ERR_NET_ABORT
+  { "Etikettendrucker ist aus.",
+    "The label printer is off.",
+    "Étiqueteuse désactivée." },  // STR_PRN_ERR_LINK_OFF
   { "Waagen-Layout",
     "Scale layout",
     "Modèle balance" },  // STR_PRN_OWN_LAYOUT

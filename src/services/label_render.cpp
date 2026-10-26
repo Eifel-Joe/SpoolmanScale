@@ -525,7 +525,8 @@ static bool renderLabel(const LabelPrinterConfig& printer, const LabelLayout& la
   if (!out || !c.d) return false;
   *out = LabelRaster{};
   const uint16_t content_w = labelPrinterContentWidth(printer.model, printer.media_width_mm);
-  const uint16_t h = labelPrinterDotsForMm(printer.model, printer.media_length_mm);
+  const uint16_t h = labelPrinterContentHeight(printer.model, printer.media_width_mm,
+                                               printer.media_length_mm);
   const uint16_t row_w = labelPrinterRasterWidth(printer.model, printer.media_width_mm);
   if (!row_w || !h || content_w > row_w) return false;
   setDpi(labelPrinterProfile(printer.model).dpi);
@@ -610,7 +611,8 @@ bool labelRenderCalibration(const LabelPrinterConfig& printer, LabelRaster* out)
   if (!out) return false;
   *out = LabelRaster{};
   const uint16_t content_w = labelPrinterContentWidth(printer.model, printer.media_width_mm);
-  const uint16_t h = labelPrinterDotsForMm(printer.model, printer.media_length_mm);
+  const uint16_t h = labelPrinterContentHeight(printer.model, printer.media_width_mm,
+                                               printer.media_length_mm);
   const uint16_t row_w = labelPrinterRasterWidth(printer.model, printer.media_width_mm);
   if (!row_w || !h || content_w > row_w) return false;
   setDpi(labelPrinterProfile(printer.model).dpi);

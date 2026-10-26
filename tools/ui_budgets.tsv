@@ -219,6 +219,8 @@ STR_PRN_UNCONF_TITLE	20	360	NEVER	src/ui/print_card.cpp result title
 STR_PRN_FAIL_TITLE	20	360	NEVER	src/ui/print_card.cpp result title
 STR_PRN_DONE_MSG	16	360	WRAP:3	src/ui/print_card.cpp result text
 STR_PRN_UNCONF_MSG	16	360	WRAP:3	src/ui/print_card.cpp result text
+STR_PRN_NET_SENT_TITLE	20	360	NEVER	src/ui/print_card.cpp result title
+STR_PRN_NET_SENT_MSG	16	360	WRAP:3	src/ui/print_card.cpp result text
 STR_PRN_ERR_NOT_NIIMBOT	16	360	WRAP:3	src/ui/print_card.cpp result text
 STR_PRN_ERR_COVER	16	360	WRAP:3	src/ui/print_card.cpp result text
 STR_PRN_ERR_NO_PAPER	16	360	WRAP:3	src/ui/print_card.cpp result text

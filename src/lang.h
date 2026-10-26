@@ -1319,6 +1319,8 @@ enum StringID {
   STR_PRN_DONE_MSG,
   STR_PRN_UNCONF_TITLE,
   STR_PRN_UNCONF_MSG,
+  STR_PRN_NET_SENT_TITLE,     // a Brother took the job; it says nothing back
+  STR_PRN_NET_SENT_MSG,
   STR_PRN_FAIL_TITLE,
   // Below the device list while it hides the nameless ones
   STR_BT_FILTER_NOTE,
@@ -1614,6 +1616,9 @@ enum StringID {
   STR_W_L_PREVIEW_FAIL,
   STR_W_L_OFF_PAD,
   STR_PRN_ERR_SERVER_LABEL,
+  STR_PRN_ERR_NET_CONNECT,    // the Brother on the network
+  STR_PRN_ERR_NET_ABORT,
+  STR_PRN_ERR_LINK_OFF,       // the label printer is set to off
   STR_PRN_OWN_LAYOUT,
   STR_W_L_SOURCE,
   STR_W_L_SRC_SCALE,
