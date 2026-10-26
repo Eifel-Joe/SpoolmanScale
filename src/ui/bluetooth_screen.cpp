@@ -13,8 +13,8 @@
 #include "ui/ble_devices_screen.h"
 #include "ui/reboot_popup.h"
 #include "ui/header_status.h"
+#include "ui/info_popup.h"
 #include "ui/info_screen.h"
-#include "ui/print_card.h"
 #include "ui/printer_screen.h"
 #include "ui/theme.h"
 #include "reboot_popup.h"
@@ -33,7 +33,12 @@
 //  browser, so its rows are the printer and a test print.
 // ============================================================
 
-// The test print result the WLAN rows were built with; a new one rebuilds.
+// The WLAN test row's subtitle and the verdict it shows. A new verdict is
+// written into the row rather than the screen rebuilt: the new screen would
+// be the newest child of the display and cover a "?" or QR popup open on
+// this one, which keeps uiModalWaiting() true from under it. Dropped
+// wherever the screen goes.
+static lv_obj_t* s_test_sub = nullptr;
 static int s_shown_test = -1;
 
 const char* labelPrinterLinkSymbol(LabelPrinterLink link) {
@@ -139,6 +144,25 @@ static void bleRows(lv_obj_t* list) {
   }, LV_EVENT_CLICKED, NULL);
 }
 
+// The verdict of the last test print in place of what the test row does. A
+// Brother's "sent" is said by its card title; its message is the hint for a
+// label that does not come out, which the card showed in full.
+static void showTestVerdict(int last) {
+  s_shown_test = last;
+  if (!s_test_sub) return;
+  int sub = STR_PRN_TEST_SUB;
+  if (last == STR_PRN_NET_SENT_MSG) sub = STR_PRN_NET_SENT_TITLE;
+  else if (last >= 0) sub = last;
+  if (last >= 0) {
+    // One line, cut with dots: a verdict of the other printer's, kept
+    // since boot, can be two lines long. The label needs a height of its
+    // own before dots engage.
+    lv_obj_set_height(s_test_sub, lv_font_get_line_height(UI_FONT_CAPTION));
+    lv_label_set_long_mode(s_test_sub, LV_LABEL_LONG_DOT);
+  }
+  lv_label_set_text(s_test_sub, T(sub));
+}
+
 // WLAN: the Brother with its address, the way to its printer screen, and
 // the test print right here, with how the last one went.
 static void wlanRows(lv_obj_t* list) {
@@ -155,25 +179,11 @@ static void wlanRows(lv_obj_t* list) {
       show_printer_pending = true;
     }, LV_EVENT_CLICKED, NULL); }
 
-  // The verdict of the last test print in place of what the row does. A
-  // Brother's "sent" is said by its card title; its message is the hint for
-  // a label that does not come out, which the card showed in full.
   { char buf_t[40]; copyT(buf_t, sizeof(buf_t), STR_PRN_TEST);
-    const int last = printerLastTestResult();
-    int sub = STR_PRN_TEST_SUB;
-    if (last == STR_PRN_NET_SENT_MSG) sub = STR_PRN_NET_SENT_TITLE;
-    else if (last >= 0) sub = last;
-    lv_obj_t *btn = makeListBtn(list, LV_SYMBOL_OK, buf_t, T(sub));
-    if (last >= 0) {
-      // One line, cut with dots: a verdict of the other printer's, kept
-      // since boot, can be two lines long. Child 2 is makeListBtn()'s
-      // subtitle; it needs a height of its own before dots engage.
-      lv_obj_t *sub_lbl = lv_obj_get_child(btn, 2);
-      if (sub_lbl) {
-        lv_obj_set_height(sub_lbl, lv_font_get_line_height(UI_FONT_CAPTION));
-        lv_label_set_long_mode(sub_lbl, LV_LABEL_LONG_DOT);
-      }
-    }
+    lv_obj_t *btn = makeListBtn(list, LV_SYMBOL_OK, buf_t, T(STR_PRN_TEST_SUB));
+    // Child 2 is makeListBtn()'s subtitle, there for a non-empty one.
+    s_test_sub = lv_obj_get_child(btn, 2);
+    showTestVerdict(printerLastTestResult());
     lv_obj_add_event_cb(btn, [](lv_event_t *e){
       logSD("BTN: Label printer -> test print");
       // Renders and prints from the loop: the print blocks for seconds.
@@ -182,11 +192,13 @@ static void wlanRows(lv_obj_t* list) {
 }
 
 void closeBluetoothScreen() {
+  s_test_sub = nullptr;
   if (scr_bluetooth) { lv_obj_del(scr_bluetooth); scr_bluetooth = nullptr; }
 }
 
 void buildBluetoothScreen() {
   logSD("BUILD: LabelPrinterScreen");
+  s_test_sub = nullptr;            // goes with the previous instance
   releaseScreen(&scr_bluetooth);
   scr_bluetooth = buildOverlayScreen();
   buildSubHeader(scr_bluetooth, T(STR_LP_TITLE),
@@ -204,7 +216,6 @@ void buildBluetoothScreen() {
   linkRow(list, LP_LINK_WLAN, STR_LP_WLAN_SUB);
 
   const LabelPrinterLink link = labelPrinterLink();
-  s_shown_test = printerLastTestResult();
   if (link == LP_LINK_WLAN) {
     wlanRows(list);
     return;
@@ -216,16 +227,20 @@ void buildBluetoothScreen() {
 }
 
 void handleBluetoothDeferredActions() {
-  // A test print from the WLAN rows: once its card is closed, the row says
-  // how it went. Only while the screen shows; every way back builds it anew.
-  if (scr_bluetooth && s_shown_test != printerLastTestResult() && !printCardOpen() &&
-      !lv_obj_has_flag(scr_bluetooth, LV_OBJ_FLAG_HIDDEN))
-    bluetooth_rebuild_pending = true;
-  if (bluetooth_rebuild_pending) {
+  // A test or calibration print: the WLAN row says how it went, written
+  // into the row under the card, so it is there once the card closes.
+  if (s_test_sub && s_shown_test != printerLastTestResult())
+    showTestVerdict(printerLastTestResult());
+  // The browser's link choice raises the flag too, whatever the scale shows
+  // then. The rebuilt screen is the newest child of the display, so it waits
+  // while a "?" popup is open, which it would cover, and one that was hidden
+  // under another screen stays hidden.
+  if (bluetooth_rebuild_pending && !isInfoPopupOpen()) {
     bluetooth_rebuild_pending = false;
     if (scr_bluetooth) {
+      const bool shown = !lv_obj_has_flag(scr_bluetooth, LV_OBJ_FLAG_HIDDEN);
       buildBluetoothScreen();        // releases the previous instance itself
-      lv_obj_clear_flag(scr_bluetooth, LV_OBJ_FLAG_HIDDEN);
+      if (shown) lv_obj_clear_flag(scr_bluetooth, LV_OBJ_FLAG_HIDDEN);
     }
     // The header chip follows Bluetooth; the main screen is alive underneath.
     updateHeaderStatus();
