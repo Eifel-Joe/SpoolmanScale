@@ -105,8 +105,23 @@ jobs:
           python-version: '3.12'
       - name: Install PlatformIO
         run: pip install --upgrade platformio
+      # The platform (pioarduino 55.03.312-1) installs "pioarduino>=6.2.0"
+      # into a fresh ~/.platformio/penv on every run (builder/penv_setup.py),
+      # through uv or pip, and both read these constraint variables. Since
+      # 26.10.2026 PyPI's newest is 6.2.0.post1, which calls itself
+      # 6.2.0-post.1, and the platform (platform.json: platformio >=6.2.0)
+      # refuses it: every build failed with IncompatiblePlatform. Drop the pin
+      # once a pioarduino >= 6.2.0 is out that the platform accepts.
+      - name: Pin pioarduino to 6.2.0
+        run: |
+          echo "pioarduino==6.2.0" > "$RUNNER_TEMP/pio-constraints.txt"
+          echo "UV_CONSTRAINT=$RUNNER_TEMP/pio-constraints.txt" >> "$GITHUB_ENV"
+          echo "PIP_CONSTRAINT=$RUNNER_TEMP/pio-constraints.txt" >> "$GITHUB_ENV"
       - name: Build
         run: pio run -e ${{ matrix.env }}
+      - name: Show the pioarduino the build ran with
+        if: always()
+        run: ls -d ~/.platformio/penv/lib/python3*/site-packages/pioarduino-*.dist-info || true
       - name: Refuse a binary an installed device could not take
         # Installs since v0.8.0 get 6 MB app slots (partitions.csv). Since
         # v0.8.3 the firmware may outgrow the 3 MB slots of scales flashed
