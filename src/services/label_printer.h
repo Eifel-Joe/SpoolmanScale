@@ -30,6 +30,21 @@ enum LabelPrinterModel : uint8_t {
   LP_MODEL_M110S = 9          // the M110's bytes, a row as wide as the label
 };
 
+// How the scale reaches its label printer: not at all, over Bluetooth, or over
+// WLAN to a Brother QL. The values are NVS content (printer_link): a new link
+// goes at the end, none is ever renumbered or reused.
+enum LabelPrinterLink : uint8_t { LP_LINK_OFF = 0, LP_LINK_BLE = 1, LP_LINK_WLAN = 2 };
+
+// The link a scale is left on after an update, from what printer_link holds
+// (-1 for no key yet, which is every scale before this choice existed) and
+// the Bluetooth switch (ble_on). WLAN counts only when it was stored; for
+// anything else the Bluetooth switch decides, so the choice stands on what
+// was true before: Bluetooth on is the Bluetooth printer, off is none.
+inline LabelPrinterLink labelPrinterLinkFrom(int stored, bool ble_on) {
+  if (stored == LP_LINK_WLAN) return LP_LINK_WLAN;
+  return ble_on ? LP_LINK_BLE : LP_LINK_OFF;
+}
+
 // Which bytes a model takes. Phomemo's two preambles share one write-only
 // transport; a NIIMBOT talks back and gets a driver of its own.
 enum LabelPrinterProtocol : uint8_t {
