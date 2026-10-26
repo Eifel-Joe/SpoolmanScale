@@ -31,9 +31,12 @@
 // keeps it apart (line_known; empty for none); without, the line is the
 // front of name, the way SpoolmanDB writes it ("Matte Black"). hex is
 // "RRGGBB", empty for a clear one. from is a SortFrom. filament_id is
-// Spoolman's filament (Spoolman and BBS), 0 for none.
+// Spoolman's filament (Spoolman and BBS), 0 for none. name_whole: the
+// filament's name gave no colour and no spool named one, so name is the
+// whole filament name ("ABS Basic"): a colour of its own material only.
 struct SortRow { char name[SORT_NAME_MAX]; char line[SORT_LINE_MAX]; char material[17];
-                 char hex[7]; uint16_t grams; uint8_t from; bool line_known; int filament_id; };
+                 char hex[7]; uint16_t grams; uint8_t from; bool line_known; bool name_whole;
+                 int filament_id; };
 #define SORT_ROWS_MAX 240
 struct SortData {
   SortChoices brands;      // every inventory brand, in its own spelling
@@ -41,7 +44,7 @@ struct SortData {
   SortRow     rows[SORT_ROWS_MAX]; int row_n;
 };
 
-// Makes the SortData, empty, in PSRAM (about 55 kB). False when there is
+// Makes the SortData, empty, in PSRAM (about 56 kB). False when there is
 // none to be had; the entry cannot open then. A second call starts afresh.
 bool      sortSourceBegin();
 // Frees it and gives the database entries back (fdbReleaseEntries()). A
@@ -77,10 +80,12 @@ SortLoad  sortSourceTick();
 // replaces what the list held. Lines: the inventory's of this material,
 // the database's, the usual ones. Colours: every filament of the inventory
 // of this material whatever its line (each entry carries its row, plan
-// Festlegung 9), the database's of this material and line, the database's
-// of other materials and then the inventory's of other materials (without a
-// line or with the chosen one), the usual colours. Weights: the database's,
-// the inventory's (both of this material), the usual sizes.
+// Festlegung 9), then the database's of this material, the database's of
+// other materials and the inventory's of other materials, each without a
+// line or with the chosen one (an entry of another line stays out), the
+// usual colours. Weights: the sizes the database knows for the brand (this
+// material first, then the other materials loaded), the inventory's (this
+// material first), the usual sizes.
 void      sortSourceLines(const char* material);
 void      sortSourceColours(const char* material, const char* line);
 void      sortSourceWeights(const char* material);

@@ -30,6 +30,9 @@
 // other materials (plan, Festlegung 3).
 #define SORT_OTHER_MATERIALS  3
 #define SORT_JOBS_MAX         (1 + SORT_OTHER_MATERIALS)
+// One maker's materials, on the loop's stack: a maker of the databases has
+// at most about 40, and FDB_PAIRS_MAX would take 1280 bytes.
+#define SORT_MAKER_PAIRS_MAX  64
 
 // Spoolman. In quotes a name filter matches exactly. The spools are asked by
 // filament.vendor.name: vendor.name on /spool is passed over and answers
@@ -263,6 +266,7 @@ static void spoolColourNames(const char* brand, const String& who) {
     if (at < 0 || (named[at / 8] & (1u << (at % 8)))) continue;
     named[at / 8] |= (uint8_t)(1u << (at % 8));
     cutTo(s_data->rows[at].name, sizeof(s_data->rows[at].name), text);
+    s_data->rows[at].name_whole = false;
     n++;
   }
   logSDf("SortEntry: %s spools, %d colour names from %d spools (HTTP %d)", brand, n, spools, code);
@@ -270,8 +274,8 @@ static void spoolColourNames(const char* brand, const String& who) {
 
 // Spoolman: one row per filament of the brand. The line and the colour come
 // from the filament's name (sortEntrySplitName); a name that leaves no
-// colour ("ASA" of the material ASA) is the colour as a whole. A multi
-// colour filament shows its first hue.
+// colour ("ASA" of the material ASA) is the colour as a whole (name_whole),
+// until a spool names one. A multi colour filament shows its first hue.
 static int spoolmanRows(const char* brand) {
   char quoted[SORT_NAME_MAX + 3];   // a brand of the list and its quotes
   snprintf(quoted, sizeof(quoted), "\"%s\"", brand);
@@ -295,7 +299,10 @@ static int spoolmanRows(const char* brand) {
     cutTo(r.material, sizeof(r.material), f["material"] | "");
     const char* name = f["name"] | "";
     sortEntrySplitName(name, r.material, r.line, r.name);
-    if (!r.name[0]) cutTo(r.name, sizeof(r.name), name);
+    if (!r.name[0]) {
+      cutTo(r.name, sizeof(r.name), name);
+      r.name_whole = true;
+    }
     r.line_known = true;
     rowHex(f["color_hex"] | "", r.hex);
     if (!r.hex[0]) rowHex(f["multi_color_hexes"] | "", r.hex);
@@ -374,8 +381,8 @@ static void buildMaterials(const char* brand) {
   if (fdbIndexReady()) {
     const int mi = indexMaker(brand);
     if (mi >= 0) {
-      uint16_t pairs[FDB_PAIRS_MAX];
-      const int n = fdbPairsOf(mi, pairs, FDB_PAIRS_MAX);   // most filaments first
+      uint16_t pairs[SORT_MAKER_PAIRS_MAX];
+      const int n = fdbPairsOf(mi, pairs, SORT_MAKER_PAIRS_MAX);   // most filaments first
       for (int k = 0; k < n; k++) {
         const FdbPair* p = fdbPair(pairs[k]);
         if (p) sortChoicesAdd(l, p->material, nullptr, SF_DB);
@@ -444,8 +451,8 @@ void sortSourceMaterial(const char* brand, const char* material) {
     return;
   }
   const char* maker = fdbMaker(mi)->name;
-  uint16_t pairs[FDB_PAIRS_MAX];
-  const int n = fdbPairsOf(mi, pairs, FDB_PAIRS_MAX);   // most filaments first
+  uint16_t pairs[SORT_MAKER_PAIRS_MAX];
+  const int n = fdbPairsOf(mi, pairs, SORT_MAKER_PAIRS_MAX);   // most filaments first
   for (int k = 0; k < n; k++) {
     const FdbPair* p = fdbPair(pairs[k]);
     if (p && sortEntrySame(p->material, material)) { queueJob(maker, p->material, SF_DB); break; }
@@ -615,15 +622,18 @@ static int addOwnedColour(const SortRow& r) {
   return -1;
 }
 
-// The colour of a row of another material: one without a line, or with the
-// chosen one.
-static bool otherColour(const SortRow& r, const char* line, char* out, size_t out_size) {
+// The colour of a row for the chosen line: one without a line, or with the
+// chosen one; an entry of another line gives none.
+static bool lineColour(const SortRow& r, const char* line, char* out, size_t out_size) {
   return sortEntryColourOf(r.name, ownLine(r), line, out, out_size) ||
          sortEntryColourOf(r.name, ownLine(r), "", out, out_size);
 }
 
 enum ColourPass : uint8_t { CP_DB_SAME = 0, CP_DB_OTHER, CP_OWNED_OTHER };
 
+// One pass of the rows after the inventory of this material. A filament of
+// another material whose name is the whole filament name ("ABS Basic") is
+// no colour for this one.
 static void addRowColours(const char* material, const char* line, uint8_t pass) {
   static const uint8_t FROM[] = { SF_DB, SF_DB_OTHER, SF_OWNED };
   char colour[SORT_NAME_MAX];
@@ -631,10 +641,11 @@ static void addRowColours(const char* material, const char* line, uint8_t pass) 
     const SortRow& r = s_data->rows[i];
     const bool same = sameText(r.material, material);
     bool take;
-    if (pass == CP_DB_SAME)       take = isDbRow(r) && same && sortEntryColourOf(r.name, ownLine(r), line, colour, sizeof(colour));
-    else if (pass == CP_DB_OTHER) take = isDbRow(r) && !same && otherColour(r, line, colour, sizeof(colour));
-    else                          take = r.from == SF_OWNED && !same && otherColour(r, line, colour, sizeof(colour));
-    if (take) sortChoicesAdd(&s_data->colours, colour, r.hex, FROM[pass]);
+    if (pass == CP_DB_SAME)       take = isDbRow(r) && same;
+    else if (pass == CP_DB_OTHER) take = isDbRow(r) && !same;
+    else                          take = r.from == SF_OWNED && !same && !r.name_whole;
+    if (take && lineColour(r, line, colour, sizeof(colour)))
+      sortChoicesAdd(&s_data->colours, colour, r.hex, FROM[pass]);
   }
 }
 
@@ -662,12 +673,16 @@ void sortSourceWeights(const char* material) {
   if (!s_data || !material) return;
   SortChoices* l = &s_data->weights;
   l->n = 0;
-  // The database first, then the inventory (pass 1).
-  for (int pass = 0; pass < 2; pass++) {
+  // The sizes the database knows for the brand (passes 0 and 1: this
+  // material, then the other materials loaded), then the inventory's
+  // (passes 2 and 3, this material first). Fiberlogy has ABS in the
+  // inventory only and ASA in the database: its 750 g leads.
+  for (int pass = 0; pass < 4; pass++) {
+    const bool db = pass < 2, mine = (pass % 2) == 0;
     for (int i = 0; i < s_data->row_n; i++) {
       const SortRow& r = s_data->rows[i];
-      if ((pass ? r.from == SF_OWNED : isDbRow(r)) && sameText(r.material, material))
-        sortChoicesAddGrams(l, r.grams, pass ? SF_OWNED : SF_DB);
+      if ((db ? isDbRow(r) : r.from == SF_OWNED) && sameText(r.material, material) == mine)
+        sortChoicesAddGrams(l, r.grams, r.from);
     }
   }
   for (int i = 0; i < SORT_SIZES_COUNT; i++) sortChoicesAddGrams(l, SORT_SIZES[i], SF_USUAL);
