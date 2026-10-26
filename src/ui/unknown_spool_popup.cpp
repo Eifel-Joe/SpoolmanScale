@@ -10,6 +10,7 @@
 #include "app_config.h"
 #include "hardware/sd_logger.h"
 #include "services/backend.h"
+#include "services/spool_extras.h"
 #include "services/tag_create.h"
 #include "services/user_options.h"
 #include "ui/db_pick_screen.h"
@@ -264,13 +265,18 @@ static void appendPart(char* out, size_t n, const char* part) {
 }
 
 // The filament on the pad: net when the empty spool is known, else all of it.
+// Both are of the reading without the parts on the spool (spool_extras.h): a
+// clip or a tag holder is neither the empty spool nor filament, and the raw
+// reading would count it as filament in the head of the card.
 static void weightPart(char* out, size_t n, int core_g) {
   out[0] = '\0';
-  if (!g_scale_fitted || !scale_ready || scale_weight_g <= 0.0f) return;
-  if (core_g > 0 && scale_weight_g > (float)core_g)
-    snprintf(out, n, T(STR_UNK_NET), scale_weight_g - (float)core_g);
+  if (!g_scale_fitted || !scale_ready) return;
+  const float bare = spoolExtrasBareReading();
+  if (bare <= 0.0f) return;
+  if (core_g > 0 && bare > (float)core_g)
+    snprintf(out, n, T(STR_UNK_NET), bare - (float)core_g);
   else
-    snprintf(out, n, T(STR_UNK_GROSS), scale_weight_g);
+    snprintf(out, n, T(STR_UNK_GROSS), bare);
 }
 
 static void identityRow(lv_obj_t* box, const char* name, const TagCreateInput* in) {
