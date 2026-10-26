@@ -475,13 +475,10 @@ const char* const STRINGS[][3] = {
   { "Installiert: %s",
     "Installed: %s",
     "Installée : %s" },  // STR_GH_OTA_INSTALLED
-  { "Neueste: %s",
-    "Latest: %s",
-    "Dernière : %s" },  // STR_GH_OTA_LATEST
-  { "Pre-release",
+  { "Vorabversionen",
     "Pre-release",
-    "Pré-version" },  // STR_GH_OTA_PRERELEASE
-  { "Autom. Suche",
+    "Pré-versions" },  // STR_GH_OTA_PRERELEASE
+  { "Automatisch suchen",
     "Auto check",
     "Recherche auto" },  // STR_GH_OTA_AUTOCHECK
   { "Ältere Version verfügbar: %s",
@@ -4196,6 +4193,10 @@ const char* const STRINGS[][3] = {
   { "Über http lässt der Browser kein Bild kopieren. Rechtsklick aufs Bild, dann \"Bild kopieren\".",
     "Over http the browser does not let a page copy an image. Right-click the picture, then \"Copy image\".",
     "En http, le navigateur ne laisse pas copier une image. Clic droit sur l'image, puis « Copier l'image »." },  // STR_W_SHOT_COPY_HINT
+  // The GitHub update screen's headline before anything was searched for.
+  { "Noch nicht gesucht",
+    "Not checked yet",
+    "Pas encore vérifié" },  // STR_GH_OTA_NOT_CHECKED
   // ── A copy behind Bambuddy on Spoolman: what it takes over ──
   { "Profil: %s",
     "Profile: %s",

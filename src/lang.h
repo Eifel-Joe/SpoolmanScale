@@ -306,7 +306,6 @@ enum StringID {
   STR_GH_OTA_FLASH_OK,
   STR_GH_OTA_FLASH_FAIL,
   STR_GH_OTA_INSTALLED,
-  STR_GH_OTA_LATEST,
   STR_GH_OTA_PRERELEASE,
   STR_GH_OTA_AUTOCHECK,
   STR_GH_OTA_OLDER,
@@ -1925,6 +1924,7 @@ enum StringID {
   STR_W_SHOT_COPY,
   STR_W_SHOT_COPIED,
   STR_W_SHOT_COPY_HINT,
+  STR_GH_OTA_NOT_CHECKED,
 
   // A copy behind Bambuddy on Spoolman: what it takes over (design note J)
   STR_COPY_CARD_PROFILE,    // copy card: %s the template's profile, "-" without one
