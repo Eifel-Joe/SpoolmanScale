@@ -101,11 +101,14 @@ int sortChoicesFind(const SortChoices& list, const char* name);
 // Adds an entry unless the list has the same name already, and returns the
 // index of the new one or of the one that was there: the first spelling, hex
 // and origin stay, whatever is added later under another spelling is dropped.
-// The new entry has no source row (row is -1).
 // That holds when the list is full, too. A name longer than a field is cut at
-// a character boundary. hex may be null (taken as empty). Returns -1 for an
-// empty or null name and for a full list (SORT_CHOICES_MAX) that does not
-// have the name.
+// a character boundary (and the cut name is what meets the list). The new
+// entry has no source row (row is -1). hex may be null (taken as empty); a
+// colour is kept as six capitals without '#', anything else is kept as it is
+// (cut to six bytes), so that sortEntryToInput() refuses it later and it is
+// not taken for the empty hex, which in a colour list is the clear one.
+// Returns -1 for a null name, for one with nothing left (empty, or only blanks
+// and hyphens) and for a full list (SORT_CHOICES_MAX) that does not have it.
 int sortChoicesAdd(SortChoices* list, const char* name, const char* hex, uint8_t from);
 
 // The same for the weight of a full spool: the entry is named "850 g" and
@@ -115,9 +118,9 @@ int sortChoicesAdd(SortChoices* list, const char* name, const char* hex, uint8_t
 int sortChoicesAddGrams(SortChoices* list, int grams, uint8_t from);
 
 // Reads a colour typed as hex: six hexadecimal digits, with or without a
-// leading '#', in any case. out becomes the digits in capitals, "90EE90".
-// False for anything else: too short or too long, a letter beyond F, empty,
-// null.
+// leading '#', in any case. out becomes the digits in capitals, "90EE90"
+// (text and out may be the same array). False for anything else: too short
+// or too long, a letter beyond F, empty, null; out stays as it was.
 bool sortEntryHex(const char* text, char out[7]);
 
 // The usual line (SORT_LINES) that the name starts with as a whole word, in
@@ -150,9 +153,11 @@ void sortEntrySplitName(const char* name, const char* material, char line[SORT_L
 // Reads the value of a Spoolman extra field, which is kept as JSON text, as
 // the text it holds: the string "\"Light Green\"" (quotes included) gives
 // Light Green, and the escapes of a quote and of a backslash inside it are
-// resolved. The text is cut to out_size - 1 bytes at a character boundary.
-// False, with out empty, for a null or empty value, for the empty string
-// ("\"\"") and for an unusable out.
+// resolved; any other escape stays as it was written. The text is cut to
+// out_size - 1 bytes at a character boundary. False, with out empty, for a
+// null or empty value, for the empty string ("\"\""), for anything that is not
+// a JSON string (a number, null) or has lost its closing quote, and for an
+// unusable out.
 bool sortEntryExtraText(const char* raw, char* out, size_t out_size);
 
 // Turns what was collected into the input of the card for a new spool, from
@@ -162,7 +167,8 @@ bool sortEntryExtraText(const char* raw, char* out, size_t out_size);
 // Matte"; cut to a character boundary within its field), the line is the
 // subtype, color_name and color_name_en are the colour, a hue gives one
 // colour and rgba with full alpha ("90EE90FF"), a clear filament none and
-// "00000000". The diameter is 1.75 mm unless the entry says 2.85. No empty
+// "00000000" (the hex of a clear entry is not looked at). A line of blanks
+// is no line. The diameter is 1.75 mm unless the entry says 2.85. No empty
 // spool weight is set (spool_weight_g, spool_type_g stay 0). known_filament_id
 // is the entry's filament_id (0 for none). Every text is cut to its field at
 // a character boundary.
