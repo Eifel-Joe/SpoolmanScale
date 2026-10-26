@@ -196,8 +196,8 @@ static lv_obj_t *stlBuildRows() {
   int count = 0;
   int mark  = -1;
   if (is_near) {
-    count = spoolTypeNear(types, n, s_req.vendor, s_req.near_g, SPOOL_TYPE_NEAR_G,
-                          s_idx, SPOOL_TYPE_NEAR_MAX);
+    const SpoolTypeNearQuery q = { s_req.vendor, s_req.near_g, SPOOL_TYPE_NEAR_G };
+    count = spoolTypeNear(types, n, q, s_idx, SPOOL_TYPE_NEAR_MAX);
     if (count > 0) mark = s_idx[0];   // the closest
     else           stlNoteRow(T(STR_SPT_NONE_NEAR), UI_COL_CAPTION);
   } else {
@@ -216,8 +216,8 @@ static lv_obj_t *stlBuildRows() {
       count = n;
     }
     int nearest = -1;
-    if (spoolTypeNear(types, n, s_req.vendor, s_req.preselect_g, STL_MARK_TOL_G,
-                      &nearest, 1) == 1) {
+    const SpoolTypeNearQuery q = { s_req.vendor, s_req.preselect_g, STL_MARK_TOL_G };
+    if (spoolTypeNear(types, n, q, &nearest, 1) == 1) {
       mark = nearest;
     }
   }
