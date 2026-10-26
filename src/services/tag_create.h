@@ -78,6 +78,8 @@ struct TagCreateInput {
   int   temp_min;
   int   temp_max;
   bool  names_known;         // article and colour name are known
+  bool  typed;               // entered at the scale, ui/sort_entry_screen.h: the spool's name must match a found filament
+  int   known_filament_id;   // the inventory filament picked at the scale for it, 0 none: the plan takes it as found
   // Picked from the backend's filament database (services/filament_db.h)
   // rather than read off a tag: the entry's id and name as the database has
   // them, and what it says that no tag does. Empty and 0 for a tag.
