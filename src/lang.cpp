@@ -4069,6 +4069,39 @@ const char* const STRINGS[][3] = {
   { "Per ID geladen - kein Tag",
     "Loaded by ID - no tag",
     "Chargée par ID - sans tag" },  // STR_ID_SPOOL_STATUS
+  // ── A copy behind Bambuddy on Spoolman: what it takes over ──
+  { "Profil: %s",
+    "Profile: %s",
+    "Profil : %s" },  // STR_COPY_CARD_PROFILE
+  { " (+%d Modell)",
+    " (+%d model)",
+    " (+%d modèle)" },  // STR_COPY_CARD_MODEL
+  { " (+%d Modelle)",
+    " (+%d models)",
+    " (+%d modèles)" },  // STR_COPY_CARD_MODELS
+  { "Kopie angelegt, ohne: %s",
+    "Copied, without: %s",
+    "Copie créée, sans : %s" },  // STR_COPY_MISSING
+  { "Preis",
+    "price",
+    "prix" },  // STR_COPY_PART_PRICE
+  { "Profile je Modell",
+    "profiles per model",
+    "profils par modèle" },  // STR_COPY_PART_PRESETS
+  { "Lieferanten",
+    "suppliers",
+    "fournisseurs" },  // STR_COPY_PART_SUPPLIERS
+  { "K-Profile",
+    "K profiles",
+    "profils K" },  // STR_COPY_PART_KPROFILES
+  { "Filament",
+    "filament",
+    "filament" },  // STR_COPY_PART_FILAMENT
+  { "%.2f/kg", "%.2f/kg", "%.2f/kg" },  // STR_COPY_CARD_PRICE_KG
+  { "%.0f/kg", "%.0f/kg", "%.0f/kg" },  // STR_COPY_CARD_PRICE_KG_WHOLE
+  { "Preis pro kg",
+    "Price per kg",
+    "Prix par kg" },  // STR_PRICE_PAD_TITLE_KG
 };
 
 StringID tagWriteResultString(uint8_t code) {

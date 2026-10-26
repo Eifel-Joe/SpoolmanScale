@@ -1876,6 +1876,20 @@ enum StringID {
   STR_IDPAD_NOT_FOUND_HINT,   // under it
   STR_ID_SPOOL_STATUS,        // the status line while a spool is shown by its id
 
+  // A copy behind Bambuddy on Spoolman: what it takes over (design note J)
+  STR_COPY_CARD_PROFILE,    // copy card: %s the template's profile, "-" without one
+  STR_COPY_CARD_MODEL,      // behind the profile: %d profile per printer model, one
+  STR_COPY_CARD_MODELS,     // the same, %d of them, two or more
+  STR_COPY_MISSING,         // status line: the copy stands, %s the parts it did not take over
+  STR_COPY_PART_PRICE,      // the parts, joined with ", ": the price
+  STR_COPY_PART_PRESETS,    // the profiles per printer model
+  STR_COPY_PART_SUPPLIERS,  // the suppliers
+  STR_COPY_PART_KPROFILES,  // the calibration values (K profiles)
+  STR_COPY_PART_FILAMENT,   // the template's filament on the Spoolman server
+  STR_COPY_CARD_PRICE_KG,       // copy card price button: %.2f the price per kg
+  STR_COPY_CARD_PRICE_KG_WHOLE, // the same in whole units, %.0f, where the cents do not fit
+  STR_PRICE_PAD_TITLE_KG,       // price pad title when the copy card asks for a price per kg
+
   STR_COUNT
 };
 
