@@ -12,7 +12,9 @@ void addBackButton(lv_obj_t *parent, lv_event_cb_t cb);
 // button - the one gap on a sub screen nothing else wants. Opens the info
 // popup with the two strings.
 lv_obj_t* addHeaderHelp(lv_obj_t *scr, int title_id, int text_id);
-void addCloseButton(lv_obj_t *parent);
+// Returns the button, for a screen that has more to close than showMainScreen()
+// knows about.
+lv_obj_t* addCloseButton(lv_obj_t *parent);
 void buildSubHeader(lv_obj_t *parent, const char *title,
                     lv_event_cb_t back_cb, const char *back_hint = nullptr);
 lv_obj_t* buildOverlayScreen();
@@ -112,6 +114,12 @@ lv_obj_t* labelOneLine(lv_obj_t* parent, const char* text, const lv_font_t* font
 // for the three pads.
 lv_obj_t* padButton(lv_obj_t* parent, int x, int y, int w, int h, uint32_t bg, uint32_t bg_pressed);
 lv_obj_t* padLabel(lv_obj_t* btn, const char* text, uint32_t col, const lv_font_t* font);
+
+// One of the line icons of icons.h, tinted ink, centred in a filled circle of
+// the given diameter. The caller places the circle. Clicks pass through to the
+// button it sits on.
+lv_obj_t* uiIconDisc(lv_obj_t* parent, const lv_img_dsc_t* icon, int diameter,
+                     uint32_t bg, uint32_t ink);
 
 // The colour in the middle of a painted swatch as 0xRRGGBB, for choosing the
 // colour of text drawn across it.

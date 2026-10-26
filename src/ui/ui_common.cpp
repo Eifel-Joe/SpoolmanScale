@@ -226,7 +226,7 @@ void addBackButton(lv_obj_t *parent, lv_event_cb_t cb) {
   lv_obj_center(lbl);
 }
 
-void addCloseButton(lv_obj_t *parent) {
+lv_obj_t* addCloseButton(lv_obj_t *parent) {
   lv_obj_t *btn = lv_btn_create(parent);
   lv_obj_set_size(btn, 44, 44);
   lv_obj_align(btn, LV_ALIGN_TOP_RIGHT, -4, 2);
@@ -241,6 +241,7 @@ void addCloseButton(lv_obj_t *parent) {
   lv_obj_set_style_text_font(lbl, &lv_font_montserrat_ext_18, 0);
   lv_obj_set_style_text_color(lbl, lv_color_hex(UI_COL_BAD_TEXT), 0);
   lv_obj_center(lbl);
+  return btn;
 }
 
 void uiSecondaryFill(lv_obj_t *btn) {
@@ -520,6 +521,24 @@ lv_obj_t* padLabel(lv_obj_t* btn, const char* text, uint32_t col, const lv_font_
   lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_center(l);
   return l;
+}
+
+lv_obj_t* uiIconDisc(lv_obj_t* parent, const lv_img_dsc_t* icon, int diameter,
+                     uint32_t bg, uint32_t ink) {
+  lv_obj_t* disc = lv_obj_create(parent);
+  lv_obj_remove_style_all(disc);
+  lv_obj_set_size(disc, diameter, diameter);
+  lv_obj_set_style_radius(disc, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_bg_color(disc, lv_color_hex(bg), 0);
+  lv_obj_set_style_bg_opa(disc, LV_OPA_COVER, 0);
+  lv_obj_clear_flag(disc, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_add_flag(disc, LV_OBJ_FLAG_EVENT_BUBBLE);
+  lv_obj_t* img = lv_img_create(disc);
+  lv_img_set_src(img, icon);
+  lv_obj_set_style_img_recolor(img, lv_color_hex(ink), 0);
+  lv_obj_set_style_img_recolor_opa(img, LV_OPA_COVER, 0);
+  lv_obj_center(img);
+  return disc;
 }
 
 void spoolStartText(const SpoolStart& s, bool tare_inherited, char* out, size_t out_size) {

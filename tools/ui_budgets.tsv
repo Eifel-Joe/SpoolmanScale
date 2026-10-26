@@ -235,7 +235,6 @@ STR_PART_HINT_TITLE	18	424	NEVER	src/ui/partition_popup.cpp title, HINT_BOX_W - 
 STR_PART_HINT_LATER	16	180	NEVER	src/ui/partition_popup.cpp button, HINT_BTN_W 200
 STR_PART_HINT_TEXT	14	256	WRAP:14	src/ui/partition_popup.cpp text column, scrolls
 STR_PART_HINT_BLOCKED	14	256	WRAP:14	src/ui/partition_popup.cpp text column, scrolls
-STR_GH_OTA_LATEST	14	440	NEVER	src/ui/ota_github.cpp:366 lbl_gh_latest, centred on the 480 px screen
 
 STR_BTN_EMPTY_SPOOL	14	211	NEVER	src/ui/confirm_popup.cpp weight popup row 2 right, BW2 = 219
 STR_TARE_CHOICE_TITLE	18	416	NEVER	src/ui/tare_entry.cpp showTareChoice() title, box 440
@@ -399,3 +398,14 @@ STR_ID_SPOOL_STATUS	14	214	NEVER	src/app/id_spool.cpp lbl_status, clear button b
 # font 16 end near x 214, the label ends at 426; 180 keeps a gap between them.
 STR_COLOR_TILE_TWO	14	180	NEVER	src/ui/color_tile_popup.cpp kind beside the codes
 STR_COLOR_TILE_CLEAR	14	180	NEVER	src/ui/color_tile_popup.cpp kind beside the codes
+# Info & Support: the line under a tile's name. Tile 222 wide, the icon disc
+# and the paddings leave 156 px.
+STR_INFO_SUB_KOFI	12	156	NEVER	src/ui/info_screen.cpp tile subtitle
+STR_INFO_SUB_GITHUB	12	156	NEVER	src/ui/info_screen.cpp tile subtitle
+STR_INFO_SUB_DISCORD	12	156	NEVER	src/ui/info_screen.cpp tile subtitle
+STR_INFO_SUB_MAKER	12	156	NEVER	src/ui/info_screen.cpp tile subtitle
+# The web hand-off: the step line over the address card and the hint under
+# the large QR code, both across the screen less the margins.
+STR_WEB_STEP_CREDS	14	456	NEVER	src/ui/ota_browser.cpp step line
+STR_WEB_STEP_CREDS_BB	14	456	NEVER	src/ui/ota_browser.cpp step line
+STR_WEB_QR_HINT	12	456	NEVER	src/ui/ota_browser.cpp under the QR code
