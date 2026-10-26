@@ -414,3 +414,13 @@ STR_IDPAD_NOT_FOUND	14	148	WRAP:3	src/ui/spool_id_pad.cpp answer card, %d up to 
 STR_IDPAD_NOT_FOUND_HINT	12	148	WRAP:5	src/ui/spool_id_pad.cpp answer card under the verdict
 # Status line, narrow variant 262, minus the clear button (40) and its gap (8).
 STR_ID_SPOOL_STATUS	14	214	NEVER	src/app/id_spool.cpp lbl_status, clear button behind it
+# --- a filament entered at the scale (ui/tag_create_popup.cpp, ui/sort_twin_popup.cpp) --------
+# The card's title is centred in the card's text width; the hint replaces the status line.
+STR_SORT_CARD_TITLE	20	360	NEVER	src/ui/tag_create_popup.cpp buildHead title, UI_POPUP_W - UI_CARD_TEXT_PAD
+STR_SORT_NEW_FILAMENT	16	360	NEVER	src/ui/tag_create_popup.cpp status line of the card, UI_POPUP_W - UI_CARD_TEXT_PAD
+STR_SORT_NO_DENSITY	14	360	WRAP:2	src/ui/tag_create_popup.cpp status line in the small font, two lines (2 x 16 px) end at UI_CARD_ROW_Y
+# The twin box over the card: title and text in the card's text width, two buttons of 184 px.
+STR_SORT_TWIN_TITLE	20	360	NEVER	src/ui/sort_twin_popup.cpp title, UI_POPUP_W - UI_CARD_TEXT_PAD
+STR_SORT_TWIN_TEXT	16	360	WRAP:3	src/ui/sort_twin_popup.cpp question, UI_POPUP_W - UI_CARD_TEXT_PAD, %s is a filament name
+STR_SORT_TWIN_TAKE	16	164	NEVER	src/ui/sort_twin_popup.cpp button, STP_BTN_W minus 10 px air each side
+STR_SORT_TWIN_NEW	16	164	NEVER	src/ui/sort_twin_popup.cpp button, STP_BTN_W minus 10 px air each side

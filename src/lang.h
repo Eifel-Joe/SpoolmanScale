@@ -1858,6 +1858,15 @@ enum StringID {
   STR_IDPAD_NOT_FOUND_HINT,   // under it
   STR_ID_SPOOL_STATUS,        // the status line while a spool is shown by its id
 
+  // A filament entered at the scale (ui/tag_create_popup.cpp, ui/sort_twin_popup.cpp)
+  STR_SORT_CARD_TITLE,        // the new-spool card's title when the sort was typed in
+  STR_SORT_NEW_FILAMENT,      // its status line: new, and the hue is what finds it again
+  STR_SORT_NO_DENSITY,        // the status line when no density is known for the material
+  STR_SORT_TWIN_TITLE,        // the box asking about a filament of the same colour
+  STR_SORT_TWIN_TEXT,         // %s: the name the inventory has it under
+  STR_SORT_TWIN_TAKE,         // use that filament
+  STR_SORT_TWIN_NEW,          // create a new one anyway
+
   STR_COUNT
 };
 

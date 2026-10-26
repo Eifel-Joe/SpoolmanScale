@@ -4018,6 +4018,27 @@ const char* const STRINGS[][3] = {
   { "Per ID geladen - kein Tag",
     "Loaded by ID - no tag",
     "Chargée par ID - sans tag" },  // STR_ID_SPOOL_STATUS
+  { "Neue Sorte anlegen?",
+    "Create new filament?",
+    "Créer un filament ?" },  // STR_SORT_CARD_TITLE
+  { "Neues Filament - Farbton merken",
+    "New filament - note its colour",
+    "Nouveau filament - notez la teinte" },  // STR_SORT_NEW_FILAMENT
+  { "Dichte unbekannt: Material in Spoolman anlegen oder ein vorhandenes wählen",
+    "Density unknown: add the material in Spoolman or pick one it has",
+    "Densité inconnue : ajoutez le matériau à Spoolman ou prenez-en un existant" },  // STR_SORT_NO_DENSITY
+  { "Gleicher Farbton",
+    "Same colour",
+    "Même teinte" },  // STR_SORT_TWIN_TITLE
+  { "Gibt es schon als \"%s\". Dieses nehmen oder ein neues Filament anlegen?",
+    "Already there as \"%s\". Take it or create a new filament?",
+    "Existe déjà sous \"%s\". Le prendre ou créer un nouveau filament ?" },  // STR_SORT_TWIN_TEXT
+  { "Nehmen",
+    "Take it",
+    "Le prendre" },  // STR_SORT_TWIN_TAKE
+  { "Neu anlegen",
+    "Create new",
+    "Nouveau filament" },  // STR_SORT_TWIN_NEW
 };
 
 StringID tagWriteResultString(uint8_t code) {
