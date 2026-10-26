@@ -3966,6 +3966,34 @@ const char* const STRINGS[][3] = {
   { "%s | leer %.0f g",
     "%s | empty %.0f g",
     "%s | vide %.0f g" },  // STR_COPY_CARD_TARE
+  // ── A copy behind Bambuddy on Spoolman: what it takes over ──
+  { "Profil: %s",
+    "Profile: %s",
+    "Profil : %s" },  // STR_COPY_CARD_PROFILE
+  { " (+%d Modell)",
+    " (+%d model)",
+    " (+%d modèle)" },  // STR_COPY_CARD_MODEL
+  { " (+%d Modelle)",
+    " (+%d models)",
+    " (+%d modèles)" },  // STR_COPY_CARD_MODELS
+  { "Kopie angelegt, nicht übernommen: %s",
+    "Copy created, not taken over: %s",
+    "Copie créée, non repris : %s" },  // STR_COPY_MISSING
+  { "Preis",
+    "price",
+    "prix" },  // STR_COPY_PART_PRICE
+  { "Profile je Modell",
+    "profiles per model",
+    "profils par modèle" },  // STR_COPY_PART_PRESETS
+  { "Lieferanten",
+    "suppliers",
+    "fournisseurs" },  // STR_COPY_PART_SUPPLIERS
+  { "K-Profile",
+    "K profiles",
+    "profils K" },  // STR_COPY_PART_KPROFILES
+  { "Filament",
+    "filament",
+    "filament" },  // STR_COPY_PART_FILAMENT
 };
 
 StringID tagWriteResultString(uint8_t code) {

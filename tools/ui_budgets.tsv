@@ -385,3 +385,26 @@ STR_TAGNEW_W_NO_TARE	16	360	NEVER	src/ui/tag_create_popup.cpp line 2, src/ui/cop
 STR_TAGNEW_W_OVER	16	360	NEVER	src/ui/tag_create_popup.cpp line 2, src/ui/copy_confirm_popup.cpp line 3
 STR_TAGNEW_W_OVER_TARE	14	360	NEVER	src/ui/tag_create_popup.cpp line 2 of the card
 STR_COPY_CARD_TARE	16	360	NEVER	src/ui/copy_confirm_popup.cpp line 3 of the card
+
+# --- the copy card behind Bambuddy on Spoolman (design note J) --------------
+# src/ui/copy_confirm_popup.cpp, only with spoolTypesActive(): the card grows
+# to 304 px for two f14 lines under line 2, and the answers become
+# create | price | cancel, 140 + 80 + 140 px with 8 px between them. On the
+# profile line the model count keeps its own width and the name beside it
+# gets the rest of the 360 px, so the words before the name must leave room
+# for the widest count. After the create the status line (lbl_status,
+# LONG_DOT) names the parts that were not taken over behind its sentence;
+# several parts run past the line and are dotted, so each part is only held
+# to the line on its own.
+STR_COPY_CARD_PROFILE	14	263	NEVER	src/ui/copy_confirm_popup.cpp profile line, 360 less the widest model count (97 px), the name dotted
+STR_COPY_CARD_MODEL	14	120	NEVER	src/ui/copy_confirm_popup.cpp the model count beside the profile, its own width
+STR_COPY_CARD_MODELS	14	120	NEVER	src/ui/copy_confirm_popup.cpp the model count beside the profile, its own width
+STR_COPY_CARD_CREATE	18	132	NEVER	src/ui/copy_confirm_popup.cpp 140 px answer button beside the price, -8 air
+STR_CANCEL	18	132	NEVER	src/ui/copy_confirm_popup.cpp 140 px answer button beside the price, -8 air
+STR_TAGNEW_PRICE_BTN	14	64	NEVER	src/ui/copy_confirm_popup.cpp 80 px price button, 8 px air each side
+STR_COPY_MISSING	14	262	NEVER	src/ui/copy_flow.cpp lbl_status, HDR_STATUS_W_NARROW, the parts follow the sentence
+STR_COPY_PART_PRICE	14	262	NEVER	src/ui/copy_flow.cpp lbl_status, a part after the sentence, dotted with the rest
+STR_COPY_PART_PRESETS	14	262	NEVER	src/ui/copy_flow.cpp lbl_status, a part after the sentence, dotted with the rest
+STR_COPY_PART_SUPPLIERS	14	262	NEVER	src/ui/copy_flow.cpp lbl_status, a part after the sentence, dotted with the rest
+STR_COPY_PART_KPROFILES	14	262	NEVER	src/ui/copy_flow.cpp lbl_status, a part after the sentence, dotted with the rest
+STR_COPY_PART_FILAMENT	14	262	NEVER	src/ui/copy_flow.cpp lbl_status, a part after the sentence, dotted with the rest

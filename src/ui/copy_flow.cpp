@@ -19,11 +19,14 @@
 #include "services/backend_api.h"
 #include "services/backend_job.h"
 #include "services/breadcrumb.h"
+#include "services/copy_bbs.h"
+#include "services/copy_rules.h"   // CopyMissing
 #include "services/list_limits.h"
 #include "services/server_reach.h"
 #include "services/spool_start.h"
 #include "services/spool_cache.h"
 #include "services/spool_extras.h"
+#include "services/spool_types.h"   // spoolTypesActive()
 #include "services/spoolman_actions.h"
 #include "services/tag_field.h"
 #include "ui/info_popup.h"
@@ -127,16 +130,56 @@ bool finishCopyFlow(int new_spool_id, const char* tray_uuid_override) {
   return linked;
 }
 
+// The parts of a copy behind Bambuddy on Spoolman that did not come across,
+// in the order of their bits, for the status line (Festlegung 8). The log
+// has each of them with its HTTP code (copy_bbs.cpp).
+static const struct { uint8_t bit; int text; } COPY_MISSING_PARTS[] = {
+  { CM_PRICE,     STR_COPY_PART_PRICE },
+  { CM_PRESETS,   STR_COPY_PART_PRESETS },
+  { CM_SUPPLIERS, STR_COPY_PART_SUPPLIERS },
+  { CM_KPROFILES, STR_COPY_PART_KPROFILES },
+  { CM_FILAMENT,  STR_COPY_PART_FILAMENT },
+};
+
+// The status line once the copy stands and its tag is linked: what it did
+// not take over in the colour of a half success, as "price not saved" after
+// a spool from a tag, else the plain success.
+static void copyCreatedStatus(uint8_t missing) {
+  if (missing == CM_NONE) {
+    statusMessageShow(T(STR_COPY_OK), UI_COL_GOOD);
+    return;
+  }
+  // Whole words only: a part that would not fit is left out rather than cut
+  // through a letter of two bytes. Both buffers hold all five parts with the
+  // sentence in every language, so nothing is left out in practice; the
+  // label dots what is wider than the line.
+  char parts[160] = "";
+  size_t used = 0;
+  for (const auto& p : COPY_MISSING_PARTS) {
+    if (!(missing & p.bit)) continue;
+    const char* word = T(p.text);
+    const char* sep  = used ? ", " : "";
+    if (used + strlen(sep) + strlen(word) >= sizeof(parts)) break;
+    used += (size_t)snprintf(parts + used, sizeof(parts) - used, "%s%s", sep, word);
+  }
+  char msg[256];
+  snprintf(msg, sizeof(msg), T(STR_COPY_MISSING), parts);
+  statusMessageShow(msg, UI_COL_WARN);
+}
+
 // Creates the new spool from the template, then attaches the tag.
 void doCopySpoolCreate(int template_spool_id, int template_filament_id, float template_initial,
                        float tare_g, float chosen_core_g) {
-  if (!wifi_ok) return;
+  // What the card read for the copy (copy_bbs.h) goes on every way out of
+  // here, a create that was never tried included.
+  if (!wifi_ok) { copyBbsClear(); return; }
   // The copy's empty spool (tare_g: the type chosen, else the template's) is
   // one someone stored, at whichever level spoolTare() found it: the reading
   // without the parts on the spool (spool_extras.h) is weighed against it,
   // and a full copy files what it weighs as its full weight (spool_start.h).
-  // Behind BamBuddy the full weight stays the template's and only what is
-  // left comes from here (backendCreateSpool()).
+  // Behind Bambuddy on Spoolman that full weight is the copy's label, the
+  // one the card priced; in Bambuddy's own inventory the label stays the
+  // template's and only what is left comes from here (copy_bbs.h).
   const float bare = spoolExtrasBareReading();
   const SpoolStart start = spoolStartValues(bare, (int)lroundf(tare_g),
                                             tare_g > 0.0f ? TARE_Q_KNOWN : TARE_Q_NONE,
@@ -148,16 +191,21 @@ void doCopySpoolCreate(int template_spool_id, int template_filament_id, float te
   int new_id = 0;
   int code = serverReachNote(backendCreateSpool(cfg_spoolman_base, template_spool_id, template_filament_id,
     (float)start.initial_g, tare_g, start.remaining_g, &new_id, 8000, chosen_core_g), true);
+  // Read before the load is cleared. Elsewhere nothing goes missing, and the
+  // bits a copy behind Spoolman left before a switch of backend must not
+  // speak for this one: no other backend's create resets them.
+  const uint8_t missing = spoolTypesActive() ? copyBbsLastMissing() : (uint8_t)CM_NONE;
+  copyBbsClear();
   if ((code == 200 || code == 201) && new_id > 0) {
     Serial.printf("Copy spool created: new ID=%d\n", new_id);
-    logSDf("Copy spool created: tmpl_spool=%d fid=%d new_spool_id=%d",
-           template_spool_id, template_filament_id, new_id);
+    logSDf("Copy spool created: tmpl_spool=%d fid=%d new_spool_id=%d missing=0x%02x",
+           template_spool_id, template_filament_id, new_id, (unsigned)missing);
     // A spool the kept list does not have, and a row for it cannot be made up
     // from here. The stamp would catch it; BamBuddy has none.
     spoolCacheForget("spool created by copy");
     // The spool exists either way; a tag that could not be bound has said so
     // on the status line, and that must stay readable.
-    if (finishCopyFlow(new_id)) statusMessageShow(T(STR_COPY_OK), UI_COL_GOOD);
+    if (finishCopyFlow(new_id)) copyCreatedStatus(missing);
     return;
   }
   Serial.printf("Copy spool POST failed: HTTP %d\n", code);
