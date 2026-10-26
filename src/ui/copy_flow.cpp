@@ -144,26 +144,50 @@ static const struct { uint8_t bit; int text; } COPY_MISSING_PARTS[] = {
 // The status line once the copy stands and its tag is linked: what it did
 // not take over in the colour of a half success, as "price not saved" after
 // a spool from a tag, else the plain success.
+//
+// Wurzel: lbl_status (main_screen.cpp) has a width and no height, and LVGL
+// dots a LONG_DOT label only where its text is taller than the label
+// (lv_label_refr_text): a message wider than the line wraps instead, and the
+// 22 px status bar cuts through both of its lines. Two parts can already be
+// too wide ("Profile je Modell, Lieferanten" after the sentence). Fix: as
+// many parts as the line holds, in their order, measured with the label's
+// own font and width, and "..." for the rest; the log has every part.
+// NOT-TO-DO: giving lbl_status one line of height from here - the fix for
+// every status message, but a change to the main screen of every backend.
 static void copyCreatedStatus(uint8_t missing) {
   if (missing == CM_NONE) {
     statusMessageShow(T(STR_COPY_OK), UI_COL_GOOD);
     return;
   }
-  // Whole words only: a part that would not fit is left out rather than cut
-  // through a letter of two bytes. Both buffers hold all five parts with the
-  // sentence in every language, so nothing is left out in practice; the
-  // label dots what is wider than the line.
-  char parts[160] = "";
-  size_t used = 0;
+  if (!lbl_status) return;
+  int ids[sizeof(COPY_MISSING_PARTS) / sizeof(COPY_MISSING_PARTS[0])];
+  int n = 0;
   for (const auto& p : COPY_MISSING_PARTS) {
-    if (!(missing & p.bit)) continue;
-    const char* word = T(p.text);
-    const char* sep  = used ? ", " : "";
-    if (used + strlen(sep) + strlen(word) >= sizeof(parts)) break;
-    used += (size_t)snprintf(parts + used, sizeof(parts) - used, "%s%s", sep, word);
+    if (missing & p.bit) ids[n++] = p.text;
   }
-  char msg[256];
-  snprintf(msg, sizeof(msg), T(STR_COPY_MISSING), parts);
+  const lv_font_t* font = lv_obj_get_style_text_font(lbl_status, LV_PART_MAIN);
+  // The width set on it (main_screen.cpp, header_status.cpp), not its last
+  // layout: right after showMainScreen() that may not have run yet.
+  const lv_coord_t room = lv_obj_get_style_width(lbl_status, LV_PART_MAIN);
+  // Whole words only: the buffers hold the sentence with all five parts and
+  // the dots in every language, and a part that would not fit them is left
+  // out rather than cut through a letter of two bytes.
+  char parts[160], msg[256];
+  for (int k = n; k >= 0; k--) {
+    size_t used = 0;
+    parts[0] = '\0';
+    for (int i = 0; i < k; i++) {
+      const char* sep  = i ? ", " : "";
+      const char* word = T(ids[i]);
+      if (used + strlen(sep) + strlen(word) + 4 >= sizeof(parts)) break;   // 4: "..." and its end
+      used += (size_t)snprintf(parts + used, sizeof(parts) - used, "%s%s", sep, word);
+    }
+    if (k < n) snprintf(parts + used, sizeof(parts) - used, "...");
+    snprintf(msg, sizeof(msg), T(STR_COPY_MISSING), parts);
+    lv_point_t size;
+    lv_txt_get_size(&size, msg, font, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    if (size.x <= room) break;
+  }
   statusMessageShow(msg, UI_COL_WARN);
 }
 

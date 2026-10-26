@@ -173,8 +173,16 @@ static lv_obj_t* copyAnswerButton(lv_obj_t* box, int x, int y, int w, bool ok) {
   return btn;
 }
 
-// A line in line 2's type: small, soft, centred, dotted when it runs long.
-static lv_obj_t* copyCardSmallLine(lv_obj_t* box, const char* text, int y) {
+// A line in line 2's type: small, soft, centred. With one_line it is exactly
+// one line high and dotted when it runs long.
+//
+// Wurzel: LVGL dots a LONG_DOT label only where its text is taller than the
+// label (lv_label_refr_text); with the height left to the content the label
+// grows instead, and a long text wraps - a long place and supplier ran over
+// line 3. Fix: one line of height, as labelOneLine() gives its labels.
+// NOT-TO-DO: the same for line 2 of the card outside Bambuddy on Spoolman,
+// which stays exactly as it was (ruling 16).
+static lv_obj_t* copyCardSmallLine(lv_obj_t* box, const char* text, int y, bool one_line) {
   lv_obj_t *lbl = lv_label_create(box);
   lv_label_set_text(lbl, text);
   lv_obj_set_style_text_color(lbl, lv_color_hex(UI_COL_INK_SOFT), 0);
@@ -182,6 +190,7 @@ static lv_obj_t* copyCardSmallLine(lv_obj_t* box, const char* text, int y) {
   lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
   lv_label_set_long_mode(lbl, LV_LABEL_LONG_DOT);
   lv_obj_set_width(lbl, COPY_CARD_TEXT_W);
+  if (one_line) lv_obj_set_height(lbl, lv_font_get_line_height(UI_FONT_SMALL));
   lv_obj_align(lbl, LV_ALIGN_TOP_MID, 0, y);
   return lbl;
 }
@@ -227,13 +236,13 @@ static void buildCopyTakenOver(lv_obj_t* box, const CopyBbsView& v, int y) {
     lv_obj_set_style_text_color(lbl, lv_color_hex(UI_COL_INK_SOFT), 0);
   }
 
-  // Where it is kept, and where it is bought: whole letters only, the
-  // label dots what does not fit.
+  // Where it is kept, and where it is bought: whole letters into the
+  // buffers, and one line on the card that dots what is wider than it.
   char loc[64], sup[64], place[136];
   utf8Cut(v.location[0] ? v.location : "-", sizeof(loc) - 1, loc, sizeof(loc));
   utf8Cut(v.supplier[0] ? v.supplier : "-", sizeof(sup) - 1, sup, sizeof(sup));
   snprintf(place, sizeof(place), "%s | %s", loc, sup);
-  copyCardSmallLine(box, place, y + COPY_CARD_SMALL_PITCH);
+  copyCardSmallLine(box, place, y + COPY_CARD_SMALL_PITCH, true);
 }
 
 // The copy confirmation, on the house card for a question (400 x 260, the
@@ -323,7 +332,8 @@ static void buildCopyCard() {
   char line2[64];
   snprintf(line2, sizeof(line2), T(STR_COPY_CARD_TEMPLATE),
            (look && look->vendor[0]) ? look->vendor : "-", copy_template_spool_id);
-  copyCardSmallLine(box, line2, y2);
+  // One line where the profile follows it (BBS); as it always was elsewhere.
+  copyCardSmallLine(box, line2, y2, s_copy_bbs);
 
   // Line 3: what the new spool starts with, as doCopySpoolCreate() will file
   // it (spool_start.h), and the empty spool it is weighed against: the type

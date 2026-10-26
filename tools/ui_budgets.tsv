@@ -392,19 +392,23 @@ STR_COPY_CARD_TARE	16	360	NEVER	src/ui/copy_confirm_popup.cpp line 3 of the card
 # create | price | cancel, 140 + 80 + 140 px with 8 px between them. On the
 # profile line the model count keeps its own width and the name beside it
 # gets the rest of the 360 px, so the words before the name must leave room
-# for the widest count. After the create the status line (lbl_status,
-# LONG_DOT) names the parts that were not taken over behind its sentence;
-# several parts run past the line and are dotted, so each part is only held
-# to the line on its own.
-STR_COPY_CARD_PROFILE	14	263	NEVER	src/ui/copy_confirm_popup.cpp profile line, 360 less the widest model count (97 px), the name dotted
+# for the widest count: FR " (+%d modèles)", 111 px as measured here with
+# the %d, 97 px drawn with a 2 (DE 106 and 92).
+# After the create the status line (lbl_status: 292 px, 262 with a port, 245
+# with https) gets the sentence and as many parts as it holds, then "..." for
+# the rest. copy_flow.cpp measures that itself: lbl_status has no height of
+# its own, and a LONG_DOT label without one wraps instead of dotting. The two
+# budgets below keep one part, any of them, behind the sentence on the 292 px
+# line in French: sentence plus widest part, 137 + 134 px.
+STR_COPY_CARD_PROFILE	14	249	NEVER	src/ui/copy_confirm_popup.cpp profile line, 360 less the widest model count (FR 111 px with %d), the name dotted
 STR_COPY_CARD_MODEL	14	120	NEVER	src/ui/copy_confirm_popup.cpp the model count beside the profile, its own width
 STR_COPY_CARD_MODELS	14	120	NEVER	src/ui/copy_confirm_popup.cpp the model count beside the profile, its own width
 STR_COPY_CARD_CREATE	18	132	NEVER	src/ui/copy_confirm_popup.cpp 140 px answer button beside the price, -8 air
 STR_CANCEL	18	132	NEVER	src/ui/copy_confirm_popup.cpp 140 px answer button beside the price, -8 air
 STR_TAGNEW_PRICE_BTN	14	64	NEVER	src/ui/copy_confirm_popup.cpp 80 px price button, 8 px air each side
-STR_COPY_MISSING	14	262	NEVER	src/ui/copy_flow.cpp lbl_status, HDR_STATUS_W_NARROW, the parts follow the sentence
-STR_COPY_PART_PRICE	14	262	NEVER	src/ui/copy_flow.cpp lbl_status, a part after the sentence, dotted with the rest
-STR_COPY_PART_PRESETS	14	262	NEVER	src/ui/copy_flow.cpp lbl_status, a part after the sentence, dotted with the rest
-STR_COPY_PART_SUPPLIERS	14	262	NEVER	src/ui/copy_flow.cpp lbl_status, a part after the sentence, dotted with the rest
-STR_COPY_PART_KPROFILES	14	262	NEVER	src/ui/copy_flow.cpp lbl_status, a part after the sentence, dotted with the rest
-STR_COPY_PART_FILAMENT	14	262	NEVER	src/ui/copy_flow.cpp lbl_status, a part after the sentence, dotted with the rest
+STR_COPY_MISSING	14	158	NEVER	src/ui/copy_flow.cpp lbl_status, HDR_STATUS_W 292 less the widest part (134 px)
+STR_COPY_PART_PRICE	14	155	NEVER	src/ui/copy_flow.cpp lbl_status, HDR_STATUS_W 292 less the sentence (137 px)
+STR_COPY_PART_PRESETS	14	155	NEVER	src/ui/copy_flow.cpp lbl_status, HDR_STATUS_W 292 less the sentence (137 px)
+STR_COPY_PART_SUPPLIERS	14	155	NEVER	src/ui/copy_flow.cpp lbl_status, HDR_STATUS_W 292 less the sentence (137 px)
+STR_COPY_PART_KPROFILES	14	155	NEVER	src/ui/copy_flow.cpp lbl_status, HDR_STATUS_W 292 less the sentence (137 px)
+STR_COPY_PART_FILAMENT	14	155	NEVER	src/ui/copy_flow.cpp lbl_status, HDR_STATUS_W 292 less the sentence (137 px)

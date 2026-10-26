@@ -3976,9 +3976,9 @@ const char* const STRINGS[][3] = {
   { " (+%d Modelle)",
     " (+%d models)",
     " (+%d modèles)" },  // STR_COPY_CARD_MODELS
-  { "Kopie angelegt, nicht übernommen: %s",
-    "Copy created, not taken over: %s",
-    "Copie créée, non repris : %s" },  // STR_COPY_MISSING
+  { "Kopie angelegt, ohne: %s",
+    "Copied, without: %s",
+    "Copie créée, sans : %s" },  // STR_COPY_MISSING
   { "Preis",
     "price",
     "prix" },  // STR_COPY_PART_PRICE
