@@ -20,18 +20,22 @@
 #include "update_badges.h"
 #include "ui_common.h"
 
-
-
+// The parts of the screen that change after it is built: a ring with one
+// symbol, the headline under it, the two setting rows and the one button.
+static lv_obj_t *gh_ring            = nullptr;
+static lv_obj_t *gh_ring_ico        = nullptr;
 static lv_obj_t *lbl_gh_status      = nullptr;
-static lv_obj_t *lbl_gh_installed   = nullptr;
-static lv_obj_t *lbl_gh_latest      = nullptr;
+static lv_obj_t *gh_row_auto        = nullptr;
+static lv_obj_t *gh_row_pre         = nullptr;
 static lv_obj_t *btn_gh_update      = nullptr;
 static lv_obj_t *lbl_gh_update_btn  = nullptr;
 
 void otaGithubForgetLabels() {
+  gh_ring           = nullptr;
+  gh_ring_ico       = nullptr;
   lbl_gh_status     = nullptr;
-  lbl_gh_installed  = nullptr;
-  lbl_gh_latest     = nullptr;
+  gh_row_auto       = nullptr;
+  gh_row_pre        = nullptr;
   btn_gh_update     = nullptr;
   lbl_gh_update_btn = nullptr;
 }
@@ -149,19 +153,130 @@ bool otaGithubScreenVisible() {
          !lv_obj_has_flag(scr_ota_github, LV_OBJ_FLAG_HIDDEN);
 }
 
+// What the ring and the headline say. The ring carries the colour and a
+// symbol of its own, so the state reads without the colour too.
+enum GhLook { GH_LOOK_IDLE, GH_LOOK_BUSY, GH_LOOK_OK, GH_LOOK_NEW, GH_LOOK_WARN, GH_LOOK_BAD };
+
+// The headline's width. A text wider than this - an error from GitHub, the
+// too-big note - drops to the small font, where two lines still clear the
+// version line below.
+static constexpr lv_coord_t GH_STATUS_W_PX = 456;
+
+static void ghShowStatus(GhLook look, const char *text) {
+  if (!lbl_gh_status || !gh_ring || !gh_ring_ico) return;
+  static const char *const SYMBOLS[] = { "?", LV_SYMBOL_REFRESH, LV_SYMBOL_OK,
+                                         LV_SYMBOL_DOWNLOAD, LV_SYMBOL_WARNING,
+                                         LV_SYMBOL_CLOSE };
+  uint32_t col = UI_COL_CAPTION;
+  if (look == GH_LOOK_OK) col = UI_COL_GOOD;
+  else if (look == GH_LOOK_NEW || look == GH_LOOK_WARN) col = UI_COL_WARN;
+  else if (look == GH_LOOK_BAD) col = UI_COL_BAD;
+  lv_obj_set_style_border_color(gh_ring, lv_color_hex(col), 0);
+  lv_label_set_text(gh_ring_ico, SYMBOLS[look]);
+  lv_obj_set_style_text_color(gh_ring_ico, lv_color_hex(col), 0);
+
+  const lv_font_t *font = UI_FONT_HEADLINE;
+  if (lv_txt_get_width(text, strlen(text), font, 0, LV_TEXT_FLAG_NONE) > GH_STATUS_W_PX) {
+    font = UI_FONT_SMALL;
+  }
+  lv_obj_set_style_text_font(lbl_gh_status, font, 0);
+  lv_label_set_text(lbl_gh_status, text);
+  lv_obj_set_style_text_color(lbl_gh_status,
+    lv_color_hex(look == GH_LOOK_BAD ? UI_COL_BAD_TEXT : UI_COL_INK), 0);
+}
+
+// One button for the next step: search while nothing is found, install (or
+// go back) once something is. The old screen kept a greyed "Install" beside
+// the search button, which read as broken.
+static bool gh_action_installs = false;
+
+static void ghSetAction(bool installs) {
+  gh_action_installs = installs;
+  if (!btn_gh_update || !lbl_gh_update_btn) return;
+  lv_obj_set_style_bg_color(btn_gh_update,
+    lv_color_hex(installs ? UI_COL_ACCENT : UI_COL_ROW), 0);
+  lv_obj_set_style_bg_color(btn_gh_update,
+    lv_color_hex(installs ? UI_COL_GO_BG_PRESSED : UI_COL_ROW_PRESS_FILL), LV_STATE_PRESSED);
+  lv_obj_set_style_border_color(btn_gh_update,
+    lv_color_hex(installs ? UI_COL_ACCENT : UI_COL_LINE), 0);
+  const int caption = !installs      ? STR_GH_OTA_CHECK_BTN
+                    : gh_found_older ? STR_GH_OTA_DOWNGRADE_BTN
+                                     : STR_GH_OTA_UPDATE_BTN;
+  char buf[64];
+  snprintf(buf, sizeof(buf), "%s  %s", installs ? LV_SYMBOL_DOWNLOAD : LV_SYMBOL_REFRESH,
+           T(caption));
+  lv_label_set_text(lbl_gh_update_btn, buf);
+  lv_obj_set_style_text_color(lbl_gh_update_btn,
+    lv_color_hex(installs ? UI_COL_ON_ACCENT : UI_COL_ACCENT), 0);
+}
+
+// What the screen says before a search on it: what the background check
+// found, else that nothing has been looked for yet.
+static void ghShowInitial() {
+  if (update_available && gh_latest_version[0] != '\0') {
+    // The background check only ever reports a newer release, so whatever an
+    // earlier manual check left here, this one is not a step back.
+    gh_found_older = false;
+    char avail[64];
+    snprintf(avail, sizeof(avail), T(STR_GH_OTA_UPDATE_AVAIL), gh_latest_version);
+    ghShowStatus(GH_LOOK_NEW, avail);
+    ghSetAction(true);
+  } else {
+    ghShowStatus(GH_LOOK_IDLE, T(STR_GH_OTA_NOT_CHECKED));
+    ghSetAction(false);
+  }
+}
+
+// What a finished check found, shown and acted on. Split from the check so
+// each stays readable; `image_size` is what GitHub says the image weighs.
+static void ghShowCheckResult(uint32_t image_size) {
+  const uint64_t cur = parseVersion(FW_VERSION);
+  const uint64_t remote = parseVersion(gh_latest_version);
+  gh_found_older = (remote < cur);
+
+  if (remote == cur) {
+    ghShowStatus(GH_LOOK_OK, T(STR_GH_OTA_UP_TO_DATE));
+    update_available = false;
+    showUpdateBadges(false);
+    ghSetAction(false);
+  } else if (!gh_found_older && !partitionImageFits(image_size)) {
+    // Larger than this device's app slot: the old partition table. The
+    // download would be refused at the end anyway; saying so now, with the
+    // way out, beats a failed update (Nikolai, 26.09.2026).
+    char big[96];
+    snprintf(big, sizeof(big), T(STR_GH_OTA_TOO_BIG), gh_latest_version);
+    ghShowStatus(GH_LOOK_WARN, big);
+    partitionNoteTooBig(gh_latest_version, image_size);
+    update_available = false;
+    showUpdateBadges(false);
+    // Back to searching even when an earlier check on this screen offered it.
+    ghSetAction(false);
+  } else {
+    // Older is also an answer worth acting on: someone testing a pre-release
+    // and moving the channel back wants the release below, and it is the same
+    // download either way. What differs is that going back gets asked about.
+    char avail[80];
+    snprintf(avail, sizeof(avail),
+             T(gh_found_older ? STR_GH_OTA_OLDER : STR_GH_OTA_UPDATE_AVAIL),
+             gh_latest_version);
+    ghShowStatus(GH_LOOK_NEW, avail);
+    ghSetAction(true);
+    // The badge means an update is waiting, so an older release must not light
+    // it - and a check that found nothing newer has to take it down again.
+    update_available = !gh_found_older;
+    showUpdateBadges(!gh_found_older);
+  }
+}
+
 void doGithubOtaCheck() {
   if (!lbl_gh_status) return;
 
   if (!wifi_ok) {
-    char buf[64]; copyT(buf, sizeof(buf), STR_GH_OTA_NO_WIFI); buf[sizeof(buf)-1]=0;
-    lv_label_set_text(lbl_gh_status, buf);
-    lv_obj_set_style_text_color(lbl_gh_status, lv_color_hex(UI_COL_BAD_TEXT), 0);
+    ghShowStatus(GH_LOOK_BAD, T(STR_GH_OTA_NO_WIFI));
     return;
   }
 
-  char buf[64]; copyT(buf, sizeof(buf), STR_GH_OTA_CHECKING); buf[sizeof(buf)-1]=0;
-  lv_label_set_text(lbl_gh_status, buf);
-  lv_obj_set_style_text_color(lbl_gh_status, lv_color_hex(UI_COL_CAPTION), 0);
+  ghShowStatus(GH_LOOK_BUSY, T(STR_GH_OTA_CHECKING));
   lv_timer_handler();
 
   // The background check holds its own TLS connection, and two handshakes want
@@ -179,79 +294,13 @@ void doGithubOtaCheck() {
   uint32_t image_size = 0;
   if (!githubLatestTag(gh_prerelease, tag, sizeof(tag), nullptr, 0,
                        cerr, sizeof(cerr), &image_size)) {
-    lv_label_set_text(lbl_gh_status, cerr[0] ? cerr : T(STR_GH_OTA_FLASH_FAIL));
-    lv_obj_set_style_text_color(lbl_gh_status, lv_color_hex(UI_COL_BAD_TEXT), 0);
+    ghShowStatus(GH_LOOK_BAD, cerr[0] ? cerr : T(STR_GH_OTA_FLASH_FAIL));
     return;
   }
 
   strncpy(gh_latest_version, tag, sizeof(gh_latest_version)-1);
   gh_latest_version[sizeof(gh_latest_version)-1] = 0;
-
-  if (lbl_gh_installed) {
-    char inst[48]; snprintf(inst, sizeof(inst), T(STR_GH_OTA_INSTALLED), FW_VERSION);
-    lv_label_set_text(lbl_gh_installed, inst);
-    lv_obj_clear_flag(lbl_gh_installed, LV_OBJ_FLAG_HIDDEN);
-  }
-  if (lbl_gh_latest) {
-    char lat[48]; snprintf(lat, sizeof(lat), T(STR_GH_OTA_LATEST), gh_latest_version);
-    lv_label_set_text(lbl_gh_latest, lat);
-    lv_obj_clear_flag(lbl_gh_latest, LV_OBJ_FLAG_HIDDEN);
-  }
-
-  uint64_t cur = parseVersion(FW_VERSION);
-  uint64_t remote = parseVersion(gh_latest_version);
-
-  gh_found_older = (remote < cur);
-
-  if (remote == cur) {
-    char upd[48]; copyT(upd, sizeof(upd), STR_GH_OTA_UP_TO_DATE); upd[sizeof(upd)-1]=0;
-    lv_label_set_text(lbl_gh_status, upd);
-    lv_obj_set_style_text_color(lbl_gh_status, lv_color_hex(UI_COL_OK_TEXT_2), 0);
-    update_available = false;
-    showUpdateBadges(false);
-    if (btn_gh_update) lv_obj_add_state(btn_gh_update, LV_STATE_DISABLED);
-  } else if (!gh_found_older && !partitionImageFits(image_size)) {
-    // Larger than this device's app slot: the old partition table. The
-    // download would be refused at the end anyway; saying so now, with the
-    // way out, beats a failed update (Nikolai, 26.09.2026).
-    char big[96];
-    snprintf(big, sizeof(big), T(STR_GH_OTA_TOO_BIG), gh_latest_version);
-    lv_label_set_text(lbl_gh_status, big);
-    lv_obj_set_style_text_color(lbl_gh_status, lv_color_hex(UI_COL_WARN), 0);
-    partitionNoteTooBig(gh_latest_version, image_size);
-    update_available = false;
-    showUpdateBadges(false);
-    // Off even when an earlier check on this screen had armed it.
-    if (btn_gh_update) lv_obj_add_state(btn_gh_update, LV_STATE_DISABLED);
-  } else {
-    // Older is also an answer worth acting on: someone testing a pre-release
-    // and moving the channel back wants the release below, and it is the same
-    // download either way. What differs is that going back gets asked about.
-    char avail[80];
-    snprintf(avail, sizeof(avail),
-             T(gh_found_older ? STR_GH_OTA_OLDER : STR_GH_OTA_UPDATE_AVAIL),
-             gh_latest_version);
-    lv_label_set_text(lbl_gh_status, avail);
-    lv_obj_set_style_text_color(lbl_gh_status, lv_color_hex(UI_COL_WARN), 0);
-    if (btn_gh_update) {
-      lv_obj_clear_state(btn_gh_update, LV_STATE_DISABLED);
-      lv_obj_set_style_bg_color(btn_gh_update, lv_color_hex(UI_COL_GO_BG), 0);
-      lv_obj_set_style_bg_color(btn_gh_update, lv_color_hex(UI_COL_GO_BG_PRESSED), LV_STATE_PRESSED);
-      lv_obj_set_style_border_color(btn_gh_update, lv_color_hex(UI_COL_ACCENT), 0);
-      if (lbl_gh_update_btn) {
-        char ubtn[48];
-        copyT(ubtn, sizeof(ubtn), gh_found_older ? STR_GH_OTA_DOWNGRADE_BTN
-                                       : STR_GH_OTA_UPDATE_BTN);
-        ubtn[sizeof(ubtn)-1]=0;
-        lv_label_set_text(lbl_gh_update_btn, ubtn);
-        lv_obj_set_style_text_color(lbl_gh_update_btn, lv_color_hex(UI_COL_OK_TEXT_2), 0);
-      }
-    }
-    // The badge means an update is waiting, so an older release must not light
-    // it - and a check that found nothing newer has to take it down again.
-    update_available = !gh_found_older;
-    showUpdateBadges(!gh_found_older);
-  }
+  ghShowCheckResult(image_size);
 }
 
 void doGithubOtaFlash(const char* version) {
@@ -261,8 +310,7 @@ void doGithubOtaFlash(const char* version) {
   // from GitHub's "latest" alias - see the URL below for why that matters.
   const char* tag = (version && version[0]) ? version : gh_latest_version;
   if (tag[0] == '\0') {
-    lv_label_set_text(lbl_gh_status, T(STR_GH_OTA_FLASH_FAIL));
-    lv_obj_set_style_text_color(lbl_gh_status, lv_color_hex(UI_COL_BAD_TEXT), 0);
+    ghShowStatus(GH_LOOK_BAD, T(STR_GH_OTA_FLASH_FAIL));
     return;
   }
   // A version found too large for this slot - by the browser, say, while this
@@ -271,16 +319,13 @@ void doGithubOtaFlash(const char* version) {
   if (partitionTagTooBig(tag)) {
     char big[96];
     snprintf(big, sizeof(big), T(STR_GH_OTA_TOO_BIG), tag);
-    lv_label_set_text(lbl_gh_status, big);
-    lv_obj_set_style_text_color(lbl_gh_status, lv_color_hex(UI_COL_WARN), 0);
+    ghShowStatus(GH_LOOK_WARN, big);
     return;
   }
 
   otaGithubOverlayShow();
 
-  char buf[64]; copyT(buf, sizeof(buf), STR_GH_OTA_FLASHING); buf[sizeof(buf)-1]=0;
-  lv_label_set_text(lbl_gh_status, buf);
-  lv_obj_set_style_text_color(lbl_gh_status, lv_color_hex(UI_COL_WARN), 0);
+  ghShowStatus(GH_LOOK_BUSY, T(STR_GH_OTA_FLASHING));
   if (btn_gh_update) lv_obj_add_flag(btn_gh_update, LV_OBJ_FLAG_HIDDEN);
   lv_timer_handler();
 
@@ -290,18 +335,16 @@ void doGithubOtaFlash(const char* version) {
   if (!flashed) otaGithubOverlayHide();
 
   if (flashed) {
-    char okmsg[64]; copyT(okmsg, sizeof(okmsg), STR_GH_OTA_FLASH_OK); okmsg[sizeof(okmsg)-1]=0;
-    lv_label_set_text(lbl_gh_status, okmsg);
-    lv_obj_set_style_text_color(lbl_gh_status, lv_color_hex(UI_COL_OK_TEXT_2), 0);
+    ghShowStatus(GH_LOOK_OK, T(STR_GH_OTA_FLASH_OK));
     lv_timer_handler();
     delay(2000);
     logSD("Reboot: GitHub update written");
     ESP.restart();
   } else {
+    char buf[128];
     snprintf(buf, sizeof(buf), "%s%s%s", T(STR_GH_OTA_FLASH_FAIL),
              ferr[0] ? " - " : "", ferr);
-    lv_label_set_text(lbl_gh_status, buf);
-    lv_obj_set_style_text_color(lbl_gh_status, lv_color_hex(UI_COL_BAD_TEXT), 0);
+    ghShowStatus(GH_LOOK_BAD, buf);
   }
 }
 
@@ -317,185 +360,155 @@ void showOtaGithubScreen() {
   lv_obj_clear_flag(scr_ota_github, LV_OBJ_FLAG_HIDDEN);
 }
 
+// The ring, the headline and the installed version: the top half, which says
+// where the device stands.
+static void ghBuildStatus(lv_obj_t *scr) {
+  gh_ring = lv_obj_create(scr);
+  lv_obj_set_size(gh_ring, 48, 48);
+  lv_obj_set_pos(gh_ring, 216, 56);
+  lv_obj_set_style_radius(gh_ring, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_bg_color(gh_ring, lv_color_hex(UI_COL_SURFACE), 0);
+  lv_obj_set_style_border_width(gh_ring, 2, 0);
+  lv_obj_set_style_pad_all(gh_ring, 0, 0);
+  lv_obj_clear_flag(gh_ring, (lv_obj_flag_t)(LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE));
+
+  gh_ring_ico = lv_label_create(gh_ring);
+  lv_obj_set_style_text_font(gh_ring_ico, UI_FONT_HEADLINE, 0);
+  lv_obj_center(gh_ring_ico);
+
+  lbl_gh_status = lv_label_create(scr);
+  lv_label_set_long_mode(lbl_gh_status, LV_LABEL_LONG_WRAP);
+  lv_obj_set_width(lbl_gh_status, GH_STATUS_W_PX);
+  lv_obj_set_style_text_align(lbl_gh_status, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_align(lbl_gh_status, LV_ALIGN_TOP_MID, 0, 110);
+
+  lv_obj_t *lbl_inst = lv_label_create(scr);
+  char inst[48];
+  snprintf(inst, sizeof(inst), T(STR_GH_OTA_INSTALLED), FW_VERSION);
+  lv_label_set_text(lbl_inst, inst);
+  lv_obj_set_style_text_color(lbl_inst, lv_color_hex(UI_COL_INK_SOFT), 0);
+  lv_obj_set_style_text_font(lbl_inst, UI_FONT_SMALL, 0);
+  lv_obj_align(lbl_inst, LV_ALIGN_TOP_MID, 0, 146);
+}
+
+// A setting in a half-width row: its name on the left, ON or OFF on the
+// right, the border in the accent while it is on - the printer screen's
+// toggle rows, side by side.
+static lv_obj_t* ghMakeToggleRow(lv_obj_t *scr, lv_coord_t x, const char *title,
+                                 lv_event_cb_t cb) {
+  lv_obj_t *row = lv_btn_create(scr);
+  lv_obj_set_size(row, 222, 52);
+  lv_obj_set_pos(row, x, 176);
+  lv_obj_set_style_bg_color(row, lv_color_hex(UI_COL_ROW), 0);
+  lv_obj_set_style_bg_color(row, lv_color_hex(UI_COL_ROW_PRESS_FILL), LV_STATE_PRESSED);
+  lv_obj_set_style_radius(row, UI_RADIUS_ROW, 0);
+  lv_obj_set_style_shadow_width(row, 0, 0);
+  lv_obj_set_style_border_width(row, 1, 0);
+  lv_obj_set_style_pad_all(row, 0, 0);
+  lv_obj_add_event_cb(row, cb, LV_EVENT_CLICKED, NULL);
+
+  lv_obj_t *lbl = lv_label_create(row);
+  lv_label_set_text(lbl, title);
+  lv_obj_set_style_text_color(lbl, lv_color_hex(UI_COL_INK), 0);
+  lv_obj_set_style_text_font(lbl, UI_FONT_SMALL, 0);
+  lv_obj_align(lbl, LV_ALIGN_LEFT_MID, 14, 0);
+
+  // Last child on purpose: ghPaintToggle() finds it there.
+  lv_obj_t *val = lv_label_create(row);
+  lv_obj_set_style_text_font(val, UI_FONT_SMALL, 0);
+  lv_obj_align(val, LV_ALIGN_RIGHT_MID, -14, 0);
+  return row;
+}
+
+static void ghPaintToggle(lv_obj_t *row, bool on) {
+  if (!row) return;
+  lv_obj_set_style_border_color(row, lv_color_hex(on ? UI_COL_ACCENT : UI_COL_ROW_PRESSED), 0);
+  lv_obj_t *val = lv_obj_get_child(row, -1);
+  lv_label_set_text(val, T(on ? STR_ON : STR_OFF));
+  lv_obj_set_style_text_color(val, lv_color_hex(on ? UI_COL_ACCENT : UI_COL_CAPTION), 0);
+}
+
+// Both settings decide what the device looks for, not what it does now, so
+// a change takes the screen back to its opening state rather than leave a
+// result standing that was found under the other setting.
+static void ghOnAutoToggle(lv_event_t *e) {
+  g_upd_autocheck = !g_upd_autocheck;
+  prefsPutBool("upd_check", g_upd_autocheck);
+  if (g_upd_autocheck) {
+    // Someone who just switched this on wants to see a result, not to wait
+    // out the daily window. The zeroed timestamp makes the next check due.
+    g_upd_last_epoch = 0;
+    prefsPutUInt("upd_last", 0);
+    updateCheckScheduleIn(5000);
+  } else {
+    update_available = false;
+    showUpdateBadges(false);
+  }
+  ghPaintToggle(gh_row_auto, g_upd_autocheck);
+  ghShowInitial();
+}
+
+static void ghOnPreToggle(lv_event_t *e) {
+  gh_prerelease = !gh_prerelease;
+  // Was written to the "spool" namespace while loadPrefs() reads from
+  // "spoolscale", so the setting silently reverted on every reboot.
+  prefsPutBool("gh_prerelease", gh_prerelease);
+  ghPaintToggle(gh_row_pre, gh_prerelease);
+  ghShowInitial();
+}
+
+static void ghOnAction(lv_event_t *e) {
+  if (!gh_action_installs) {
+    // The check is a TLS request of up to eight seconds: from the loop, never
+    // from this callback, where "checking" was never drawn and the screen froze.
+    ghShowStatus(GH_LOOK_BUSY, T(STR_GH_OTA_CHECKING));
+    gh_check_pending = true;
+    gh_check_wait_since = millis();
+    return;
+  }
+  // Going back costs the same minute and the same restart as going forward,
+  // and only the label says which direction the button points, so the one
+  // that loses features asks first.
+  if (gh_found_older) {
+    char ask[160];
+    snprintf(ask, sizeof(ask), T(STR_GH_OTA_DOWNGRADE_ASK), gh_latest_version);
+    showConfirmPopup(ask, 5);
+    return;
+  }
+  // Parked, like the downgrade: a minute of TLS download and a flash write
+  // do not run from the button that asked for them.
+  gh_flash_pending = true;
+}
+
+static void ghBuildAction(lv_obj_t *scr) {
+  btn_gh_update = lv_btn_create(scr);
+  lv_obj_set_size(btn_gh_update, 456, 52);
+  lv_obj_set_pos(btn_gh_update, 12, 244);
+  lv_obj_set_style_radius(btn_gh_update, UI_RADIUS_ROW, 0);
+  lv_obj_set_style_shadow_width(btn_gh_update, 0, 0);
+  lv_obj_set_style_border_width(btn_gh_update, 1, 0);
+  lv_obj_add_event_cb(btn_gh_update, ghOnAction, LV_EVENT_CLICKED, NULL);
+
+  lbl_gh_update_btn = lv_label_create(btn_gh_update);
+  lv_obj_set_style_text_font(lbl_gh_update_btn, UI_FONT_BODY, 0);
+  lv_obj_center(lbl_gh_update_btn);
+}
+
 void buildOtaGithubScreen() {
   logSD("BUILD: OtaGithubScreen");
   releaseScreen(&scr_ota_github);
   scr_ota_github = buildOverlayScreen();
 
   char buf_title[32];
-  copyT(buf_title, sizeof(buf_title), STR_GH_OTA_TITLE); buf_title[sizeof(buf_title)-1]=0;
+  copyT(buf_title, sizeof(buf_title), STR_GH_OTA_TITLE);
   buildSubHeader(scr_ota_github, buf_title,
     [](lv_event_t *e){ logSD("BTN: OtaGithub -> Back"); show_ota_pending = true; });
 
-  lv_obj_t *btn_check = lv_btn_create(scr_ota_github);
-  lv_obj_set_size(btn_check, 280, 44);
-  lv_obj_align(btn_check, LV_ALIGN_TOP_MID, 0, 56);
-  lv_obj_set_style_bg_color(btn_check, lv_color_hex(UI_COL_ROW), 0);
-  lv_obj_set_style_bg_color(btn_check, lv_color_hex(UI_COL_ROW_PRESS_FILL), LV_STATE_PRESSED);
-  lv_obj_set_style_radius(btn_check, 8, 0);
-  lv_obj_set_style_shadow_width(btn_check, 0, 0);
-  lv_obj_set_style_border_width(btn_check, 1, 0);
-  lv_obj_set_style_border_color(btn_check, lv_color_hex(UI_COL_LINE), 0);
-  // The check is a TLS request of up to eight seconds: from the loop, never
-  // from this callback, where "checking" was never drawn and the screen froze.
-  lv_obj_add_event_cb(btn_check, [](lv_event_t *e) {
-    if (lbl_gh_status) {
-      lv_label_set_text(lbl_gh_status, T(STR_GH_OTA_CHECKING));
-      lv_obj_set_style_text_color(lbl_gh_status, lv_color_hex(UI_COL_CAPTION), 0);
-    }
-    gh_check_pending = true;
-    gh_check_wait_since = millis();
-  }, LV_EVENT_CLICKED, NULL);
-  lv_obj_t *lbl_check = lv_label_create(btn_check);
-  char buf_check[48]; copyT(buf_check, sizeof(buf_check), STR_GH_OTA_CHECK_BTN); buf_check[sizeof(buf_check)-1]=0;
-  lv_label_set_text(lbl_check, buf_check);
-  lv_obj_set_style_text_color(lbl_check, lv_color_hex(UI_COL_ACCENT), 0);
-  lv_obj_set_style_text_font(lbl_check, &lv_font_montserrat_ext_16, 0);
-  lv_obj_set_style_text_align(lbl_check, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(lbl_check, LV_ALIGN_CENTER, 0, 0);
-
-  lbl_gh_status = lv_label_create(scr_ota_github);
-  lv_label_set_text(lbl_gh_status, "");
-  lv_obj_set_style_text_color(lbl_gh_status, lv_color_hex(UI_COL_CAPTION), 0);
-  lv_obj_set_style_text_font(lbl_gh_status, &lv_font_montserrat_ext_14, 0);
-  lv_obj_set_style_text_align(lbl_gh_status, LV_TEXT_ALIGN_CENTER, 0);
-  lv_label_set_long_mode(lbl_gh_status, LV_LABEL_LONG_WRAP);
-  lv_obj_set_width(lbl_gh_status, 440);
-  lv_obj_align(lbl_gh_status, LV_ALIGN_TOP_MID, 0, 112);
-
-  lbl_gh_installed = lv_label_create(scr_ota_github);
-  lv_label_set_text(lbl_gh_installed, "");
-  lv_obj_set_style_text_color(lbl_gh_installed, lv_color_hex(UI_COL_CAPTION), 0);
-  lv_obj_set_style_text_font(lbl_gh_installed, &lv_font_montserrat_ext_14, 0);
-  lv_obj_set_style_text_align(lbl_gh_installed, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(lbl_gh_installed, LV_ALIGN_TOP_MID, 0, 148);
-  lv_obj_add_flag(lbl_gh_installed, LV_OBJ_FLAG_HIDDEN);
-
-  lbl_gh_latest = lv_label_create(scr_ota_github);
-  lv_label_set_text(lbl_gh_latest, "");
-  lv_obj_set_style_text_color(lbl_gh_latest, lv_color_hex(UI_COL_CAPTION), 0);
-  lv_obj_set_style_text_font(lbl_gh_latest, &lv_font_montserrat_ext_14, 0);
-  lv_obj_set_style_text_align(lbl_gh_latest, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(lbl_gh_latest, LV_ALIGN_TOP_MID, 0, 170);
-  lv_obj_add_flag(lbl_gh_latest, LV_OBJ_FLAG_HIDDEN);
-
-  // ── Automatic background check ──
-  // Sits with the pre-release switch because both decide what the device looks
-  // for, not what it does right now.
-  lv_obj_t *btn_auto = lv_btn_create(scr_ota_github);
-  lv_obj_set_size(btn_auto, 280, 36);
-  lv_obj_align(btn_auto, LV_ALIGN_TOP_MID, 0, 200);
-  lv_obj_set_style_bg_color(btn_auto, g_upd_autocheck ? lv_color_hex(UI_COL_CHIP) : lv_color_hex(UI_COL_GROUND), 0);
-  lv_obj_set_style_bg_color(btn_auto, lv_color_hex(UI_COL_PRESS_FILL), LV_STATE_PRESSED);
-  lv_obj_set_style_radius(btn_auto, 8, 0);
-  lv_obj_set_style_shadow_width(btn_auto, 0, 0);
-  lv_obj_set_style_border_width(btn_auto, 1, 0);
-  lv_obj_set_style_border_color(btn_auto, g_upd_autocheck ? lv_color_hex(UI_COL_ACCENT) : lv_color_hex(UI_COL_ROW), 0);
-  lv_obj_add_event_cb(btn_auto, [](lv_event_t *e) {
-    g_upd_autocheck = !g_upd_autocheck;
-    prefsPutBool("upd_check", g_upd_autocheck);
-    if (g_upd_autocheck) {
-      // Someone who just switched this on wants to see a result, not to wait
-      // out the daily window. The zeroed timestamp makes the next check due.
-      g_upd_last_epoch = 0;
-      prefsPutUInt("upd_last", 0);
-      updateCheckScheduleIn(5000);
-    } else {
-      update_available = false;
-      showUpdateBadges(false);
-    }
-    if (scr_ota_github) { lv_obj_del(scr_ota_github); scr_ota_github = nullptr; }
-    buildOtaGithubScreen();
-    if (scr_ota_github) lv_obj_clear_flag(scr_ota_github, LV_OBJ_FLAG_HIDDEN);
-  }, LV_EVENT_CLICKED, NULL);
-
-  lv_obj_t *lbl_auto = lv_label_create(btn_auto);
-  char auto_buf[64];
-  snprintf(auto_buf, sizeof(auto_buf), "%s  %s", T(STR_GH_OTA_AUTOCHECK),
-           g_upd_autocheck ? "[ ON ]" : "[ OFF ]");
-  lv_label_set_text(lbl_auto, auto_buf);
-  lv_obj_set_style_text_color(lbl_auto, g_upd_autocheck ? lv_color_hex(UI_COL_ACCENT) : lv_color_hex(UI_COL_DISABLED_TEXT), 0);
-  lv_obj_set_style_text_font(lbl_auto, &lv_font_montserrat_ext_12, 0);
-  lv_obj_set_style_text_align(lbl_auto, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(lbl_auto, LV_ALIGN_CENTER, 0, 0);
-
-  lv_obj_t *btn_pre = lv_btn_create(scr_ota_github);
-  lv_obj_set_size(btn_pre, 140, 48);
-  lv_obj_align(btn_pre, LV_ALIGN_BOTTOM_LEFT, 12, -24);
-  lv_obj_set_style_bg_color(btn_pre, gh_prerelease ? lv_color_hex(UI_COL_CHIP) : lv_color_hex(UI_COL_GROUND), 0);
-  lv_obj_set_style_bg_color(btn_pre, lv_color_hex(UI_COL_PRESS_FILL), LV_STATE_PRESSED);
-  lv_obj_set_style_radius(btn_pre, 8, 0);
-  lv_obj_set_style_shadow_width(btn_pre, 0, 0);
-  lv_obj_set_style_border_width(btn_pre, 1, 0);
-  lv_obj_set_style_border_color(btn_pre, gh_prerelease ? lv_color_hex(UI_COL_ACCENT) : lv_color_hex(UI_COL_ROW), 0);
-  lv_obj_add_event_cb(btn_pre, [](lv_event_t *e) {
-    gh_prerelease = !gh_prerelease;
-    // Was written to the "spool" namespace while loadPrefs() reads from
-    // "spoolscale", so the setting silently reverted on every reboot.
-    prefsPutBool("gh_prerelease", gh_prerelease);
-    if (scr_ota_github) { lv_obj_del(scr_ota_github); scr_ota_github = nullptr; }
-    buildOtaGithubScreen();
-    if (scr_ota_github) lv_obj_clear_flag(scr_ota_github, LV_OBJ_FLAG_HIDDEN);
-  }, LV_EVENT_CLICKED, NULL);
-
-  lv_obj_t *lbl_pre = lv_label_create(btn_pre);
-  char pre_buf[32];
-  snprintf(pre_buf, sizeof(pre_buf), "%s\n%s", T(STR_GH_OTA_PRERELEASE), gh_prerelease ? "[ ON ]" : "[ OFF ]");
-  lv_label_set_text(lbl_pre, pre_buf);
-  lv_obj_set_style_text_color(lbl_pre, gh_prerelease ? lv_color_hex(UI_COL_ACCENT) : lv_color_hex(UI_COL_DISABLED_TEXT), 0);
-  lv_obj_set_style_text_font(lbl_pre, &lv_font_montserrat_ext_12, 0);
-  lv_obj_set_style_text_align(lbl_pre, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(lbl_pre, LV_ALIGN_CENTER, 0, 0);
-
-  btn_gh_update = lv_btn_create(scr_ota_github);
-  lv_obj_set_size(btn_gh_update, 310, 48);
-  lv_obj_align(btn_gh_update, LV_ALIGN_BOTTOM_RIGHT, -12, -24);
-  lv_obj_set_style_bg_color(btn_gh_update, lv_color_hex(UI_COL_DISABLED_BG), 0);
-  lv_obj_set_style_bg_color(btn_gh_update, lv_color_hex(UI_COL_DISABLED_BG), LV_STATE_PRESSED);
-  lv_obj_set_style_radius(btn_gh_update, 8, 0);
-  lv_obj_set_style_shadow_width(btn_gh_update, 0, 0);
-  lv_obj_set_style_border_width(btn_gh_update, 1, 0);
-  lv_obj_set_style_border_color(btn_gh_update, lv_color_hex(UI_COL_ROW), 0);
-  lv_obj_add_state(btn_gh_update, LV_STATE_DISABLED);
-  lv_obj_add_event_cb(btn_gh_update, [](lv_event_t *e){
-    // Going back costs the same minute and the same restart as going forward,
-    // and nothing about the screen says which direction the button points, so
-    // the one that loses features asks first.
-    if (gh_found_older) {
-      char ask[160];
-      snprintf(ask, sizeof(ask), T(STR_GH_OTA_DOWNGRADE_ASK), gh_latest_version);
-      showConfirmPopup(ask, 5);
-      return;
-    }
-    // Parked, like the downgrade: a minute of TLS download and a flash write
-    // do not run from the button that asked for them.
-    gh_flash_pending = true;
-  }, LV_EVENT_CLICKED, NULL);
-
-  lbl_gh_update_btn = lv_label_create(btn_gh_update);
-  char buf_ubtn[48]; copyT(buf_ubtn, sizeof(buf_ubtn), STR_GH_OTA_UPDATE_BTN); buf_ubtn[sizeof(buf_ubtn)-1]=0;
-  lv_label_set_text(lbl_gh_update_btn, buf_ubtn);
-  lv_obj_set_style_text_color(lbl_gh_update_btn, lv_color_hex(UI_COL_DISABLED_TEXT), 0);
-  lv_obj_set_style_text_font(lbl_gh_update_btn, &lv_font_montserrat_ext_16, 0);
-  lv_obj_set_style_text_align(lbl_gh_update_btn, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(lbl_gh_update_btn, LV_ALIGN_CENTER, 0, 0);
-
-  if (update_available && gh_latest_version[0] != '\0') {
-    lv_obj_clear_state(btn_gh_update, LV_STATE_DISABLED);
-    lv_obj_set_style_bg_color(btn_gh_update, lv_color_hex(UI_COL_GO_BG), 0);
-    lv_obj_set_style_bg_color(btn_gh_update, lv_color_hex(UI_COL_GO_BG_PRESSED), LV_STATE_PRESSED);
-    lv_obj_set_style_border_color(btn_gh_update, lv_color_hex(UI_COL_ACCENT), 0);
-    char ubtn2[48]; copyT(ubtn2, sizeof(ubtn2), STR_GH_OTA_UPDATE_BTN); ubtn2[sizeof(ubtn2)-1]=0;
-    lv_label_set_text(lbl_gh_update_btn, ubtn2);
-    lv_obj_set_style_text_color(lbl_gh_update_btn, lv_color_hex(UI_COL_OK_TEXT_2), 0);
-    char avail[64]; snprintf(avail, sizeof(avail), T(STR_GH_OTA_UPDATE_AVAIL), gh_latest_version);
-    lv_label_set_text(lbl_gh_status, avail);
-    lv_obj_set_style_text_color(lbl_gh_status, lv_color_hex(UI_COL_WARN), 0);
-    char inst[48]; snprintf(inst, sizeof(inst), T(STR_GH_OTA_INSTALLED), FW_VERSION);
-    lv_label_set_text(lbl_gh_installed, inst);
-    lv_obj_clear_flag(lbl_gh_installed, LV_OBJ_FLAG_HIDDEN);
-    char lat[48]; snprintf(lat, sizeof(lat), T(STR_GH_OTA_LATEST), gh_latest_version);
-    lv_label_set_text(lbl_gh_latest, lat);
-    lv_obj_clear_flag(lbl_gh_latest, LV_OBJ_FLAG_HIDDEN);
-  }
+  ghBuildStatus(scr_ota_github);
+  gh_row_auto = ghMakeToggleRow(scr_ota_github, 12, T(STR_GH_OTA_AUTOCHECK), ghOnAutoToggle);
+  gh_row_pre  = ghMakeToggleRow(scr_ota_github, 246, T(STR_GH_OTA_PRERELEASE), ghOnPreToggle);
+  ghPaintToggle(gh_row_auto, g_upd_autocheck);
+  ghPaintToggle(gh_row_pre, gh_prerelease);
+  ghBuildAction(scr_ota_github);
+  ghShowInitial();
 }
