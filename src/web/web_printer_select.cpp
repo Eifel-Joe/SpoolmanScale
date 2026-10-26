@@ -3,9 +3,13 @@
 // Last on purpose: T() is a macro, see the pages.
 #include "lang.h"
 
+// The lists of the chosen link and model, as the printer page's cards have
+// them: under WLAN the Brother and its DK labels only.
 void webPrinterModelOptions(String& h, const LabelPrinterConfig& c) {
-  for (int i = 0; i < LABEL_PRINTER_MODEL_COUNT; i++) {
-    const LabelPrinterModel m = LABEL_PRINTER_MODELS[i];
+  int count = 0;
+  const LabelPrinterModel* models = labelPrinterModels(labelPrinterLink(), &count);
+  for (int i = 0; i < count; i++) {
+    const LabelPrinterModel m = models[i];
     const LabelPrinterProfile& p = labelPrinterProfile(m);
     h += F("<option value='");
     h += String((int)m);
@@ -19,9 +23,11 @@ void webPrinterModelOptions(String& h, const LabelPrinterConfig& c) {
 }
 
 void webPrinterMediaOptions(String& h, const LabelPrinterConfig& c) {
+  int count = 0;
+  const LabelMediaSize* sizes = labelPrinterMediaSizes(c.model, &count);
   bool listed = false;
-  for (int i = 0; i < LABEL_MEDIA_SIZE_COUNT; i++) {
-    const LabelMediaSize& s = LABEL_MEDIA_SIZES[i];
+  for (int i = 0; i < count; i++) {
+    const LabelMediaSize& s = sizes[i];
     const bool cur = s.width_mm == c.media_width_mm && s.length_mm == c.media_length_mm;
     listed = listed || cur;
     h += F("<option value='");

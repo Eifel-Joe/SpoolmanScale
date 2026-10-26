@@ -2799,6 +2799,18 @@ const char* const STRINGS[][3] = {
   { "Nur bei Bedarf an: der Funk läuft, während ein Gerät ihn braucht, und wird danach freigegeben. Nach dem Einschalten braucht die Waage einmal einen Neustart.",
     "Only when needed: the radio runs while a device needs it and is released afterwards. After switching it on, the scale needs one restart.",
     "Seulement au besoin : la radio tourne tant qu'un appareil l'utilise, puis est libérée. Après l'activation, la balance a besoin d'un redémarrage." },  // STR_W_P_BLE_HINT
+  { "Bluetooth startet die Waage neu, WLAN gilt sofort.",
+    "Bluetooth restarts the scale, WiFi takes effect at once.",
+    "Le Bluetooth redémarre la balance, le WiFi prend effet immédiatement." },  // STR_W_P_LINK_HINT
+  { "IP-Adresse des Druckers",
+    "The printer's IP address",
+    "Adresse IP de l'imprimante" },  // STR_W_P_HOST
+  { "Brother QL-810W/820NWB im selben WLAN. Am Drucker einmal den Befehlsmodus „Raster“ einstellen – neue Geräte stehen auf „P-touch Template“ und drucken dann nichts.",
+    "A Brother QL-810W/820NWB on the same WiFi. On the printer, set the command mode to “Raster” once – new printers come set to “P-touch Template” and then print nothing.",
+    "Une Brother QL-810W/820NWB sur le même WiFi. Sur l'imprimante, réglez une fois le mode de commande « Raster » – les appareils neufs sont réglés sur « P-touch Template » et n'impriment alors rien." },  // STR_W_P_HOST_HINT
+  { "Keine gültige IP-Adresse (vier Zahlen, z. B. 192.168.1.50).",
+    "Not a valid IP address (four numbers, e.g. 192.168.1.50).",
+    "Adresse IP non valide (quatre nombres, p. ex. 192.168.1.50)." },  // STR_W_P_HOST_BAD
   { "Weitere Modelle kommen mit Rückmeldungen aus der Community.",
     "More models come with feedback from the community.",
     "D'autres modèles viendront avec les retours de la communauté." },  // STR_W_P_SUPPORTED_HINT
