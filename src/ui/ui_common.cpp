@@ -259,6 +259,17 @@ void uiSecondaryFill(lv_obj_t *btn) {
   lv_obj_set_style_bg_color(btn, lv_color_hex(UI_COL_ROW_PRESS_FILL), LV_STATE_PRESSED);
 }
 
+void uiCountdownFillSet(lv_obj_t *fill, lv_coord_t full_w, lv_coord_t *drawn_w,
+                        uint32_t remaining_ms, uint32_t total_ms) {
+  if (!fill || total_ms == 0) return;
+  if (remaining_ms > total_ms) remaining_ms = total_ms;
+  const lv_coord_t w = (lv_coord_t)((uint64_t)full_w * remaining_ms / total_ms);
+  if (w == *drawn_w) return;
+  *drawn_w = w;
+  lv_obj_set_width(fill, w);
+  lv_obj_set_x(fill, full_w - w);
+}
+
 void buildSubHeader(lv_obj_t *parent, const char *title,
                     lv_event_cb_t back_cb, const char *back_hint) {
   (void)back_hint;

@@ -18,6 +18,8 @@
 //  at all with g_unk_ask off. The buttons stay as they are underneath. It
 //  closes when the spool is found or another tag replaces it, and when the
 //  loop says the spool left the pad - not on a tag that merely dropped out.
+//  A spool only held up to the reader, with nothing on the pad, leaves it as a
+//  matter of course: its card stays for a minute that its Cancel counts down.
 // ============================================================
 
 // The lookup's verdict was "not in the inventory". `key` is what the lookup
@@ -27,7 +29,7 @@ void unknownSpoolOffer(bool is_bambu, const char* key);
 // The loop decided the spool left the pad (not a tag that merely dropped out
 // over a spool still lying there): the card closes, an offer not yet opened is
 // dropped, and the next placement may be asked about again, the same spool
-// included.
+// included. The card of a held spool stays; only the offer is dropped.
 void unknownSpoolForget();
 
 // From the loop: opens the card it was offered, carries out what was tapped

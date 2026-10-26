@@ -234,11 +234,7 @@ static bool locCountTick() {
   const uint32_t stalled = httpStallTotalMs() - loc_count_stall;
   elapsed = (stalled >= elapsed) ? 0 : (elapsed - stalled);
   const unsigned long rem = (elapsed >= PICK_COUNTDOWN_MS) ? 0 : PICK_COUNTDOWN_MS - elapsed;
-  const lv_coord_t w = (lv_coord_t)((uint64_t)LOC_FILL_W * rem / PICK_COUNTDOWN_MS);
-  if (w != loc_cancel_fill_w) {
-    loc_cancel_fill_w = w;
-    lv_obj_set_width(loc_cancel_fill, w);
-  }
+  uiCountdownFillSet(loc_cancel_fill, LOC_FILL_W, &loc_cancel_fill_w, rem, PICK_COUNTDOWN_MS);
   if (rem > 0) return false;
   logSDf("LOC: no location chosen in %lus, closed as Cancel id=%d",
          (unsigned long)(PICK_COUNTDOWN_MS / 1000), sm_id);

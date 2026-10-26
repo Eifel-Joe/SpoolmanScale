@@ -7,12 +7,14 @@
 #include "app/app_state.h"
 #include "ui/theme.h"
 
-// The bar is 22 px high and catches nothing outside itself, so the button
-// takes the bar's height and gets its width for the finger.
+// The bar is 22 px high, so the button takes the bar's height and is reached
+// through a touch area grown by SC_CHIP_EXT on every side: 64 x 44 px, the
+// size a finger needs. The 20 px it reaches into the header and the spool
+// info hold nothing that answers a tap at that place.
 #define SC_CHIP_W     40
 #define SC_CHIP_H     20
 #define SC_CHIP_GAP    8
-#define SC_CHIP_EXT_X 12
+#define SC_CHIP_EXT   12
 #define SC_TEXT_MAX   64
 
 static lv_obj_t* s_chip  = nullptr;
@@ -41,7 +43,10 @@ static void buildChip() {
   lv_obj_set_style_radius(s_chip, LV_RADIUS_CIRCLE, 0);
   lv_obj_set_style_shadow_width(s_chip, 0, 0);
   lv_obj_set_style_pad_all(s_chip, 0, 0);
-  lv_obj_set_ext_click_area(s_chip, SC_CHIP_EXT_X);
+  lv_obj_set_ext_click_area(s_chip, SC_CHIP_EXT);
+  // A tap outside the bar reaches its children only with this flag, and the
+  // bar keeps it only while the button stands.
+  lv_obj_add_flag(lv_obj_get_parent(lbl_status), LV_OBJ_FLAG_OVERFLOW_VISIBLE);
   lv_obj_add_event_cb(s_chip, [](lv_event_t*) { s_taken = true; }, LV_EVENT_CLICKED, NULL);
   lv_obj_t* l = lv_label_create(s_chip);
   lv_label_set_text(l, LV_SYMBOL_CLOSE);
@@ -53,7 +58,10 @@ static void buildChip() {
 void statusClearSync(bool want) {
   if (!lbl_status) return;
   if (!want) {
-    if (s_chip) lv_obj_del(s_chip);
+    if (s_chip) {
+      lv_obj_clear_flag(lv_obj_get_parent(lbl_status), LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+      lv_obj_del(s_chip);
+    }
     s_chip = nullptr;
     s_taken = false;
     s_placed_for[0] = '\0';

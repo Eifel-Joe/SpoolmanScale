@@ -328,16 +328,8 @@ void updateAmsMainButton() {
     }
   }
 
-  // Drains from the right with the time the window has left, set from that
-  // time on every pass rather than run as an lv_anim: a blocking request
-  // would leave an animation running ahead of the window it shows.
-  lv_coord_t w = 0;
-  if (rem_ms > 0 && g_ams_window_s > 0) {
-    w = (lv_coord_t)((uint64_t)MAIN_AMS_FILL_W * rem_ms /
-                     ((uint64_t)g_ams_window_s * 1000UL));
-  }
-  if (w != s_fill_w) {
-    s_fill_w = w;
-    lv_obj_set_width(bar_ams_main_fill, w);
-  }
+  // Drains towards the right with the time the window has left.
+  const uint32_t window_ms = g_ams_window_s > 0 ? (uint32_t)g_ams_window_s * 1000UL : 0;
+  uiCountdownFillSet(bar_ams_main_fill, MAIN_AMS_FILL_W, &s_fill_w,
+                     window_ms ? rem_ms : 0, window_ms ? window_ms : 1);
 }

@@ -739,11 +739,7 @@ static bool tickPickCountdown() {
     restartPickCountdown();
   }
   const unsigned long rem = pickRemainingMs();
-  const lv_coord_t w = (lv_coord_t)((uint64_t)AMSV_FILL_W * rem / PICK_COUNTDOWN_MS);
-  if (w != s_cancel_fill_w) {
-    s_cancel_fill_w = w;
-    lv_obj_set_width(s_cancel_fill, w);
-  }
+  uiCountdownFillSet(s_cancel_fill, AMSV_FILL_W, &s_cancel_fill_w, rem, PICK_COUNTDOWN_MS);
   if (rem > 0) return false;
   logSDf("AMSV: no bay chosen in %lus, closed as Cancel",
          (unsigned long)(PICK_COUNTDOWN_MS / 1000));
