@@ -4185,6 +4185,17 @@ const char* const STRINGS[][3] = {
   { "Transluzent",
     "Translucent",
     "Translucide" },  // STR_COLOR_TILE_CLEAR
+  // The screenshot card's copy button, its tooltip and what it turns into for
+  // two seconds; the hint stands under a picture when the browser refuses.
+  { "Bild kopieren",
+    "Copy image",
+    "Copier l'image" },  // STR_W_SHOT_COPY
+  { "Kopiert",
+    "Copied",
+    "Copiée" },  // STR_W_SHOT_COPIED
+  { "Über http lässt der Browser kein Bild kopieren. Rechtsklick aufs Bild, dann \"Bild kopieren\".",
+    "Over http the browser does not let a page copy an image. Right-click the picture, then \"Copy image\".",
+    "En http, le navigateur ne laisse pas copier une image. Clic droit sur l'image, puis « Copier l'image »." },  // STR_W_SHOT_COPY_HINT
   // ── A copy behind Bambuddy on Spoolman: what it takes over ──
   { "Profil: %s",
     "Profile: %s",

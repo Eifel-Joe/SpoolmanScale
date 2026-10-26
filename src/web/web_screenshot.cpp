@@ -12,8 +12,16 @@ static constexpr uint32_t MS_PER_S = 1000;
 // Between two downloads of "save all": browsers drop clicks that come in one
 // burst, and ask once whether the page may save several files.
 static constexpr int SAVE_ALL_GAP_MS = 400;
+// How long the copy button shows its tick before it is a copy button again.
+static constexpr int COPIED_SHOWN_MS = 2000;
 
 static void cardHtml(String& h) {
+  // Icon buttons: a 38 px square, the height of every other button here, and
+  // icon plus text on the two that act on all pictures.
+  h += F("<style>.shi{width:38px;height:38px;padding:0;flex:none}"
+         ".shi,.shw{display:inline-flex;align-items:center;justify-content:center;gap:6px}"
+         ".shi svg,.shw svg{width:17px;height:17px;flex:none}"
+         ".shi.ok{color:var(--good)}</style>");
   h += F("<div class='card wide'><h2>");
   h += T(STR_W_C_SHOT);
   h += F("</h2><p class='note'>");
@@ -21,9 +29,9 @@ static void cardHtml(String& h) {
   h += F("</p><div style='display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:12px 0'>"
          "<button id='shb'>");
   h += T(STR_W_SHOT_TAKE);
-  h += F("</button><button id='sha' class='quiet' disabled>");
+  h += F("</button><button id='sha' class='quiet shw' disabled>");
   h += T(STR_W_SHOT_SAVE_ALL);
-  h += F("</button><button id='shx' class='danger' disabled>");
+  h += F("</button><button id='shx' class='danger shw' disabled>");
   h += T(STR_W_SHOT_DROP_ALL);
   h += F("</button><span id='sht' class='note' style='margin:0'></span></div>"
          "<div id='shl' style='display:grid;gap:16px;"
@@ -40,20 +48,34 @@ static void cardStrings(String& h) {
   h += F(",empty:"); h += jsStr(T(STR_W_SHOT_EMPTY));
   h += F(",save:");  h += jsStr(T(STR_W_LOG_DOWNLOAD));
   h += F(",del:");   h += jsStr(T(STR_W_LOG_DELETE));
+  h += F(",copy:");  h += jsStr(T(STR_W_SHOT_COPY));
+  h += F(",copied:"); h += jsStr(T(STR_W_SHOT_COPIED));
+  h += F(",hint:");  h += jsStr(T(STR_W_SHOT_COPY_HINT));
   h += F(",fw:");    h += jsStr(FW_VERSION);
   h += F(",gap:");   h += String(SAVE_ALL_GAP_MS);
+  h += F(",copiedMs:"); h += String(COPIED_SHOWN_MS);
   h += F("};");
 }
 
 String screenshotCard() {
   String h;
-  h.reserve(5200);
+  h.reserve(7600);
   cardHtml(h);
   cardStrings(h);
   h += F("var shPng={},shIds=[];"
          "function shEl(i){return document.getElementById(i);}"
          "function p2(n){return String(n).padStart(2,'0');}"
          "function shSay(t){shEl('sht').textContent=t;}"
+         // Stroke icons: download, copy, trash, and the tick a copy turns into.
+         "var ICO={dl:'M12 3v12M7 10l5 5 5-5M5 21h14',"
+         "cp:'M11 9h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2z"
+         "M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1',"
+         "rm:'M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6',ok:'M5 12l5 5 9-10'};"
+         "function shIco(d){return \"<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' "
+         "stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'>"
+         "<path d='\"+d+\"'/></svg>\";}"
+         "function shBtn(cls,key,id,ico,label){return '<button class=\"shi '+cls+'\" data-'+key+'=\"'+id"
+         "+'\" title=\"'+label+'\" aria-label=\"'+label+'\">'+shIco(ico)+'</button>';}"
          // The device sends a BMP because it needs no encoder for it; GitHub
          // takes PNG, so the browser redraws it on a canvas and saves that.
          "function shToPng(blob){return createImageBitmap(blob).then(function(bm){"
@@ -66,17 +88,18 @@ String screenshotCard() {
          "return fetch('/api/screenshot.bmp?id='+s.id,{cache:'no-store'}).then(function(r){"
          "if(!r.ok)throw 0;return r.blob();}).then(shToPng).then(function(png){"
          "var at=new Date(Date.now()-s.age_s*1000);"
-         "shPng[s.id]={url:URL.createObjectURL(png),"
+         "shPng[s.id]={blob:png,url:URL.createObjectURL(png),"
          "name:'spoolmanscale-'+SH.fw+'-'+at.getFullYear()+p2(at.getMonth()+1)"
          "+p2(at.getDate())+'-'+p2(at.getHours())+p2(at.getMinutes())+p2(at.getSeconds())+'.png',"
          "label:(s.src==='panel'?SH.panel:SH.web).replace('{t}',at.toLocaleTimeString())};});}"
          "function shItem(id){var p=shPng[id];if(!p)return '';"
          "return '<div><img src=\"'+p.url+'\" alt=\"\" style=\"width:100%;display:block;"
          "border:1px solid var(--line);border-radius:8px\">'"
-         "+'<div class=\"note\" style=\"margin:6px 0\">'+p.label+'</div>'"
-         "+'<div style=\"display:flex;gap:8px\">'"
-         "+'<button class=\"quiet\" data-sv=\"'+id+'\">'+SH.save+'</button>'"
-         "+'<button class=\"danger\" data-rm=\"'+id+'\">'+SH.del+'</button></div></div>';}"
+         "+'<div style=\"display:flex;gap:8px;align-items:center;margin-top:8px\">'"
+         "+'<div class=\"note\" style=\"margin:0;flex:1 1 auto;min-width:0\">'+p.label+'</div>'"
+         "+shBtn('quiet','sv',id,ICO.dl,SH.save)+shBtn('','cp',id,ICO.cp,SH.copy)"
+         "+shBtn('danger','rm',id,ICO.rm,SH.del)+'</div>'"
+         "+'<div class=\"note\" data-hn=\"'+id+'\" hidden>'+SH.hint+'</div></div>';}"
          // Newest first. Pictures the device no longer holds lose their PNG.
          "function shRender(){var c=shEl('shl');"
          "Object.keys(shPng).forEach(function(k){if(shIds.indexOf(+k)<0){"
@@ -85,6 +108,8 @@ String screenshotCard() {
          ":'<div class=\"note\">'+SH.empty+'</div>';"
          "c.querySelectorAll('[data-sv]').forEach(function(b){"
          "b.addEventListener('click',function(){shSave(+b.dataset.sv);});});"
+         "c.querySelectorAll('[data-cp]').forEach(function(b){"
+         "b.addEventListener('click',function(){shCopy(+b.dataset.cp,b);});});"
          "c.querySelectorAll('[data-rm]').forEach(function(b){"
          "b.addEventListener('click',function(){shDrop('id='+b.dataset.rm);});});"
          "shEl('sha').disabled=shEl('shx').disabled=!shIds.length;}"
@@ -99,10 +124,23 @@ String screenshotCard() {
          ".finally(function(){b.disabled=false;b.textContent=SH.take;});}"
          "function shSave(id){var p=shPng[id];if(!p)return;var a=document.createElement('a');"
          "a.href=p.url;a.download=p.name;document.body.appendChild(a);a.click();a.remove();}"
+         // The clipboard takes an image only in a secure context, and the scale
+         // speaks plain http: there the picture's own "Copy image" menu still
+         // works, so the hint points to it instead of failing quietly.
+         "function shCopy(id,b){var p=shPng[id];if(!p)return;"
+         "var hint=function(){var n=document.querySelector('[data-hn=\"'+id+'\"]');if(n)n.hidden=false;};"
+         "if(!(window.isSecureContext&&navigator.clipboard&&window.ClipboardItem)){hint();return;}"
+         "navigator.clipboard.write([new ClipboardItem({'image/png':p.blob})]).then(function(){"
+         "shCopyLook(b,ICO.ok,SH.copied,true);"
+         "setTimeout(function(){shCopyLook(b,ICO.cp,SH.copy,false);},SH.copiedMs);}).catch(hint);}"
+         "function shCopyLook(b,ico,label,ok){b.classList.toggle('ok',ok);b.innerHTML=shIco(ico);"
+         "b.title=label;b.setAttribute('aria-label',label);}"
          "function shSaveAll(){shIds.forEach(function(id,i){"
          "setTimeout(function(){shSave(id);},i*SH.gap);});}"
          "function shDrop(q){post('/api/screenshot/drop?'+q,'').then(shLoad);}"
          "shEl('shb').addEventListener('click',shTake);"
+         "shEl('sha').insertAdjacentHTML('afterbegin',shIco(ICO.dl));"
+         "shEl('shx').insertAdjacentHTML('afterbegin',shIco(ICO.rm));"
          "shEl('sha').addEventListener('click',shSaveAll);"
          "shEl('shx').addEventListener('click',function(){shDrop('all=1');});"
          // A picture taken on the panel shows up once the tab is looked at.
