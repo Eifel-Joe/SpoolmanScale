@@ -22,12 +22,11 @@
 //
 //  What each rule is, and where the design note fixes it:
 //
-//    price        copyRulesSpoolPrice is what the card shows on the price
-//                 button: the template's price per kg times the label weight
-//                 (section 3, Festlegung 5). copyRulesCostPerKg is what goes
-//                 to the server (Festlegung 5): the template's own price per
-//                 kg when the button was not touched, else the typed price of
-//                 the spool taken back to one kg of this label.
+//    price        copyRulesCostPerKg is what goes to the server (Festlegung
+//                 5): the template's own price per kg when the price button
+//                 was not touched, else the price per kg typed on the card,
+//                 exactly as typed. The card shows and takes the price per
+//                 kg (section 3), so nothing is converted.
 //    core         copyRulesCore is the empty weight the copy keeps as its
 //                 own: a type chosen for it, else what U (V25) and L21 say
 //                 about the template's.
@@ -52,25 +51,25 @@
 
 enum CopyMissing : uint8_t { CM_NONE = 0, CM_PRICE = 1, CM_PRESETS = 2, CM_SUPPLIERS = 4, CM_KPROFILES = 8, CM_FILAMENT = 16 };
 
-// The price of the new spool, for the button on the card: the template's price
-// per kg times the label weight in grams over 1000, rounded to the cent (half
-// away from zero). Spool 2: 10.99 per kg on a 1015 g label is 11.15. No price
-// (zero, negative, not a number, infinite), no label weight (zero or less) and
-// a result that is not finite give 0.
-float copyRulesSpoolPrice(float cost_per_kg, int label_g);
-
-// The price per kg that goes to the server. Wurzel: the card shows the price
-// of the spool, but the server keeps a price per kg; working the template's
-// price through the spool and back rounds twice (24.99 per kg on a 250 g label
-// shows 6.25 and would come back as 25.00). Fix: a button that was not touched
-// (typed false) hands the template's value on as it is, whatever the label
-// weight. A typed price is the price of the spool and goes back to one kg of
-// this label, rounded to the cent: 12.00 on a 1015 g label is 11.82 per kg.
-// Typed zero empties the price (0, no price), and so does a typed price that
-// is negative or not a number, or a label weight of zero or less to divide it
-// by. NOT-TO-DO: sending copyRulesSpoolPrice back through the label weight
-// for an untouched button, which is the double rounding above.
-float copyRulesCostPerKg(float tpl_cost_per_kg, int label_g, float typed_price, bool typed);
+// The price per kg that goes to the server (Festlegung 5). Wurzel: the card
+// used to show and take the price of the spool, and a typed one went back to
+// one kg through the label weight, rounded to the cent (12.00 on a 1015 g
+// label became 11.82), although what one types is a price per kg, and that
+// does not change with how much filament the spool holds. Fix: the card
+// shows and takes the price per kg. A typed price (typed true) is the copy's
+// price per kg and goes on exactly as typed, neither converted nor rounded:
+// 12.00 is 12.00, 12.345 is 12.345. Typed zero empties the price (0, no
+// price), and so does a typed price that is negative, not a number or not
+// finite. A button that was not touched (typed false) hands the template's
+// value on as it is: a price per kg is the same for any label weight, so
+// there is nothing to work out, and the cent the card shows is only shown.
+// This rule rounds nothing; the request writes every price per kg to the
+// cent (bambuddy_api.cpp), for every way a spool is created, which leaves a
+// price typed on the pad (two decimals at most) as it is.
+// NOT-TO-DO: dividing a typed price by the label weight, the rule before the
+// acceptance; and handing the card's shown cent on in place of the
+// template's own value for an untouched button.
+float copyRulesCostPerKg(float tpl_cost_per_kg, float typed_price, bool typed);
 
 // The empty weight the copy keeps as its own (L21 through U). A type chosen
 // for the copy (chosen_g > 0) is its empty weight, also when it says Bambu's

@@ -59,6 +59,7 @@
 #define COPY_CARD_SMALL_PITCH  22   // UI_FONT_SMALL's 16 px line and 6 px of air
 #define COPY_CARD_BBS_GROW     (2 * COPY_CARD_SMALL_PITCH)
 #define COPY_CARD_PRICE_W      80
+#define COPY_CARD_PRICE_TEXT_W (COPY_CARD_PRICE_W - 8)   // 4 px of air each side (ui_budgets.tsv)
 #define COPY_CARD_ANSWER_W     ((UI_POPUP_W - 2 * UI_CARD_ROW_X - 2 * COPY_CARD_GAP - COPY_CARD_PRICE_W) / 2)
 
 lv_obj_t *scr_copy_confirm = nullptr;  // confirm popup
@@ -78,14 +79,14 @@ static float    s_copy_core            = 0.0f;
 // The template is behind Bambuddy on Spoolman and was read for this card
 // (copyBbsLoad()): the card shows what the copy takes over.
 static bool     s_copy_bbs             = false;
-// The price button (BBS). copyBbsView() gives the template's price for the
-// label the create sends, never a typed one, so what was typed since the card
-// was asked for is kept here: for the button, and for a card built again
-// within the same copy, which must show what copy_bbs.h will send.
+// The price button (BBS), a price per kg (Festlegung 5). copyBbsView() gives
+// the template's, never a typed one, so what was typed since the card was
+// asked for is kept here: for the button, and for a card built again within
+// the same copy, which must show what copy_bbs.h will send.
 static lv_obj_t* s_copy_price_lbl      = nullptr;
-static float     s_copy_price_tpl      = 0.0f;   // the template's, for this label
+static float     s_copy_price_tpl      = 0.0f;   // the template's price per kg
 static bool      s_copy_price_typed    = false;
-static float     s_copy_price          = 0.0f;   // typed; 0: emptied, no price
+static float     s_copy_price          = 0.0f;   // typed per kg; 0: emptied, no price
 // The list of types was answered for this copy, a type or "without type":
 // copyCreateRequest() takes it along with the values for the create, which
 // marks the new spool for the first weighing (tareEntryFirstWeighDone()).
@@ -114,8 +115,20 @@ static void copyBackToList() {
   linkPickerShowList();
 }
 
-// The price button shows the price typed, else the template's for this
-// label, and "Price" where there is none (Festlegung 5: 0 is no price).
+// The price button shows the price per kg that goes to the server: the one
+// typed, else the template's ("10.99/kg"), and "Price" where there is none
+// (Festlegung 5: 0 is no price).
+//
+// Wurzel: the button is 80 px and its text gets 72 of them, and with cents a
+// price per kg of 100 or more can be wider than that in UI_FONT_SMALL
+// ("484.04/kg" is 74 px); most of 1000 or more are (up to 83 px), and a
+// currency with small units reaches four digits for a kg of filament. A text
+// wider than the button is clipped at both ends. Fix: cents while the text
+// fits, else whole units, which hold five digits ("48484/kg" is 71 px), more
+// than the pad takes (9999.99). Measured rather than counted in digits, as
+// digits differ in width ("1" is 5 px, "4" is 9). NOT-TO-DO: leaving out
+// "/kg", the very thing the button says now; a smaller font, which would set
+// this one label apart from the answers beside it.
 static void copyPriceRefresh() {
   if (!s_copy_price_lbl) return;
   const float price = s_copy_price_typed ? s_copy_price : s_copy_price_tpl;
@@ -123,31 +136,32 @@ static void copyPriceRefresh() {
     lv_label_set_text(s_copy_price_lbl, T(STR_TAGNEW_PRICE_BTN));
     return;
   }
-  char buf[16];
-  snprintf(buf, sizeof(buf), "%.2f", price);
+  char buf[48];   // "%.2f" of the largest float is 42 characters, nothing is cut
+  snprintf(buf, sizeof(buf), T(STR_COPY_CARD_PRICE_KG), price);
+  lv_point_t size = { 0, 0 };
+  lv_txt_get_size(&size, buf, UI_FONT_SMALL, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+  if (size.x > COPY_CARD_PRICE_TEXT_W) snprintf(buf, sizeof(buf), T(STR_COPY_CARD_PRICE_KG_WHOLE), price);
   lv_label_set_text(s_copy_price_lbl, buf);
 }
 
-// The pad's answer, from the loop (pricePadTick()): the price of the new
-// spool, 0 for an emptied field; a cancelled pad does not call. A card that
-// was closed meanwhile takes no price: nothing is created from it.
+// The pad's answer, from the loop (pricePadTick()): the price per kg of the
+// new spool, 0 for an emptied field; a cancelled pad does not call. A card
+// that was closed meanwhile takes no price: nothing is created from it.
 //
-// Wurzel: OK calls back with whatever the field holds, also with the price it
-// was filled in with, and that is the spool's price (the template's price per
-// kg times the label), not a price per kg: taken for a typed one it goes back
-// through the label, and 24.99 per kg on a 250 g label, shown as 6.25, would
-// be sent as 25.00. Fix: nothing typed before and the value within half a cent
-// of the template's price for this label is no typed price; the template's
-// price per kg stays untouched unless a different price was typed.
-// NOT-TO-DO: copyBbsSetPrice() for it, the double rounding that copy_rules.h
-// marks as not to do.
+// Wurzel: OK calls back with whatever the field holds, also with the value it
+// was filled in with, and that is the template's price per kg cut to the cent
+// ("%.2f"), not a price anyone typed. Fix: nothing typed before and the value
+// within half a cent of the template's price per kg is no typed price; the
+// template's value goes on untouched (copy_rules.h) unless a different price
+// was typed. NOT-TO-DO: copyBbsSetPrice() for it, which would hand the shown
+// cent on as typed in place of the template's own value.
 static void copyPriceTyped(float price) {
   if (!scr_copy_confirm || !s_copy_bbs) return;
   if (!s_copy_price_typed && fabsf(price - s_copy_price_tpl) < 0.005f) return;
   s_copy_price_typed = true;
   s_copy_price       = price;
   copyBbsSetPrice(price);
-  logSDf("Copy: price %.2f typed for the copy of spool %d", price, copy_template_spool_id);
+  logSDf("Copy: price %.2f per kg typed for the copy of spool %d", price, copy_template_spool_id);
   copyPriceRefresh();
 }
 
@@ -163,8 +177,10 @@ static void buildCopyPriceButton(lv_obj_t* box, int y) {
   lv_obj_set_style_shadow_width(btn, 0, 0);
   lv_obj_add_event_cb(btn, [](lv_event_t*) {
     logSD("BTN: CopyConfirm -> Price");
-    // Filled in with what the button shows.
-    showPricePad(s_copy_price_typed ? s_copy_price : s_copy_price_tpl, copyPriceTyped);
+    // Filled in with the price per kg the button stands for, to the cent,
+    // under a title that says it is one.
+    showPricePadTitled(s_copy_price_typed ? s_copy_price : s_copy_price_tpl,
+                       STR_PRICE_PAD_TITLE_KG, copyPriceTyped);
   }, LV_EVENT_CLICKED, NULL);
   s_copy_price_lbl = lv_label_create(btn);
   lv_obj_set_style_text_color(s_copy_price_lbl, lv_color_hex(UI_COL_INK_2), 0);
@@ -363,12 +379,11 @@ static void buildCopyCard() {
                                             (int)lroundf(copy_template_initial));
 
   // Behind Bambuddy on Spoolman, between lines 2 and 3: what the copy takes
-  // over, priced for start.initial_g - the label doCopySpoolCreate() sends
-  // as initial_g, worked out from the same reading.
+  // over, and its price per kg for the button, the same whatever the label.
   if (s_copy_bbs) {
     CopyBbsView view;
-    copyBbsView(start.initial_g, &view);   // dashes and no price when nothing is loaded
-    s_copy_price_tpl = view.spool_price;
+    copyBbsView(&view);   // dashes and no price when nothing is loaded
+    s_copy_price_tpl = view.cost_per_kg;
     buildCopyTakenOver(box, view, y2 + COPY_CARD_SMALL_PITCH);
   }
   char line3[80];

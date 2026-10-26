@@ -266,6 +266,7 @@ STR_TAGNEW_FILAMENT_ONLY	16	360	NEVER	src/ui/tag_create_popup.cpp status line of
 STR_TAGNEW_SPOOL_UNSURE	16	360	NEVER	src/ui/tag_create_popup.cpp status line of the card, UI_POPUP_W - UI_CARD_TEXT_PAD
 STR_TAGNEW_PRICE_BTN	14	64	NEVER	src/ui/tag_create_popup.cpp 80 px price button, 8 px air each side
 STR_PRICE_PAD_TITLE	14	460	NEVER	src/ui/price_pad.cpp title above the keypad
+STR_PRICE_PAD_TITLE_KG	14	460	NEVER	src/ui/price_pad.cpp title above the keypad, the copy card's price per kg
 STR_PRICE_PAD_INFO	12	168	WRAP:3	src/ui/price_pad.cpp right column, PP_COL_W
 
 # --- the database picker (db_pick_screen.cpp), widths read off its constants ----
@@ -423,6 +424,13 @@ STR_ID_SPOOL_STATUS	14	214	NEVER	src/app/id_spool.cpp lbl_status, clear button b
 # gets the rest of the 360 px, so the words before the name must leave room
 # for the widest count: FR " (+%d modèles)", 111 px as measured here with
 # the %d, 97 px drawn with a 2 (DE 106 and 92).
+# The price button shows a price per kg (Festlegung 5) in 72 px of its 80
+# (the button rule): with cents while copy_confirm_popup.cpp measures that
+# it fits, else in whole units. Each row is 72 less what the widest number
+# it must hold adds over the literal conversion: every price below 100 with
+# cents ("44.04/kg" 64 px against "%.2f/kg" 51, +13), and five whole digits,
+# more than the pad takes ("48484/kg" 71 px against "%.0f/kg" 52, +19).
+# Three digits with cents reach 74 px, four 83, and those over 72 fall back.
 # After the create the status line (lbl_status: 292 px, 262 with a port, 245
 # with https) gets the sentence and as many parts as it holds, then "..." for
 # the rest. copy_flow.cpp measures that itself: lbl_status has no height of
@@ -435,6 +443,8 @@ STR_COPY_CARD_MODELS	14	120	NEVER	src/ui/copy_confirm_popup.cpp the model count 
 STR_COPY_CARD_CREATE	18	132	NEVER	src/ui/copy_confirm_popup.cpp 140 px answer button beside the price, -8 air
 STR_CANCEL	18	132	NEVER	src/ui/copy_confirm_popup.cpp 140 px answer button beside the price, -8 air
 STR_TAGNEW_PRICE_BTN	14	64	NEVER	src/ui/copy_confirm_popup.cpp 80 px price button, 8 px air each side
+STR_COPY_CARD_PRICE_KG	14	59	NEVER	src/ui/copy_confirm_popup.cpp 80 px price button, 72 less 13 for a price below 100 with cents
+STR_COPY_CARD_PRICE_KG_WHOLE	14	53	NEVER	src/ui/copy_confirm_popup.cpp 80 px price button, 72 less 19 for five whole digits
 STR_COPY_MISSING	14	158	NEVER	src/ui/copy_flow.cpp lbl_status, HDR_STATUS_W 292 less the widest part (134 px)
 STR_COPY_PART_PRICE	14	155	NEVER	src/ui/copy_flow.cpp lbl_status, HDR_STATUS_W 292 less the sentence (137 px)
 STR_COPY_PART_PRESETS	14	155	NEVER	src/ui/copy_flow.cpp lbl_status, HDR_STATUS_W 292 less the sentence (137 px)

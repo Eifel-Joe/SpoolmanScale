@@ -4,30 +4,15 @@
 
 #include "services/spool_type_rules.h"   // spoolTypeOwnCore (U, L21)
 
-// Half away from zero to two decimals, which is what roundf does at the half.
-static float roundToCent(float x) {
-  return roundf(x * 100.0f) / 100.0f;
-}
-
-float copyRulesSpoolPrice(float cost_per_kg, int label_g) {
-  // The negated comparison also catches a price that is not a number.
-  if (!(cost_per_kg > 0.0f) || !isfinite(cost_per_kg) || label_g <= 0) return 0.0f;
-  const float spool = cost_per_kg * (float)label_g / 1000.0f;
-  // A price so large that the float ran over is no price a card could show.
-  return isfinite(spool) ? roundToCent(spool) : 0.0f;
-}
-
-float copyRulesCostPerKg(float tpl_cost_per_kg, int label_g, float typed_price, bool typed) {
-  // Untouched: the template's value as it is. Going through the price of the
-  // spool and back would round twice (24.99 per kg on 250 g becomes 25.00).
+float copyRulesCostPerKg(float tpl_cost_per_kg, float typed_price, bool typed) {
+  // Untouched: the template's value as it is, not the cent the card shows.
   if (!typed) return tpl_cost_per_kg;
-  // Typed: the price of this spool taken back to one kg of its label. Zero
-  // empties the price. Without a label weight there is nothing to divide by,
-  // and a negative or not-a-number price is no price (the negated comparison
-  // catches the latter).
-  if (!(typed_price > 0.0f) || !isfinite(typed_price) || label_g <= 0) return 0.0f;
-  const float per_kg = typed_price * 1000.0f / (float)label_g;
-  return isfinite(per_kg) ? roundToCent(per_kg) : 0.0f;
+  // Typed: the price per kg exactly as typed, neither converted through the
+  // label weight nor rounded. Zero empties the price, and a negative or
+  // not-a-number price is no price (the negated comparison catches the
+  // latter), nor is one the float ran over with.
+  if (!(typed_price > 0.0f) || !isfinite(typed_price)) return 0.0f;
+  return typed_price;
 }
 
 int copyRulesCore(int chosen_g, int tpl_core_g, bool tpl_inherited) {

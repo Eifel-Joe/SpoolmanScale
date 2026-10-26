@@ -28,8 +28,8 @@
 //                           filament id on the Spoolman server. Held in PSRAM
 //                           until the next load or copyBbsClear(); a load
 //                           also forgets a price typed before.
-//    copyBbsView(label, &v) what the card shows, from what was loaded.
-//    copyBbsSetPrice(p)     the price button, when it was used.
+//    copyBbsView(&v)        what the card shows, from what was loaded.
+//    copyBbsSetPrice(p)     the price button, when it was used: a price per kg.
 //    copyBbsCreate(in, ...) "Create": through backendCreateSpool(), the POST
 //                           with every field, then the link lists.
 //    copyBbsLastMissing()   what did not come across (CopyMissing bits).
@@ -74,7 +74,7 @@ struct CopyBbsView {
   int         model_presets;  // profiles per printer model, 0 when none or unreadable
   const char* location;       // the template's storage location by name
   const char* supplier;       // the purchase source, else the first supplier
-  float       spool_price;    // the template's price for label_g, 0 without a price
+  float       cost_per_kg;    // the template's price per kg, 0 without a price
 };
 
 // What the copy is created with. initial_g is the copy's label weight (U's
@@ -94,15 +94,17 @@ struct CopyBbsCreate {
 // leave a gap the create reports. Forgets a price typed before.
 bool copyBbsLoad(int template_spool_id);
 
-// Fills out with what the card shows; spool_price is the template's price per
-// kg for label_g, the label the create sends (in.initial_g), not a price typed
-// since: the card keeps that one on its button. False, with out emptied, when
-// nothing is loaded.
-bool copyBbsView(int label_g, CopyBbsView* out);
+// Fills out with what the card shows; cost_per_kg is the template's price per
+// kg as Bambuddy keeps it (0 where it has none, or none that is a finite
+// price above 0), not a price typed since: the card keeps that one on its
+// button. The label weight plays no part, a price per kg is the same for any
+// spool (Festlegung 5). False, with out emptied, when nothing is loaded.
+bool copyBbsView(CopyBbsView* out);
 
-// The price of the new spool, typed on the card. Without a call the
-// template's price per kg goes along unchanged; 0 is an emptied field and
-// sends no price (Festlegung 5).
+// The price per kg of the new spool, typed on the card. Without a call the
+// template's price per kg goes along unchanged; a typed one goes exactly as
+// typed, and 0 is an emptied field and sends no price (Festlegung 5,
+// copyRulesCostPerKg).
 void copyBbsSetPrice(float typed_price);
 
 // Creates the copy. Behind Spoolman: the POST with every field, then the

@@ -4046,6 +4046,11 @@ const char* const STRINGS[][3] = {
   { "Filament",
     "filament",
     "filament" },  // STR_COPY_PART_FILAMENT
+  { "%.2f/kg", "%.2f/kg", "%.2f/kg" },  // STR_COPY_CARD_PRICE_KG
+  { "%.0f/kg", "%.0f/kg", "%.0f/kg" },  // STR_COPY_CARD_PRICE_KG_WHOLE
+  { "Preis pro kg",
+    "Price per kg",
+    "Prix par kg" },  // STR_PRICE_PAD_TITLE_KG
 };
 
 StringID tagWriteResultString(uint8_t code) {

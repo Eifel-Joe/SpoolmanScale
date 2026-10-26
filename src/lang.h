@@ -1868,6 +1868,9 @@ enum StringID {
   STR_COPY_PART_SUPPLIERS,  // the suppliers
   STR_COPY_PART_KPROFILES,  // the calibration values (K profiles)
   STR_COPY_PART_FILAMENT,   // the template's filament on the Spoolman server
+  STR_COPY_CARD_PRICE_KG,       // copy card price button: %.2f the price per kg
+  STR_COPY_CARD_PRICE_KG_WHOLE, // the same in whole units, %.0f, where the cents do not fit
+  STR_PRICE_PAD_TITLE_KG,       // price pad title when the copy card asks for a price per kg
 
   STR_COUNT
 };

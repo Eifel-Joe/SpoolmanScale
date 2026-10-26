@@ -77,7 +77,7 @@ static int     s_loaded_id    = 0;        // the template both belong to, 0: not
 static int     s_presets_code = 0;        // the presets read: 200, else its failure
 static int     s_filament_id  = 0;        // the template's Spoolman filament, 0: not read
 static bool    s_price_typed  = false;    // the price button was used since the load
-static float   s_price        = 0.0f;     // what was typed, 0: emptied
+static float   s_price        = 0.0f;     // the price per kg typed, 0: emptied
 static uint8_t s_missing      = CM_NONE;  // the last create's CopyMissing bits
 
 void copyBbsClear() {
@@ -152,13 +152,13 @@ static const char* supplierShown(JsonArrayConst suppliers) {
   return suppliers[i]["supplier_name"] | "";
 }
 
-bool copyBbsView(int label_g, CopyBbsView* out) {
+bool copyBbsView(CopyBbsView* out) {
   if (!out) return false;
   out->profile_name  = "";
   out->model_presets = 0;
   out->location      = "";
   out->supplier      = "";
-  out->spool_price   = 0.0f;
+  out->cost_per_kg   = 0.0f;
   if (s_loaded_id <= 0) return false;
 
   JsonObjectConst tpl = s_tpl.as<JsonObjectConst>();
@@ -174,7 +174,11 @@ bool copyBbsView(int label_g, CopyBbsView* out) {
   // whichever of the two the create sends.
   out->location    = tpl["storage_location"] | "";
   out->supplier    = supplierShown(tpl["suppliers"].as<JsonArrayConst>());
-  out->spool_price = copyRulesSpoolPrice(tpl["cost_per_kg"] | 0.0f, label_g);
+  // The price per kg as the server keeps it, never effective_cost_per_kg,
+  // and the one the create sends while the button is untouched. Only a real
+  // price is shown: none, zero or not a number leaves the button its word.
+  const float cost = tpl["cost_per_kg"] | 0.0f;
+  out->cost_per_kg = (cost > 0.0f && isfinite(cost)) ? cost : 0.0f;
   return true;
 }
 
@@ -259,12 +263,14 @@ static uint8_t putLinks(int spool_id, JsonArrayConst src, const LinkList& list) 
 // What the POST sends behind Spoolman beyond commonFields() (Festlegungen 2,
 // 5, 9, 10, 14). The strings point into s_tpl. CM_FILAMENT when the filament
 // id was not read: the copy is made without it, and Bambuddy looks one up.
-static uint8_t takenOver(JsonObjectConst tpl, int label_g, BbNewSpool& ns) {
+static uint8_t takenOver(JsonObjectConst tpl, BbNewSpool& ns) {
   ns.color_name = copyRulesColorName(tpl["color_name"] | "",
                                      tpl["color_name_is_synthesized"] | false);
-  // The price per kg, never effective_cost_per_kg, which Bambuddy may derive.
-  // Sent only as a real price: no price, emptied or not a number leaves it out.
-  const float cost = copyRulesCostPerKg(tpl["cost_per_kg"] | 0.0f, label_g, s_price, s_price_typed);
+  // The price per kg, never effective_cost_per_kg, which Bambuddy may derive:
+  // the template's, or the one typed on the card exactly as typed, whatever
+  // the label weight (Festlegung 5). Sent only as a real price: no price,
+  // emptied or not a number leaves it out.
+  const float cost = copyRulesCostPerKg(tpl["cost_per_kg"] | 0.0f, s_price, s_price_typed);
   if (cost > 0.0f && isfinite(cost)) ns.cost_per_kg = cost;
   // One place, not two: by its id when the template has one, else by name.
   const int location_id = tpl["location_id"] | 0;
@@ -299,7 +305,7 @@ int copyBbsCreate(const CopyBbsCreate& in, int* out_spool_id, uint8_t* out_missi
   const int label_g = (int)lroundf(in.initial_g);
   BbNewSpool ns;
   commonFields(tpl, in, label_g, ns);
-  uint8_t missing = takenOver(tpl, label_g, ns);
+  uint8_t missing = takenOver(tpl, ns);
   logSDf("Copy: template %d, filament %d, profile %s, %.2f per kg (%s), location %d '%s'",
          in.template_spool_id, ns.spoolman_filament_id,
          ns.slicer_filament ? ns.slicer_filament : "none", ns.cost_per_kg,
