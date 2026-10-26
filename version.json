@@ -1,23 +1,23 @@
 {
   "stable": "v0.8.4",
   "stable_sha256": "90560477863b749347d75569c99708cabefb4f0db1454d3f597db48d0448d561",
-  "prerelease": "v0.8.5-beta.1",
-  "prerelease_sha256": "af918b848223536a670a3b054f70fd222e9e235ce4d2080b4ffa3f3b229d499c",
+  "prerelease": "v0.8.5-beta.2",
+  "prerelease_sha256": "f7c6807cbbbad8de47de80d55db969f2784003568fabf1dc6e544f5fae102ba2",
   "url": "https://github.com/Eifel-Joe/SpoolmanScale/releases",
-  "prerelease_size": 3690816,
+  "prerelease_size": 3691200,
   "boards": {
     "waveshare-s3-lcd7": {
-      "prerelease": "v0.8.5-beta.1",
-      "prerelease_sha256": "a11eccf14e92f4599706f1ee4040b371b2f7be8d444f325d9a335a9d5dd5a2fd",
-      "prerelease_size": 3652832,
+      "prerelease": "v0.8.5-beta.2",
+      "prerelease_sha256": "7b9a5d7798263da9d081ad2978b1868add2b0223b3ead149cf894776263d6a43",
+      "prerelease_size": 3653296,
       "stable": "v0.8.4",
       "stable_sha256": "378d044b5cc66495da0d24a560779e198d0651f3702b2c61770e153dfce6126f",
       "stable_size": 3652672
     },
     "waveshare-s3-lcd7b": {
-      "prerelease": "v0.8.5-beta.1",
-      "prerelease_sha256": "ed9b3f1a4a8cdd3a427934fc5edf478e9549b282318096fd9b68addb41144fcc",
-      "prerelease_size": 3653680,
+      "prerelease": "v0.8.5-beta.2",
+      "prerelease_sha256": "a1d6100017661936bc0a32d39927c92f27bbfcdc6f742d3fd98af62b17a84d83",
+      "prerelease_size": 3654112,
       "stable": "v0.8.4",
       "stable_sha256": "92df7b9b2e9d250b24c5703c6656f558d832aa7a4a0d2a5c6f33272aa445a075",
       "stable_size": 3653520
