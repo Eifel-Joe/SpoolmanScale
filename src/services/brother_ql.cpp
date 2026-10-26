@@ -55,14 +55,17 @@ static void noteHeap(BqRun& run) {
   if (now < run.low) run.low = now;
 }
 
-// Reads what the printer has sent and drops it. read() is only called with
-// data waiting: its first call makes the stack allocate a receive buffer of
-// 1436 bytes in internal RAM, which a printer that stays silent never costs.
+// Reads one chunk of what the printer has sent and drops it, once per round
+// of the wait: draining until nothing was left let a peer that keeps sending
+// hold the wait past its 10 s. Port 9100 answers nothing (befunde 3), so this
+// is for what should not come. What is still unread keeps connected() true,
+// so the wait sees the close once it is all read, or ends at its limit.
+// read() is only called with data waiting: its first call makes the stack
+// allocate a receive buffer of 1436 bytes in internal RAM, which a printer
+// that stays silent never costs.
 static void discardIncoming(WiFiClient& client) {
   uint8_t sink[BQ_SINK_BYTES];
-  while (client.available() > 0) {
-    if (client.read(sink, sizeof(sink)) <= 0) break;
-  }
+  if (client.available() > 0) client.read(sink, sizeof(sink));
 }
 
 // Hands bytes to the socket and counts what it took. A short write is a
