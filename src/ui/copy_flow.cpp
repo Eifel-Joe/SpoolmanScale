@@ -37,6 +37,7 @@
 #include "ui/db_pick_screen.h"
 #include "ui/entry_tile.h"
 #include "ui/tag_create_popup.h"
+#include "ui/tare_entry.h"
 
 // From ui/spool_flow.cpp, see the same line in spoolman_lookup.cpp: what counts
 // as bound, for the spool cache a download here fills.
@@ -80,6 +81,12 @@ static bool  copy_fetch_archived     = false;
 static bool  copy_create_pending     = false;   // copy confirm OK
 static int   copy_create_sid = 0, copy_create_fid = 0;
 static float copy_create_ini = 0.0f, copy_create_spw = 0.0f, copy_create_core = 0.0f;
+// The card's list of types was answered for this copy (copyTypeAsked()),
+// taken with the values above: the create marks the new spool for the first
+// weighing. Not a parameter: copyCreateRequest() and doCopySpoolCreate()
+// already take five each (house rule). Only true from copyCreateRequest() to
+// the end of the create it asked for.
+static bool  copy_create_asked = false;
 static int   copy_row_refresh_pending = -1;
 static bool  copy_reload_pending      = false;  // "Reload" under the copy list
 // The list on screen is the one the cache holds, so it gets the strip.
@@ -155,6 +162,9 @@ void doCopySpoolCreate(int template_spool_id, int template_filament_id, float te
     // A spool the kept list does not have, and a row for it cannot be made up
     // from here. The stamp would catch it; BamBuddy has none.
     spoolCacheForget("spool created by copy");
+    // The card's list asked this copy's type: the first weighing does not
+    // ask it again (tare_entry.h).
+    if (copy_create_asked) tareEntryFirstWeighDone(new_id);
     // The spool exists either way; a tag that could not be bound has said so
     // on the status line, and that must stay readable.
     if (finishCopyFlow(new_id)) statusMessageShow(T(STR_COPY_OK), UI_COL_GOOD);
@@ -816,6 +826,7 @@ void copyCreateRequest(int template_spool_id, int template_filament_id, float te
   copy_create_ini  = template_initial;
   copy_create_spw  = tare_g;
   copy_create_core = chosen_core_g;
+  copy_create_asked = copyTypeAsked();
   copy_create_pending = true;
 }
 
@@ -855,5 +866,7 @@ void copyFlowDeferredActions() {
     closeCopyEntryPopup();
     doCopySpoolCreate(copy_create_sid, copy_create_fid, copy_create_ini, copy_create_spw,
                       copy_create_core);
+    // Created or not: nothing is left for a later create.
+    copy_create_asked = false;
   }
 }

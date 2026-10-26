@@ -155,14 +155,19 @@ static void typeGoOn() {
   if (!dbPickCoreAsk(&in)) showTagCreatePopupFor(in);
 }
 
+// Both answers travel with the input to the card, whose create marks the new
+// spool for the first weighing (tareEntryFirstWeighDone()). Back answers
+// nothing and sets nothing.
 static void typePicked(float grams, const char* name) {
-  s_in.spool_type_g = spoolTypeGrams(grams);
+  s_in.spool_type_g     = spoolTypeGrams(grams);
+  s_in.spool_type_asked = true;
   logSDf("DbPickType: '%s' %d g for this spool alone", name ? name : "", s_in.spool_type_g);
   typeGoOn();
 }
 
 static void typeWithout() {
-  s_in.spool_type_g = 0;
+  s_in.spool_type_g     = 0;
+  s_in.spool_type_asked = true;
   typeGoOn();
 }
 

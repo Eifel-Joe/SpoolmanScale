@@ -133,3 +133,6 @@ void copyFlowDeferredActions();
 // type chosen for the copy (BBS), 0: none (backendCreateSpool()).
 void copyCreateRequest(int template_spool_id, int template_filament_id, float template_initial,
                        float tare_g, float chosen_core_g);
+// The confirmation's list of spool types was answered for the copy on the
+// card (copy_confirm_popup.cpp); copyCreateRequest() takes it with its values.
+bool copyTypeAsked();
