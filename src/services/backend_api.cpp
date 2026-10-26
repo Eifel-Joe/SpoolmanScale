@@ -20,6 +20,7 @@
 #include "services/last_dried.h"
 #include "services/list_limits.h"
 #include "services/device_name.h"
+#include "services/spool_type_rules.h"
 #include "services/spoolman_api.h"
 #include "services/spoolman_filament.h"
 #include "services/spoolman_filament_db.h"
@@ -925,9 +926,16 @@ static int bambuddyCreateUnderSpoolman(const TagCreateInput& in, const TagFilame
   // ("Rapid-Eco Dark Green"); the user can edit it in BamBuddy.
   ns.color_name   = in.color_name_en[0] ? in.color_name_en : in.db_color_name;
   ns.label_weight = v.label_weight;
-  // BamBuddy subtracts the spool's own core on its side, so the spool gets
-  // what it is weighed against, whichever level it came from.
-  ns.core_weight  = tagCreateTare(in, plan, nullptr, nullptr);
+  // What the new spool keeps as its own empty weight. The proxy writes a
+  // core_weight onto the spool as its own spool_weight, so a tare inherited
+  // from the filament or the brand would turn into the spool's own, and a
+  // later correction at the filament or the brand would no longer reach it.
+  // Inherited gives 0, which leaves the field out and the spool inheriting
+  // (spoolTypeOwnCore(), L21). The type chosen at the scale (TARE_SPOOL) and
+  // the input's own are still written.
+  uint8_t tare_from = TARE_NONE;
+  const int tare = tagCreateTare(in, plan, &tare_from, nullptr);
+  ns.core_weight  = spoolTypeOwnCore(tare, tare_from == TARE_FILAMENT || tare_from == TARE_VENDOR);
   if (v.price > 0.0f && v.label_weight > 0) ns.cost_per_kg = v.price * 1000.0f / (float)v.label_weight;
   ns.weight_used  = (float)v.label_weight - v.remaining;
   if (ns.weight_used < 0.0f) ns.weight_used = 0.0f;
