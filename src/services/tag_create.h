@@ -163,6 +163,16 @@ struct TagFilamentPlan {
   // entry, for the card to merge in and compare (tag_db_match.h).
   bool       db_found;
   TagDbEntry db;
+  // A sort entered at the scale (TagCreateInput::typed) names its filament
+  // by line and colour, and the inventory may hold the same maker, material
+  // and hue under another name. Only noted here, never taken: the card asks.
+  int   twin_id;               // typed input: same vendor, material and hue under another name; 0: none
+  char  twin_name[64];
+  int   twin_spool_weight_g;   // that filament's own empty spool, for tagCreateTare() once it is taken
+  // Set with TFS_FAILED when the filament cannot be created for lack of the
+  // density Spoolman requires, so the card can say so instead of showing a
+  // search that failed with HTTP 0.
+  bool  no_density;            // TFS_FAILED because neither the database nor Spoolman's materials know a density
 };
 
 void tagFilamentPlanClear(TagFilamentPlan* plan);
