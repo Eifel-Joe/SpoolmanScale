@@ -422,8 +422,17 @@ bool labelPrinterRecommended(LabelPrinterModel model) {
   return model == LP_MODEL_M220 || model == LP_MODEL_NIIMBOT_M2;
 }
 
+// Root: forgetting followed the link at the moment of the call, so a
+//   Bluetooth caller - the device card's Remove, the printer screen reached
+//   from the print sheet, a browser page still showing the Bluetooth tile -
+//   emptied the Brother's address once the link had been switched to WLAN.
+// Fix: always the Bluetooth device, whatever link is chosen. Its cache is
+//   updated by the save; the Brother's is not touched, so under WLAN the
+//   chosen config stays the Brother's.
+// NOT-TO-DO: refusing under WLAN: the card's Remove is meant to drop the
+//   Bluetooth printer there too. The Brother's address goes through
+//   labelPrinterSetHost("") only.
 bool labelPrinterForget() {
-  if (labelPrinterLink() == LP_LINK_WLAN) return labelPrinterSetHost("");
   LabelPrinterConfig c = bleConfig();
   c.address[0] = '\0';
   c.name[0] = '\0';

@@ -171,8 +171,9 @@ bool labelPrinterConfigured(const LabelPrinterConfig& config);
 // The models we have on the desk and test every label feature on first; the
 // manual's page of recommended printers names the same ones.
 bool labelPrinterRecommended(LabelPrinterModel model);
-// Drops the device, keeps model and label size; under WLAN the Brother's
-// address.
+// Drops the Bluetooth device, its address and name, and keeps its model and
+// label size, whatever link is chosen. The Brother's address is emptied
+// through labelPrinterSetHost("") only.
 bool labelPrinterForget();
 // True when this address is the picked printer.
 bool labelPrinterIsDevice(const char* address);
