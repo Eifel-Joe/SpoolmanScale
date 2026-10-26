@@ -215,13 +215,10 @@ bool labelPrinterTakesMedia(LabelPrinterModel model, uint16_t width_mm, uint16_t
 // What is stored is taken as it is, except for two things that would leave
 // the printer unusable: no model becomes the M220, and a label size the model
 // cannot take becomes the picked one where it fits, else the model's default.
-// The Brother is no model here: it is not reached over Bluetooth, and these
-// keys never hold it, whatever a caller sends.
 static LabelPrinterConfig normalized(const LabelPrinterConfig& in) {
   LabelPrinterConfig c = in;
   const LabelPrinterProfile& p = labelPrinterProfile(c.model);
-  const bool usable = p.model != LP_MODEL_NONE && !isBrother(p);
-  const LabelPrinterProfile& use = usable ? p : PROFILE_M220;
+  const LabelPrinterProfile& use = p.model == LP_MODEL_NONE ? PROFILE_M220 : p;
   c.model = use.model;
   c.name[sizeof(c.name) - 1] = '\0';
   c.address[sizeof(c.address) - 1] = '\0';
@@ -300,8 +297,9 @@ static bool hostAccepted(const char* host) {
 
 // The Brother as the config the rest of the code knows: its model, its IP
 // address as the device, no name, its label and its own offset. Only the
-// address and the offset are taken from `in`; model and label stay the
-// Brother's whatever a caller sends. There is one label so far, so it is not
+// address and the offset are taken from `in`: the model is the one Brother
+// profile there is (the save refuses any other), and the label is the
+// table's whatever a caller sends. There is one label so far, so it is not
 // stored: a second one gets a key of its own.
 static LabelPrinterConfig netNormalized(const LabelPrinterConfig& in) {
   LabelPrinterConfig c{};
@@ -398,8 +396,24 @@ LabelPrinterConfig labelPrinterLoadConfig() {
   return labelPrinterLink() == LP_LINK_WLAN ? netConfig() : bleConfig();
 }
 
+// Root: a screen or a page may still hold a copy of the printer from before
+//   the link changed (the offset screen open while the browser switches),
+//   and saving it went to the keys of the printer chosen now.
+// Fix: a config whose model belongs to the other link is refused and nothing
+//   is written - a Brother while the link is Bluetooth or off, anything else
+//   while it is WLAN (ruling R7).
+// NOT-TO-DO: mapping it onto the chosen printer, as a Brother model once
+//   became an M220: that wrote the stale copy's model and IP address over
+//   the Bluetooth printer's.
 bool labelPrinterSaveConfig(const LabelPrinterConfig& in) {
-  return labelPrinterLink() == LP_LINK_WLAN ? netSave(in) : bleSave(in);
+  const LabelPrinterLink link = labelPrinterLink();
+  const LabelPrinterProfile& p = labelPrinterProfile(in.model);
+  if (isBrother(p) != (link == LP_LINK_WLAN)) {
+    logSDf("Printer: config for another link NOT saved (%s, link %s)",
+           p.name ? p.name : "no model", linkName(link));
+    return false;
+  }
+  return link == LP_LINK_WLAN ? netSave(in) : bleSave(in);
 }
 
 bool labelPrinterConfigured(const LabelPrinterConfig& c) { return c.address[0] != '\0'; }

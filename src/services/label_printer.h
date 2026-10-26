@@ -161,9 +161,10 @@ bool labelPrinterSetHost(const char* host);
 
 // The chosen printer: the Brother under WLAN, the Bluetooth printer otherwise.
 // Each is cached after the first read; every write goes through the save,
-// which writes the chosen printer's keys only. Under WLAN model and label are
-// the Brother's whatever the caller sends, and an address that is not an IPv4
-// one fails the save; on the Bluetooth side a Brother model counts as none.
+// which writes the chosen printer's keys only. A config whose model belongs
+// to the other link (a copy kept from before the link changed) is refused
+// and nothing is written. Under WLAN the label is the Brother's whatever the
+// caller sends, and an address that is not an IPv4 one fails the save.
 LabelPrinterConfig labelPrinterLoadConfig();
 bool labelPrinterSaveConfig(const LabelPrinterConfig& config);
 bool labelPrinterConfigured(const LabelPrinterConfig& config);
