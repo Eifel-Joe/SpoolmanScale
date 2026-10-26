@@ -29,6 +29,9 @@
 
 // A confirmed print closes on its own after this long; a problem waits.
 #define PC_AUTOCLOSE_MS    4000
+// A label handed to a Brother closes on its own too, later: long enough to
+// read the hint under it, without a tap after every label (Joerg, 26.10.2026).
+#define PC_NET_SENT_CLOSE_MS 15000
 
 // Our line and the server's reason under it, that one cut to two lines.
 #define PC_DETAIL_LEN 200
@@ -183,8 +186,9 @@ void printCardResult(LabelPrintResult result, const char* detail, bool offer_own
 
   const bool ok = (result == LP_OK);
   // A Brother never confirms: "sent" is all it can be told, so it takes the
-  // way of a print sent without a confirmation - yellow, and it waits for OK,
-  // so the "do not print again" under it is read (design L1, ruling 6).
+  // way of a print sent without a confirmation - yellow, the "do not print
+  // again" under it - but closes on its own after PC_NET_SENT_CLOSE_MS, like
+  // a confirmed print does after PC_AUTOCLOSE_MS (design L1, Festlegung 6).
   const bool net_sent = (result == LP_NET_SENT);
   const bool unconfirmed = (result == LP_SENT_UNCONFIRMED) || net_sent;
   const char* symbol = ok ? LV_SYMBOL_OK : LV_SYMBOL_WARNING;
@@ -244,7 +248,7 @@ void printCardResult(LabelPrintResult result, const char* detail, bool offer_own
   lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_add_event_cb(btn, [](lv_event_t*) { s_close_req = true; }, LV_EVENT_CLICKED, NULL);
 
-  if (ok) {
+  if (ok || net_sent) {
     // The house countdown (ui/info_popup.cpp): a lighter fill that drains
     // from the right behind the label; empty, it closes the card as OK does.
     // Closing itself stays with printCardLoop().
@@ -253,7 +257,7 @@ void printCardResult(LabelPrintResult result, const char* detail, bool offer_own
     lv_obj_remove_style_all(fill);
     lv_obj_set_size(fill, btn_w, UI_POPUP_BTN_H);
     lv_obj_set_pos(fill, 0, 0);
-    lv_obj_set_style_bg_color(fill, lv_color_hex(UI_COL_OK_BG_PRESSED), 0);
+    lv_obj_set_style_bg_color(fill, lv_color_hex(ok ? UI_COL_OK_BG_PRESSED : UI_COL_ROW_PRESS_FILL), 0);
     lv_obj_set_style_bg_opa(fill, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(fill, UI_RADIUS_BTN, 0);
     lv_obj_clear_flag(fill, LV_OBJ_FLAG_CLICKABLE);
@@ -261,7 +265,7 @@ void printCardResult(LabelPrintResult result, const char* detail, bool offer_own
     lv_anim_init(&a);
     lv_anim_set_var(&a, fill);
     lv_anim_set_values(&a, btn_w, 0);
-    lv_anim_set_time(&a, PC_AUTOCLOSE_MS);
+    lv_anim_set_time(&a, ok ? PC_AUTOCLOSE_MS : PC_NET_SENT_CLOSE_MS);
     lv_anim_set_exec_cb(&a, [](void* obj, int32_t v) {
       lv_obj_set_width((lv_obj_t*)obj, (lv_coord_t)v);
     });
