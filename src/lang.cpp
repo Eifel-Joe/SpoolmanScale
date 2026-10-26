@@ -4039,6 +4039,21 @@ const char* const STRINGS[][3] = {
   { "Neu anlegen",
     "Create new",
     "Nouveau filament" },  // STR_SORT_TWIN_NEW
+  { "Sorte eingeben",
+    "Enter filament",
+    "Saisir filament" },  // STR_SORT_BTN
+  { "Nicht dabei? Sorte eingeben",
+    "Not listed? Enter it here",
+    "Absent ? Saisissez-le ici" },  // STR_SORT_NOT_LISTED
+  { "Zuletzt",
+    "Last used",
+    "Dernier" },  // STR_SORT_LAST
+  { "Nicht dabei - neu anlegen",
+    "Not listed - add new",
+    "Absent - ajouter" },  // STR_SORT_NEW
+  { "Gibt es schon: %s",
+    "Already there: %s",
+    "Existe déjà : %s" },  // STR_SORT_EXISTS
 };
 
 StringID tagWriteResultString(uint8_t code) {

@@ -15,6 +15,7 @@
 #include "lang.h"
 #include "ui/db_pick_core_popup.h"
 #include "ui/link_wait_card.h"
+#include "ui/sort_entry_screen.h"
 #include "ui/spool_flow.h"
 #include "ui/spool_flow_internal.h"
 #include "ui/tag_create_popup.h"
@@ -441,7 +442,7 @@ static void fillAllMakers(lv_obj_t* body) {
     caption(body, T(STR_DBPICK_OTHER_MAKERS));
   }
   addMakers(body, false);
-  caption(body, T(STR_DBPICK_NOT_LISTED));
+  if (!sortEntryPickTile(body, DBP_ROW_W, nullptr)) caption(body, T(STR_DBPICK_NOT_LISTED));
 }
 
 // A long list: the inventory's makers until a letter is tapped, then that
@@ -461,7 +462,7 @@ static void fillFilteredMakers(lv_obj_t* body) {
     if (!lvPoolHasRoomForRow()) { logSDf("DbPick: LVGL pool low, makers cut at %d", i); break; }
     makerTile(body, i, m->owned);
   }
-  caption(body, T(STR_DBPICK_NOT_LISTED));
+  if (!sortEntryPickTile(body, DBP_ROW_W, nullptr)) caption(body, T(STR_DBPICK_NOT_LISTED));
 }
 
 static void showMakers() {
@@ -510,6 +511,7 @@ static void showMaterials() {
     snprintf(count, sizeof(count), "%u", (unsigned)p->count);
     tileText(t, count, &s_st_text_soft, LV_ALIGN_BOTTOM_MID, 0);
   }
+  sortEntryPickTile(body, DBP_ROW_W, m->name);
 }
 
 // Entries come sorted by name, then weight: one name, its sizes after it.

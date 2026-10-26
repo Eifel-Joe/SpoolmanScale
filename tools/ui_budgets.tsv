@@ -269,12 +269,15 @@ STR_PRICE_PAD_TITLE	14	460	NEVER	src/ui/price_pad.cpp title above the keypad
 STR_PRICE_PAD_INFO	12	168	WRAP:3	src/ui/price_pad.cpp right column, PP_COL_W
 
 # --- the database picker (db_pick_screen.cpp), widths read off its constants ----
-# The copy popup's tiles (src/ui/entry_tile.cpp): three of 144 px, the caption
-# 12 px narrower, wrapped under the symbol to two lines at most.
-STR_DBPICK_BTN	16	132	WRAP:2	src/ui/copy_flow.cpp copyEntryTiles, tile caption
-STR_NEWTAG_BTN	16	132	WRAP:2	src/ui/copy_flow.cpp copyEntryTiles, tile caption
-STR_COPY_ACTIVE_BTN	16	132	WRAP:2	src/ui/copy_flow.cpp copyEntryTiles, tile caption
-STR_COPY_ARCHIVED_BTN	16	132	WRAP:2	src/ui/copy_flow.cpp copyEntryTiles, tile caption
+# The copy popup's tiles (src/ui/entry_tile.cpp): up to four of 106 px with
+# "Enter filament" (STR_SORT_BTN), the caption 12 px narrower, wrapped under the
+# symbol to two lines at most. "Neu aus Tag anlegen" and "Créer depuis le tag"
+# take three lines at 94 px; the tile for a tag only comes with a Bambu tag
+# (tag_create.cpp), which never gets the fourth tile, so it stays in a row of three.
+STR_DBPICK_BTN	16	94	WRAP:2	src/ui/copy_flow.cpp copyEntryTiles, tile caption
+STR_NEWTAG_BTN	16	94	WRAP:3	src/ui/copy_flow.cpp copyEntryTiles, tile caption
+STR_COPY_ACTIVE_BTN	16	94	WRAP:2	src/ui/copy_flow.cpp copyEntryTiles, tile caption
+STR_COPY_ARCHIVED_BTN	16	94	WRAP:2	src/ui/copy_flow.cpp copyEntryTiles, tile caption
 STR_DBPICK_LOADING	20	360	WRAP:2	src/ui/db_pick_screen.cpp:597 wait card title, UI_POPUP_W - UI_CARD_TEXT_PAD
 STR_DBPICK_MAKER_TITLE	16	376	NEVER	src/ui/db_pick_screen.cpp:341 header title, 480 - 2 * (44 + 2 * 4)
 STR_DBPICK_OWNED	14	452	NEVER	src/ui/db_pick_screen.cpp caption, DBP_ROW_W
@@ -424,3 +427,11 @@ STR_SORT_TWIN_TITLE	20	360	NEVER	src/ui/sort_twin_popup.cpp title, UI_POPUP_W - 
 STR_SORT_TWIN_TEXT	16	360	WRAP:3	src/ui/sort_twin_popup.cpp question, UI_POPUP_W - UI_CARD_TEXT_PAD, %s is a filament name
 STR_SORT_TWIN_TAKE	16	164	NEVER	src/ui/sort_twin_popup.cpp button, STP_BTN_W minus 10 px air each side
 STR_SORT_TWIN_NEW	16	164	NEVER	src/ui/sort_twin_popup.cpp button, STP_BTN_W minus 10 px air each side
+# --- a filament entered at the scale: the ways in and the steps (ui/sort_entry_*.cpp) --------
+# The copy popup's fourth tile: (448 - 3 x 8) / 4 = 106 px, the caption 12 px narrower.
+STR_SORT_BTN	16	94	WRAP:2	src/ui/copy_flow.cpp copyEntryTiles, tile caption
+# Tiles across the list (DBP_ROW_W, SORT_ROW_W: 452), one label: minus 2 x (pad 2 + border 1).
+STR_SORT_NOT_LISTED	14	446	NEVER	src/ui/sort_entry_screen.cpp sortEntryPickTile, at the end of db_pick_screen.cpp's lists
+STR_SORT_NEW	14	446	NEVER	src/ui/sort_entry_screen.cpp sortNewTile, the last tile of every step
+STR_SORT_LAST	14	452	NEVER	src/ui/sort_entry_screen.cpp sortCaption, SORT_ROW_W
+STR_SORT_EXISTS	14	452	WRAP:2	src/ui/sort_entry_*.cpp caption on top of the step after a typed name, SORT_ROW_W, %s a name
