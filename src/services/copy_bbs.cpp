@@ -76,6 +76,7 @@ static JsonDocument s_presets(&s_alloc);
 static int     s_loaded_id    = 0;        // the template both belong to, 0: nothing loaded
 static int     s_presets_code = 0;        // the presets read: 200, else its failure
 static int     s_filament_id  = 0;        // the template's Spoolman filament, 0: not read
+static float   s_filament_g   = 0.0f;     // that filament's nominal weight, 0: none or not read
 static bool    s_price_typed  = false;    // the price button was used since the load
 static float   s_price        = 0.0f;     // the price per kg typed, 0: emptied
 static uint8_t s_missing      = CM_NONE;  // the last create's CopyMissing bits
@@ -86,6 +87,7 @@ void copyBbsClear() {
   s_loaded_id    = 0;
   s_presets_code = 0;
   s_filament_id  = 0;
+  s_filament_g   = 0.0f;
   s_price_typed  = false;
   s_price        = 0.0f;
 }
@@ -117,18 +119,18 @@ static int loadTemplate(int template_spool_id) {
   if (s_presets_code != 200) s_presets.clear();
   // Leaves 0 and logs the cause when Spoolman cannot tell (copy_bbs.h: why).
   if (spoolTypesActive()) {
-    bbSpoolmanFilamentOf(template_spool_id, &s_filament_id, COPY_BBS_READ_TIMEOUT_MS);
+    bbSpoolmanFilamentOf(template_spool_id, &s_filament_id, COPY_BBS_READ_TIMEOUT_MS, &s_filament_g);
   }
   s_loaded_id = template_spool_id;
 
   JsonObjectConst tpl = s_tpl.as<JsonObjectConst>();
   const char* profile = tpl["slicer_filament"] | "";
   logSDf("Copy: template %d read, profile %s, %d model presets (HTTP %d), %d suppliers, "
-         "%d K profiles, filament %d",
+         "%d K profiles, filament %d (%.0f g)",
          template_spool_id, copyRulesHasProfile(profile) ? profile : "none",
          (int)s_presets.as<JsonArrayConst>().size(), s_presets_code,
          (int)tpl["suppliers"].as<JsonArrayConst>().size(),
-         (int)tpl["k_profiles"].as<JsonArrayConst>().size(), s_filament_id);
+         (int)tpl["k_profiles"].as<JsonArrayConst>().size(), s_filament_id, s_filament_g);
   return 200;
 }
 
@@ -137,6 +139,13 @@ bool copyBbsLoad(int template_spool_id) {
   const int code = loadTemplate(template_spool_id);
   if (code != 200) logSDf("Copy: template %d unreadable (HTTP %d)", template_spool_id, code);
   return code == 200;
+}
+
+float copyBbsNominal(int template_spool_id, float tpl_label_g) {
+  // Only a load of this template counts, as for the create (copy_bbs.h); any
+  // other is no filament weight: the template's label, as before.
+  const bool ours = s_loaded_id > 0 && s_loaded_id == template_spool_id;
+  return copyRulesNominal(ours ? s_filament_g : 0.0f, tpl_label_g);
 }
 
 // The supplier the card names beside the location (section 3).
@@ -184,7 +193,8 @@ bool copyBbsView(CopyBbsView* out) {
 
 // The fields a copy behind Bambuddy has always carried, from the template.
 // The label weight is the caller's: the template's in Bambuddy's own
-// inventory, U's start rule behind Spoolman.
+// inventory, U's start rule behind Spoolman (from the filament's nominal
+// weight, copyBbsNominal()).
 static void commonFields(JsonObjectConst tpl, const CopyBbsCreate& in, int label_g,
                          BbNewSpool& ns) {
   ns.material = tpl["material"] | "";

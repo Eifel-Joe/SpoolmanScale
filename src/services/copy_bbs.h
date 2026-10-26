@@ -25,9 +25,12 @@
 //
 //    copyBbsLoad(id)        before the card: the template as Bambuddy stores
 //                           it, its profiles per printer model and (BBS) its
-//                           filament id on the Spoolman server. Held in PSRAM
-//                           until the next load or copyBbsClear(); a load
-//                           also forgets a price typed before.
+//                           filament id and weight on the Spoolman server.
+//                           Held in PSRAM until the next load or
+//                           copyBbsClear(); a load also forgets a price typed
+//                           before.
+//    copyBbsNominal(l)      the nominal weight the card and the create start
+//                           from: the filament's, else the label l.
 //    copyBbsView(&v)        what the card shows, from what was loaded.
 //    copyBbsSetPrice(p)     the price button, when it was used: a price per kg.
 //    copyBbsCreate(in, ...) "Create": through backendCreateSpool(), the POST
@@ -78,7 +81,8 @@ struct CopyBbsView {
 };
 
 // What the copy is created with. initial_g is the copy's label weight (U's
-// start rule: a full copy gets what it weighs, else the template's label),
+// start rule: a full copy gets what it weighs, else the nominal weight of
+// copyBbsNominal(): the filament's behind Spoolman, else the template's label),
 // remaining_g what is on it. chosen_core_g is a spool type chosen at the
 // scale for the copy, 0 for none; tare_g the empty spool to fall back on for
 // a template without core_weight (L21).
@@ -88,11 +92,17 @@ struct CopyBbsCreate {
 };
 
 // Reads the template (raw, as Bambuddy stores it), its profiles per printer
-// model and, behind Spoolman, its filament id, each within 3 s, and holds
-// them until the next load or copyBbsClear(). False only when the template
+// model and, behind Spoolman, its filament id and weight, each within 3 s,
+// and holds them until the next load or copyBbsClear(). False only when the template
 // itself could not be read; profiles or a filament id that could not be read
 // leave a gap the create reports. Forgets a price typed before.
 bool copyBbsLoad(int template_spool_id);
+
+// The nominal weight the copy of template_spool_id starts from
+// (copyRulesNominal): the Spoolman filament's weight loaded for that very
+// template, else tpl_label_g, the template's label, which is also what comes
+// back when nothing or another template is loaded.
+float copyBbsNominal(int template_spool_id, float tpl_label_g);
 
 // Fills out with what the card shows; cost_per_kg is the template's price per
 // kg as Bambuddy keeps it (0 where it has none, or none that is a finite

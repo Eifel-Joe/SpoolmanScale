@@ -235,12 +235,14 @@ bool bbGetDriedFromSpoolman(int spool_id, char* out_iso, size_t out_size,
 
 // The Spoolman filament a spool hangs on, read straight from the Spoolman
 // server behind BamBuddy: GET /api/v1/spool/{id}, filtered down to
-// filament.id. The BamBuddy key is not sent along, it belongs to BamBuddy.
-// BamBuddy's own answer for a spool carries no filament id, and the spool id
-// is the same on both sides. False, with *out_filament_id at 0, when there is
-// no Spoolman address (local mode), the spool is unknown or the request
-// fails; the cause is in the log.
-bool bbSpoolmanFilamentOf(int spool_id, int* out_filament_id, uint32_t timeout_ms);
+// filament.id and filament.weight. The BamBuddy key is not sent along, it
+// belongs to BamBuddy. BamBuddy's own answer for a spool carries no filament
+// id, and the spool id is the same on both sides. *out_filament_weight (may
+// be null) is the filament's nominal weight, 0 when it has none. False, with
+// both at 0, when there is no Spoolman address (local mode), the spool is
+// unknown or the request fails; the cause is in the log.
+bool bbSpoolmanFilamentOf(int spool_id, int* out_filament_id, uint32_t timeout_ms,
+                          float* out_filament_weight = nullptr);
 
 // Moves a drying date the scale kept outside BamBuddy into its own field
 // (#2863): a note marker always (the marker leaves the note, the date goes

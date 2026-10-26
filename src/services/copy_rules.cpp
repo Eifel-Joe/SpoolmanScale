@@ -15,6 +15,13 @@ float copyRulesCostPerKg(float tpl_cost_per_kg, float typed_price, bool typed) {
   return typed_price;
 }
 
+float copyRulesNominal(float filament_weight_g, float tpl_label_g) {
+  // The filament's weight when it is one (the negated comparison also turns
+  // a not-a-number away); else the template's label, as before.
+  if (!(filament_weight_g >= 0.5f) || !isfinite(filament_weight_g)) return tpl_label_g;
+  return filament_weight_g;
+}
+
 int copyRulesCore(int chosen_g, int tpl_core_g, bool tpl_inherited) {
   // A chosen type comes first and is trusted, even at 250 g, as in
   // spoolTypeCreateTare. Without one only an empty weight of the template's own

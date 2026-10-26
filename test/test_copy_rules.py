@@ -78,7 +78,8 @@ int main() {
   assert(copyRulesSupplierShown(nullptr, 0) == -1);
   assert(copyRulesSupplierShown(src1, -1) == -1);
   // A filament weight that is no weight - negative, not a number, not finite -
-  // leaves the template's label, and so does one that is not a whole gram.
+  // leaves the template's label, and so does one below half a gram, which
+  // rounds to none.
   assert(copyRulesNominal(-5.0f, 1015.0f) == 1015.0f);
   assert(copyRulesNominal(NAN, 1015.0f) == 1015.0f);
   assert(copyRulesNominal(INFINITY, 1015.0f) == 1015.0f);

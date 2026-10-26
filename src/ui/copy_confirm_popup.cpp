@@ -474,6 +474,15 @@ void showCopyConfirmPopup(int template_spool_id, int template_filament_id,
     showInfoPopup(STR_SERVER_DOWN_TITLE, STR_SERVER_DOWN_TEXT, INFO_WARN);
     return;
   }
+  // Behind Spoolman the copy starts from its filament's nominal weight, not
+  // from a label the template had raised (copyRulesNominal). Set here, once,
+  // so line 3 of the card and the create read the same number.
+  if (s_copy_bbs) {
+    copy_template_initial = copyBbsNominal(template_spool_id, template_initial);
+    if (copy_template_initial != template_initial)
+      logSDf("Copy: spool %d starts from its filament's %.0f g, not the label's %.0f g",
+             template_spool_id, copy_template_initial, template_initial);
+  }
 
   // The list only with Bambuddy on Spoolman and a spool on the pad: an empty
   // pad (or no number) has no net to take a type off (L22).

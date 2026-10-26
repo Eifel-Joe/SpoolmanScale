@@ -1021,19 +1021,24 @@ bool bbGetDriedFromSpoolman(int spool_id, char* out_iso, size_t out_size,
 // belongs to BamBuddy and must not be sent to another server. NOT-TO-DO:
 // searching for the filament again by material, colour and brand, which is the
 // guess BamBuddy makes without an id and can land on another filament that
-// looks the same.
-bool bbSpoolmanFilamentOf(int spool_id, int* out_filament_id, uint32_t timeout_ms) {
+// looks the same. The filament's weight comes along in the same answer: the
+// copy starts from it rather than from a label the template had raised
+// (copyRulesNominal).
+bool bbSpoolmanFilamentOf(int spool_id, int* out_filament_id, uint32_t timeout_ms,
+                          float* out_filament_weight) {
   if (out_filament_id) *out_filament_id = 0;
+  if (out_filament_weight) *out_filament_weight = 0.0f;
   if (!out_filament_id || spool_id <= 0) return false;
   if (!s_spoolman_url[0]) return false;
 
   char url[192];
   snprintf(url, sizeof(url), "%s/api/v1/spool/%d", s_spoolman_url, spool_id);
 
-  // The one number is wanted; the rest of a Spoolman spool, extras and the
-  // whole filament record among it, is ballast.
+  // The two numbers are wanted; the rest of a Spoolman spool, extras and the
+  // rest of the filament record among it, is ballast.
   JsonDocument filter;
   filter["filament"]["id"] = true;
+  filter["filament"]["weight"] = true;
 
   JsonDocument doc;
   const int code = getJson(url, nullptr, doc, timeout_ms, nullptr, &filter);
@@ -1048,6 +1053,8 @@ bool bbSpoolmanFilamentOf(int spool_id, int* out_filament_id, uint32_t timeout_m
     return false;
   }
   *out_filament_id = id;
+  // A filament without a weight (null in Spoolman) gives 0.
+  if (out_filament_weight) *out_filament_weight = doc["filament"]["weight"] | 0.0f;
   return true;
 }
 

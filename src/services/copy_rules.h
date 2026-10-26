@@ -27,6 +27,8 @@
 //                 was not touched, else the price per kg typed on the card,
 //                 exactly as typed. The card shows and takes the price per
 //                 kg (section 3), so nothing is converted.
+//    nominal      copyRulesNominal is the nominal weight the copy starts
+//                 from: its Spoolman filament's, else the template's label.
 //    core         copyRulesCore is the empty weight the copy keeps as its
 //                 own: a type chosen for it, else what U (V25) and L21 say
 //                 about the template's.
@@ -70,6 +72,21 @@ enum CopyMissing : uint8_t { CM_NONE = 0, CM_PRICE = 1, CM_PRESETS = 2, CM_SUPPL
 // acceptance; and handing the card's shown cent on in place of the
 // template's own value for an untouched button.
 float copyRulesCostPerKg(float tpl_cost_per_kg, float typed_price, bool typed);
+
+// The nominal weight a copy starts from: what spoolStartValues()
+// takes as the label, and so the label of a partly used copy. Wurzel: the
+// copy took its template's label weight, and a template whose label was
+// raised to what it weighed ("full spool", V19/V20) handed the raise on to
+// every partly used copy: spool 2 stands at 1015 g, its filament 1 at 1000 g
+// (Spoolman, 26.10.2026). Fix: behind Spoolman the copy starts from the
+// filament's weight, the maker's figure the start rule is written for (a
+// full copy still files what it weighs). A filament weight that is no weight
+// - below half a gram, which rounds to none, negative, not a number, not
+// finite - leaves the template's label, and so does a filament nobody could
+// read (0). NOT-TO-DO: lowering the template's raised label back, which is
+// the template's own true weight; taking the filament's weight in Bambuddy's
+// own inventory, which has no filament and stays as it was (Joerg).
+float copyRulesNominal(float filament_weight_g, float tpl_label_g);
 
 // The empty weight the copy keeps as its own (L21 through U). A type chosen
 // for the copy (chosen_g > 0) is its empty weight, also when it says Bambu's
