@@ -22,6 +22,15 @@ void confirmParkTare(TareScope scope, float grams, int spool_id, bool then_new_s
 // label weight (the fill, or the rest where that is more) and the rest
 // (bare minus tare) follow. bare is the reading the fill was taken with.
 void confirmParkFullSpool(float tare, float fill, float bare, int spool_id);
+
+// The weight popup's writes, parked like every other one here until the
+// next loop pass.
+void confirmQueueWeight(float netto_g, float gross_g);
+// Takes the spool as full at netto_g, or first asks where a derived empty
+// spool weight goes when none is known at all.
+void confirmNewSpool(float netto_g);
+// The weight confirmNewSpool() will write as the initial weight.
+float confirmNewSpoolShownG(float netto_g);
 // Runs whatever a popup button parked - the weight, tare, archive and cap
 // writes. Called from appLoop().
 void handleConfirmPopupDeferredActions();

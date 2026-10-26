@@ -242,7 +242,6 @@ STR_PART_HINT_LATER	16	180	NEVER	src/ui/partition_popup.cpp button, HINT_BTN_W 2
 STR_PART_HINT_TEXT	14	256	WRAP:14	src/ui/partition_popup.cpp text column, scrolls
 STR_PART_HINT_BLOCKED	14	256	WRAP:14	src/ui/partition_popup.cpp text column, scrolls
 
-STR_BTN_EMPTY_SPOOL	14	211	NEVER	src/ui/confirm_popup.cpp weight popup row 2 right, BW2 = 219
 STR_TARE_CHOICE_TITLE	18	416	NEVER	src/ui/tare_entry.cpp showTareChoice() title, box 440 (one column) or 460 (Bambuddy in Spoolman mode)
 STR_TARE_CHOICE_WEIGH	14	400	NEVER	src/ui/tare_entry.cpp showTareChoice() button, one column (not Bambuddy in Spoolman mode), 416 wide
 STR_TARE_CHOICE_WEIGH	14	211	NEVER	src/ui/tare_entry.cpp showTareChoice() button, Bambuddy in Spoolman mode two to a row: (460 - 2 * 2 - 2 * 6 - 6) / 2 = 219 wide
@@ -250,6 +249,8 @@ STR_TARE_CHOICE_TYPE	14	380	NEVER	src/ui/tare_entry.cpp showTareChoice() button,
 STR_TARE_CHOICE_TYPE	14	187	NEVER	src/ui/tare_entry.cpp showTareChoice() button, Bambuddy in Spoolman mode, 219 wide, keyboard symbol and two blanks in front (24 px)
 STR_TARE_CHOICE_TYPES	14	211	NEVER	src/ui/tare_entry.cpp showTareChoice() button, two to a row, 219 wide
 STR_TARE_CHOICE_FULL	14	211	NEVER	src/ui/tare_entry.cpp showTareChoice() button, two to a row, 219 wide
+STR_WP_TARE_ROW	16	350	NEVER	src/ui/weight_popup.cpp Options row title, Bambuddy in Spoolman mode (opens showTareChoice())
+STR_WP_TARE_ROW_SUB	12	350	NEVER	src/ui/weight_popup.cpp Options row subtitle, Bambuddy in Spoolman mode
 STR_TARE_ENTER_TITLE	14	460	NEVER	src/ui/tare_entry.cpp showTarePad() title
 STR_FULL_TITLE	14	460	NEVER	src/ui/tare_entry.cpp showTarePad() title, the full spool's keypad
 STR_TARE_ENTER_REST	12	168	NEVER	src/ui/tare_entry.cpp s_lbl_info, COL_W = 168, one figure per line
@@ -581,3 +582,31 @@ STR_INFO_SUB_MAKER	12	156	NEVER	src/ui/info_screen.cpp tile subtitle
 STR_WEB_STEP_CREDS	14	456	NEVER	src/ui/ota_browser.cpp step line
 STR_WEB_STEP_CREDS_BB	14	456	NEVER	src/ui/ota_browser.cpp step line
 STR_WEB_QR_HINT	12	456	NEVER	src/ui/ota_browser.cpp under the QR code
+# --- Weight popup redesign (26.10.2026) ---------------------------------------
+STR_WB_SENT	16	160	NEVER	src/ui/weight_button.cpp main screen button, behind an icon
+STR_WB_UNCHANGED	16	160	NEVER	src/ui/weight_button.cpp main screen button, behind an icon
+STR_WB_RISE	16	160	NEVER	src/ui/weight_button.cpp main screen button, behind an icon
+STR_WP_RISE_LINE	14	436	NEVER	src/ui/weight_popup.cpp first line, %s = backend name
+STR_WP_SEND	24	390	NEVER	src/ui/weight_popup.cpp large button, behind a tick
+STR_WP_SEND_ANYWAY	24	390	NEVER	src/ui/weight_popup.cpp large button
+STR_WP_BAG_MINUS	12	436	NEVER	src/ui/weight_popup.cpp under the large button
+STR_WP_REACTIVATE	24	390	NEVER	src/ui/weight_popup.cpp large button, behind an icon
+STR_WP_REACT_SUB	12	436	NEVER	src/ui/weight_popup.cpp under the large button
+STR_WP_BAG_ROW	16	330	NEVER	src/ui/weight_popup.cpp switch row title
+STR_WP_BAG_SUB	12	330	NEVER	src/ui/weight_popup.cpp switch row subtitle
+STR_WP_BAG_HINT	12	330	NEVER	src/ui/weight_popup.cpp switch row subtitle
+STR_WP_AUTO_ROW	16	290	NEVER	src/ui/scale_menu.cpp list row with help circle (popup row is wider)
+STR_WP_AUTO_SUB	12	290	NEVER	src/ui/scale_menu.cpp list row with help circle (popup row is wider)
+STR_WP_ARCHIVE	14	90	NEVER	src/ui/weight_popup.cpp 120 px button, behind an icon
+STR_WP_OPTIONS	14	120	NEVER	src/ui/weight_popup.cpp 150 px button, behind an icon
+STR_WP_FULL	16	350	NEVER	src/ui/weight_popup.cpp Options row title
+STR_WP_FULL_SUB	12	350	NEVER	src/ui/weight_popup.cpp Options row subtitle
+STR_WP_WEIGH_EMPTY	16	350	NEVER	src/ui/weight_popup.cpp Options row title
+STR_WP_WEIGH_EMPTY_SUB	12	350	NEVER	src/ui/weight_popup.cpp Options row subtitle
+STR_WP_TYPE_EMPTY	16	350	NEVER	src/ui/weight_popup.cpp Options row title
+STR_WP_TYPE_EMPTY_SUB	12	350	NEVER	src/ui/weight_popup.cpp Options row subtitle
+STR_SW_SCOPE_TITLE	16	432	NEVER	src/ui/confirm_popup.cpp store-as title
+STR_SW_ONLY_SPOOL	16	300	NEVER	src/ui/confirm_popup.cpp store-as row title
+STR_SW_ALL_FILAMENT	16	300	NEVER	src/ui/confirm_popup.cpp store-as row title
+STR_SW_ALL_VENDOR	16	300	NEVER	src/ui/confirm_popup.cpp store-as row title
+STR_SW_CURRENT	14	110	NEVER	src/ui/confirm_popup.cpp store-as row, right

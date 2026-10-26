@@ -24,11 +24,12 @@
 
 // Issue #40: a spool that is still in use has no empty reel to weigh, but its
 // empty weight is often known - printed on the box, measured on a sister
-// spool, or listed by the maker. The weight popup's empty spool button
-// therefore asks first how the number is to be had, and a typed number then
-// takes the same way to the server as a weighed one. With Bambuddy in Spoolman
-// mode it also offers a type from the catalog of empty spools and the full
-// spool, whose empty weight is the reading less the filament on it.
+// spool, or listed by the maker. The weight popup's Options offer typing it in
+// next to weighing it, and a typed number then takes the same way to the
+// server as a weighed one. With Bambuddy in Spoolman mode the Options have one
+// empty weight row instead, which asks first how the number is to be had: it
+// also offers a type from the catalog of empty spools and the full spool,
+// whose empty weight is the reading less the filament on it.
 
 static lv_obj_t *s_choice = nullptr;   // weigh, type, spool type or full spool
 static lv_obj_t *s_pad    = nullptr;   // the keypad
@@ -429,6 +430,15 @@ static void showTarePad(bool fill) {
   refreshPad();
 }
 
+// Opened from the weight popup's Options, which offer weighing the empty
+// spool beside it, and from the choice below.
+void showTareEntryPad() {
+  closeSpoolEntry();
+  s_spool_id = sm_id;
+  s_open_g   = scale_weight_g;
+  showTarePad(false);
+}
+
 // ---------------------------------------------------------------------------
 //  Weigh, type, spool type or full spool
 // ---------------------------------------------------------------------------
@@ -519,10 +529,7 @@ void showTareChoice() {
   snprintf(type_buf, sizeof(type_buf), LV_SYMBOL_KEYBOARD "  %s", T(STR_TARE_CHOICE_TYPE));
   lv_obj_t *type = choiceButton(box, grid ? TOP : ROW2_Y, BTN_W, BTN_H, type_buf);
   lv_obj_set_x(type, grid ? X_R : EDGE);
-  lv_obj_add_event_cb(type, [](lv_event_t *e) {
-    releaseScreen(&s_choice);
-    showTarePad(false);
-  }, LV_EVENT_CLICKED, NULL);
+  lv_obj_add_event_cb(type, [](lv_event_t *e) { showTareEntryPad(); }, LV_EVENT_CLICKED, NULL);
 
   if (grid) {
     // The maker's types, the one nearest the spool's empty weight marked.

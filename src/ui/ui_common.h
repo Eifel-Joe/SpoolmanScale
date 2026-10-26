@@ -127,6 +127,12 @@ lv_obj_t* labelOneLine(lv_obj_t* parent, const char* text, const lv_font_t* font
 // a flat button with a soft outline, and its caption centred in it. One look
 // for the three pads.
 lv_obj_t* padButton(lv_obj_t* parent, int x, int y, int w, int h, uint32_t bg, uint32_t bg_pressed);
+
+// A question's frame: the dimmed screen in *slot (an earlier one released
+// first) and, centred on it, the box that is returned - w by h, the popup
+// border and radius, no padding, so its children are placed in its content
+// area. The weight popup and the questions behind it share it.
+lv_obj_t* uiPopupBox(lv_obj_t** slot, int w, int h);
 lv_obj_t* padLabel(lv_obj_t* btn, const char* text, uint32_t col, const lv_font_t* font);
 
 // One of the line icons of icons.h, tinted ink, centred in a filled circle of

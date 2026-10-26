@@ -1,16 +1,23 @@
 #pragma once
 
 // The empty spool weight, weighed or typed in (issue #40). Opened from the
-// weight popup's empty spool button. Either way the value goes on to the
-// popup that asks where it is stored - spool, filament or brand. With
-// Bambuddy in Spoolman mode two by two (design L13): weigh and type in, a
+// empty weight row of the weight popup's Options. Either way the value goes
+// on to the popup that asks where it is stored - spool, filament or brand.
+// With Bambuddy in Spoolman mode two by two (design L13): weigh and type in, a
 // type from the list of spool types and the full spool, weighing and the full
 // spool only with the spool on the pad. A type goes to the spool as its empty
 // weight; the full spool asks for its filament, offers the types near the
 // reading less that, and stores the pick, then label weight and rest
 // (confirmParkFullSpool()). Every other backend keeps the column of weigh and
-// type in.
+// type in; the weight popup's Options carry those two as rows of their own
+// there and do not open this.
 void showTareChoice();
+
+// The empty spool weight typed in (issue #40), from the weight popup's
+// Options and from the choice above. The value goes on to the question where
+// it is stored - spool, filament or brand - the same one a weighed value goes
+// to.
+void showTareEntryPad();
 
 // The first weighing (Bambuddy in Spoolman mode, design 3): a spool with a
 // tag that lies still on the pad is asked once per session which empty spool

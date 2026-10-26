@@ -160,16 +160,9 @@ enum StringID {
 
   // Weight popup
   STR_POPUP_DRIED_Q,
-  STR_POPUP_WEIGHT_Q,
-  STR_BTN_EMPTY_SPOOL,
   STR_BTN_CONFIRMED,
 
   // Spool weight sub-popup
-  STR_SPOOL_WEIGHT_TITLE,
-  STR_BTN_THIS_SPOOL,
-  STR_BTN_THIS_FILAMENT,
-  STR_BTN_THIS_VENDOR,
-
   // Link Flow
   STR_LINK_BAMBU_TITLE,
   STR_LINK_NTAG_TITLE,
@@ -228,8 +221,6 @@ enum StringID {
   STR_ARCHIVE_CONFIRM,
 
   // Weight popup archive button
-  STR_BTN_ARCHIVE_EMPTY,
-
   // Welcome language select
   STR_WELCOME_LANG_TITLE,
   STR_WELCOME_LANG_HINT,
@@ -248,10 +239,6 @@ enum StringID {
   STR_LINK_CTX_NOT_IN_SM,
 
   // Weight popup buttons (with snprintf)
-  STR_BTN_NO_BAG_VAL,
-  STR_BTN_WITH_BAG_VAL,
-  STR_BTN_NEW_SPOOL_VAL,
-
   // First boot welcome screen
   STR_FIRSTBOOT_TITLE,
   STR_FIRSTBOOT_SUB,
@@ -419,11 +406,7 @@ enum StringID {
   STR_LIST_MORE_MATS,
 
   // Auto-Weight
-  STR_AUTO_WEIGHT_TITLE,
   STR_AUTO_WEIGHT_INFO,
-  STR_AUTO_WEIGHT_ENABLE,
-  STR_AUTO_WEIGHT_DISABLE,
-
   // Location
   STR_BTN_LOCATION,
   STR_LOCATION_TITLE,
@@ -539,10 +522,6 @@ enum StringID {
   STR_SCREENOFF_NEVER,
   STR_FLM_AUTOLINK_INFO,
   STR_FLM_TAGLESS_INFO,
-  STR_BTN_THIS_SPOOL_FM,
-  STR_BTN_THIS_FILAMENT_FM,
-  STR_BTN_THIS_VENDOR_FM,
-  STR_BTN_ARCHIVE_EMPTY_FM,
   // Auto AMS assignment (FilaMan)
   STR_AMS_TITLE,
   STR_AMS_SUB,
@@ -882,8 +861,6 @@ enum StringID {
 
   // Replaces the archive button on a spool that is already archived. Carries
   // the weight in its subtitle, so the button says what it will write.
-  STR_BTN_REACTIVATE,
-
   // The backend options, mirrored in the browser from the one registry.
   // Appended rather than grouped with the other web strings: the array in
   // lang.cpp is positional, so inserting in the middle moves every entry
@@ -1647,7 +1624,6 @@ enum StringID {
   // The bag weight at 0: the menu row says so, and the weight popup has one
   // button instead of two
   STR_BAG_OFF_SUB,
-  STR_BTN_WEIGHT_VAL,
   STR_LBL_SPOOL_TARE_CAP,
   STR_BAG_HELP_TEXT,
   STR_W_C_EMBED,
@@ -1932,6 +1908,33 @@ enum StringID {
   STR_OTA_FILE_NAME,
   STR_OTA_INSTALLED_CAP,
   STR_OTA_RETRY_HINT,
+  STR_WB_SENT,
+  STR_WB_UNCHANGED,
+  STR_WB_RISE,
+  STR_WP_RISE_LINE,
+  STR_WP_SEND,
+  STR_WP_SEND_ANYWAY,
+  STR_WP_BAG_MINUS,
+  STR_WP_REACTIVATE,
+  STR_WP_REACT_SUB,
+  STR_WP_BAG_ROW,
+  STR_WP_BAG_SUB,
+  STR_WP_BAG_HINT,
+  STR_WP_AUTO_ROW,
+  STR_WP_AUTO_SUB,
+  STR_WP_ARCHIVE,
+  STR_WP_OPTIONS,
+  STR_WP_FULL,
+  STR_WP_FULL_SUB,
+  STR_WP_WEIGH_EMPTY,
+  STR_WP_WEIGH_EMPTY_SUB,
+  STR_WP_TYPE_EMPTY,
+  STR_WP_TYPE_EMPTY_SUB,
+  STR_SW_SCOPE_TITLE,
+  STR_SW_ONLY_SPOOL,
+  STR_SW_ALL_FILAMENT,
+  STR_SW_ALL_VENDOR,
+  STR_SW_CURRENT,
 
   // A copy behind Bambuddy on Spoolman: what it takes over (design note J)
   STR_COPY_CARD_PROFILE,    // copy card: %s the template's profile, "-" without one
@@ -2004,6 +2007,11 @@ enum StringID {
   STR_NOTAG_CREATED,          // the status line once the spool exists, no tag (%d: its number)
   STR_NOTAG_CREATED_BAMBU,    // the same for a Bambu Lab spool: the chip goes on before the first AMS
   STR_LABEL_ASK,              // the title of the question for a label after the create
+
+  // The weight popup's Options behind Bambuddy in Spoolman mode: one row for
+  // the empty weight, which opens the choice of four (tare_entry.cpp)
+  STR_WP_TARE_ROW,
+  STR_WP_TARE_ROW_SUB,
 
   STR_COUNT
 };

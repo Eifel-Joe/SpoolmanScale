@@ -20,6 +20,12 @@
 //  brand. Out of confirm_popup.cpp, which was close to its line budget. A
 //  button here does not write anything: it hands the value to
 //  confirmParkTare(), and the write runs from appLoop().
+//
+//  Its look is the one the original gave the question on 26.10.2026 with the
+//  new weight popup: the three places in words rather than backend field
+//  names, each with what it reaches, and the one whose value applies now
+//  saying so. The original built it back into confirm_popup.cpp; it stays
+//  here, with the answer parked through confirmParkTare() as before.
 // ============================================================
 
 static lv_obj_t *s_scope_popup = nullptr;   // where the empty spool weight goes
@@ -44,6 +50,89 @@ void closeSpoolWeightScope() {
   releaseScreen(&s_scope_popup);
 }
 
+// One screen's coordinates, inside the box.
+#define SW_BOX_W     460
+#define SW_X          10
+#define SW_INNER_W   436
+#define SW_TITLE_Y    10
+#define SW_WARN_Y     38
+#define SW_WARN_H     28
+#define SW_ROWS_Y     40     // without the bag warning
+#define SW_ROWS_Y_WARN 74
+#define SW_ROW_H      52
+#define SW_ROW_STEP   58
+#define SW_BTN_H      46
+#define SW_SUB_W     260
+
+static void scopePicked(TareScope scope) {
+  confirmParkTare(scope, s_tare_prompt_g, s_tare_spool_id, s_then_new);
+  releaseScreen(&s_scope_popup);
+}
+
+struct ScopeRow { int title_id; const char *sub; uint8_t source; lv_event_cb_t cb; };
+
+static void scopeRow(lv_obj_t *box, int y, const ScopeRow &r) {
+  lv_obj_t *b = lv_btn_create(box);
+  lv_obj_set_size(b, SW_INNER_W, SW_ROW_H);
+  lv_obj_set_pos(b, SW_X, y);
+  lv_obj_set_style_bg_color(b, lv_color_hex(UI_COL_ROW), 0);
+  lv_obj_set_style_bg_color(b, lv_color_hex(UI_COL_ROW_PRESS_FILL), LV_STATE_PRESSED);
+  lv_obj_set_style_border_width(b, 1, 0);
+  lv_obj_set_style_border_color(b, lv_color_hex(UI_COL_ROW_PRESSED), 0);
+  lv_obj_set_style_radius(b, UI_RADIUS_BTN, 0);
+  lv_obj_set_style_shadow_width(b, 0, 0);
+  lv_obj_set_style_pad_all(b, 0, 0);
+  lv_obj_add_event_cb(b, r.cb, LV_EVENT_CLICKED, NULL);
+
+  lv_obj_t *t = lv_label_create(b);
+  lv_label_set_text(t, T(r.title_id));
+  lv_obj_set_style_text_font(t, UI_FONT_BODY, 0);
+  lv_obj_set_style_text_color(t, lv_color_hex(UI_COL_INK), 0);
+  lv_obj_align(t, LV_ALIGN_LEFT_MID, 14, -9);
+  lv_obj_t *sub = labelOneLine(b, r.sub, UI_FONT_CAPTION, SW_SUB_W);
+  lv_obj_set_style_text_color(sub, lv_color_hex(UI_COL_CAPTION), 0);
+  lv_obj_align(sub, LV_ALIGN_LEFT_MID, 14, 11);
+
+  if (sm_tare_source != TARE_NONE && sm_tare_source == r.source) {
+    char cur[32];
+    snprintf(cur, sizeof(cur), T(STR_SW_CURRENT), (float)sm_spool_weight);
+    lv_obj_t *c = lv_label_create(b);
+    lv_label_set_text(c, cur);
+    lv_obj_set_style_text_font(c, UI_FONT_SMALL, 0);
+    lv_obj_set_style_text_color(c, lv_color_hex(UI_COL_ACCENT), 0);
+    lv_obj_align(c, LV_ALIGN_RIGHT_MID, -36, 0);
+  }
+  lv_obj_t *arr = lv_label_create(b);
+  lv_label_set_text(arr, LV_SYMBOL_RIGHT);
+  lv_obj_set_style_text_font(arr, UI_FONT_BODY, 0);
+  lv_obj_set_style_text_color(arr, lv_color_hex(UI_COL_INK_FAINT), 0);
+  lv_obj_align(arr, LV_ALIGN_RIGHT_MID, -14, 0);
+}
+
+// A bag on the pad is counted into the reading, and this number may be
+// written to an entire brand. The device cannot tell whether one is there,
+// so it says so rather than silently subtracting a weight that might not be
+// on the scale at all.
+static void scopeBagWarning(lv_obj_t *box) {
+  lv_obj_t *strip = lv_obj_create(box);
+  lv_obj_set_size(strip, SW_INNER_W, SW_WARN_H);
+  lv_obj_set_pos(strip, SW_X, SW_WARN_Y);
+  lv_obj_set_style_bg_color(strip, lv_color_hex(UI_COL_AMBER_BG), 0);
+  lv_obj_set_style_border_color(strip, lv_color_hex(UI_COL_AMBER_LINE), 0);
+  lv_obj_set_style_border_width(strip, 1, 0);
+  lv_obj_set_style_radius(strip, UI_RADIUS_BTN, 0);
+  lv_obj_set_style_pad_all(strip, 0, 0);
+  lv_obj_clear_flag(strip, LV_OBJ_FLAG_SCROLLABLE);
+  char num[64], buf[72];
+  snprintf(num, sizeof(num), T(STR_SPOOL_WEIGHT_BAG_HINT), bag_weight_g);
+  snprintf(buf, sizeof(buf), LV_SYMBOL_WARNING "  %s", num);
+  lv_obj_t *l = lv_label_create(strip);
+  lv_label_set_text(l, buf);
+  lv_obj_set_style_text_font(l, UI_FONT_CAPTION, 0);
+  lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_WARN), 0);
+  lv_obj_align(l, LV_ALIGN_LEFT_MID, 10, 0);
+}
+
 // measured: the value is a reading off the pad, so a bag on it would be in
 // there too. A typed value knows nothing of the bag.
 static void showSpoolWeightPopup(float grams, bool then_new_spool, bool measured = true) {
@@ -53,126 +142,49 @@ static void showSpoolWeightPopup(float grams, bool then_new_spool, bool measured
   // see tare_entry.cpp.
   s_tare_spool_id = sm_id;
 
-      // Sub-popup: where should the spool weight be written?
-      const float w = s_tare_prompt_g;
-      // Not every backend has all three places to put it. BamBuddy has no
-      // filament and no vendor object, only the spool's own core weight,
-      // which its Spoolman proxy stores too (#2908). Buttons for those
-      // are not built rather than built and left to fail.
-      const bool scope_spool  = backendCanTareSpool();
-      const bool scope_shared = backendCanTareFilamentOrVendor();
+  // Not every backend has all three places to put it. BamBuddy has no
+  // filament and no vendor object, only the spool's own core weight, which
+  // its Spoolman proxy stores too (#2908). Rows for those are not built
+  // rather than built and left to fail.
+  const bool shared = backendCanTareFilamentOrVendor();
+  char spool_sub[48], fil_sub[72];
+  snprintf(spool_sub, sizeof(spool_sub), "#%d  %s", sm_id, sm_filament_name);
+  snprintf(fil_sub, sizeof(fil_sub), "%s%s%s", sm_vendor_g, sm_vendor_g[0] ? " " : "", sm_filament_name);
+  const ScopeRow rows[] = {
+    { STR_SW_ONLY_SPOOL,   spool_sub,   TARE_SPOOL,    [](lv_event_t *e) { scopePicked(TARE_SCOPE_SPOOL); } },
+    { STR_SW_ALL_FILAMENT, fil_sub,     TARE_FILAMENT, [](lv_event_t *e) { scopePicked(TARE_SCOPE_FILAMENT); } },
+    { STR_SW_ALL_VENDOR,   sm_vendor_g, TARE_VENDOR,   [](lv_event_t *e) { scopePicked(TARE_SCOPE_VENDOR); } },
+  };
+  const bool shown[] = { backendCanTareSpool(), shared, shared };
+  const int n = (shown[0] ? 1 : 0) + (shared ? 2 : 0);
+  const bool warn = measured && bag_weight_g > 0.0f;
+  const int y0 = warn ? SW_ROWS_Y_WARN : SW_ROWS_Y;
+  const int cancel_y = y0 + n * SW_ROW_STEP;
+  lv_obj_t *box = uiPopupBox(&s_scope_popup, SW_BOX_W, cancel_y + SW_BTN_H + 12);
 
-      releaseScreen(&s_scope_popup);
-      lv_obj_t *popup = lv_obj_create(lv_scr_act());
-      s_scope_popup = popup;
-      lv_obj_set_size(popup, 480, 320);
-      lv_obj_set_pos(popup, 0, 0);
-      lv_obj_set_style_bg_color(popup, lv_color_hex(UI_COL_GROUND), 0);
-      lv_obj_set_style_bg_opa(popup, LV_OPA_COVER, 0);
-      lv_obj_set_style_border_width(popup, 0, 0);
-      lv_obj_set_style_pad_all(popup, 0, 0);
-      lv_obj_clear_flag(popup, LV_OBJ_FLAG_SCROLLABLE);
+  char title[64];
+  snprintf(title, sizeof(title), T(STR_SW_SCOPE_TITLE), grams);
+  lv_obj_t *t = labelOneLine(box, title, UI_FONT_BODY, SW_INNER_W);
+  lv_obj_set_style_text_color(t, lv_color_hex(UI_COL_INK), 0);
+  lv_obj_set_pos(t, SW_X + 4, SW_TITLE_Y);
+  if (warn) scopeBagWarning(box);
 
-      // Title
-      lv_obj_t *title = lv_label_create(popup);
-      char title_buf[48];
-      snprintf(title_buf, sizeof(title_buf), T(STR_SPOOL_WEIGHT_TITLE), w);
-      lv_label_set_text(title, title_buf);
-      lv_obj_set_style_text_color(title, lv_color_hex(UI_COL_ACCENT), 0);
-      lv_obj_set_style_text_font(title, &lv_font_montserrat_ext_14, 0);
-      lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 10);
+  int y = y0;
+  for (size_t i = 0; i < sizeof(rows) / sizeof(rows[0]); i++) {
+    if (!shown[i]) continue;
+    scopeRow(box, y, rows[i]);
+    y += SW_ROW_STEP;
+  }
 
-      // Rows are placed one after another so a missing scope leaves no hole.
-      int row_y = 36;
-
-      // Button 1: this spool
-      lv_obj_t *b1 = lv_btn_create(popup);
-      lv_obj_set_size(b1, 460, 60); lv_obj_set_pos(b1, 10, row_y);
-      if (!scope_spool) lv_obj_add_flag(b1, LV_OBJ_FLAG_HIDDEN);
-      else row_y += 70;
-      lv_obj_set_style_bg_color(b1, lv_color_hex(UI_COL_CHIP), 0);
-      lv_obj_set_style_radius(b1, 8, 0); lv_obj_set_style_shadow_width(b1, 0, 0);
-      { lv_obj_t *l = lv_label_create(b1);
-        lv_label_set_text(l, T(backendIsFilaMan() ? STR_BTN_THIS_SPOOL_FM
-                                                  : STR_BTN_THIS_SPOOL));
-        lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_INK_2), 0);
-        lv_obj_set_style_text_font(l, &lv_font_montserrat_ext_16, 0);
-        lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_center(l); }
-      lv_obj_add_event_cb(b1, [](lv_event_t *e) {
-        confirmParkTare(TARE_SCOPE_SPOOL, s_tare_prompt_g, s_tare_spool_id, s_then_new);
-        releaseScreen(&s_scope_popup);
-      }, LV_EVENT_CLICKED, NULL);
-
-      // Button 2: this filament
-      lv_obj_t *b2 = lv_btn_create(popup);
-      lv_obj_set_size(b2, 460, 60); lv_obj_set_pos(b2, 10, row_y);
-      if (!scope_shared) lv_obj_add_flag(b2, LV_OBJ_FLAG_HIDDEN);
-      else row_y += 70;
-      lv_obj_set_style_bg_color(b2, lv_color_hex(UI_COL_FILAMENT_BG), 0);
-      lv_obj_set_style_radius(b2, 8, 0); lv_obj_set_style_shadow_width(b2, 0, 0);
-      { lv_obj_t *l = lv_label_create(b2);
-        lv_label_set_text(l, T(backendIsFilaMan() ? STR_BTN_THIS_FILAMENT_FM
-                                                  : STR_BTN_THIS_FILAMENT));
-        lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_INK_2), 0);
-        lv_obj_set_style_text_font(l, &lv_font_montserrat_ext_16, 0);
-        lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_center(l); }
-      lv_obj_add_event_cb(b2, [](lv_event_t *e) {
-        confirmParkTare(TARE_SCOPE_FILAMENT, s_tare_prompt_g, s_tare_spool_id, s_then_new);
-        releaseScreen(&s_scope_popup);
-      }, LV_EVENT_CLICKED, NULL);
-
-      // Button 3: vendor
-      lv_obj_t *b3 = lv_btn_create(popup);
-      lv_obj_set_size(b3, 460, 60); lv_obj_set_pos(b3, 10, row_y);
-      if (!scope_shared) lv_obj_add_flag(b3, LV_OBJ_FLAG_HIDDEN);
-      else row_y += 70;
-      lv_obj_set_style_bg_color(b3, lv_color_hex(UI_COL_AMBER_BG), 0);
-      lv_obj_set_style_radius(b3, 8, 0); lv_obj_set_style_shadow_width(b3, 0, 0);
-      { lv_obj_t *l = lv_label_create(b3);
-        // Spoolman's vendor is FilaMan's manufacturer, and the bracketed field
-        // names below the title only hold for Spoolman - see the lang.cpp entries.
-        lv_label_set_text(l, T(backendIsFilaMan() ? STR_BTN_THIS_VENDOR_FM
-                                                  : STR_BTN_THIS_VENDOR));
-        lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_INK_2), 0);
-        lv_obj_set_style_text_font(l, &lv_font_montserrat_ext_16, 0);
-        lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_center(l); }
-      lv_obj_add_event_cb(b3, [](lv_event_t *e) {
-        confirmParkTare(TARE_SCOPE_VENDOR, s_tare_prompt_g, s_tare_spool_id, s_then_new);
-        releaseScreen(&s_scope_popup);
-      }, LV_EVENT_CLICKED, NULL);
-
-      // Button 4: cancel, right under whatever was built above
-      lv_obj_t *b4 = lv_btn_create(popup);
-      lv_obj_set_size(b4, 460, 40); lv_obj_set_pos(b4, 10, row_y + 10);
-      lv_obj_set_style_bg_color(b4, lv_color_hex(UI_COL_BAD_BG), 0);
-      lv_obj_set_style_radius(b4, 8, 0); lv_obj_set_style_shadow_width(b4, 0, 0);
-      { lv_obj_t *l = lv_label_create(b4);
-        lv_label_set_text(l, T(STR_CANCEL));
-        lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_BAD_TEXT), 0);
-        lv_obj_set_style_text_font(l, &lv_font_montserrat_ext_14, 0);
-        lv_obj_center(l); }
-      lv_obj_add_event_cb(b4, [](lv_event_t *e) {
-        releaseScreen(&s_scope_popup);
-      }, LV_EVENT_CLICKED, NULL);
-
-      // A bag on the pad is counted into the reading, and this number may be
-      // written to an entire brand. The device cannot tell whether one is
-      // there, so it says so rather than silently subtracting a weight that
-      // might not be on the scale at all.
-      if (measured && bag_weight_g > 0.0f) {
-        lv_obj_t *bag_hint = lv_label_create(popup);
-        char bag_buf[64];
-        snprintf(bag_buf, sizeof(bag_buf), T(STR_SPOOL_WEIGHT_BAG_HINT), bag_weight_g);
-        lv_label_set_text(bag_hint, bag_buf);
-        lv_obj_set_style_text_color(bag_hint, lv_color_hex(UI_COL_WARN), 0);
-        lv_obj_set_style_text_font(bag_hint, &lv_font_montserrat_ext_12, 0);
-        lv_obj_align(bag_hint, LV_ALIGN_TOP_MID, 0, 300);
-      }
-
-    }
+  // Neutral like the weight popup's Close: nothing is lost by leaving, and
+  // nothing is parked either.
+  lv_obj_t *cancel = padButton(box, SW_X, cancel_y, SW_INNER_W, SW_BTN_H, UI_COL_ROW, UI_COL_ROW_PRESS_FILL);
+  lv_obj_set_style_radius(cancel, UI_RADIUS_BTN, 0);
+  padLabel(cancel, T(STR_CANCEL), UI_COL_INK_2, UI_FONT_SMALL);
+  lv_obj_add_event_cb(cancel, [](lv_event_t *e) {
+    releaseScreen(&s_scope_popup);
+  }, LV_EVENT_CLICKED, NULL);
+}
 
 void showSpoolWeightScope(float grams, bool measured, bool then_new_spool) {
   showSpoolWeightPopup(grams, then_new_spool, measured);
