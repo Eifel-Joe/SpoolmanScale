@@ -151,7 +151,7 @@ static int getJson(const char* url, const char* api_key, JsonDocument& doc,
   return 200;
 }
 
-// POST or PATCH with a JSON body. Answers are small here, so the body is
+// POST, PATCH or PUT with a JSON body. Answers are small here, so the body is
 // read as a String and handed back when the caller wants to look at it.
 // Any 2xx is normalised to 200 so call sites can compare against one value.
 static int sendJson(const char* method, const char* url, const char* api_key,
@@ -583,6 +583,20 @@ int bbGetSpoolJson(const char* base_url, const char* api_key, int spool_id,
   return 200;
 }
 
+int bbGetSpoolPresetsJson(const char* base_url, const char* api_key, int spool_id,
+                          JsonDocument& doc, uint32_t timeout_ms) {
+  if (!hasBaseUrl(base_url) || spool_id <= 0) return -1;
+
+  // Not part of the spool answer, so a copy has to ask for it on its own. A
+  // read, so the mode check and its one repeat of getInventoryJson apply. The
+  // answer is a short list, one entry per printer model, and is kept whole.
+  char suffix[48];
+  snprintf(suffix, sizeof(suffix), "/spools/%d/filament-presets", spool_id);
+  const int code = getInventoryJson(base_url, api_key, suffix, doc, timeout_ms, nullptr);
+  if (code != 200) logSDf("BamBuddy: profiles of spool %d -> %d", spool_id, code);
+  return code;
+}
+
 int bbGetSpoolListJson(const char* base_url, const char* api_key,
                        bool allow_archived, JsonDocument& doc,
                        uint32_t timeout_ms, DeserializationError* out_err) {
@@ -983,6 +997,43 @@ bool bbGetDriedFromSpoolman(int spool_id, char* out_iso, size_t out_size,
   return true;
 }
 
+// Wurzel: BamBuddy's answer for a spool carries no filament id, yet a copy has
+// to hang on the very filament its template hangs on. Fix: ask the Spoolman
+// server itself, which names it as filament.id, the way the drying date is read
+// above; the spool id is the same on both sides. No key goes along: BamBuddy's
+// belongs to BamBuddy and must not be sent to another server. NOT-TO-DO:
+// searching for the filament again by material, colour and brand, which is the
+// guess BamBuddy makes without an id and can land on another filament that
+// looks the same.
+bool bbSpoolmanFilamentOf(int spool_id, int* out_filament_id, uint32_t timeout_ms) {
+  if (out_filament_id) *out_filament_id = 0;
+  if (!out_filament_id || spool_id <= 0) return false;
+  if (!s_spoolman_url[0]) return false;
+
+  char url[192];
+  snprintf(url, sizeof(url), "%s/api/v1/spool/%d", s_spoolman_url, spool_id);
+
+  // The one number is wanted; the rest of a Spoolman spool, extras and the
+  // whole filament record among it, is ballast.
+  JsonDocument filter;
+  filter["filament"]["id"] = true;
+
+  JsonDocument doc;
+  const int code = getJson(url, nullptr, doc, timeout_ms, nullptr, &filter);
+  if (code != 200) {
+    logSDf("BamBuddy: filament of spool %d from Spoolman -> %d", spool_id, code);
+    return false;
+  }
+
+  const int id = doc["filament"]["id"] | 0;
+  if (id <= 0) {
+    logSDf("BamBuddy: Spoolman named no filament for spool %d", spool_id);
+    return false;
+  }
+  *out_filament_id = id;
+  return true;
+}
+
 // The note's marker moved into last_dried_at: the date when it is later than
 // what the field holds, the marker out of the note either way. False when
 // the note has none.
@@ -1116,6 +1167,13 @@ static void newSpoolBody(const BbNewSpool& spool, JsonDocument& body) {
   if (spool.effect_type     && spool.effect_type[0])     body["effect_type"]     = spool.effect_type;
   if (spool.material_number && spool.material_number[0]) body["material_number"] = spool.material_number;
   if (spool.cost_per_kg > 0.0f) body["cost_per_kg"] = roundf(spool.cost_per_kg * 100.0f) / 100.0f;
+  // What a copy takes over from its template behind the Spoolman proxy. Left
+  // off while unset, like the fields above: every other creation (a tag, the
+  // database, a plain new spool) sends exactly the request it always did.
+  if (spool.slicer_filament      && spool.slicer_filament[0])      body["slicer_filament"]      = spool.slicer_filament;
+  if (spool.slicer_filament_name && spool.slicer_filament_name[0]) body["slicer_filament_name"] = spool.slicer_filament_name;
+  if (spool.location_id > 0) body["location_id"] = spool.location_id;
+  if (spool.storage_location && spool.storage_location[0]) body["storage_location"] = spool.storage_location;
 }
 
 // Worth a line of its own: behind the Spoolman proxy an empty brand makes
@@ -1170,6 +1228,40 @@ int bbCreateSpool(const char* base_url, const char* api_key,
     if (out_warned) *out_warned = true;
   }
   return 200;
+}
+
+// How long a link list may take to write. A copy writes its lists one after
+// the other, so each gets a short limit.
+#define BB_LINKS_PUT_TIMEOUT_MS  5000
+
+int bbPutSpoolLinks(const char* base_url, const char* api_key, int spool_id,
+                    const char* what, const String& json_array) {
+  if (!hasBaseUrl(base_url) || spool_id <= 0) return -1;
+
+  // `what` goes straight into the url, so only the three lists BamBuddy takes
+  // as "replace all" are let through: a caller cannot aim this PUT at another
+  // route under the spool. The refusal is logged because it can only be a bug
+  // in the caller, not something the server did.
+  if (!what || (strcmp(what, "filament-presets") != 0 &&
+                strcmp(what, "suppliers")        != 0 &&
+                strcmp(what, "k-profiles")       != 0)) {
+    logSDf("BamBuddy: PUT spool %d refused, '%s' is not a link list", spool_id, what ? what : "");
+    return -1;
+  }
+  // The server replaces the list with the body, so a body-less PUT would be a
+  // 422 at best; nothing to send is a bug of the caller as well.
+  if (json_array.length() == 0) {
+    logSDf("BamBuddy: PUT spool %d %s refused, no body", spool_id, what);
+    return -1;
+  }
+
+  // A write is not repeated when the mode moved under it (getInventoryJson does
+  // that for reads only): a replace-all that went to the wrong inventory must
+  // not be sent again behind the user's back. sendJson logs a refusal with the
+  // HTTP code and the start of the server's reason.
+  char url[224];
+  snprintf(url, sizeof(url), "%s%s/spools/%d/%s", base_url, bbInventoryBase(), spool_id, what);
+  return sendJson("PUT", url, api_key, json_array, BB_LINKS_PUT_TIMEOUT_MS, nullptr);
 }
 
 // ------------------------------------------------------------
