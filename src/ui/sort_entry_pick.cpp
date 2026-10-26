@@ -24,14 +24,16 @@
 //
 //  The colour step offers the colours of the brand and the material in three
 //  groups: what the inventory has, each with the line of its filament and
-//  whatever line was chosen (plan Festlegung 9), what the maker has (the
-//  database, and the inventory's colours of other materials), and the common
-//  colours. A colour of the inventory is that filament: its colour name, hue,
-//  line and Spoolman number go on to the card, which then finds it instead of
-//  creating a second one. A colour typed is held against the list
-//  (sortEntrySame, plan Festlegung 5); one the list does not have is new, and
-//  the colour grid asks for its hue: one of the 28 common colours (plan
-//  Festlegung 2) or six hex digits. The hue is what Spoolman finds the
+//  whatever line was chosen (plan Festlegung 9; with a line chosen, one of
+//  another line is named with its line in brackets, "Black (Basic)"), what
+//  the maker has (the database, and the inventory's colours of other
+//  materials), and the common colours. A colour of the inventory is that
+//  filament: its bare colour name, hue, line and Spoolman number go on to the
+//  card, which then finds it instead of creating a second one. A colour typed
+//  is held against the list (sortEntrySame, plan Festlegung 5): "black" meets
+//  the chosen line's "Black", not "Black (Basic)". One the list does not have
+//  is new, and the colour grid asks for its hue: one of the 28 common colours
+//  (plan Festlegung 2) or six hex digits. The hue is what Spoolman finds the
 //  filament by next time, so the grid says so on top.
 //
 //  The weight step takes the diameter (1.75 mm unless 2.85 is tapped) and
@@ -44,8 +46,8 @@
 // ============================================================
 
 // A colour row: the swatch as the picker's, the name after it, the line of
-// an inventory filament at the right. Inside the tile's padding (2) and
-// border (1) on either side.
+// an inventory filament at the right unless the name has it in brackets.
+// Inside the tile's padding (2) and border (1) on either side.
 #define PICK_ROW_INNER       (SORT_ROW_W - 2 * 3)
 #define PICK_ROW_SWATCH      24
 #define PICK_ROW_NAME_X      (PICK_ROW_SWATCH + 3 * SORT_GAP)
@@ -193,6 +195,16 @@ static uint8_t groupOf(const SortChoice& c) {
   return c.from == SF_USUAL ? CG_COMMON : CG_MAKER;
 }
 
+// The name of the entry ends in its line in brackets, " (Basic)", the way
+// sortSourceColours() names a filament of another line than the chosen one
+// and a second one of the same colour: the line is not said twice.
+static bool namesLine(const char* name, const char* line) {
+  char tail[SORT_LINE_MAX + 4];
+  const int k = snprintf(tail, sizeof(tail), " (%s)", line);
+  const size_t n = strlen(name);
+  return k > 0 && (size_t)k < sizeof(tail) && n >= (size_t)k && strcmp(name + n - k, tail) == 0;
+}
+
 static void colourRow(lv_obj_t* body, const SortData& d, int i) {
   const SortChoice& c = d.colours.item[i];
   lv_obj_t* row = sortRow(body, SN_COLOUR, i);
@@ -202,7 +214,7 @@ static void colourRow(lv_obj_t* body, const SortData& d, int i) {
   lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
   lv_obj_add_style(name, &s_st_row_name, 0);
   const char* line = (c.row >= 0 && c.row < d.row_n) ? d.rows[c.row].line : "";
-  if (!line[0]) return;
+  if (!line[0] || namesLine(c.name, line)) return;
   lv_obj_add_style(name, &s_st_row_short, 0);
   lv_obj_t* l = lv_label_create(row);
   lv_label_set_text(l, line);
@@ -249,7 +261,9 @@ static void chooseColour(int k) {
   SortEntry& e = sortUi().entry;
   s_from_row = c.row >= 0 && c.row < d->row_n;
   if (s_from_row) {
-    // That filament, under the colour name of its spool (plan Festlegung 9).
+    // That filament, under the colour name of its spool (plan Festlegung 9):
+    // the row's bare colour, never the list's "Black (Basic)" of a filament
+    // of another line, whose own line goes on with it.
     const SortRow& r = d->rows[c.row];
     utf8Cut(r.name, sizeof(e.colour) - 1, e.colour, sizeof(e.colour));
     takeHue(e, r.hex);
@@ -331,6 +345,9 @@ static void hexTyped(const char* text) {
   newHue(hex);
 }
 
+// A colour typed meets the names of the list: "black" with the line Matte
+// chosen is the database's "Black" of that line, an inventory filament of
+// another line only as typed with its line, "black (basic)".
 void sortColourTyped(const char* text) {
   const SortData* d = sortData();
   const int k = d ? sortChoicesFind(d->colours, text) : -1;

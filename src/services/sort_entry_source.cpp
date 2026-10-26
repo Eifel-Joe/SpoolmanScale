@@ -16,6 +16,9 @@
 #include "services/http_progress.h"
 #include "services/spoolman_api.h"
 #include "services/text_util.h"
+// Last: lang.h defines T(), which a template parameter of ArduinoJson above
+// would trip over.
+#include "lang.h"
 
 // Each request to the inventory holds the loop for at most this long (plan:
 // 8 s); the screen shows its waiting card before it asks.
@@ -110,6 +113,10 @@ static void cutTo(char* out, size_t out_size, const char* s) {
 static bool sameText(const char* a, const char* b) {
   return (!a[0] && !b[0]) || sortEntrySame(a, b);
 }
+
+// A text with a name in it: sortEntrySame() calls one with nothing left
+// (empty, or blanks and hyphens only) equal to nothing, not even to itself.
+static bool hasName(const char* s) { return sortEntrySame(s, s); }
 
 static bool isDbRow(const SortRow& r) { return r.from == SF_DB || r.from == SF_DB_OTHER; }
 
@@ -596,20 +603,32 @@ void sortSourceLines(const char* material) {
   logList("lines", material, *l);
 }
 
-// The entry of one filament of the inventory, under a name not taken yet:
-// its colour, and for a second filament of the same colour the colour with
-// its line, "Light Green (Matte)" (plan, Festlegung 9); where the line does
-// not tell them apart, with Spoolman's number or the hue. The colour is cut
-// to leave room for what is added. The index of the new entry, -1 when
-// there is none (no colour, every name taken, the list full).
-static int addOwnedColour(const SortRow& r) {
+// The entry of one filament of the inventory, under a name not taken yet
+// (plan, Festlegung 9 and its refinement, Joerg 26.10.2026). Its bare
+// colour when no line is chosen and when the filament is of the chosen
+// line. With a line chosen, a filament of another line is the colour with
+// its line, "Black (Basic)", and one without a line the colour with "no
+// line", "Black (no line)": the database's colour of the chosen line, the
+// "Black" of "Matte Black", then keeps its own entry (Festlegung 8 drops
+// only the same name), and a colour typed meets that one, not the filament
+// of the other line. A second filament under a name already taken gets its
+// line, "Light Green (Matte)"; where that does not tell them apart,
+// Spoolman's number or the hue. The colour is cut to leave room for what is
+// added. Only the entry's name changes: the row keeps the bare colour, and
+// that is what a spool picked here is named (chooseColour()). The index of
+// the new entry, -1 when there is none (no colour, every name taken, the
+// list full).
+static int addOwnedColour(const SortRow& r, const char* line) {
   if (!r.name[0]) return -1;
   SortChoices* l = &s_data->colours;
+  // Inventory rows keep their line apart (line_known), "" for none.
+  const bool other = hasName(line) && !sortEntrySame(r.line, line);
+  const char* own = hasName(r.line) ? r.line : T(STR_SORT_NO_LINE);
   char tail[SORT_LINE_MAX + 16];
   char name[SORT_NAME_MAX];
   for (int k = 0; k < 4; k++) {
-    if (k == 0) tail[0] = '\0';
-    else if (k == 1 && r.line[0]) snprintf(tail, sizeof(tail), " (%s)", r.line);
+    if (k == 0 && !other) tail[0] = '\0';
+    else if (k == 1 && (other || hasName(r.line))) snprintf(tail, sizeof(tail), " (%s)", own);
     else if (k == 2 && r.filament_id > 0) snprintf(tail, sizeof(tail), " (#%d)", r.filament_id);
     else if (k == 3 && r.hex[0]) snprintf(tail, sizeof(tail), " (%s)", r.hex);
     else continue;
@@ -657,7 +676,7 @@ void sortSourceColours(const char* material, const char* line) {
   for (int i = 0; i < s_data->row_n; i++) {
     const SortRow& r = s_data->rows[i];
     if (r.from != SF_OWNED || !sameText(r.material, material)) continue;
-    const int at = addOwnedColour(r);
+    const int at = addOwnedColour(r, line);
     if (at >= 0) l->item[at].row = (int16_t)i;
   }
   addRowColours(material, line, CP_DB_SAME);

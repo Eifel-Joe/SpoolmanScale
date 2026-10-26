@@ -43,6 +43,7 @@
 enum TcpJob : uint8_t { TCP_IDLE = 0, TCP_PLAN, TCP_CREATE };
 
 static lv_obj_t*       s_scr    = nullptr;
+static lv_obj_t*       s_title  = nullptr;
 static lv_obj_t*       s_status = nullptr;
 static lv_obj_t*       s_btn_ok = nullptr;
 static lv_obj_t*       s_lbl_price = nullptr;
@@ -92,6 +93,7 @@ void closeTagCreatePopup() {
   closeTagDbDiffPopup();
   closeSortTwinPopup();
   releaseScreen(&s_scr);
+  s_title = nullptr;
   s_status = nullptr;
   s_btn_ok = nullptr;
   s_lbl_price = nullptr;
@@ -183,7 +185,7 @@ static void showPlan() {
       if (s_plan.no_density) {
         // Two lines of the small font end where the answer row starts.
         showStatus(T(STR_SORT_NO_DENSITY), UI_COL_WARN, false);
-        lv_obj_set_style_text_font(s_status, UI_FONT_SMALL, 0);
+        if (s_status) lv_obj_set_style_text_font(s_status, UI_FONT_SMALL, 0);
         break;
       }
       snprintf(buf, sizeof(buf), T(STR_TAGNEW_FAILED), s_plan.http_code);
@@ -219,6 +221,17 @@ static lv_obj_t* buildBox() {
   return box;
 }
 
+// The title. A sort typed in is a new filament, "Neue Sorte anlegen?",
+// unless it is one the inventory has: picked from the inventory's colours
+// (known_filament_id) or taken as the twin of a colour typed. Then, as for a
+// database entry, a new spool; a tag's own title for a tag.
+static void refreshTitle() {
+  if (!s_title) return;
+  int id = s_picked ? STR_COPY_CONFIRM_TITLE : STR_NEWTAG_TITLE;
+  if (s_in.typed && s_in.known_filament_id <= 0 && s_twin_answer != TCP_TWIN_TAKE) id = STR_SORT_CARD_TITLE;
+  lv_label_set_text(s_title, T(id));
+}
+
 static void buildHead(lv_obj_t* box) {
   lv_obj_t* icon = lv_label_create(box);
   lv_label_set_text(icon, LV_SYMBOL_PLUS);
@@ -226,14 +239,13 @@ static void buildHead(lv_obj_t* box) {
   lv_obj_set_style_text_font(icon, UI_FONT_ICON, 0);
   lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, UI_CARD_ICON_Y);
 
-  lv_obj_t* title = lv_label_create(box);
-  lv_label_set_text(title, T(s_in.typed ? STR_SORT_CARD_TITLE
-                                        : s_picked ? STR_COPY_CONFIRM_TITLE : STR_NEWTAG_TITLE));
-  lv_obj_set_style_text_color(title, lv_color_hex(UI_COL_INK), 0);
-  lv_obj_set_style_text_font(title, UI_FONT_HEADLINE, 0);
-  lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_set_width(title, UI_POPUP_W - UI_CARD_TEXT_PAD);
-  lv_obj_align(title, LV_ALIGN_TOP_MID, 0, UI_CARD_TITLE_Y);
+  s_title = lv_label_create(box);
+  lv_obj_set_style_text_color(s_title, lv_color_hex(UI_COL_INK), 0);
+  lv_obj_set_style_text_font(s_title, UI_FONT_HEADLINE, 0);
+  lv_obj_set_style_text_align(s_title, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_set_width(s_title, UI_POPUP_W - UI_CARD_TEXT_PAD);
+  lv_obj_align(s_title, LV_ALIGN_TOP_MID, 0, UI_CARD_TITLE_Y);
+  refreshTitle();
 }
 
 // Line 1: the colour and the product, as one centred group.
@@ -460,13 +472,14 @@ static void mergeDbEntry() {
 }
 
 // The twin taken: the plan is the found filament's from here on, with its
-// own empty spool for the weights.
+// own empty spool for the weights, and the card makes a new spool of it.
 static void takeTwin() {
   s_plan.state = TFS_FOUND;
   s_plan.filament_id = s_plan.twin_id;
   s_plan.found_spool_weight_g = s_plan.twin_spool_weight_g;
   showPlan();
   refreshMeta();
+  refreshTitle();
 }
 
 // The user's answer to the twin: that filament, or a new one as planned.
@@ -511,6 +524,9 @@ static void runPlan() {
   refreshMeta();   // the plan may have brought an empty spool weight
   if (s_plan.state == TFS_CREATE_DB && s_plan.db_found && !s_in.db_id[0]) mergeDbEntry();
   settleTwin();
+  // A plan asked again may have found another twin, or none: the answer
+  // given before no longer holds, and neither does its title.
+  refreshTitle();
 }
 
 // What the create button can act on.

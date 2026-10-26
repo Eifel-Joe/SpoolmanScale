@@ -80,12 +80,15 @@ SortLoad  sortSourceTick();
 // replaces what the list held. Lines: the inventory's of this material,
 // the database's, the usual ones. Colours: every filament of the inventory
 // of this material whatever its line (each entry carries its row, plan
-// Festlegung 9), then the database's of this material, the database's of
-// other materials and the inventory's of other materials, each without a
-// line or with the chosen one (an entry of another line stays out), the
-// usual colours. Weights: the sizes the database knows for the brand (this
-// material first, then the other materials loaded), the inventory's (this
-// material first), the usual sizes.
+// Festlegung 9), under its bare colour, except that with a line chosen one
+// of another line is "<colour> (<its line>)" and one without a line
+// "<colour> (no line)", so that the database's colour of the chosen line
+// keeps its entry (Festlegung 9, refined); then the database's of this
+// material, the database's of other materials and the inventory's of other
+// materials, each without a line or with the chosen one (an entry of
+// another line stays out), the usual colours. Weights: the sizes the
+// database knows for the brand (this material first, then the other
+// materials loaded), the inventory's (this material first), the usual sizes.
 void      sortSourceLines(const char* material);
 void      sortSourceColours(const char* material, const char* line);
 void      sortSourceWeights(const char* material);
