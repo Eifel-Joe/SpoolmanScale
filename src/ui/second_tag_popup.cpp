@@ -96,12 +96,8 @@ SecondTagReport secondTagReport() {
 // The button's fill, to the pixel. At 376 px over 30 s that is a dozen
 // small redraws a second, each only the strip that changed.
 static void updateCountdownFill() {
-  if (!bar_tag2_fill) return;
-  const lv_coord_t w = (lv_coord_t)((uint64_t)TAG2_BTN_W * remainingMs()
-                                    / SECOND_TAG_COUNTDOWN_MS);
-  if (w == s_fill_w) return;
-  s_fill_w = w;
-  lv_obj_set_width(bar_tag2_fill, w);
+  uiCountdownFillSet(bar_tag2_fill, TAG2_BTN_W, &s_fill_w, remainingMs(),
+                     SECOND_TAG_COUNTDOWN_MS);
 }
 
 static void updateCountdownLabel() {
@@ -215,7 +211,7 @@ void showSecondTagPopup(int spool_id, const char* first_uid) {
     setState(T2_CANCELLED);
   }, LV_EVENT_CLICKED, NULL);
 
-  // The countdown as a lighter fill that drains from the right, behind the
+  // The countdown as a lighter fill that drains towards the right, behind the
   // label and not clickable. Not an lv_anim like the result's OK: the time a
   // blocking fetch holds the loop does not count against the question, and
   // an animation would run through it and then jump. The width is set from

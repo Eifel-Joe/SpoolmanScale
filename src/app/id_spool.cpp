@@ -93,9 +93,8 @@ void idSpoolTick() {
     if (millis() - s_since_ms > ID_SPOOL_IDLE_MS) endIdSpool("never put on the pad", true);
     return;
   }
-  // Lifted: shown for the grace a lifted tag gets, so a location or weight
-  // the spool is carried away during still finds it. Put back in time, it
-  // goes on as before.
+  // Lifted: shown a little longer, so the location or AMS button tapped on
+  // the way still finds it. Put back in time, it goes on as before.
   if (!s_lifted_ms) {
     s_lifted_ms = millis();
     logSDf("IdSpool: spool %d lifted, shown for %lu s more", s_id, ID_SPOOL_LIFTED_MS / 1000UL);

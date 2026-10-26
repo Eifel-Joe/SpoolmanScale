@@ -25,6 +25,15 @@ lv_obj_t* buildOverlayScreen();
 // quiet row fill with the row's border.
 void uiSecondaryFill(lv_obj_t *btn);
 
+// A countdown drawn as a fill inside its button, `full_w` wide at the start.
+// It is the share of the time left and hangs from the button's right edge, so
+// its left edge travels with the reading direction as the time runs out. Set
+// from the loop on every pass rather than run as an lv_anim: a blocking fetch
+// would leave an animation running ahead of the time it shows. `drawn_w`
+// remembers the last width, so a pass without a change draws nothing.
+void uiCountdownFillSet(lv_obj_t *fill, lv_coord_t full_w, lv_coord_t *drawn_w,
+                        uint32_t remaining_ms, uint32_t total_ms);
+
 // Frees a screen object that is about to be replaced and clears the pointer.
 // Call at the top of every build*Screen() function: without it the previous
 // object is orphaned in LVGL's memory and never reclaimed.

@@ -72,18 +72,14 @@ static unsigned long remainingMs() {
 
 static int remainingSeconds() { return (int)((remainingMs() + 999) / 1000); }
 
-// The answer the countdown gives, as a lighter fill draining from the right
+// The answer the countdown gives, as a lighter fill draining towards the right
 // of its button, the way the second tag's Done does. Set from the same
 // remaining time the question closes on, every loop pass, and not an lv_anim:
 // a blocking fetch does not count against the question, and an animation
 // would run through it and then jump.
 static void updateCountdownFill() {
-  if (!bar_ams_fill) return;
-  const lv_coord_t w = (lv_coord_t)((uint64_t)AMS_ANSWER_BTN_W * remainingMs()
-                                    / AMS_ASK_COUNTDOWN_MS);
-  if (w == s_fill_w) return;
-  s_fill_w = w;
-  lv_obj_set_width(bar_ams_fill, w);
+  uiCountdownFillSet(bar_ams_fill, AMS_ANSWER_BTN_W, &s_fill_w, remainingMs(),
+                     AMS_ASK_COUNTDOWN_MS);
 }
 
 // Behind the label and not clickable, so a tap anywhere on the button still

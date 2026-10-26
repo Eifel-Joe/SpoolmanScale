@@ -57,12 +57,20 @@
 // is still climbing, the weight in the head is wrong, and no stored weight can
 // match it. Not for ever - a spool that keeps rocking still gets its card.
 #define UNK_SETTLE_MAX_MS   4000
+// A spool held up to the reader rather than put down - still in its
+// packaging, say - takes its tag away the moment the card opens. Below this
+// load on the pad the card counts the spool as held: it stays when the tag
+// goes, for UNK_HELD_MS, and its Cancel counts that time down, so the card
+// ends on its own without anything being filed. Without a load cell every
+// spool is held.
+#define UNK_HELD_BELOW_G    ID_SPOOL_LOAD_MIN_G
+#define UNK_HELD_MS         60000UL
 
 enum UnkMode : uint8_t { UNK_ONE, UNK_MANY, UNK_CREATE, UNK_TILES };
 
 enum UnkAction : uint8_t {
   UA_NONE = 0, UA_LINK_PICK, UA_LINK_LIST, UA_CREATE, UA_OTHER,
-  UA_LINK_ENTRY, UA_DB, UA_COPY, UA_WEIGH
+  UA_LINK_ENTRY, UA_DB, UA_COPY, UA_WEIGH, UA_CANCEL
 };
 
 static lv_obj_t*     s_scr = nullptr;
@@ -76,6 +84,13 @@ static uint32_t      s_settle_ms = 0;
 // What the open card, or the one this placement already had, is about.
 static bool          s_bambu = false;
 static char          s_asked_key[40] = "";
+// A held spool's card: since when, which tag it opened on, and its countdown.
+static bool          s_held = false;
+static uint32_t      s_held_ms = 0;
+static char          s_held_uid[24] = "";
+static lv_obj_t*     s_held_fill = nullptr;
+static lv_coord_t    s_held_fill_full = 0;
+static lv_coord_t    s_held_fill_w = -1;
 // What was tapped, for the loop.
 static UnkAction     s_action    = UA_NONE;
 static int           s_action_id = 0;
@@ -84,7 +99,10 @@ static int           s_cand_total = 0;
 
 lv_obj_t* unknownSpoolPopupScreen() { return s_scr; }
 
-void closeUnknownSpoolPopup() { releaseScreen(&s_scr); }
+void closeUnknownSpoolPopup() {
+  s_held_fill = nullptr;
+  releaseScreen(&s_scr);
+}
 
 void unknownSpoolOffer(bool is_bambu, const char* key) {
   if (!g_unk_ask || !key || !key[0]) return;
@@ -99,8 +117,14 @@ void unknownSpoolOffer(bool is_bambu, const char* key) {
 }
 
 void unknownSpoolForget() {
-  s_asked_key[0] = '\0';
   s_offer_pending = false;
+  // Leaving the reader is what a held spool does: its card stays for its
+  // countdown, and the same tag again does not ask a second time.
+  if (s_scr && s_held) {
+    logSD("UnknownSpool: the tag left a held spool, the card stays");
+    return;
+  }
+  s_asked_key[0] = '\0';
   s_action = UA_NONE;
   if (s_scr) logSD("UnknownSpool: the spool left the pad, card closed");
   closeUnknownSpoolPopup();
@@ -120,6 +144,15 @@ static bool keyIsOnPad(bool bambu, const char* key) {
 // Whether the spool left is the loop's call, made through unknownSpoolForget().
 static bool stillUnknown(bool bambu, const char* key) {
   return !sm_found && !lookupPending() && keyIsOnPad(bambu, key);
+}
+
+// The open card still belongs on screen. A held spool's tag comes and goes,
+// and a read of the same tag again empties the fields on the way, so its card
+// ends only on an answer: the spool was found, or another tag was read.
+static bool cardStillFits() {
+  if (!s_held) return stillUnknown(s_bambu, s_asked_key);
+  if (sm_found) return false;
+  return !g_tag.uid_str[0] || strcmp(g_tag.uid_str, s_held_uid) == 0;
 }
 
 // The reading has stood still long enough, or the card has waited long enough.
@@ -230,7 +263,7 @@ static lv_obj_t* surface(lv_obj_t* p, int x, int y, int w, int h, bool framed_go
 // An answer: the suggested step in green, the others quiet. "Just weigh" is
 // one of them, not a red Cancel - weighing a spool without filing it is a
 // fine thing to do, nothing is being abandoned.
-static void answer(lv_obj_t* box, int x, int w, int text_id, UnkAction a, bool primary) {
+static lv_obj_t* answer(lv_obj_t* box, int x, int w, int text_id, UnkAction a, bool primary) {
   lv_obj_t* b = surface(box, x, UNK_ANSWER_Y, w, UI_POPUP_BTN_H, false);
   lv_obj_set_style_radius(b, UI_RADIUS_BTN, 0);
   if (primary) {
@@ -242,14 +275,42 @@ static void answer(lv_obj_t* box, int x, int w, int text_id, UnkAction a, bool p
   lv_obj_t* l = label(b, T(text_id), primary ? UI_FONT_TITLE : UI_FONT_BODY,
                       primary ? UI_COL_OK_TEXT : UI_COL_INK_2);
   lv_obj_center(l);
+  return b;
 }
 
-// The suggested step, "Other ways" and "Just weigh", one width each.
+// The countdown of a held spool, as the lighter fill the other questions
+// drain, inside the border and behind the label.
+static void addHeldFill(lv_obj_t* btn, int w) {
+  const lv_coord_t border = lv_obj_get_style_border_width(btn, LV_PART_MAIN);
+  s_held_fill_full = w - 2 * border;
+  s_held_fill = lv_obj_create(btn);
+  lv_obj_remove_style_all(s_held_fill);
+  lv_obj_set_size(s_held_fill, s_held_fill_full, UI_POPUP_BTN_H - 2 * border);
+  lv_obj_set_pos(s_held_fill, 0, 0);
+  lv_obj_set_style_bg_color(s_held_fill, lv_color_hex(UI_COL_COUNTDOWN_FILL), 0);
+  lv_obj_set_style_bg_opa(s_held_fill, LV_OPA_COVER, 0);
+  lv_obj_set_style_radius(s_held_fill, UI_RADIUS_BTN, 0);
+  lv_obj_clear_flag(s_held_fill, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_move_to_index(s_held_fill, 0);
+  s_held_fill_w = s_held_fill_full;
+}
+
+// The way out. On the pad that is "Just weigh"; for a spool only held up there
+// is nothing to weigh, so it is Cancel, with the time left in it.
+static void answerOut(lv_obj_t* box, int x, int w) {
+  if (!s_held) {
+    answer(box, x, w, STR_UNK_BTN_WEIGH, UA_WEIGH, false);
+    return;
+  }
+  addHeldFill(answer(box, x, w, STR_CANCEL, UA_CANCEL, false), w);
+}
+
+// The suggested step, "Other ways" and the way out, one width each.
 static void answerRow(lv_obj_t* box, int text_id, UnkAction a) {
   const int w = (UNK_ROW_W - 2 * UNK_GAP) / 3;
   answer(box, UNK_X, w, text_id, a, true);
   answer(box, UNK_X + w + UNK_GAP, w, STR_UNK_BTN_OTHER, UA_OTHER, false);
-  answer(box, UNK_X + 2 * (w + UNK_GAP), w, STR_UNK_BTN_WEIGH, UA_WEIGH, false);
+  answerOut(box, UNK_X + 2 * (w + UNK_GAP), w);
 }
 
 // ------------------------------------------------------------
@@ -441,7 +502,7 @@ static void buildTiles(lv_obj_t* box) {
   if (from_tag) tile(box, i++, n, LV_SYMBOL_PLUS, STR_NEWTAG_BTN, UA_CREATE);
   if (from_db)  tile(box, i++, n, LV_SYMBOL_PLUS, STR_DBPICK_BTN, UA_DB);
   tile(box, i, n, LV_SYMBOL_COPY, STR_UNK_TILE_COPY, UA_COPY);
-  answer(box, UNK_X, UNK_ROW_W, STR_UNK_BTN_WEIGH, UA_WEIGH, false);
+  answerOut(box, UNK_X, UNK_ROW_W);
 }
 
 static void buildCard(UnkMode mode) {
@@ -508,7 +569,23 @@ static void openOffered() {
   }
   s_bambu = s_offer_bambu;
   snprintf(s_asked_key, sizeof(s_asked_key), "%s", s_offer_key);
+  s_held = !g_scale_fitted || scale_weight_g < UNK_HELD_BELOW_G;
+  s_held_ms = millis();
+  snprintf(s_held_uid, sizeof(s_held_uid), "%s", g_tag.uid_str);
+  if (s_held) logSDf("UnknownSpool: %.0fg on the pad, the spool is held up", scale_weight_g);
   buildCard(chooseMode());
+}
+
+// A held spool's card counts down and then closes as if Cancel was tapped.
+static void heldTick() {
+  if (!s_scr || !s_held) return;
+  const uint32_t elapsed = millis() - s_held_ms;
+  const uint32_t left = elapsed >= UNK_HELD_MS ? 0 : UNK_HELD_MS - elapsed;
+  uiCountdownFillSet(s_held_fill, s_held_fill_full, &s_held_fill_w, left, UNK_HELD_MS);
+  if (left > 0) return;
+  logSDf("UnknownSpool: nothing chosen in %lu s, card closed", UNK_HELD_MS / 1000UL);
+  s_action = UA_NONE;
+  closeUnknownSpoolPopup();
 }
 
 // Every way out closes the card first; the flow it leads to builds its own.
@@ -533,12 +610,13 @@ static void runAction() {
 }
 
 void unknownSpoolTick() {
-  if (s_scr && !stillUnknown(s_bambu, s_asked_key)) {
+  if (s_scr && !cardStillFits()) {
     logSD("UnknownSpool: the spool was found or replaced, card closed");
     s_action = UA_NONE;
     closeUnknownSpoolPopup();
   }
   if (s_action != UA_NONE && s_scr) runAction();
   s_action = UA_NONE;
+  heldTick();
   if (s_offer_pending) openOffered();
 }
