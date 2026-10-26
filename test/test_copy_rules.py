@@ -1,4 +1,4 @@
-"""Compile the production copy rules and check what a copy takes over from its template behind Spoolman: the price per kg that goes to the server, the empty weight, whether the template has a profile, the colour name and the supplier the card shows."""
+"""Compile the production copy rules and check what a copy takes over from its template behind Spoolman: the price per kg that goes to the server, the nominal weight it starts from, the empty weight, whether the template has a profile, the colour name and the supplier the card shows."""
 import subprocess
 import tempfile
 from pathlib import Path
@@ -45,6 +45,13 @@ int main() {
   assert(copyRulesSupplierShown(src1, 2) == 1);
   assert(copyRulesSupplierShown(src2, 2) == 0);
   assert(copyRulesSupplierShown(src1, 0) == -1);
+  // The nominal weight a copy starts from: its filament's on the Spoolman
+  // server, not the label of a template that was raised (spool 2 stands at
+  // 1015 g after "full spool", its filament 1 at 1000 g, 26.10.2026); without
+  // one the template's label as before.
+  assert(copyRulesNominal(1000.0f, 1015.0f) == 1000.0f);
+  assert(copyRulesNominal(0.0f, 1015.0f) == 1015.0f);
+  assert(copyRulesNominal(750.0f, 1000.0f) == 750.0f);   // smaller than the label too
 
   // The edges around those, each worked out by hand.
   // A negative or not-a-number typed price is no price either.
@@ -70,6 +77,12 @@ int main() {
   assert(copyRulesSupplierShown(nullptr, 2) == 0);
   assert(copyRulesSupplierShown(nullptr, 0) == -1);
   assert(copyRulesSupplierShown(src1, -1) == -1);
+  // A filament weight that is no weight - negative, not a number, not finite -
+  // leaves the template's label, and so does one that is not a whole gram.
+  assert(copyRulesNominal(-5.0f, 1015.0f) == 1015.0f);
+  assert(copyRulesNominal(NAN, 1015.0f) == 1015.0f);
+  assert(copyRulesNominal(INFINITY, 1015.0f) == 1015.0f);
+  assert(copyRulesNominal(0.4f, 1015.0f) == 1015.0f);
   return 0;
 }
 '''
