@@ -2,24 +2,31 @@
 
 #include <Arduino.h>
 #include <lvgl.h>
+#include <math.h>
 
 #include "app/app_state.h"
 #include "app_config.h"
 #include "hardware/sd_logger.h"
 #include "lang.h"
 #include "services/auto_weight_state.h"
+#include "services/location_state.h"
 #include "services/user_options.h"
 #include "ui/main_screen_helpers.h"
 #include "ui/spoolman_lookup.h"
 #include "ui/status_clear.h"
 #include "ui/tag_display.h"
 #include "ui/theme.h"
+#include "ui/ui_common.h"
 
 static bool          s_active     = false;
 static int           s_id         = 0;
 static bool          s_seen_load  = false;   // the spool has been on the pad since
 static unsigned long s_since_ms   = 0;
 static unsigned long s_lifted_ms  = 0;       // when it left the pad, 0 while it is on
+// The most the pad carried while the spool lay there. Not the last reading:
+// the moving average is already on its way down when the lift shows.
+static float         s_load_g     = 0.0f;
+static bool          s_lift_news  = false;   // lifted, not yet taken by the loop
 
 bool idSpoolActive() { return s_active; }
 
@@ -70,6 +77,11 @@ void idSpoolAdopt(int spool_id) {
   s_seen_load = scale_weight_g >= ID_SPOOL_LOAD_MIN_G;
   s_since_ms  = millis();
   s_lifted_ms = 0;
+  s_load_g    = scale_weight_g;
+  s_lift_news = false;
+  // A spool called up by its id is a new trip, like a tag put down again:
+  // what was answered about it last time does not hold back the questions.
+  g_loc_popup_shown_for_id = -1;
   paintStatus();
   paintWeightButton(true);
   logSDf("IdSpool: spool %d shown without a tag (load %.0fg)", spool_id, scale_weight_g);
@@ -85,20 +97,33 @@ void idSpoolTick() {
   // Without a load cell nothing below can tell: the button and a tag end it.
   if (!g_scale_fitted) return;
   if (scale_weight_g >= ID_SPOOL_LOAD_MIN_G) {
+    if (s_lifted_ms || !s_seen_load) s_load_g = 0.0f;   // a new stay on the pad
     s_seen_load = true;
     s_lifted_ms = 0;
+    s_load_g    = fmaxf(s_load_g, scale_weight_g);
+    s_lift_news = false;
     return;
   }
   if (!s_seen_load) {
     if (millis() - s_since_ms > ID_SPOOL_IDLE_MS) endIdSpool("never put on the pad", true);
     return;
   }
-  // Lifted: shown a little longer, so the location or AMS button tapped on
-  // the way still finds it. Put back in time, it goes on as before.
+  // Lifted: shown a little longer, so a question about it, or the location
+  // or AMS button tapped on the way, still finds it. Put back in time, it goes
+  // on as before. Not over while anything covers the main screen: a location
+  // picker writes to the spool on display, and has 30 s for it.
   if (!s_lifted_ms) {
     s_lifted_ms = millis();
+    s_lift_news = true;
     logSDf("IdSpool: spool %d lifted, shown for %lu s more", s_id, ID_SPOOL_LIFTED_MS / 1000UL);
-  } else if (millis() - s_lifted_ms > ID_SPOOL_LIFTED_MS) {
+  } else if (millis() - s_lifted_ms > ID_SPOOL_LIFTED_MS && !uiMainScreenCovered()) {
     endIdSpool("taken off the pad", true);
   }
+}
+
+bool idSpoolTakeLift(float* load_g) {
+  if (!s_active || !s_lift_news) return false;
+  s_lift_news = false;
+  if (load_g) *load_g = s_load_g;
+  return true;
 }

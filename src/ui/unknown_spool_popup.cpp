@@ -168,22 +168,6 @@ static bool weightReady() {
   return now - s_settle_ms >= PAD_SETTLE_MS;
 }
 
-// Something lies over the main screen. Every overlay of this firmware covers
-// the whole panel, and nothing of the main screen does, so the size says it
-// without a list of screens that would fall behind the next one added.
-static bool mainScreenCovered() {
-  lv_obj_t* const layers[] = { lv_scr_act(), lv_layer_top() };
-  for (lv_obj_t* layer : layers) {
-    const uint32_t n = lv_obj_get_child_cnt(layer);
-    for (uint32_t i = 0; i < n; i++) {
-      lv_obj_t* o = lv_obj_get_child(layer, i);
-      if (lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN)) continue;
-      if (lv_obj_get_width(o) >= LV_HOR_RES && lv_obj_get_height(o) >= LV_VER_RES) return true;
-    }
-  }
-  return false;
-}
-
 // ------------------------------------------------------------
 //  Taps: parked for the loop
 // ------------------------------------------------------------
@@ -563,7 +547,7 @@ static void openOffered() {
   }
   if (!weightReady()) return;
   s_offer_pending = false;
-  if (mainScreenCovered()) {
+  if (uiMainScreenCovered()) {
     logSD("UnknownSpool: the main screen is covered, not asked");
     return;
   }
