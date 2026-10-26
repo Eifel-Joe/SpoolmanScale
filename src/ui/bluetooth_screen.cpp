@@ -154,9 +154,8 @@ static void showTestVerdict(int last) {
   if (last == STR_PRN_NET_SENT_MSG) sub = STR_PRN_NET_SENT_TITLE;
   else if (last >= 0) sub = last;
   if (last >= 0) {
-    // One line, cut with dots: a verdict of the other printer's, kept
-    // since boot, can be two lines long. The label needs a height of its
-    // own before dots engage.
+    // One line, cut with dots: a verdict can run longer than the row. The
+    // label needs a height of its own before dots engage.
     lv_obj_set_height(s_test_sub, lv_font_get_line_height(UI_FONT_CAPTION));
     lv_label_set_long_mode(s_test_sub, LV_LABEL_LONG_DOT);
   }

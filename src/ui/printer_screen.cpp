@@ -23,13 +23,24 @@
 #include "ui_common.h"
 
 
-static int s_last_test = -1;
+// A verdict belongs to the printer it came from: kept with the link it was
+// printed on, and none once another one is chosen, so after a switch from
+// Bluetooth to WLAN the Brother's row and the browser show no error of the
+// Bluetooth printer's.
+struct KeptResult { int text; LabelPrinterLink link; };
+static KeptResult s_last_test = { -1, LP_LINK_OFF };
+static KeptResult s_last_label = { -1, LP_LINK_OFF };
+
+static int keptForLink(const KeptResult& r) {
+  return r.link == labelPrinterLink() ? r.text : -1;
+}
 
 // A label that needs no spool, the test label or the calibration page, under
 // the print card; the verdict is kept for the browser's last-print line.
 static void printFixedLabel(bool (*render)(const LabelPrinterConfig&, LabelRaster*),
                             const char* what) {
   printerOffsetFlush();
+  const LabelPrinterLink link = labelPrinterLink();
   const LabelPrinterConfig c = labelPrinterLoadConfig();
   // The one question behind every print button (design L1, ruling 9).
   LabelPrintResult result = labelPrinterReadiness();
@@ -41,13 +52,11 @@ static void printFixedLabel(bool (*render)(const LabelPrinterConfig&, LabelRaste
     labelRasterFree(&raster);
   }
   logSDf("Printer: %s result=%d", what, (int)result);
-  s_last_test = labelPrintResultString(result);
+  s_last_test = { labelPrintResultString(result), link };
   printCardResult(result);
 }
-int printerLastTestResult() { return s_last_test; }
-
-static int s_last_label = -1;
-int printerLastLabelResult() { return s_last_label; }
+int printerLastTestResult() { return keptForLink(s_last_test); }
+int printerLastLabelResult() { return keptForLink(s_last_label); }
 
 // Where the back button leads: the print sheet, when that opened the screen.
 static bool s_back_to_sheet = false;
@@ -77,6 +86,7 @@ static LabelPrintResult spoolRaster(const LabelPrinterConfig& c, SpoolLabelData&
 // scale's template even where a FilaMan preset is chosen.
 static void printSpoolLabel(SpoolLabelData spool, bool own_layout = false,
                             LabelKind kind = LABEL_KIND_SPOOL) {
+  const LabelPrinterLink link = labelPrinterLink();
   const LabelPrinterConfig c = labelPrinterLoadConfig();
   const bool server = !own_layout && kind == LABEL_KIND_SPOOL && labelServerInUse();
   LabelPrintResult result = labelPrinterReadiness();
@@ -90,7 +100,7 @@ static void printSpoolLabel(SpoolLabelData spool, bool own_layout = false,
   logSDf("Printer: spool #%d %s label (%s) result=%d", spool.id,
          kind == LABEL_KIND_FILAMENT ? "filament" : "spool",
          server ? "FilaMan preset" : "own layout", (int)result);
-  s_last_label = labelPrintResultString(result);
+  s_last_label = { labelPrintResultString(result), link };
   // Never switched over unasked: the card offers the scale's own layout.
   if (result == LP_SERVER_LABEL) {
     s_own_layout_spool = spool;
