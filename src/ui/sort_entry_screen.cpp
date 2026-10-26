@@ -292,6 +292,8 @@ void sortWaitShow() {
 
 bool sortEntryPickTile(lv_obj_t* parent, int width, const char* maker) {
   if (!parent || !sortEntryOffered()) return false;
+  // True all the same: the picker draws no caption in its place either.
+  if (!lvPoolHasRoomForRow()) { logSD("SortEntry: LVGL pool low, no way in on the picker"); return true; }
   initStyles();
   if (maker) utf8Cut(maker, sizeof(s_pick_maker) - 1, s_pick_maker, sizeof(s_pick_maker));
   else       s_pick_maker[0] = '\0';
@@ -411,7 +413,9 @@ static int fillMakers(lv_obj_t* body, bool letters) {
   if (s_letter >= 0) {
     tiles = makerTiles(body, s_letter);
   } else {
-    if (s_ui.last_vendor[0]) {
+    if (s_ui.last_vendor[0] && !lvPoolHasRoomForRow()) {
+      logSD("SortEntry: LVGL pool low, no tile for the last maker");
+    } else if (s_ui.last_vendor[0]) {
       sortCaption(body, T(STR_SORT_LAST));
       lv_obj_t* t = sortTile(body, s_ui.last_vendor, SN_LAST, 0);
       if (sortData() && sortChoicesFind(sortData()->brands, s_ui.last_vendor) >= 0) lv_obj_add_style(t, &s_st_owned, 0);
@@ -478,6 +482,9 @@ void sortEntryClose() {
   // The card stands for the index load only between the open and the first step.
   if (s_index != IDX_NONE) linkWaitCardHide();
   s_index = IDX_NONE;
+  // A tap parked in the same pass must not open the entry again over the
+  // screen that follows (deleteSpoolFlowOverlays() closes it from the loop).
+  s_nav = SN_NONE;
   s_body = nullptr;
   s_strip = nullptr;
   s_title = nullptr;
@@ -495,6 +502,14 @@ static void showFirstStep() {
 }
 
 static void startIndex() {
+  // An index load already out (the picker's, whose wait was cancelled, or the
+  // entry's own from an open before) is waited for, not refused: restarted
+  // once it is in, fdbStartIndex() would free the index it brought.
+  if (fdbState() != FDB_IDLE && fdbJob() == FDB_JOB_INDEX) {
+    logSD("SortEntry: an index load is running, waiting for it");
+    s_index = IDX_RUNNING;
+    return;
+  }
   if (fdbStartIndex()) { s_index = IDX_RUNNING; return; }
   // Busy with another load: again as soon as it is done. Refused while idle:
   // not before SORT_INDEX_RETRY_MS.
@@ -517,7 +532,7 @@ static void openEntry(bool at_picker_maker) {
   dbPickClose();
   sortEntryClose();
   if (!sortSourceBegin()) {
-    // Logged by the source. Back to where the tile was.
+    // Logged by the source. Back to the copy popup, from either way in.
     showCopyEntryPopup();
     return;
   }
@@ -543,7 +558,14 @@ static void openEntry(bool at_picker_maker) {
 // puts the index in place whoever takes it.
 static void indexTick() {
   if (s_index == IDX_WANT) {
-    if (fdbState() == FDB_IDLE && (s_index_ms == 0 || millis() - s_index_ms >= SORT_INDEX_RETRY_MS)) startIndex();
+    // Put in place by whoever took a load that ran meanwhile: nothing to start.
+    if (fdbIndexReady()) {
+      logSDf("SortEntry: index in place meanwhile, %d makers", makerCount());
+      indexDone();
+      return;
+    }
+    const bool idle = fdbState() == FDB_IDLE;
+    if (idle ? (s_index_ms == 0 || millis() - s_index_ms >= SORT_INDEX_RETRY_MS) : fdbJob() == FDB_JOB_INDEX) startIndex();
   } else if (s_index == IDX_RUNNING) {
     linkWaitCardBytes(fdbBytes());
     const FdbState state = fdbState();

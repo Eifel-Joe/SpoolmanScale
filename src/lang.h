@@ -1868,7 +1868,7 @@ enum StringID {
   STR_SORT_TWIN_NEW,          // create a new one anyway
 
   // A filament entered at the scale: the ways in and the steps (ui/sort_entry_*.cpp)
-  STR_SORT_BTN,               // the copy popup's tile, the fourth one
+  STR_SORT_BTN,               // the copy popup's last tile (fourth; third without a database)
   STR_SORT_NOT_LISTED,        // the tile at the end of the database picker's lists
   STR_SORT_LAST,              // caption over the entry chosen last
   STR_SORT_NEW,               // the last tile of every step: to the keyboard
