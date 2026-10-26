@@ -28,6 +28,7 @@
 #include "ui/sort_twin_popup.h"
 #include "ui/spool_flow_internal.h"
 #include "ui/tag_db_diff_popup.h"
+#include "ui/tare_entry.h"
 #include "ui/theme.h"
 #include "ui/ui_common.h"
 
@@ -565,6 +566,10 @@ static void runCreate() {
   char buf[96];
   if ((code == 200 || code == 201) && r.spool_id > 0) {
     spoolCacheForget("spool created from a tag");
+    // Our list asked this spool's type on the way here ("new from database"):
+    // the first weighing does not ask it again (tare_entry.h). A tag's input
+    // never carries it.
+    if (s_in.spool_type_asked) tareEntryFirstWeighDone(r.spool_id);
     char link_id[sizeof(s_in.link_id)];
     memcpy(link_id, s_in.link_id, sizeof(link_id));
     const bool with_filament = r.filament_id > 0;

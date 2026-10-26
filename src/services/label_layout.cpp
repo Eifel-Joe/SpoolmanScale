@@ -77,14 +77,34 @@ bool labelLayoutHasCode(const LabelLayout& layout) {
 // simulator on 40 x 30 and 50 x 30, flat and upright, with the longest
 // lines of the fixture spools: what each arrangement prints without a line
 // running into the margin or the code shrinking under its readable size.
+//
+// The Brother's DK-11209 is 62 x 29. Its rows were estimated from 40 x 30 by
+// the height (271 dots at 300 dpi are 183 at 203 dpi instead of 240, the
+// head block keeps its height), upright like 30 x 50, and then checked on
+// the scale's previews with every fact switched on (26.10.2026): flat, the
+// big code's fourth line ran off the bottom, so it takes three; every other
+// row printed whole. Upright, standard and compact left about 100 dots
+// under the code, three fact lines of 33: they take two more each, one line
+// kept in hand, to be checked on the previews again (Joerg asked for more
+// lines there, 26.10.2026). Flat, standard, compact and material
+// big print no code at all: under the head block 23 mm leave about 10 mm,
+// too little for a spool's address - a layout question, not a count. They
+// are for that shape only: a Bluetooth stock kept from earlier betas, such
+// as 75 x 50, is wide as well and keeps the rows it had.
 #define LL_LONG_ROLL_MM 50
-enum CapacityRow { CAP_FLAT_40, CAP_FLAT_50, CAP_UPRIGHT_40, CAP_UPRIGHT_50, CAP_ROWS };
+#define LL_WIDE_ROLL_MM 62
+#define LL_NARROW_ROLL_MM 29
+enum CapacityRow {
+  CAP_FLAT_40, CAP_FLAT_50, CAP_UPRIGHT_40, CAP_UPRIGHT_50, CAP_FLAT_62, CAP_UPRIGHT_62, CAP_ROWS
+};
 static const uint8_t FACT_CAPACITY[CAP_ROWS][LABEL_PRESET_COUNT] = {
   // standard, compact, big code, material big, text only (never has a code)
   { 5, 6, 6, 3, 5 },   // 40 x 30
   { 5, 6, 6, 3, 5 },   // 50 x 30
   { 3, 4, 2, 2, 6 },   // 30 x 40
   { 5, 6, 4, 3, 6 },   // 30 x 50
+  { 3, 4, 3, 2, 3 },   // 62 x 29, checked on the previews
+  { 7, 8, 4, 3, 6 },   // 29 x 62, checked on the previews, standard and compact raised
 };
 // The same with the code switched off: the facts get its room, in two
 // columns where they fit. Flat, a date line is too wide for half the label,
@@ -94,15 +114,20 @@ static const uint8_t FACT_CAPACITY_NO_CODE[CAP_ROWS][LABEL_PRESET_COUNT] = {
   { 5, 6, 5, 5, 5 },
   { 6, 6, 6, 6, 6 },
   { 6, 6, 6, 6, 6 },
+  { 3, 4, 3, 3, 3 },   // 62 x 29, text only checked on the previews
+  { 6, 6, 6, 6, 6 },   // 29 x 62, text only checked on the previews
 };
 
 int labelFactCapacity(const LabelLayout& layout, uint16_t width_mm, uint16_t length_mm) {
   const uint8_t preset = layout.preset < LABEL_PRESET_COUNT ? layout.preset : LABEL_PRESET_STANDARD;
   const uint16_t longer = width_mm > length_mm ? width_mm : length_mm;
+  const uint16_t shorter = width_mm > length_mm ? length_mm : width_mm;
+  const bool brother_roll = longer >= LL_WIDE_ROLL_MM && shorter <= LL_NARROW_ROLL_MM;
   const bool long_roll = longer >= LL_LONG_ROLL_MM;
-  const CapacityRow row = labelLayoutOption(layout, LO_PORTRAIT)
-      ? (long_roll ? CAP_UPRIGHT_50 : CAP_UPRIGHT_40)
-      : (long_roll ? CAP_FLAT_50 : CAP_FLAT_40);
+  const bool upright = labelLayoutOption(layout, LO_PORTRAIT);
+  const CapacityRow row = brother_roll ? (upright ? CAP_UPRIGHT_62 : CAP_FLAT_62)
+                        : long_roll ? (upright ? CAP_UPRIGHT_50 : CAP_FLAT_50)
+                        : (upright ? CAP_UPRIGHT_40 : CAP_FLAT_40);
   return labelLayoutHasCode(layout) ? FACT_CAPACITY[row][preset]
                                     : FACT_CAPACITY_NO_CODE[row][preset];
 }

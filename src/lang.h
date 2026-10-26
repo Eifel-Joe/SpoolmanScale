@@ -1267,12 +1267,21 @@ enum StringID {
   STR_BT_CARD_USE_PRINTER,    // the card's action: make this the printer
   STR_BT_CARD_IS_PRINTER,     // the card's role line
   STR_BT_CARD_FORGET_PRINTER, // the card's action when it is the printer
+  // The label printer the Bluetooth tile became: off, Bluetooth or WLAN
+  STR_LP_TITLE,               // tile and screen title
+  STR_LP_HELP,                // the ? on the screen
+  STR_LP_OFF_SUB,             // under the choice "off" (STR_OFF)
+  STR_LP_BLE_SUB,             // under the choice "Bluetooth" (STR_BT_TITLE)
+  STR_LP_WLAN,                // the choice WLAN, and the tile's subtitle
+  STR_LP_WLAN_SUB,
 
   // The label printer: its screen, its rows, what a print came back with
   STR_PRN_TITLE,              // row on the Bluetooth screen, the screen, popups
   STR_PRN_NONE,               // the row's subtitle without a printer
   STR_PRN_DEVICE,             // the device row
   STR_PRN_DEVICE_NONE,        // its subtitle without a printer
+  STR_PRN_HOST_NONE,          // the Brother's rows without an IP address
+  STR_PRN_HOST_HELP,          // its device row: where the address is set
   STR_PRN_MODEL,
   STR_PRN_EXPERIMENTAL,       // after a model nobody printed on yet
   STR_PRN_MEDIA,              // the label stock row
@@ -1295,6 +1304,10 @@ enum StringID {
   // The printer page in the browser
   STR_W_NAV_PRINTER,          // the tab
   STR_W_P_BLE_HINT,           // under the master switch
+  STR_W_P_LINK_HINT,          // under the label printer's three choices
+  STR_W_P_HOST,               // the Brother's address field
+  STR_W_P_HOST_HINT,          // under it: the network, and the printer's command mode
+  STR_W_P_HOST_BAD,           // the address route's answer to anything but four numbers
   STR_W_P_SUPPORTED_HINT,
   STR_W_P_DEVICES,            // the device list's label
   STR_BT_SCAN_WEB,            // the scan button
@@ -1319,6 +1332,8 @@ enum StringID {
   STR_PRN_DONE_MSG,
   STR_PRN_UNCONF_TITLE,
   STR_PRN_UNCONF_MSG,
+  STR_PRN_NET_SENT_TITLE,     // a Brother took the job; it says nothing back
+  STR_PRN_NET_SENT_MSG,
   STR_PRN_FAIL_TITLE,
   // Below the device list while it hides the nameless ones
   STR_BT_FILTER_NOTE,
@@ -1614,6 +1629,9 @@ enum StringID {
   STR_W_L_PREVIEW_FAIL,
   STR_W_L_OFF_PAD,
   STR_PRN_ERR_SERVER_LABEL,
+  STR_PRN_ERR_NET_CONNECT,    // the Brother on the network
+  STR_PRN_ERR_NET_ABORT,
+  STR_PRN_ERR_LINK_OFF,       // the label printer is set to off
   STR_PRN_OWN_LAYOUT,
   STR_W_L_SOURCE,
   STR_W_L_SRC_SCALE,
@@ -1857,6 +1875,20 @@ enum StringID {
   STR_IDPAD_NOT_FOUND,        // %d: the id that was typed
   STR_IDPAD_NOT_FOUND_HINT,   // under it
   STR_ID_SPOOL_STATUS,        // the status line while a spool is shown by its id
+
+  // A copy behind Bambuddy on Spoolman: what it takes over (design note J)
+  STR_COPY_CARD_PROFILE,    // copy card: %s the template's profile, "-" without one
+  STR_COPY_CARD_MODEL,      // behind the profile: %d profile per printer model, one
+  STR_COPY_CARD_MODELS,     // the same, %d of them, two or more
+  STR_COPY_MISSING,         // status line: the copy stands, %s the parts it did not take over
+  STR_COPY_PART_PRICE,      // the parts, joined with ", ": the price
+  STR_COPY_PART_PRESETS,    // the profiles per printer model
+  STR_COPY_PART_SUPPLIERS,  // the suppliers
+  STR_COPY_PART_KPROFILES,  // the calibration values (K profiles)
+  STR_COPY_PART_FILAMENT,   // the template's filament on the Spoolman server
+  STR_COPY_CARD_PRICE_KG,       // copy card price button: %.2f the price per kg
+  STR_COPY_CARD_PRICE_KG_WHOLE, // the same in whole units, %.0f, where the cents do not fit
+  STR_PRICE_PAD_TITLE_KG,       // price pad title when the copy card asks for a price per kg
 
   // A filament entered at the scale (ui/tag_create_popup.cpp, ui/sort_twin_popup.cpp)
   STR_SORT_CARD_TITLE,        // the new-spool card's title when the sort was typed in

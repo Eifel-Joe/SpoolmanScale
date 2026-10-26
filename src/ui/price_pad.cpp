@@ -63,9 +63,9 @@ static void onBackspace(lv_event_t*) {
   refreshInput();
 }
 
-static void buildHead() {
+static void buildHead(int title_id) {
   lv_obj_t* title = lv_label_create(s_pad);
-  lv_label_set_text(title, T(STR_PRICE_PAD_TITLE));
+  lv_label_set_text(title, T(title_id));
   lv_obj_set_style_text_color(title, lv_color_hex(UI_COL_ACCENT), 0);
   lv_obj_set_style_text_font(title, UI_FONT_SMALL, 0);
   lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 10);
@@ -133,6 +133,10 @@ static void buildAnswers() {
 }
 
 void showPricePad(float current, void (*done)(float price)) {
+  showPricePadTitled(current, STR_PRICE_PAD_TITLE, done);
+}
+
+void showPricePadTitled(float current, int title_id, void (*done)(float price)) {
   logSD("SHOW: PricePad");
   closePricePad();
   s_done = done;
@@ -147,7 +151,7 @@ void showPricePad(float current, void (*done)(float price)) {
   s_pad = buildOverlayScreen();
   lv_obj_clear_flag(s_pad, LV_OBJ_FLAG_HIDDEN);
 
-  buildHead();
+  buildHead(title_id);
   buildKeys();
   buildAnswers();
   refreshInput();

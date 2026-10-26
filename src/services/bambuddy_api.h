@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Arduino.h>
 #include <ArduinoJson.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -124,6 +125,16 @@ int  bbGetSpoolJson(const char* base_url, const char* api_key, int spool_id,
        JsonDocument& doc, uint32_t timeout_ms = 8000,
        DeserializationError* out_err = nullptr);
 
+// The profiles a spool carries per printer model: GET {inventory}/spools/{id}/
+// filament-presets, on the active inventory's path. The answer is a JSON array
+// of objects with printer_model, nozzle_diameter, slicer_filament and
+// slicer_filament_name, and it is not part of the spool itself. Fills the
+// caller's doc as the server sent it; the caller owns the document and decides
+// whether it lives in PSRAM. 200 on success, otherwise the HTTP code, -1 for
+// no base url or a bad id, -2 for an answer that was not JSON.
+int  bbGetSpoolPresetsJson(const char* base_url, const char* api_key, int spool_id,
+       JsonDocument& doc, uint32_t timeout_ms);
+
 // Whole inventory as a Spoolman shaped array. BamBuddy sends no count header
 // and has no page size, so this is the expensive call - the tag lookup does
 // not use it.
@@ -222,6 +233,15 @@ int  bbPatchLastDried(const char* base_url, const char* api_key, int spool_id,
 bool bbGetDriedFromSpoolman(int spool_id, char* out_iso, size_t out_size,
        uint32_t timeout_ms = 6000);
 
+// The Spoolman filament a spool hangs on, read straight from the Spoolman
+// server behind BamBuddy: GET /api/v1/spool/{id}, filtered down to
+// filament.id. The BamBuddy key is not sent along, it belongs to BamBuddy.
+// BamBuddy's own answer for a spool carries no filament id, and the spool id
+// is the same on both sides. False, with *out_filament_id at 0, when there is
+// no Spoolman address (local mode), the spool is unknown or the request
+// fails; the cause is in the log.
+bool bbSpoolmanFilamentOf(int spool_id, int* out_filament_id, uint32_t timeout_ms);
+
 // Moves a drying date the scale kept outside BamBuddy into its own field
 // (#2863): a note marker always (the marker leaves the note, the date goes
 // in when it is later than the field's), Spoolman's extra.last_dried while
@@ -268,6 +288,14 @@ struct BbNewSpool {
   const char* effect_type     = nullptr;  // "gradient", "dual-color"
   const char* material_number = nullptr;  // the article number
   float       cost_per_kg     = 0.0f;     // 0: no price given
+  // The Spoolman proxy's create schema (SpoolmanInventoryCreate) takes these
+  // four, so a copy made behind it can carry what its template has. Each is
+  // left off the request while unset.
+  const char* slicer_filament      = nullptr;  // the profile's id ("PFUS..."), empty: no profile
+  const char* slicer_filament_name = nullptr;  // its name; without a profile the server fills it
+                                               // with the filament's name, so send it with an id only
+  int         location_id          = 0;        // storage location by its id, 0: none
+  const char* storage_location     = nullptr;  // storage location by its name
 };
 
 // Creates a spool in whichever inventory is active.
@@ -285,6 +313,18 @@ struct BbNewSpool {
 int  bbCreateSpool(const char* base_url, const char* api_key,
        const BbNewSpool& spool, int* out_spool_id,
        uint32_t timeout_ms = BB_CREATE_TIMEOUT_MS, bool* out_warned = nullptr);
+
+// Replaces one of the three link lists of a spool: PUT {inventory}/spools/{id}/
+// {what}, with `what` one of "filament-presets", "suppliers" or "k-profiles"
+// and json_array the whole new list as JSON array text. The server replaces
+// the list, it does not merge: what is not in the array is gone afterwards,
+// so the caller sends the complete list, "[]" to empty it. Any other `what`
+// is refused before a request is made. Waits at most 5 s. Any 2xx counts as
+// done and returns 200; otherwise the HTTP code, the negative transport code,
+// or -1 for no base url, a bad id, an unknown `what` or an empty body. The
+// refused request is in the log with the server's reason.
+int  bbPutSpoolLinks(const char* base_url, const char* api_key, int spool_id,
+       const char* what, const String& json_array);
 
 // --- ams slots -----------------------------------------------
 

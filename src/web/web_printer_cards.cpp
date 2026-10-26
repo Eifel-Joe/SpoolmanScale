@@ -7,11 +7,19 @@
 // 75 px and still fits two cards side by side on a phone.
 #define STOCK_SHAPE_PX_PER_MM 1.5f
 
+// The printer in the stroke of the shared look: the label printer's bar and
+// the tile of the printer itself, Bluetooth or on the network.
+static const char ICON_PRINTER[] PROGMEM =
+  "<svg width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' "
+  "stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'>"
+  "<path d='M6 9V3h12v6'/><rect x='3' y='9' width='18' height='8' rx='2'/>"
+  "<path d='M7 14h10v7H7z'/></svg>";
+
 // One literal in flash, like the shared stylesheet.
 static const char PRINTER_CSS[] PROGMEM =
          "<style>"
-         // The Bluetooth bar: a row across the page instead of a card that
-         // stood as tall as the printer list beside it.
+         // The label printer's bar: a row across the page instead of a card
+         // that stood as tall as the printer list beside it.
          ".btbar{grid-column:1/-1;display:flex;align-items:center;gap:14px;padding:12px 18px;"
          "border-radius:14px;background:var(--surface);border:1px solid var(--line-soft)}"
          ".btbar .ic{flex:0 0 34px;height:34px;border-radius:10px;display:grid;place-items:center;"
@@ -23,9 +31,12 @@ static const char PRINTER_CSS[] PROGMEM =
          ".btbar .tx>span{font-size:12px;color:var(--ink-soft);line-height:1.45}"
          ".btbar .end{display:flex;align-items:center;gap:10px}"
          ".btbar .end button{padding:6px 12px;font-size:12.5px}"
+         // The tile's printer, drawn smaller in the bar's smaller box.
+         ".btbar .ic svg{width:18px;height:18px}"
          // The new message lines take no room until they say something; the
          // calibration card's keep theirs, its spacing counts on them.
-         "#bl-s:empty,#rb-s:empty,#pd-s:empty,#dv-s:empty,#pm-s:empty,#ps-s:empty,#tb-s:empty{display:none}"
+         "#bl-s:empty,#rb-s:empty,#pd-s:empty,#dv-s:empty,#hs-s:empty,#pm-s:empty,#ps-s:empty,"
+         "#tb-s:empty{display:none}"
          // The device tile: the printer, or a dashed place for one.
          ".dev{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:12px;"
          "background:var(--surface-2);border:1px solid var(--line-soft)}"
@@ -39,6 +50,8 @@ static const char PRINTER_CSS[] PROGMEM =
          ".dev.empty .ic{background:var(--surface-2);border-color:var(--line);color:var(--ink-3)}"
          ".dev.empty .nm{font-weight:500;color:var(--ink-2)}"
          ".dev.empty .sub{font-family:var(--sans)}"
+         // The Brother's address under its tile.
+         "#ht+.field{margin-top:14px}"
          "button.ghost{background:transparent;color:var(--ink-soft);border-color:transparent;padding:9px 10px}"
          "button.ghost:hover{background:var(--quiet);color:var(--bad)}"
          // The scan: a panel under the tile while it runs and after.
@@ -144,7 +157,9 @@ static const char PRINTER_CSS[] PROGMEM =
          ".pp-txt span:first-child{font-size:13px;color:var(--ink-2);line-height:1.5}"
          "@media(max-width:620px){.pp-set{grid-template-columns:1fr}}"
          "@media(max-width:620px){"
-         ".btbar{flex-wrap:wrap}.btbar .end{width:100%;justify-content:flex-end}"
+         ".btbar{flex-wrap:wrap}.btbar .end{width:100%;justify-content:flex-end;flex-wrap:wrap}"
+         // The three choices share a line of their own, under the restart.
+         ".btbar .btabs{flex:1 1 100%}.btbar .btab{min-width:0}"
          ".dev{flex-wrap:wrap}.dev .end{width:100%}"
          ".sect{flex-direction:column;align-items:flex-start;gap:2px}.sect .hint{text-align:left}"
          ".stock{grid-template-columns:1fr 1fr}"
@@ -154,9 +169,13 @@ static const char PRINTER_CSS[] PROGMEM =
 
 void webPrinterPageStyle(String& h) { h += FPSTR(PRINTER_CSS); }
 
+void webPrinterIcon(String& h) { h += FPSTR(ICON_PRINTER); }
+
 void webPrinterModelCards(String& h, const LabelPrinterConfig& c) {
-  for (int i = 0; i < LABEL_PRINTER_MODEL_COUNT; i++) {
-    const LabelPrinterProfile& p = labelPrinterProfile(LABEL_PRINTER_MODELS[i]);
+  int count = 0;
+  const LabelPrinterModel* models = labelPrinterModels(labelPrinterLink(), &count);
+  for (int i = 0; i < count; i++) {
+    const LabelPrinterProfile& p = labelPrinterProfile(models[i]);
     h += F("<button type='button' class='pc");
     if (p.model == c.model) h += F(" on");
     h += F("' data-m='");
@@ -182,13 +201,16 @@ void webPrinterModelCards(String& h, const LabelPrinterConfig& c) {
   }
 }
 
-// The models that print on this size, space separated for the script.
+// The models of the chosen link that print on this size, space separated
+// for the script.
 static void fitList(String& h, uint16_t w, uint16_t l) {
+  int count = 0;
+  const LabelPrinterModel* models = labelPrinterModels(labelPrinterLink(), &count);
   bool first = true;
-  for (int i = 0; i < LABEL_PRINTER_MODEL_COUNT; i++) {
-    if (!labelPrinterTakesMedia(LABEL_PRINTER_MODELS[i], w, l)) continue;
+  for (int i = 0; i < count; i++) {
+    if (!labelPrinterTakesMedia(models[i], w, l)) continue;
     if (!first) h += ' ';
-    h += String((int)LABEL_PRINTER_MODELS[i]);
+    h += String((int)models[i]);
     first = false;
   }
 }
@@ -229,9 +251,11 @@ static void stockCard(String& h, const LabelMediaSize& s, const LabelPrinterConf
 }
 
 void webPrinterStockCards(String& h, const LabelPrinterConfig& c) {
+  int count = 0;
+  const LabelMediaSize* sizes = labelPrinterMediaSizes(c.model, &count);
   bool listed = false;
-  for (int i = 0; i < LABEL_MEDIA_SIZE_COUNT; i++) {
-    const LabelMediaSize& s = LABEL_MEDIA_SIZES[i];
+  for (int i = 0; i < count; i++) {
+    const LabelMediaSize& s = sizes[i];
     listed = listed || (s.width_mm == c.media_width_mm && s.length_mm == c.media_length_mm);
     stockCard(h, s, c, STOCK_OFFERED);
   }
@@ -239,6 +263,9 @@ void webPrinterStockCards(String& h, const LabelPrinterConfig& c) {
     const LabelMediaSize kept = { (uint8_t)c.media_width_mm, (uint8_t)c.media_length_mm };
     stockCard(h, kept, c, STOCK_KEPT);
   }
+  // The rolls still to come are the Bluetooth printers'; the Brother's sizes
+  // are its label table, and a DK label it lacks is no step ahead.
+  if (labelPrinterLink() == LP_LINK_WLAN) return;
   for (int i = 0; i < LABEL_MEDIA_PLANNED_COUNT; i++)
     stockCard(h, LABEL_MEDIA_SIZES_PLANNED[i], c, STOCK_PLANNED);
 }

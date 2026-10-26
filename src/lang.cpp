@@ -2721,6 +2721,24 @@ const char* const STRINGS[][3] = {
   { "Als Drucker",           "As printer",       "Imprimante" },  // STR_BT_CARD_USE_PRINTER
   { "Eingestellter Drucker", "The printer",      "Imprimante choisie" },  // STR_BT_CARD_IS_PRINTER
   { "Entfernen",             "Remove",           "Retirer" },  // STR_BT_CARD_FORGET_PRINTER
+  { "Etikettendrucker",
+    "Label printer",
+    "Étiqueteuse" },  // STR_LP_TITLE
+  { "Worauf die Waage Etiketten druckt: Bluetooth (Phomemo, NIIMBOT; dafür startet die Waage neu) oder WLAN (Brother QL-810W/820NWB, gilt sofort). Die Einstellungen des Bluetooth-Druckers bleiben gespeichert.",
+    "What the scale prints its labels on: Bluetooth (Phomemo, NIIMBOT; the scale restarts for it) or WiFi (Brother QL-810W/820NWB, takes effect at once). The Bluetooth printer's settings stay saved.",
+    "Sur quoi la balance imprime : Bluetooth (Phomemo, NIIMBOT ; la balance redémarre pour cela) ou WiFi (Brother QL-810W/820NWB, effet immédiat). Les réglages de l'imprimante Bluetooth restent enregistrés." },  // STR_LP_HELP
+  { "Kein Etikettendruck",
+    "No label printing",
+    "Aucune impression" },  // STR_LP_OFF_SUB
+  { "Phomemo, NIIMBOT - mit Neustart",
+    "Phomemo, NIIMBOT - with a restart",
+    "Phomemo, NIIMBOT - redémarrage" },  // STR_LP_BLE_SUB
+  { "WLAN",
+    "WiFi",
+    "WiFi" },  // STR_LP_WLAN
+  { "Brother QL - sofort",
+    "Brother QL - at once",
+    "Brother QL - direct" },  // STR_LP_WLAN_SUB
 
   // The label printer: its screen, its rows, what a print came back with
   { "Drucker", "Printer",
@@ -2731,6 +2749,12 @@ const char* const STRINGS[][3] = {
     "Appareil" },  // STR_PRN_DEVICE
   { "Keines gewählt, auf der Gerätekarte wählen", "None picked, pick one on the device card",
     "Aucun, à choisir dans la liste" },  // STR_PRN_DEVICE_NONE
+  { "IP-Adresse im Browser eintragen",
+    "Enter the IP address in the browser",
+    "Saisir l'IP dans le navigateur" },  // STR_PRN_HOST_NONE
+  { "IP-Adresse, Etikett und Versatz stellst du im Browser ein (Seite Drucker). Am Brother einmal den Befehlsmodus \"Raster\" einstellen.",
+    "The IP address, label and offset are set in the browser (Printer page). On the Brother, set the command mode to \"Raster\" once.",
+    "IP, étiquette et décalage : dans le navigateur (page Imprimante). Sur la Brother, réglez une fois le mode de commande « Raster »." },  // STR_PRN_HOST_HELP
   { "Modell", "Model",
     "Modèle" },  // STR_PRN_MODEL
   { "(experimentell, ungetestet)", "(experimental, untested)",
@@ -2775,6 +2799,18 @@ const char* const STRINGS[][3] = {
   { "Nur bei Bedarf an: der Funk läuft, während ein Gerät ihn braucht, und wird danach freigegeben. Nach dem Einschalten braucht die Waage einmal einen Neustart.",
     "Only when needed: the radio runs while a device needs it and is released afterwards. After switching it on, the scale needs one restart.",
     "Seulement au besoin : la radio tourne tant qu'un appareil l'utilise, puis est libérée. Après l'activation, la balance a besoin d'un redémarrage." },  // STR_W_P_BLE_HINT
+  { "Bluetooth startet die Waage neu, WLAN gilt sofort.",
+    "Bluetooth restarts the scale, WiFi takes effect at once.",
+    "Le Bluetooth redémarre la balance, le WiFi prend effet immédiatement." },  // STR_W_P_LINK_HINT
+  { "IP-Adresse des Druckers",
+    "The printer's IP address",
+    "Adresse IP de l'imprimante" },  // STR_W_P_HOST
+  { "Brother QL-810W/820NWB im selben WLAN. Am Drucker einmal den Befehlsmodus „Raster“ einstellen – neue Geräte stehen auf „P-touch Template“ und drucken dann nichts.",
+    "A Brother QL-810W/820NWB on the same WiFi. On the printer, set the command mode to “Raster” once – new printers come set to “P-touch Template” and then print nothing.",
+    "Une Brother QL-810W/820NWB sur le même WiFi. Sur l'imprimante, réglez une fois le mode de commande « Raster » – les appareils neufs sont réglés sur « P-touch Template » et n'impriment alors rien." },  // STR_W_P_HOST_HINT
+  { "Keine gültige IP-Adresse (vier Zahlen, z. B. 192.168.1.50).",
+    "Not a valid IP address (four numbers, e.g. 192.168.1.50).",
+    "Adresse IP non valide (quatre nombres, p. ex. 192.168.1.50)." },  // STR_W_P_HOST_BAD
   { "Weitere Modelle kommen mit Rückmeldungen aus der Community.",
     "More models come with feedback from the community.",
     "D'autres modèles viendront avec les retours de la communauté." },  // STR_W_P_SUPPORTED_HINT
@@ -2823,6 +2859,12 @@ const char* const STRINGS[][3] = {
   { "Der Drucker hat den Druck nicht bestätigt. Papier und Deckel prüfen.",
     "The printer did not confirm the print. Check the paper and the lid.",
     "L'imprimante n'a pas confirmé. Vérifiez papier et capot." },  // STR_PRN_UNCONF_MSG
+  { "An den Drucker gesendet",
+    "Sent to the printer",
+    "Envoyé à l'imprimante" },  // STR_PRN_NET_SENT_TITLE
+  { "Kein Etikett? Deckel, Rolle und Modus \"Raster\" prüfen. Nicht erneut drucken - der Drucker holt es nach.",
+    "No label? Check the lid, the roll and mode \"Raster\". Do not print again - the printer catches up.",
+    "Pas d'étiquette ? Vérifiez capot, rouleau et mode « Raster ». Ne réimprimez pas - elle sortira plus tard." },  // STR_PRN_NET_SENT_MSG
   { "Nicht gedruckt",
     "Not printed",
     "Non imprimé" },  // STR_PRN_FAIL_TITLE
@@ -3521,6 +3563,15 @@ const char* const STRINGS[][3] = {
   { "FilaMan hat das Etikett nicht gezeichnet.",
     "FilaMan did not draw the label.",
     "FilaMan n'a pas généré l'étiquette." },  // STR_PRN_ERR_SERVER_LABEL
+  { "Drucker nicht erreichbar.",
+    "Printer not reachable.",
+    "Imprimante injoignable." },  // STR_PRN_ERR_NET_CONNECT
+  { "Verbindung abgebrochen.",
+    "Connection lost.",
+    "Connexion interrompue." },  // STR_PRN_ERR_NET_ABORT
+  { "Etikettendrucker ist aus.",
+    "The label printer is off.",
+    "Étiqueteuse désactivée." },  // STR_PRN_ERR_LINK_OFF
   { "Waagen-Layout",
     "Scale layout",
     "Modèle balance" },  // STR_PRN_OWN_LAYOUT
@@ -3985,9 +4036,9 @@ const char* const STRINGS[][3] = {
   { "An FilaMan gesendet",
     "Sent to FilaMan",
     "Envoyé à FilaMan" },  // STR_PCP_SENT_TITLE
-  { "Im FilaMan-Tab auf \"Druckfenster öffnen\" klicken und im Designer drucken. Die Anfrage verfällt nach 5 Minuten.",
-    "In the FilaMan tab, click \"Open print window\" and print from the designer. The request expires after 5 minutes.",
-    "Dans l'onglet FilaMan, cliquez sur \"Ouvrir la fenêtre d'impression\" puis imprimez. Demande valable 5 minutes." },  // STR_PCP_SENT_TEXT
+  { "Das Etikett erscheint im offenen FilaMan-Tab. Dort drucken.",
+    "The label shows up in the open FilaMan tab. Print it from there.",
+    "L'étiquette s'affiche dans l'onglet FilaMan ouvert. Imprimez-la." },  // STR_PCP_SENT_TEXT
   { "Nicht gesendet",
     "Not sent",
     "Non envoyé" },  // STR_PCP_FAIL_TITLE
@@ -4018,6 +4069,39 @@ const char* const STRINGS[][3] = {
   { "Per ID geladen - kein Tag",
     "Loaded by ID - no tag",
     "Chargée par ID - sans tag" },  // STR_ID_SPOOL_STATUS
+  // ── A copy behind Bambuddy on Spoolman: what it takes over ──
+  { "Profil: %s",
+    "Profile: %s",
+    "Profil : %s" },  // STR_COPY_CARD_PROFILE
+  { " (+%d Modell)",
+    " (+%d model)",
+    " (+%d modèle)" },  // STR_COPY_CARD_MODEL
+  { " (+%d Modelle)",
+    " (+%d models)",
+    " (+%d modèles)" },  // STR_COPY_CARD_MODELS
+  { "Kopie angelegt, ohne: %s",
+    "Copied, without: %s",
+    "Copie créée, sans : %s" },  // STR_COPY_MISSING
+  { "Preis",
+    "price",
+    "prix" },  // STR_COPY_PART_PRICE
+  { "Profile je Modell",
+    "profiles per model",
+    "profils par modèle" },  // STR_COPY_PART_PRESETS
+  { "Lieferanten",
+    "suppliers",
+    "fournisseurs" },  // STR_COPY_PART_SUPPLIERS
+  { "K-Profile",
+    "K profiles",
+    "profils K" },  // STR_COPY_PART_KPROFILES
+  { "Filament",
+    "filament",
+    "filament" },  // STR_COPY_PART_FILAMENT
+  { "%.2f/kg", "%.2f/kg", "%.2f/kg" },  // STR_COPY_CARD_PRICE_KG
+  { "%.0f/kg", "%.0f/kg", "%.0f/kg" },  // STR_COPY_CARD_PRICE_KG_WHOLE
+  { "Preis pro kg",
+    "Price per kg",
+    "Prix par kg" },  // STR_PRICE_PAD_TITLE_KG
   { "Neue Sorte anlegen?",
     "Create new filament?",
     "Créer un filament ?" },  // STR_SORT_CARD_TITLE

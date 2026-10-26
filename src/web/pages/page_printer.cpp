@@ -1,15 +1,21 @@
 // Printer: the label printer, set up from the desk. The same things the
-// touchscreen offers under Connection > Bluetooth, on one page: the master
-// switch, the devices the last scan saw with the one that is the printer,
-// model and label stock, a test print, and the way to drop the printer.
+// touchscreen offers under Connection > Label printer, on one page: the
+// choice of off, Bluetooth or WLAN, then for Bluetooth the devices the last
+// scan saw with the one that is the printer, for WLAN the Brother's IP
+// address (web_printer_host.cpp), and for both model and label stock, a test
+// print, the way to drop the printer and where the label runs.
 //
-// A scan and a print are the scale's business: both start the BLE stack and
-// block the loop for seconds, so a route only parks the flag the touchscreen
-// sets too, and the page polls for the outcome. The overlay stands on the
-// device meanwhile, whichever screen is showing.
+// A scan and a print are the scale's business: both block the loop for
+// seconds, so a route only parks the flag the touchscreen sets too, and the
+// page polls for the outcome. The overlay stands on the device meanwhile,
+// whichever screen is showing. Whether a print may start is one question,
+// labelPrinterReadiness(), here as on the scale.
 //
-// The page is always in the tab strip, switch on or off: it is also where a
-// visitor learns which printers the scale can drive.
+// The page is built for the link chosen when it loads, and loads again when
+// the link changes, so its script finds either the device tile and the scan
+// or the Brother's tile: every lookup of an element only one of them has is
+// guarded. The page is always in the tab strip, the label printer off or
+// not: it is also where a visitor learns which printers the scale can drive.
 #include "web/web_pages.h"
 
 #include <Arduino.h>
@@ -21,9 +27,11 @@
 #include "services/ble_service.h"
 #include "services/label_printer.h"
 #include "ui/ble_devices_screen.h"
+#include "ui/bluetooth_screen.h"
 #include "ui/printer_screen.h"
 #include "web/web_access.h"
 #include "web/web_printer_cards.h"
+#include "web/web_printer_host.h"
 #include "web/web_shell.h"
 // Last on purpose: T() is a macro and ArduinoJson uses T as a template
 // parameter, so lang.h has to come after anything that pulls it in.
@@ -57,17 +65,6 @@ static const RecText REC_TEXTS[] = {
   { STR_W_P_REC_M2_TEXT,    STR_W_P_REC_RIBBON_BTN, "#niimbot-m2" },
 };
 
-// The two pictures of the page, in the stroke of the shared look.
-static const char ICON_BLUETOOTH[] PROGMEM =
-  "<svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' "
-  "stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'>"
-  "<path d='M7 7l10 10-5 5V2l5 5L7 17'/></svg>";
-static const char ICON_PRINTER[] PROGMEM =
-  "<svg width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' "
-  "stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'>"
-  "<path d='M6 9V3h12v6'/><rect x='3' y='9' width='18' height='8' rx='2'/>"
-  "<path d='M7 14h10v7H7z'/></svg>";
-
 static RecVariant recVariant(const LabelPrinterConfig& c) {
   if (!labelPrinterConfigured(c)) return REC_NONE;
   if (!labelPrinterRecommended(c.model)) return REC_OTHER;
@@ -76,9 +73,19 @@ static RecVariant recVariant(const LabelPrinterConfig& c) {
 
 static String stateJson() {
   const LabelPrinterConfig c = labelPrinterLoadConfig();
+  const LabelPrinterLink link = labelPrinterLink();
   String j;
-  j.reserve(1200);
-  j += F("{\"ble\":");
+  j.reserve(1260);
+  // The chosen link, whether a print may start on it (the print buttons go
+  // by that alone), and the Brother's address, which under WLAN is the
+  // printer's.
+  j += F("{\"link\":");
+  j += String((int)link);
+  j += F(",\"ready\":");
+  j += labelPrinterReadiness() == LP_OK ? F("true") : F("false");
+  j += F(",\"host\":\"");
+  if (link == LP_LINK_WLAN) j += jsonText(c.address);
+  j += F("\",\"ble\":");
   j += bleEnabled() ? F("true") : F("false");
   j += F(",\"stuck\":");
   j += bleStackStuck() ? F("true") : F("false");
@@ -141,7 +148,7 @@ static String stateJson() {
   j += F("},\"lastTest\":");
   const int last = printerLastTestResult();
   if (last < 0) j += F("null");
-  else { j += '"'; j += jsonText(T(last)); j += '"'; }
+  else { j += '"'; j += jsonText(webPrinterResultLine(last).c_str()); j += '"'; }
   j += '}';
   return j;
 }
@@ -187,23 +194,23 @@ static void supportedHint(String& h) {
   h += F(" &rarr;</a></span>");
 }
 
-// The master switch as a bar across the page. While the switch is on and the
-// stack cannot start, the bar turns to a warning and offers the restart: the
-// touchscreen asks for it in a popup, the page asks here.
-static void bluetoothBar(String& h) {
-  const bool on = bleEnabled();
-  const bool need = on && !bleStackAvailable();
+// The label printer's choice as a bar across the page: off, Bluetooth or
+// WLAN, as the three rows on the touchscreen. While Bluetooth is chosen and
+// the stack cannot start, the bar turns to a warning and offers the restart:
+// the touchscreen asks for it in a popup, the page asks here.
+static void linkBar(String& h, LabelPrinterLink link) {
+  const bool need = link == LP_LINK_BLE && !bleStackAvailable();
   h += F("<div class='btbar");
-  if (on) h += F(" live");
+  if (link != LP_LINK_OFF) h += F(" live");
   if (need) h += F(" need");
   h += F("' id='bb'><div class='ic'>");
-  h += FPSTR(ICON_BLUETOOTH);
+  webPrinterIcon(h);
   h += F("</div><div class='tx'><strong>");
-  h += T(STR_BT_TITLE);
+  h += T(STR_LP_TITLE);
   h += F("</strong><span id='bbt'");
   if (need) h += F(" style='display:none'");
   h += '>';
-  h += T(STR_W_P_BLE_HINT);
+  h += T(STR_W_P_LINK_HINT);
   h += F("</span><span id='bbr'");
   if (!need) h += F(" style='display:none'");
   h += '>';
@@ -217,22 +224,33 @@ static void bluetoothBar(String& h) {
   if (!need) h += F(" style='display:none'");
   h += '>';
   h += T(STR_W_RESTART);
-  h += F("</button><label class='switch'><input id='bl' type='checkbox' aria-label=\"");
-  h += T(STR_BT_SWITCH);
-  h += '"';
-  if (on) h += F(" checked");
-  h += F("><i></i></label></div></div>");
+  // data-l is the link's value, which the route takes. The chosen one is
+  // marked and disabled: there is nothing to switch to there.
+  h += F("</button><div class='btabs' id='bl'>");
+  for (int l = LP_LINK_OFF; l <= LP_LINK_WLAN; l++) {
+    h += F("<button class='btab");
+    if (l == link) h += F(" on");
+    h += F("' data-l='");
+    h += String(l);
+    h += '\'';
+    if (l == link) h += F(" disabled");
+    h += '>';
+    h += T(labelPrinterLinkTitle((LabelPrinterLink)l));
+    h += F("</button>");
+  }
+  h += F("</div></div></div>");
 }
 
-// The printer as a tile, its name and address filled in by the script (a
-// name is whatever the device advertised, so it never lands in markup), and
-// under it the panel the scan fills.
+// The Bluetooth printer as a tile, its name and address filled in by the
+// script (a name is whatever the device advertised, so it never lands in
+// markup), and under it the panel the scan fills. Off shows it too: the
+// Bluetooth printer's settings stay saved for when it is chosen again.
 static void deviceTile(String& h, const LabelPrinterConfig& c) {
   const bool have = labelPrinterConfigured(c);
   h += F("<div class='dev");
   if (!have) h += F(" empty");
   h += F("' id='dt'><div class='ic'>");
-  h += FPSTR(ICON_PRINTER);
+  webPrinterIcon(h);
   h += F("</div><div class='tx'><span class='nm' id='pd'></span><span class='sub' id='pds'></span>"
          "</div><div class='end'><button id='sc'");
   if (have) h += F(" class='quiet'");
@@ -248,9 +266,10 @@ static void deviceTile(String& h, const LabelPrinterConfig& c) {
          "<span class='msg' id='dv-s'></span>");
 }
 
-// Model and label stock as cards, what the model prints with, the limits of
-// the list, and the way to rolls that fit.
-static void pickers(String& h, const LabelPrinterConfig& c) {
+// Model and label stock as cards, what the model prints with, and for the
+// Bluetooth printers the limits of the list and the way to rolls that fit:
+// under WLAN there is one Brother and its DK label, and neither applies.
+static void pickers(String& h, const LabelPrinterConfig& c, bool wlan) {
   const bool thermal = labelPrinterProfile(c.model).direct_thermal;
   h += F("<div class='sect'><h3>");
   h += T(STR_PRN_MODEL);
@@ -271,7 +290,7 @@ static void pickers(String& h, const LabelPrinterConfig& c) {
   h += '>';
   h += T(STR_W_P_METHOD_RIBBON);
   h += F("</span></div>");
-  supportedHint(h);
+  if (!wlan) supportedHint(h);
   h += F("<div class='sect'><h3>");
   h += T(STR_PRN_MEDIA);
   h += F("</h3><span class='hint'>");
@@ -279,7 +298,7 @@ static void pickers(String& h, const LabelPrinterConfig& c) {
   h += F("</span></div><div class='pick stock' id='ps'>");
   webPrinterStockCards(h, c);
   h += F("</div><span class='msg' id='ps-s'></span>");
-  recommendRow(h);
+  if (!wlan) recommendRow(h);
 }
 
 static void testRow(String& h) {
@@ -369,6 +388,8 @@ static void scriptStrings(String& h) {
   h += jsStr(T(STR_BT_NONE_FOUND));
   h += F(",off:");
   h += jsStr(T(STR_PRN_ERR_BLE_OFF));
+  h += F(",linkOff:");
+  h += jsStr(T(labelPrintResultString(LP_PRINTER_OFF)));
   h += F(",stuck:");
   h += jsStr(T(STR_PRN_ERR_STUCK));
   h += F(",restarting:");
@@ -388,7 +409,8 @@ static void scriptStrings(String& h) {
   h += F("};");
 }
 
-// The bar and the tile from the state.
+// The bar and the device tile from the state. The tile is the Bluetooth
+// printer's and is not on the page under WLAN.
 static void scriptDevice(String& h) {
   h += F("let timer=0,allOpen=false,wasScanning=false;"
          // Four bars on the status page's ladder, green from three up.
@@ -402,31 +424,38 @@ static void scriptDevice(String& h) {
          "for(let i=1;i<=4;i++){const b=document.createElement('i');"
          "if(i<=n)b.style.background=n>=3?'var(--accent)':'var(--warn)';s.appendChild(b);}"
          "return s;}"
-         "function bar(d){const need=d.ble&&!d.stack;"
-         "$('bb').className='btbar'+(d.ble?' live':'')+(need?' need':'');"
-         "$('bl').checked=d.ble;$('bbt').style.display=need?'none':'';"
+         // The restart only while Bluetooth is chosen and its stack waits
+         // for one; the chosen link's button marked and disabled.
+         "function bar(d){const need=d.link===1&&!d.stack;"
+         "$('bb').className='btbar'+(d.link?' live':'')+(need?' need':'');"
+         "document.querySelectorAll('#bl .btab').forEach(function(b){"
+         "const on=+b.dataset.l===d.link;b.classList.toggle('on',on);b.disabled=on;});"
+         "$('bbt').style.display=need?'none':'';"
          "['bbr','bbp','rb'].forEach(function(i){$(i).style.display=need?'':'none';});}"
          // The model's brand and name come from its card, so the tile and
          // the cards never disagree.
-         "function tile(d){const on=d.printer.configured,m=document.querySelector('#pm .pc.on'),s=$('pds');"
-         "$('dt').className='dev'+(on?'':' empty');"
+         "function tile(d){const t=$('dt');if(!t)return;"
+         "const on=d.printer.configured,m=document.querySelector('#pm .pc.on'),s=$('pds');"
+         "t.className='dev'+(on?'':' empty');"
          "$('pd').textContent=on?(d.printer.name||P.unnamed):P.none;"
          "if(on){s.textContent=d.printer.address+(m?'  \\u00b7  '+m.querySelector('.br').textContent+' '"
          "+m.querySelector('.mn').textContent:'');"
          "const seen=d.devices.filter(function(x){return x.printer;})[0];if(seen)s.appendChild(sig(seen.rssi));}"
-         "else s.textContent=!d.ble?P.off:d.stuck?P.stuck:(d.scanned&&d.devices.length)?P.pick:P.empty;"
+         "else s.textContent=!d.link?P.linkOff:!d.ble?P.off:d.stuck?P.stuck:"
+         "(d.scanned&&d.devices.length)?P.pick:P.empty;"
          "$('sc').textContent=on?P.change:P.scan;$('sc').className=on?'quiet':'';"
+         "$('sc').disabled=!d.ble||!d.stack||d.stuck||d.scanning;"
          "$('fb').style.display=on?'':'none';}");
 }
 
-// The scan panel and its rows.
+// The scan panel and its rows; like the tile, not on the page under WLAN.
 static void scriptRows(String& h) {
   h += F(// The device rows, from the JSON: createElement and textContent,
          // never markup, because a name is whatever the device advertised.
          // Named devices and the printer stand open; the nameless ones (phones,
          // beacons, most of what a scan sees) fold away under one line, as the
          // display's list does (ui/ble_devices_screen.cpp).
-         "function rows(d){const p=$('sp'),box=$('dv'),b=$('spb');"
+         "function rows(d){const p=$('sp'),box=$('dv'),b=$('spb');if(!p)return;"
          "const show=d.ble&&(d.stuck||d.scanning||d.scanned);p.style.display=show?'':'none';"
          "if(!show){wasScanning=false;return;}"
          "$('sph').textContent=d.scanning?P.scanning:P.devices;b.style.display=d.scanning?'':'none';"
@@ -473,16 +502,18 @@ static void scriptPaint(String& h) {
          "$('pmx').classList.toggle('warm',d.printer.thermal);"
          "$('pmd').style.display=d.printer.thermal?'':'none';"
          "$('pmr').style.display=d.printer.thermal?'none':'';}"
+         // tile(), rows() and host() return at once on the layout without
+         // their elements; the rest is on both.
          "function paint(d){"
-         "bar(d);cards(d);tile(d);"
+         "bar(d);cards(d);tile(d);host(d);"
          "$('pc').style.display=d.printer.configured?'':'none';"
          "document.querySelectorAll('.pr-rec').forEach(function(e){"
          "e.style.display=+e.dataset.v===d.printer.rec?'':'none';});"
          "$('lt').textContent=d.lastTest||'';"
          "$('ltr').style.display=d.lastTest?'':'none';"
-         "$('sc').disabled=!d.ble||!d.stack||d.stuck||d.scanning;"
-         "$('tb').disabled=!d.ble||!d.stack||d.stuck||!d.printer.configured;"
-         "$('cb').disabled=$('tb').disabled;"
+         // The one question behind every print button, as the routes ask it.
+         "$('tb').disabled=!d.ready;"
+         "$('cb').disabled=!d.ready;"
          "pos(d);"
          "rows(d);"
          // While the scale scans, ask again in two seconds; the scan itself
@@ -526,17 +557,20 @@ static void scriptPosition(String& h) {
 // Every handler is bound here rather than written into an onclick
 // attribute: a page body is JavaScript inside a C++ string literal, and an
 // attribute is the one place where the two levels of quoting collide.
-// $, flash, post, postFlash and getJson come from /app.js.
+// $, flash, post, postFlash and getJson come from /app.js. The device tile's
+// two buttons are bound only where the tile is; the Brother's are bound by
+// webPrinterHostScript().
 static void scriptHandlers(String& h) {
   h += F("function load(){getJson('/api/printer').then(function(d){if(d)paint(d);});}"
-         // The box already shows what was asked for, so a failure has to put
-         // it back. Same shape as every switch on the settings page.
-         "$('bl').addEventListener('change',function(){"
-         "const want=$('bl').checked;"
-         "post('/api/ble',want?'1':'0').then(function(r){"
-         "if(!r.ok)$('bl').checked=!want;"
-         "flash('bl-s',r.ok?WS.ok:WS.err,!r.ok,4000);load();});});"
-         "$('sc').addEventListener('click',function(){"
+         // Another link is another page: the tile, the cards and the lists
+         // are built for the one chosen, so a choice that took loads it anew.
+         // A refusal says why where it can (a shut gate answers as text).
+         "document.querySelectorAll('#bl .btab').forEach(function(b){"
+         "b.addEventListener('click',function(){if(b.classList.contains('on'))return;"
+         "post('/api/printer/link',b.dataset.l).then(function(r){"
+         "if(r.ok){location.reload();return;}"
+         "flash('bl-s',(r.json===null&&r.text)?r.text:WS.err,true,5000);});});});"
+         "if($('sc'))$('sc').addEventListener('click',function(){"
          "postFlash('/api/printer/scan','','dv-s',4000).then(function(){setTimeout(load,500);});});"
          // A card posts what it stands for; the one already picked does nothing.
          "document.querySelectorAll('#pm .pc').forEach(function(b){"
@@ -556,7 +590,7 @@ static void scriptHandlers(String& h) {
          "$('xo').addEventListener('change',function(){setOff(dots(+$('xo').value||0));});"
          "$('cb').addEventListener('click',function(){"
          "postFlash('/api/printer/calib','','cb-s',4000).then(function(){setTimeout(load,12000);});});"
-         "$('fb').addEventListener('click',function(){"
+         "if($('fb'))$('fb').addEventListener('click',function(){"
          "postFlash('/api/printer/forget','','pd-s',4000).then(load);});"
          // The restart route sits behind the maintenance gate; a shut one
          // answers 403 as text, which is shown as it is.
@@ -575,23 +609,28 @@ static void pageScript(String& h) {
   scriptRows(h);
   scriptPosition(h);
   scriptPaint(h);
+  webPrinterHostScript(h);
   scriptHandlers(h);
   h += F("</script>");
 }
 
 static String body() {
   const LabelPrinterConfig c = labelPrinterLoadConfig();
+  const LabelPrinterLink link = labelPrinterLink();
+  const bool wlan = link == LP_LINK_WLAN;
   String h;
   // Measured 23.8 KB in English (v0.8.3-beta.85); French runs longer.
   h.reserve(26000);
   webPrinterPageStyle(h);
   h += F("<div class='grid'>");
-  bluetoothBar(h);
+  linkBar(h, link);
   h += F("<div class='card wide'><h2>");
   h += T(STR_PRN_TITLE);
   h += F("</h2>");
-  deviceTile(h, c);
-  pickers(h, c);
+  // The Brother's address where the Bluetooth printer's tile and scan stand.
+  if (wlan) webPrinterHostTile(h, c);
+  else deviceTile(h, c);
+  pickers(h, c, wlan);
   testRow(h);
   h += F("</div>");
   calibrationCard(h, c);
@@ -600,24 +639,53 @@ static String body() {
   return h;
 }
 
+// Whether the chosen link offers this model; the list has no LP_MODEL_NONE.
+static bool modelOffered(int m) {
+  int count = 0;
+  const LabelPrinterModel* models = labelPrinterModels(labelPrinterLink(), &count);
+  for (int i = 0; i < count; i++)
+    if ((int)models[i] == m) return true;
+  return false;
+}
+
+// The one question behind every print button (design L1, ruling 9): true
+// when a print may start; otherwise 409 with what stands in the way - off,
+// no printer, a Bluetooth stack that needs a restart or hangs.
+static bool printReady(WebServer& srv) {
+  const LabelPrintResult r = labelPrinterReadiness();
+  if (r == LP_OK) return true;
+  srv.send(409, "text/plain", T(labelPrintResultString(r)));
+  return false;
+}
+
 static void routes(WebServer &srv) {
   srv.on("/api/printer", HTTP_GET, [&srv]() {
     if (!webRequire(srv, GATE_CONFIG, T(STR_W_NAV_PRINTER))) return;
     srv.send(200, "application/json", stateJson());
   });
 
-  // State, not a toggle: the browser sends what it wants to be, like every
-  // other switch. The header chip and an open Bluetooth screen follow through
-  // the same flag the touchscreen switch raises.
-  srv.on("/api/ble", HTTP_POST, [&srv]() {
+  // The label printer's link, "0", "1" or "2" (LabelPrinterLink): state, not
+  // a toggle, like every other switch. labelPrinterSetLink() switches
+  // Bluetooth with it; leaving Bluetooth forgets what the last scan saw, as
+  // the touchscreen's rows do. The header chip and an open Label printer
+  // screen follow through the same flag those rows raise. Bluetooth taken
+  // in a boot without its stack waits for the restart the bar offers then.
+  srv.on("/api/printer/link", HTTP_POST, [&srv]() {
     if (!webRequire(srv, GATE_CONFIG, T(STR_W_NAV_PRINTER))) return;
-    const bool on = (srv.arg("plain").toInt() != 0);
-    bleSetEnabled(on);
-    if (!on) bleDevicesForget();
-    bluetooth_rebuild_pending = true;
-    logSDf("Web: Bluetooth -> %s", on ? "ON" : "OFF");
-    srv.send(200, "application/json", on ? "{\"ok\":true,\"v\":1}"
-                                         : "{\"ok\":true,\"v\":0}");
+    String v = srv.arg("plain");
+    v.trim();
+    if (v != "0" && v != "1" && v != "2") { srv.send(400, "text/plain", "bad link"); return; }
+    const LabelPrinterLink link = (LabelPrinterLink)v.toInt();
+    const bool ble_was_on = bleEnabled();
+    const bool ok = labelPrinterSetLink(link);
+    if (ble_was_on && !bleEnabled()) bleDevicesForget();
+    if (ok) bluetooth_rebuild_pending = true;
+    logSDf("Web: label printer link -> %s %s", v.c_str(), ok ? "saved" : "NOT saved");
+    if (!ok) { srv.send(500, "application/json", "{\"ok\":false}"); return; }
+    String j = F("{\"ok\":true,\"v\":");
+    j += v;
+    j += '}';
+    srv.send(200, "application/json", j);
   });
 
   // Parks the scan; the loop runs it under the overlay, the page polls.
@@ -631,9 +699,12 @@ static void routes(WebServer &srv) {
   });
 
   // The address of a device the last scan saw becomes the printer. Only
-  // those: an address typed by hand has no name and was never seen.
+  // those: an address typed by hand has no name and was never seen. Only
+  // with Bluetooth on, that is with Bluetooth chosen: the chosen printer is
+  // the Brother under WLAN, and a Bluetooth address is not its to take.
   srv.on("/api/printer/device", HTTP_POST, [&srv]() {
     if (!webRequire(srv, GATE_CONFIG, T(STR_W_NAV_PRINTER))) return;
+    if (!bleEnabled()) { srv.send(409, "text/plain", T(STR_PRN_ERR_BLE_OFF)); return; }
     const String want = srv.arg("plain");
     for (int i = 0; i < bleDevicesCount(); i++) {
       const BleDevice* d = bleDevicesAt(i);
@@ -642,24 +713,30 @@ static void routes(WebServer &srv) {
       snprintf(c.name, sizeof(c.name), "%s", d->name);
       snprintf(c.address, sizeof(c.address), "%s", d->address);
       const bool ok = labelPrinterSaveConfig(c);
-      logSDf("Web: printer is %s", d->address);
+      logSDf("Web: printer is %s %s", d->address, ok ? "saved" : "NOT saved");
       srv.send(ok ? 200 : 500, "application/json", ok ? "{\"ok\":true}" : "{\"ok\":false}");
       return;
     }
     srv.send(404, "text/plain", T(STR_BT_NONE_FOUND));
   });
 
+  // One of the models the chosen link offers (labelPrinterModels), as the
+  // cards and the label page's list have them. Anything else is refused here
+  // and never reaches the save, a Bluetooth model from a page loaded before
+  // the link changed among it. The log says which of the three it came to.
   srv.on("/api/printer/model", HTTP_POST, [&srv]() {
     if (!webRequire(srv, GATE_CONFIG, T(STR_W_NAV_PRINTER))) return;
     const int m = srv.arg("plain").toInt();
-    if (m < 1 || m > 255 || labelPrinterProfile((LabelPrinterModel)m).model == LP_MODEL_NONE) {
-      srv.send(400, "text/plain", "unknown model");
+    if (!modelOffered(m)) {
+      logSDf("Web: printer model %d refused, not offered on this link", m);
+      srv.send(400, "text/plain", "model not offered for this label printer");
       return;
     }
     LabelPrinterConfig c = labelPrinterLoadConfig();
     c.model = (LabelPrinterModel)m;
     const bool ok = labelPrinterSaveConfig(c);
-    logSDf("Web: printer model -> %s", labelPrinterProfile(c.model).name);
+    logSDf("Web: printer model -> %s %s", labelPrinterProfile(c.model).name,
+           ok ? "saved" : "NOT saved");
     srv.send(ok ? 200 : 500, "application/json", ok ? "{\"ok\":true}" : "{\"ok\":false}");
   });
 
@@ -679,7 +756,7 @@ static void routes(WebServer &srv) {
     c.media_width_mm = (uint16_t)w;
     c.media_length_mm = (uint16_t)l;
     const bool ok = labelPrinterSaveConfig(c);
-    logSDf("Web: label stock -> %ldx%ld mm", w, l);
+    logSDf("Web: label stock -> %ldx%ld mm %s", w, l, ok ? "saved" : "NOT saved");
     srv.send(ok ? 200 : 500, "application/json", ok ? "{\"ok\":true}" : "{\"ok\":false}");
   });
 
@@ -687,9 +764,7 @@ static void routes(WebServer &srv) {
   // and shows the verdict on the device. The page fetches it afterwards.
   srv.on("/api/printer/test", HTTP_POST, [&srv]() {
     if (!webRequire(srv, GATE_CONFIG, T(STR_W_NAV_PRINTER))) return;
-    if (!labelPrinterConfigured(labelPrinterLoadConfig())) { srv.send(409, "text/plain", T(STR_PRN_ERR_NO_PRINTER)); return; }
-    if (!bleEnabled()) { srv.send(409, "text/plain", T(STR_PRN_ERR_BLE_OFF)); return; }
-    if (bleStackStuck()) { srv.send(409, "text/plain", T(STR_PRN_ERR_STUCK)); return; }
+    if (!printReady(srv)) return;
     printer_test_pending = true;
     logSD("Web: test print requested");
     srv.send(200, "text/plain", T(STR_W_P_QUEUED));
@@ -714,16 +789,15 @@ static void routes(WebServer &srv) {
       c.x_offset = (int16_t)(n < lo ? lo : n > hi ? hi : n);
     }
     const bool ok = labelPrinterSaveConfig(c);
-    logSDf("Web: label offset -> %s (%d dots)", v.c_str(), (int)labelPrinterOffset(c));
+    logSDf("Web: label offset -> %s (%d dots) %s", v.c_str(), (int)labelPrinterOffset(c),
+           ok ? "saved" : "NOT saved");
     srv.send(ok ? 200 : 500, "application/json", ok ? "{\"ok\":true}" : "{\"ok\":false}");
   });
 
   // Parks the calibration page, the same way as the test print.
   srv.on("/api/printer/calib", HTTP_POST, [&srv]() {
     if (!webRequire(srv, GATE_CONFIG, T(STR_W_NAV_PRINTER))) return;
-    if (!labelPrinterConfigured(labelPrinterLoadConfig())) { srv.send(409, "text/plain", T(STR_PRN_ERR_NO_PRINTER)); return; }
-    if (!bleEnabled()) { srv.send(409, "text/plain", T(STR_PRN_ERR_BLE_OFF)); return; }
-    if (bleStackStuck()) { srv.send(409, "text/plain", T(STR_PRN_ERR_STUCK)); return; }
+    if (!printReady(srv)) return;
     printer_calib_pending = true;
     logSD("Web: calibration page requested");
     srv.send(200, "text/plain", T(STR_W_P_QUEUED));
@@ -735,6 +809,9 @@ static void routes(WebServer &srv) {
     logSD("Web: printer forgotten");
     srv.send(ok ? 200 : 500, "application/json", ok ? "{\"ok\":true}" : "{\"ok\":false}");
   });
+
+  // The Brother's address, from its tile.
+  webPrinterHostRoutes(srv);
 }
 
 extern const WebPage PAGE_PRINTER;

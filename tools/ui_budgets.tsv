@@ -219,6 +219,8 @@ STR_PRN_UNCONF_TITLE	20	360	NEVER	src/ui/print_card.cpp result title
 STR_PRN_FAIL_TITLE	20	360	NEVER	src/ui/print_card.cpp result title
 STR_PRN_DONE_MSG	16	360	WRAP:3	src/ui/print_card.cpp result text
 STR_PRN_UNCONF_MSG	16	360	WRAP:3	src/ui/print_card.cpp result text
+STR_PRN_NET_SENT_TITLE	20	360	NEVER	src/ui/print_card.cpp result title
+STR_PRN_NET_SENT_MSG	16	360	WRAP:3	src/ui/print_card.cpp result text
 STR_PRN_ERR_NOT_NIIMBOT	16	360	WRAP:3	src/ui/print_card.cpp result text
 STR_PRN_ERR_COVER	16	360	WRAP:3	src/ui/print_card.cpp result text
 STR_PRN_ERR_NO_PAPER	16	360	WRAP:3	src/ui/print_card.cpp result text
@@ -266,6 +268,7 @@ STR_TAGNEW_FILAMENT_ONLY	16	360	NEVER	src/ui/tag_create_popup.cpp status line of
 STR_TAGNEW_SPOOL_UNSURE	16	360	NEVER	src/ui/tag_create_popup.cpp status line of the card, UI_POPUP_W - UI_CARD_TEXT_PAD
 STR_TAGNEW_PRICE_BTN	14	64	NEVER	src/ui/tag_create_popup.cpp 80 px price button, 8 px air each side
 STR_PRICE_PAD_TITLE	14	460	NEVER	src/ui/price_pad.cpp title above the keypad
+STR_PRICE_PAD_TITLE_KG	14	460	NEVER	src/ui/price_pad.cpp title above the keypad, the copy card's price per kg
 STR_PRICE_PAD_INFO	12	168	WRAP:3	src/ui/price_pad.cpp right column, PP_COL_W
 
 # --- the database picker (db_pick_screen.cpp), widths read off its constants ----
@@ -338,6 +341,25 @@ STR_BT_REC_OTHER_SUB	12	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn sub, t
 STR_BT_REC_LABELS	16	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn title, text_w 320
 STR_BT_REC_RIBBON	16	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn title, text_w 320
 STR_BT_REC_SUPPLY_SUB	12	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn sub, text_w 320
+# The label printer screen the Bluetooth screen became, and its tile on the
+# Connection screen: a 222 px half tile, title f18 and subtitle f14 in HALF_SUB_W.
+STR_LP_TITLE	18	206	NEVER	src/ui/connection_screen.cpp half tile title, HALF_SUB_W = 222 - 16
+STR_LP_TITLE	18	276	NEVER	src/ui/bluetooth_screen.cpp sub header title beside the help at x 386, 2 * (386 - 8 - 240)
+STR_LP_TITLE	18	424	NEVER	src/ui/info_popup.cpp:225 title of the screen's help popup
+STR_LP_WLAN	14	206	NEVER	src/ui/connection_screen.cpp half tile subtitle, HALF_SUB_W
+STR_BT_TITLE	14	206	NEVER	src/ui/connection_screen.cpp half tile subtitle, HALF_SUB_W
+STR_OFF	14	206	NEVER	src/ui/connection_screen.cpp half tile subtitle, HALF_SUB_W
+STR_OFF	16	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn title, text_w 320
+STR_BT_TITLE	16	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn title, text_w 320
+STR_LP_WLAN	16	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn title, text_w 320
+STR_LP_OFF_SUB	12	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn sub, text_w 320
+STR_LP_BLE_SUB	12	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn sub, text_w 320
+STR_LP_WLAN_SUB	12	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn sub, text_w 320
+STR_PRN_HOST_NONE	12	320	NEVER	src/ui/bluetooth_screen.cpp makeListBtn sub, text_w 320
+STR_PRN_HOST_NONE	12	320	NEVER	src/ui/printer_screen.cpp makeListBtn sub, text_w 320
+STR_PRN_DEVICE	16	320	NEVER	src/ui/printer_screen.cpp the Brother's device row title, text_w 320
+STR_PRN_DEVICE	18	424	NEVER	src/ui/info_popup.cpp:225 title of that row's help popup
+STR_PRN_NET_SENT_TITLE	12	320	NEVER	src/ui/bluetooth_screen.cpp test print row sub, text_w 320
 STR_PRN_TAG_RECOMMENDED	12	136	NEVER	src/ui/choice_grid.cpp card tag, 3 columns, text_w 136
 STR_PRN_TAG_EXPERIMENTAL	12	136	NEVER	src/ui/choice_grid.cpp card tag, 3 columns, text_w 136
 STR_PRN_MEDIA_NO_LAYOUT	12	136	NEVER	src/ui/choice_grid.cpp card tag, 3 columns, text_w 136
@@ -417,6 +439,42 @@ STR_IDPAD_NOT_FOUND	14	148	WRAP:3	src/ui/spool_id_pad.cpp answer card, %d up to 
 STR_IDPAD_NOT_FOUND_HINT	12	148	WRAP:5	src/ui/spool_id_pad.cpp answer card under the verdict
 # Status line, narrow variant 262, minus the clear button (40) and its gap (8).
 STR_ID_SPOOL_STATUS	14	214	NEVER	src/app/id_spool.cpp lbl_status, clear button behind it
+
+# --- the copy card behind Bambuddy on Spoolman (design note J) --------------
+# src/ui/copy_confirm_popup.cpp, only with spoolTypesActive(): the card grows
+# to 304 px for two f14 lines under line 2, and the answers become
+# create | price | cancel, 140 + 80 + 140 px with 8 px between them. On the
+# profile line the model count keeps its own width and the name beside it
+# gets the rest of the 360 px, so the words before the name must leave room
+# for the widest count: FR " (+%d modèles)", 111 px as measured here with
+# the %d, 97 px drawn with a 2 (DE 106 and 92).
+# The price button shows a price per kg (Festlegung 5) in 72 px of its 80
+# (the button rule): with cents while copy_confirm_popup.cpp measures that
+# it fits, else in whole units. Each row is 72 less what the widest number
+# it must hold adds over the literal conversion: every price below 100 with
+# cents ("44.04/kg" 64 px against "%.2f/kg" 51, +13), and five whole digits,
+# more than the pad takes ("48484/kg" 71 px against "%.0f/kg" 52, +19).
+# Three digits with cents reach 74 px, four 83, and those over 72 fall back.
+# After the create the status line (lbl_status: 292 px, 262 with a port, 245
+# with https) gets the sentence and as many parts as it holds, then "..." for
+# the rest. copy_flow.cpp measures that itself: lbl_status has no height of
+# its own, and a LONG_DOT label without one wraps instead of dotting. The two
+# budgets below keep one part, any of them, behind the sentence on the 292 px
+# line in French: sentence plus widest part, 137 + 134 px.
+STR_COPY_CARD_PROFILE	14	249	NEVER	src/ui/copy_confirm_popup.cpp profile line, 360 less the widest model count (FR 111 px with %d), the name dotted
+STR_COPY_CARD_MODEL	14	120	NEVER	src/ui/copy_confirm_popup.cpp the model count beside the profile, its own width
+STR_COPY_CARD_MODELS	14	120	NEVER	src/ui/copy_confirm_popup.cpp the model count beside the profile, its own width
+STR_COPY_CARD_CREATE	18	132	NEVER	src/ui/copy_confirm_popup.cpp 140 px answer button beside the price, -8 air
+STR_CANCEL	18	132	NEVER	src/ui/copy_confirm_popup.cpp 140 px answer button beside the price, -8 air
+STR_TAGNEW_PRICE_BTN	14	64	NEVER	src/ui/copy_confirm_popup.cpp 80 px price button, 8 px air each side
+STR_COPY_CARD_PRICE_KG	14	59	NEVER	src/ui/copy_confirm_popup.cpp 80 px price button, 72 less 13 for a price below 100 with cents
+STR_COPY_CARD_PRICE_KG_WHOLE	14	53	NEVER	src/ui/copy_confirm_popup.cpp 80 px price button, 72 less 19 for five whole digits
+STR_COPY_MISSING	14	158	NEVER	src/ui/copy_flow.cpp lbl_status, HDR_STATUS_W 292 less the widest part (134 px)
+STR_COPY_PART_PRICE	14	155	NEVER	src/ui/copy_flow.cpp lbl_status, HDR_STATUS_W 292 less the sentence (137 px)
+STR_COPY_PART_PRESETS	14	155	NEVER	src/ui/copy_flow.cpp lbl_status, HDR_STATUS_W 292 less the sentence (137 px)
+STR_COPY_PART_SUPPLIERS	14	155	NEVER	src/ui/copy_flow.cpp lbl_status, HDR_STATUS_W 292 less the sentence (137 px)
+STR_COPY_PART_KPROFILES	14	155	NEVER	src/ui/copy_flow.cpp lbl_status, HDR_STATUS_W 292 less the sentence (137 px)
+STR_COPY_PART_FILAMENT	14	155	NEVER	src/ui/copy_flow.cpp lbl_status, HDR_STATUS_W 292 less the sentence (137 px)
 # --- a filament entered at the scale (ui/tag_create_popup.cpp, ui/sort_twin_popup.cpp) --------
 # The card's title is centred in the card's text width; the hint replaces the status line.
 STR_SORT_CARD_TITLE	20	360	NEVER	src/ui/tag_create_popup.cpp buildHead title, UI_POPUP_W - UI_CARD_TEXT_PAD

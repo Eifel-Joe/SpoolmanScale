@@ -6,6 +6,7 @@
 
 #include "hardware/sd_logger.h"
 #include "lang.h"
+#include "services/brother_ql.h"
 #include "services/niimbot.h"
 #include "services/phomemo_m_series.h"
 #include "services/prefs_store.h"
@@ -22,6 +23,16 @@
 // address without colons, 14 characters. A second printer starts at 0, and
 // the first gets its own back when it is picked again (Nikolai, 30.09.2026).
 #define LP_KEY_XOFF_PREFIX "px"
+// The link (LabelPrinterLink) and the Brother's own settings, apart from the
+// Bluetooth printer's, so each survives the other being chosen. The Brother's
+// offset has a fixed key: "px" and an IP address would run past 15
+// characters (befunde 7), and "_brother" is no hex, so no device's key is it.
+#define LP_KEY_LINK     "printer_link"
+#define LP_KEY_HOST     "printer_host"
+#define LP_KEY_NET_XOFF "px_brother"
+static_assert(sizeof(LP_KEY_LINK) - 1 <= 15, "an NVS key has 15 characters at most");
+static_assert(sizeof(LP_KEY_HOST) - 1 <= 15, "an NVS key has 15 characters at most");
+static_assert(sizeof(LP_KEY_NET_XOFF) - 1 <= 15, "an NVS key has 15 characters at most");
 
 static const LabelPrinterProfile PROFILE_NONE = {};
 // M220: 2 inch head, 576 dots, takes stock from 20 to 75 mm wide; the vendor
@@ -88,11 +99,30 @@ static const LabelPrinterProfile PROFILE_NIIMBOT_M2 = {
   300, LP_PROTO_NIIMBOT
 };
 
+// Brother QL-810W and QL-820NWB over WLAN (services/brother_ql.h): 300 dpi,
+// a head of 720 pins, 90 bytes to a row. The bytes are from Brother's "Raster
+// Command Reference QL-800/810W/820NWB" (R; befunde 1-2). The QL-710W/720NW
+// start a job with other bytes and the QL-1110NWB has 1296 pins (befunde 6):
+// they get profiles of their own once someone can try one. DK paper darkens
+// by heat, no ribbon. The mm spans say DK-11209, 62 x 29, but for this
+// protocol the label table in brother_ql_rules.cpp decides what it takes.
+// Hardware proven: Joerg printed the test label and a spool label on his
+// QL-820NWBc with DK-11209 from v0.8.5-beta.6 (26.10.2026).
+static const LabelPrinterProfile PROFILE_BROTHER_QL820 = {
+  LP_MODEL_BROTHER_QL820, "Brother", "QL-810W/820NWB", 62, 29, 62, 62, 29, 29, 720, 720,
+  false, true /* DK paper is thermal */,
+  300, LP_PROTO_BROTHER_QL
+};
+
 const LabelPrinterModel LABEL_PRINTER_MODELS[] = {
   LP_MODEL_M220, LP_MODEL_NIIMBOT_M2, LP_MODEL_M110, LP_MODEL_M110S, LP_MODEL_M100,
   LP_MODEL_NIIMBOT_B, LP_MODEL_M120, LP_MODEL_M200, LP_MODEL_M221,
 };
 const int LABEL_PRINTER_MODEL_COUNT = sizeof(LABEL_PRINTER_MODELS) / sizeof(LABEL_PRINTER_MODELS[0]);
+// What the WLAN link offers: the one Brother profile there is.
+static const LabelPrinterModel LABEL_PRINTER_MODELS_WLAN[] = { LP_MODEL_BROTHER_QL820 };
+static const int LABEL_PRINTER_MODEL_WLAN_COUNT =
+  sizeof(LABEL_PRINTER_MODELS_WLAN) / sizeof(LABEL_PRINTER_MODELS_WLAN[0]);
 
 // The two sizes printed and checked on the M220 for 0.8.0 (Nikolai,
 // 26.09.2026). 40 x 20 and 30 x 20 leave no room for the code; the larger
@@ -110,8 +140,15 @@ const LabelMediaSize LABEL_MEDIA_SIZES_PLANNED[] = {
 const int LABEL_MEDIA_PLANNED_COUNT =
   sizeof(LABEL_MEDIA_SIZES_PLANNED) / sizeof(LABEL_MEDIA_SIZES_PLANNED[0]);
 
+// The Bluetooth printer's config.
 static LabelPrinterConfig s_config{};
 static bool s_loaded = false;
+// The Brother's, cached the same way and written under its own keys.
+static LabelPrinterConfig s_net{};
+static bool s_net_loaded = false;
+// printer_link as stored, -1 for no key; read once.
+static int  s_link_stored = -1;
+static bool s_link_loaded = false;
 // Whether "Print label" opens the print sheet first. Cached like the config.
 static bool s_ask_first = true;
 static bool s_ask_loaded = false;
@@ -148,11 +185,26 @@ const LabelPrinterProfile& labelPrinterProfile(LabelPrinterModel model) {
     case LP_MODEL_M221: return PROFILE_M221;
     case LP_MODEL_NIIMBOT_B:  return PROFILE_NIIMBOT_B;
     case LP_MODEL_NIIMBOT_M2: return PROFILE_NIIMBOT_M2;
+    case LP_MODEL_BROTHER_QL820: return PROFILE_BROTHER_QL820;
     default:            return PROFILE_NONE;
   }
 }
 
+static bool isBrother(const LabelPrinterProfile& p) {
+  return p.model != LP_MODEL_NONE && p.protocol == LP_PROTO_BROTHER_QL;
+}
+
+// The Brother's label table entry for a size in mm; nullptr for one it lacks.
+// The table counts in bytes, so a size beyond one is none, never a wrapped one.
+static const BrotherQlLabel* brotherLabel(uint16_t width_mm, uint16_t length_mm) {
+  if (width_mm > 0xFF || length_mm > 0xFF) return nullptr;
+  return brotherQlLabel((uint8_t)width_mm, (uint8_t)length_mm);
+}
+
 static bool mediaFits(const LabelPrinterProfile& p, uint16_t w, uint16_t h) {
+  // What a DK label prints is its own entry, not a span of mm (design L1,
+  // ruling 4): 62 x 29 is 696 x 271 dots, not the 732 x 343 of its size.
+  if (isBrother(p)) return brotherLabel(w, h) != nullptr;
   return p.model != LP_MODEL_NONE &&
          w >= p.min_width_mm && w <= p.max_width_mm &&
          h >= p.min_length_mm && h <= p.max_length_mm;
@@ -184,7 +236,16 @@ static LabelPrinterConfig normalized(const LabelPrinterConfig& in) {
   return c;
 }
 
-LabelPrinterConfig labelPrinterLoadConfig() {
+static void logConfig(const LabelPrinterConfig& c, bool ok) {
+  logSDf("Printer: config %s %s '%s' %ux%u mm offset %d (%d) %s",
+         labelPrinterProfile(c.model).name, c.address[0] ? c.address : "-", c.name,
+         (unsigned)c.media_width_mm, (unsigned)c.media_length_mm, (int)c.x_offset,
+         (int)labelPrinterOffset(c), ok ? "saved" : "NOT saved");
+}
+
+// ---- The Bluetooth printer ----------------------------------------------
+
+static LabelPrinterConfig bleConfig() {
   if (s_loaded) return s_config;
   LabelPrinterConfig c{};
   c.model = (LabelPrinterModel)prefsGetInt(LP_KEY_MODEL, LP_MODEL_M220);
@@ -200,8 +261,8 @@ LabelPrinterConfig labelPrinterLoadConfig() {
   return s_config;
 }
 
-bool labelPrinterSaveConfig(const LabelPrinterConfig& in) {
-  const LabelPrinterConfig before = labelPrinterLoadConfig();
+static bool bleSave(const LabelPrinterConfig& in) {
+  const LabelPrinterConfig before = bleConfig();
   // A size other than the one in effect is a new pick; the same size with
   // another model is not, and leaves the picked one as it was.
   const uint16_t want_w = s_want_w, want_l = s_want_l;
@@ -224,11 +285,137 @@ bool labelPrinterSaveConfig(const LabelPrinterConfig& in) {
   if (offsetKey(c.address, key, sizeof(key))) ok = prefsPutInt(key, c.x_offset) && ok;
   if (ok) { s_config = c; s_loaded = true; }
   else { s_want_w = want_w; s_want_l = want_l; }
-  logSDf("Printer: config %s %s '%s' %ux%u mm offset %d (%d) %s",
-         labelPrinterProfile(c.model).name, c.address[0] ? c.address : "-", c.name,
-         (unsigned)c.media_width_mm, (unsigned)c.media_length_mm, (int)c.x_offset,
-         (int)labelPrinterOffset(c), ok ? "saved" : "NOT saved");
+  logConfig(c, ok);
   return ok;
+}
+
+// ---- The Brother on the network -----------------------------------------
+
+// What the Brother's address may be: none, or four numbers as a person types
+// them. A Bluetooth address never passes, so it never reaches the socket.
+static bool hostAccepted(const char* host) {
+  return host && (!host[0] || brotherQlHostValid(host));
+}
+
+// The Brother as the config the rest of the code knows: its model, its IP
+// address as the device, no name, its label and its own offset. Only the
+// address and the offset are taken from `in`: the model is the one Brother
+// profile there is (the save refuses any other), and the label is the
+// table's whatever a caller sends. There is one label so far, so it is not
+// stored: a second one gets a key of its own.
+static LabelPrinterConfig netNormalized(const LabelPrinterConfig& in) {
+  LabelPrinterConfig c{};
+  c.model = LP_MODEL_BROTHER_QL820;
+  memcpy(c.address, in.address, sizeof(c.address));
+  c.address[sizeof(c.address) - 1] = '\0';
+  c.media_width_mm  = BROTHER_QL_LABELS[0].width_mm;
+  c.media_length_mm = BROTHER_QL_LABELS[0].length_mm;
+  c.x_offset = in.x_offset;
+  if (c.x_offset > LP_OFFSET_RIGHT) c.x_offset = LP_OFFSET_RIGHT;
+  if (c.x_offset < LP_OFFSET_LEFT)  c.x_offset = LP_OFFSET_LEFT;
+  return c;
+}
+
+static LabelPrinterConfig netConfig() {
+  if (s_net_loaded) return s_net;
+  LabelPrinterConfig c{};
+  // Taken only as the check passes it: a key written by anything else never
+  // ends up as the address the socket is opened to.
+  const String host = prefsGetString(LP_KEY_HOST, "");
+  if (hostAccepted(host.c_str())) snprintf(c.address, sizeof(c.address), "%s", host.c_str());
+  c.x_offset = (int16_t)prefsGetInt(LP_KEY_NET_XOFF, 0);
+  s_net = netNormalized(c);
+  s_net_loaded = true;
+  return s_net;
+}
+
+// The address through the same check as labelPrinterSetHost(), and the
+// offset. Nothing else is the Brother's to write, and no Bluetooth key is
+// touched.
+static bool netSave(const LabelPrinterConfig& in) {
+  const LabelPrinterConfig c = netNormalized(in);
+  if (!hostAccepted(c.address)) {
+    logSDf("Printer: config %s address '%s' is no IPv4 address, NOT saved",
+           PROFILE_BROTHER_QL820.name, c.address);
+    return false;
+  }
+  bool ok = true;
+  ok = prefsPutString(LP_KEY_HOST, c.address) && ok;
+  ok = prefsPutInt(LP_KEY_NET_XOFF, c.x_offset) && ok;
+  if (ok) { s_net = c; s_net_loaded = true; }
+  logConfig(c, ok);
+  return ok;
+}
+
+bool labelPrinterSetHost(const char* host) {
+  if (!hostAccepted(host)) {
+    logSDf("Printer: Brother address '%s' is no IPv4 address, NOT saved", host ? host : "");
+    return false;
+  }
+  LabelPrinterConfig c = netConfig();
+  const bool ok = prefsPutString(LP_KEY_HOST, host);
+  if (ok) {
+    snprintf(c.address, sizeof(c.address), "%s", host);
+    s_net = c;
+  }
+  logSDf("Printer: Brother address %s %s", host[0] ? host : "-", ok ? "saved" : "NOT saved");
+  return ok;
+}
+
+// ---- The chosen one -------------------------------------------------------
+
+LabelPrinterLink labelPrinterLink() {
+  if (!s_link_loaded) {
+    s_link_stored = prefsGetInt(LP_KEY_LINK, -1);
+    s_link_loaded = true;
+  }
+  // Only the key is kept, the switch is asked each time: until a link is
+  // stored the switch decides, and it changes elsewhere too (the Bluetooth
+  // screen, /api/ble). Keeping the derived link would go stale on that.
+  return labelPrinterLinkFrom(s_link_stored, bleEnabled());
+}
+
+static const char* linkName(LabelPrinterLink link) {
+  return link == LP_LINK_WLAN ? "wlan" : link == LP_LINK_BLE ? "bluetooth" : "off";
+}
+
+bool labelPrinterSetLink(LabelPrinterLink link) {
+  if (link > LP_LINK_WLAN) return false;   // not a link; nothing written
+  const bool ok = prefsPutInt(LP_KEY_LINK, (int)link);
+  if (ok) {
+    s_link_stored = link;
+    s_link_loaded = true;
+    // Bluetooth runs for the Bluetooth printer only. Switched only once the
+    // choice is stored, so a failed write leaves the old choice whole.
+    if (link == LP_LINK_BLE) bleSetEnabled(true);
+    else if (bleEnabled()) bleSetEnabled(false);
+  }
+  logSDf("Printer: link -> %s %s", linkName(link), ok ? "saved" : "NOT saved");
+  return ok;
+}
+
+LabelPrinterConfig labelPrinterLoadConfig() {
+  return labelPrinterLink() == LP_LINK_WLAN ? netConfig() : bleConfig();
+}
+
+// Root: a screen or a page may still hold a copy of the printer from before
+//   the link changed (the offset screen open while the browser switches),
+//   and saving it went to the keys of the printer chosen now.
+// Fix: a config whose model belongs to the other link is refused and nothing
+//   is written - a Brother while the link is Bluetooth or off, anything else
+//   while it is WLAN (ruling R7).
+// NOT-TO-DO: mapping it onto the chosen printer, as a Brother model once
+//   became an M220: that wrote the stale copy's model and IP address over
+//   the Bluetooth printer's.
+bool labelPrinterSaveConfig(const LabelPrinterConfig& in) {
+  const LabelPrinterLink link = labelPrinterLink();
+  const LabelPrinterProfile& p = labelPrinterProfile(in.model);
+  if (isBrother(p) != (link == LP_LINK_WLAN)) {
+    logSDf("Printer: config for another link NOT saved (%s, link %s)",
+           p.name ? p.name : "no model", linkName(link));
+    return false;
+  }
+  return link == LP_LINK_WLAN ? netSave(in) : bleSave(in);
 }
 
 bool labelPrinterConfigured(const LabelPrinterConfig& c) { return c.address[0] != '\0'; }
@@ -237,11 +424,21 @@ bool labelPrinterRecommended(LabelPrinterModel model) {
   return model == LP_MODEL_M220 || model == LP_MODEL_NIIMBOT_M2;
 }
 
+// Root: forgetting followed the link at the moment of the call, so a
+//   Bluetooth caller - the device card's Remove, the printer screen reached
+//   from the print sheet, a browser page still showing the Bluetooth tile -
+//   emptied the Brother's address once the link had been switched to WLAN.
+// Fix: always the Bluetooth device, whatever link is chosen. Its cache is
+//   updated by the save; the Brother's is not touched, so under WLAN the
+//   chosen config stays the Brother's.
+// NOT-TO-DO: refusing under WLAN: the card's Remove is meant to drop the
+//   Bluetooth printer there too. The Brother's address goes through
+//   labelPrinterSetHost("") only.
 bool labelPrinterForget() {
-  LabelPrinterConfig c = labelPrinterLoadConfig();
+  LabelPrinterConfig c = bleConfig();
   c.address[0] = '\0';
   c.name[0] = '\0';
-  return labelPrinterSaveConfig(c);
+  return bleSave(c);
 }
 
 bool labelPrinterIsDevice(const char* address) {
@@ -268,10 +465,25 @@ uint16_t labelPrinterRasterWidth(LabelPrinterModel model, uint16_t media_width_m
 
 // Every Phomemo head is at least as wide as its widest stock, so there this
 // is the plain conversion; a 50 mm roll on a 48 mm head prints 48 mm of it.
+// A Brother leaves a margin on each side of a DK label: its table says what
+// is printable, 696 of the 732 dots that 62 mm come to (befunde 2).
+static uint16_t brotherWidth(uint16_t width_mm) {
+  return width_mm > 0xFF ? 0 : brotherQlPrintWidth((uint8_t)width_mm);
+}
+
 uint16_t labelPrinterContentWidth(LabelPrinterModel model, uint16_t media_width_mm) {
-  const uint16_t dots = labelPrinterDotsForMm(model, media_width_mm);
+  const uint16_t dots = isBrother(labelPrinterProfile(model))
+      ? brotherWidth(media_width_mm) : labelPrinterDotsForMm(model, media_width_mm);
   const uint16_t row = labelPrinterRasterWidth(model, media_width_mm);
   return dots > row ? row : dots;
+}
+
+// Along the feed the same: a die-cut 29 mm label prints 271 of its 343 lines.
+uint16_t labelPrinterContentHeight(LabelPrinterModel model, uint16_t width_mm,
+                                   uint16_t length_mm) {
+  if (!isBrother(labelPrinterProfile(model))) return labelPrinterDotsForMm(model, length_mm);
+  const BrotherQlLabel* label = brotherLabel(width_mm, length_mm);
+  return label ? label->dots_h : 0;
 }
 
 // A ruler across the M220's 576 dots put Nikolai's 40 mm roll under dots 128
@@ -311,7 +523,7 @@ bool labelPrinterRasterFits(LabelPrinterModel model, const LabelRaster& image,
   return mediaFits(p, media_width_mm, media_length_mm) &&
          image.width == labelPrinterRasterWidth(model, media_width_mm) &&
          nearDots(image.content_width, labelPrinterContentWidth(model, media_width_mm)) &&
-         nearDots(image.height, labelPrinterDotsForMm(model, media_length_mm));
+         nearDots(image.height, labelPrinterContentHeight(model, media_width_mm, media_length_mm));
 }
 
 // What the transport says, in the printer's terms; both drivers share it.
@@ -355,6 +567,28 @@ static LabelPrintResult printNiimbot(const LabelPrinterProfile& p, const LabelPr
   }
 }
 
+// What the Brother's driver says, in the printer's terms. "Sent" is all a
+// Brother on its raw port can tell (befunde 3), so it is a result of its own
+// and never LP_OK: the card says not to print again.
+static LabelPrintResult fromBrother(BrotherQlResult r) {
+  switch (r) {
+    case BQ_SENT:       return LP_NET_SENT;
+    case BQ_BAD_RASTER: return LP_BAD_RASTER;
+    case BQ_NO_WIFI:    return LP_NET_NO_WIFI;
+    case BQ_CONNECT:    return LP_NET_CONNECT;
+    case BQ_WRITE:
+    default:            return LP_NET_ABORT;
+  }
+}
+
+static LabelPrintResult printBrother(const LabelPrinterConfig& c, const LabelRaster& image,
+                                     BleProgressFn progress) {
+  // labelPrinterRasterFits() has made sure the table has this size.
+  const BrotherQlLabel* label = brotherLabel(c.media_width_mm, c.media_length_mm);
+  if (!label) return LP_MEDIA_MISMATCH;
+  return fromBrother(brotherQlPrint(c.address, *label, image, progress));
+}
+
 LabelPrintResult labelPrinterPrint(const LabelPrinterConfig& c, const LabelRaster& image,
                                    BleProgressFn progress) {
   const LabelPrinterProfile& p = labelPrinterProfile(c.model);
@@ -364,6 +598,7 @@ LabelPrintResult labelPrinterPrint(const LabelPrinterConfig& c, const LabelRaste
   if (!labelPrinterRasterFits(c.model, image, c.media_width_mm, c.media_length_mm))
     return LP_MEDIA_MISMATCH;
   if (p.protocol == LP_PROTO_NIIMBOT) return printNiimbot(p, c, image, progress);
+  if (p.protocol == LP_PROTO_BROTHER_QL) return printBrother(c, image, progress);
   const PhomemoModel pm = p.protocol == LP_PROTO_PHOMEMO_M220 ? PHOMEMO_M220 : PHOMEMO_M110;
   return fromBle(phomemoMSeriesPrint(pm, c.address, image, progress));
 }
@@ -393,22 +628,87 @@ int labelPrintResultString(LabelPrintResult r) {
     case LP_MODEL_MISMATCH:     return STR_PRN_ERR_MODEL_MISMATCH;
     case LP_MODEL_UNKNOWN:      return STR_PRN_ERR_MODEL_UNKNOWN;
     case LP_SERVER_LABEL:       return STR_PRN_ERR_SERVER_LABEL;
+    // The Brother: "sent" comes with what to check when no label comes out.
+    case LP_NET_SENT:           return STR_PRN_NET_SENT_MSG;
+    case LP_NET_NO_WIFI:        return STR_NO_WIFI;
+    case LP_NET_CONNECT:        return STR_PRN_ERR_NET_CONNECT;
+    case LP_NET_ABORT:          return STR_PRN_ERR_NET_ABORT;
+    case LP_PRINTER_OFF:        return STR_PRN_ERR_LINK_OFF;
     default:                    return STR_PRN_ERR_WRITE;
   }
 }
 
+// Design L1, ruling 9: a print may start when the Bluetooth printer is chosen,
+// Bluetooth runs and a device is picked, or when the Brother is chosen and has
+// an address. Whether the scale is on WLAN is the print's to say: the Brother
+// answers that with LP_NET_NO_WIFI.
+LabelPrintResult labelPrinterReadiness() {
+  const LabelPrinterLink link = labelPrinterLink();
+  if (link == LP_LINK_OFF) return LP_PRINTER_OFF;
+  if (!labelPrinterConfigured(labelPrinterLoadConfig())) return LP_NO_PRINTER;
+  if (link == LP_LINK_WLAN) return LP_OK;
+  // Bluetooth is on, that is what makes the link Bluetooth; but switched on
+  // in this boot it waits for the restart (see bleStackAvailable()).
+  if (!bleStackAvailable()) return LP_BLE_INIT;
+  if (bleStackStuck()) return LP_BLE_STUCK;
+  return LP_OK;
+}
+
+BleSessionPhase labelPrinterSessionPhase() {
+  return labelPrinterLink() == LP_LINK_WLAN ? brotherQlPhase() : bleSessionPhase();
+}
+
+void labelPrinterSessionBytes(size_t* sent, size_t* total) {
+  if (labelPrinterLink() == LP_LINK_WLAN) brotherQlBytes(sent, total);
+  else bleSessionBytes(sent, total);
+}
+
+const LabelPrinterModel* labelPrinterModels(LabelPrinterLink link, int* count) {
+  if (link == LP_LINK_WLAN) {
+    if (count) *count = LABEL_PRINTER_MODEL_WLAN_COUNT;
+    return LABEL_PRINTER_MODELS_WLAN;
+  }
+  if (count) *count = LABEL_PRINTER_MODEL_COUNT;
+  return LABEL_PRINTER_MODELS;
+}
+
+// The Brother's sizes, copied from its label table on first use: that table
+// (brother_ql_rules.cpp) is the one place a DK label is added. A constant
+// list here would be a second table to keep in step; the table's count is no
+// constant in this file, hence the room for a few.
+#define LP_NET_SIZES_MAX 8
+static LabelMediaSize s_net_sizes[LP_NET_SIZES_MAX];
+static int s_net_size_count = -1;
+
+const LabelMediaSize* labelPrinterMediaSizes(LabelPrinterModel model, int* count) {
+  if (!isBrother(labelPrinterProfile(model))) {
+    if (count) *count = LABEL_MEDIA_SIZE_COUNT;
+    return LABEL_MEDIA_SIZES;
+  }
+  if (s_net_size_count < 0) {
+    int n = 0;
+    for (int i = 0; i < BROTHER_QL_LABEL_COUNT && n < LP_NET_SIZES_MAX; i++)
+      s_net_sizes[n++] = LabelMediaSize{ BROTHER_QL_LABELS[i].width_mm,
+                                         BROTHER_QL_LABELS[i].length_mm };
+    s_net_size_count = n;
+  }
+  if (count) *count = s_net_size_count;
+  return s_net_sizes;
+}
+
 // The next stock size the model can take, after the current one; the first
-// fitting one when the current one is not in the table.
+// fitting one when the current one is not in the model's list.
 void labelPrinterNextMedia(LabelPrinterConfig& c) {
   const LabelPrinterProfile& p = labelPrinterProfile(c.model);
+  int count = 0;
+  const LabelMediaSize* sizes = labelPrinterMediaSizes(c.model, &count);
   int at = -1;
-  for (int i = 0; i < LABEL_MEDIA_SIZE_COUNT; i++)
-    if (LABEL_MEDIA_SIZES[i].width_mm == c.media_width_mm &&
-        LABEL_MEDIA_SIZES[i].length_mm == c.media_length_mm) { at = i; break; }
-  for (int step = 1; step <= LABEL_MEDIA_SIZE_COUNT; step++) {
-    const LabelMediaSize& s = LABEL_MEDIA_SIZES[(at + step) % LABEL_MEDIA_SIZE_COUNT];
-    if (s.width_mm >= p.min_width_mm && s.width_mm <= p.max_width_mm &&
-        s.length_mm >= p.min_length_mm && s.length_mm <= p.max_length_mm) {
+  for (int i = 0; i < count; i++)
+    if (sizes[i].width_mm == c.media_width_mm &&
+        sizes[i].length_mm == c.media_length_mm) { at = i; break; }
+  for (int step = 1; step <= count; step++) {
+    const LabelMediaSize& s = sizes[(at + step) % count];
+    if (mediaFits(p, s.width_mm, s.length_mm)) {
       c.media_width_mm = s.width_mm;
       c.media_length_mm = s.length_mm;
       return;

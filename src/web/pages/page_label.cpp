@@ -28,7 +28,6 @@
 #include "app/label_spool.h"
 #include "hardware/sd_logger.h"
 #include "services/backend.h"
-#include "services/ble_service.h"
 #include "services/label_bmp.h"
 #include "services/label_fit.h"
 #include "services/label_gaps.h"
@@ -38,6 +37,7 @@
 #include "ui/date_display.h"
 #include "ui/printer_screen.h"
 #include "web/web_access.h"
+#include "web/web_printer_host.h"
 #include "web/web_printer_select.h"
 #include "web/web_shell.h"
 // Last on purpose: T() is a macro and ArduinoJson uses T as a template
@@ -217,14 +217,13 @@ static String stateJson(LabelKind kind) {
   j += jsonEsc(labelPrinterProfile(c.model).name);
   j += F("\",\"configured\":");
   j += labelPrinterConfigured(c) ? F("true") : F("false");
+  // The one question behind every print button (design L1, ruling 9).
   j += F(",\"canPrint\":");
-  const bool can = labelPrinterConfigured(c) && bleEnabled() && bleStackAvailable() &&
-                   !bleStackStuck();
-  j += can ? F("true") : F("false");
+  j += labelPrinterReadiness() == LP_OK ? F("true") : F("false");
   j += F(",\"lastPrint\":");
   const int last = printerLastLabelResult();
   if (last < 0) j += F("null");
-  else { j += '"'; j += jsonEsc(T(last)); j += '"'; }
+  else { j += '"'; j += jsonEsc(webPrinterResultLine(last).c_str()); j += '"'; }
   j += F(",\"lastReason\":\"");
   if (last == STR_PRN_ERR_SERVER_LABEL) j += jsonEsc(labelServerLastReason());
   j += '"';
@@ -748,9 +747,10 @@ static void routes(WebServer &srv) {
     if (!webRequire(srv, GATE_CONFIG, T(STR_W_NAV_LABEL))) return;
     SpoolLabelData s{};
     if (!labelSpoolLast(&s)) { srv.send(409, "text/plain", T(STR_PRN_ERR_NO_SPOOL)); return; }
-    if (!labelPrinterConfigured(labelPrinterLoadConfig())) { srv.send(409, "text/plain", T(STR_PRN_ERR_NO_PRINTER)); return; }
-    if (!bleEnabled()) { srv.send(409, "text/plain", T(STR_PRN_ERR_BLE_OFF)); return; }
-    if (bleStackStuck()) { srv.send(409, "text/plain", T(STR_PRN_ERR_STUCK)); return; }
+    // What the button's canPrint asks: off, no printer, a Bluetooth stack
+    // that needs a restart or hangs.
+    const LabelPrintResult ready = labelPrinterReadiness();
+    if (ready != LP_OK) { srv.send(409, "text/plain", T(labelPrintResultString(ready))); return; }
     const LabelKind kind = kindOf(srv);
     if (kind == LABEL_KIND_FILAMENT) print_last_filament_label_pending = true;
     else print_last_label_pending = true;

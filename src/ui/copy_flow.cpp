@@ -19,11 +19,14 @@
 #include "services/backend_api.h"
 #include "services/backend_job.h"
 #include "services/breadcrumb.h"
+#include "services/copy_bbs.h"
+#include "services/copy_rules.h"   // CopyMissing
 #include "services/list_limits.h"
 #include "services/server_reach.h"
 #include "services/spool_start.h"
 #include "services/spool_cache.h"
 #include "services/spool_extras.h"
+#include "services/spool_types.h"   // spoolTypesActive()
 #include "services/spoolman_actions.h"
 #include "services/tag_field.h"
 #include "ui/info_popup.h"
@@ -38,6 +41,7 @@
 #include "ui/entry_tile.h"
 #include "ui/sort_entry_screen.h"
 #include "ui/tag_create_popup.h"
+#include "ui/tare_entry.h"
 
 // From ui/spool_flow.cpp, see the same line in spoolman_lookup.cpp: what counts
 // as bound, for the spool cache a download here fills.
@@ -81,6 +85,12 @@ static bool  copy_fetch_archived     = false;
 static bool  copy_create_pending     = false;   // copy confirm OK
 static int   copy_create_sid = 0, copy_create_fid = 0;
 static float copy_create_ini = 0.0f, copy_create_spw = 0.0f, copy_create_core = 0.0f;
+// The card's list of types was answered for this copy (copyTypeAsked()),
+// taken with the values above: the create marks the new spool for the first
+// weighing. Not a parameter: copyCreateRequest() and doCopySpoolCreate()
+// already take five each (house rule). Only true from copyCreateRequest() to
+// the end of the create it asked for.
+static bool  copy_create_asked = false;
 static int   copy_row_refresh_pending = -1;
 static bool  copy_reload_pending      = false;  // "Reload" under the copy list
 // The list on screen is the one the cache holds, so it gets the strip.
@@ -128,16 +138,80 @@ bool finishCopyFlow(int new_spool_id, const char* tray_uuid_override) {
   return linked;
 }
 
+// The parts of a copy behind Bambuddy on Spoolman that did not come across,
+// in the order of their bits, for the status line (Festlegung 8). The log
+// has each of them with its HTTP code (copy_bbs.cpp).
+static const struct { uint8_t bit; int text; } COPY_MISSING_PARTS[] = {
+  { CM_PRICE,     STR_COPY_PART_PRICE },
+  { CM_PRESETS,   STR_COPY_PART_PRESETS },
+  { CM_SUPPLIERS, STR_COPY_PART_SUPPLIERS },
+  { CM_KPROFILES, STR_COPY_PART_KPROFILES },
+  { CM_FILAMENT,  STR_COPY_PART_FILAMENT },
+};
+
+// The status line once the copy stands and its tag is linked: what it did
+// not take over in the colour of a half success, as "price not saved" after
+// a spool from a tag, else the plain success.
+//
+// Wurzel: lbl_status (main_screen.cpp) has a width and no height, and LVGL
+// dots a LONG_DOT label only where its text is taller than the label
+// (lv_label_refr_text): a message wider than the line wraps instead, and the
+// 22 px status bar cuts through both of its lines. Two parts can already be
+// too wide ("Profile je Modell, Lieferanten" after the sentence). Fix: as
+// many parts as the line holds, in their order, measured with the label's
+// own font and width, and "..." for the rest; the log has every part.
+// NOT-TO-DO: giving lbl_status one line of height from here - the fix for
+// every status message, but a change to the main screen of every backend.
+static void copyCreatedStatus(uint8_t missing) {
+  if (missing == CM_NONE) {
+    statusMessageShow(T(STR_COPY_OK), UI_COL_GOOD);
+    return;
+  }
+  if (!lbl_status) return;
+  int ids[sizeof(COPY_MISSING_PARTS) / sizeof(COPY_MISSING_PARTS[0])];
+  int n = 0;
+  for (const auto& p : COPY_MISSING_PARTS) {
+    if (missing & p.bit) ids[n++] = p.text;
+  }
+  const lv_font_t* font = lv_obj_get_style_text_font(lbl_status, LV_PART_MAIN);
+  // The width set on it (main_screen.cpp, header_status.cpp), not its last
+  // layout: right after showMainScreen() that may not have run yet.
+  const lv_coord_t room = lv_obj_get_style_width(lbl_status, LV_PART_MAIN);
+  // Whole words only: the buffers hold the sentence with all five parts and
+  // the dots in every language, and a part that would not fit them is left
+  // out rather than cut through a letter of two bytes.
+  char parts[160], msg[256];
+  for (int k = n; k >= 0; k--) {
+    size_t used = 0;
+    parts[0] = '\0';
+    for (int i = 0; i < k; i++) {
+      const char* sep  = i ? ", " : "";
+      const char* word = T(ids[i]);
+      if (used + strlen(sep) + strlen(word) + 4 >= sizeof(parts)) break;   // 4: "..." and its end
+      used += (size_t)snprintf(parts + used, sizeof(parts) - used, "%s%s", sep, word);
+    }
+    if (k < n) snprintf(parts + used, sizeof(parts) - used, "...");
+    snprintf(msg, sizeof(msg), T(STR_COPY_MISSING), parts);
+    lv_point_t size;
+    lv_txt_get_size(&size, msg, font, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    if (size.x <= room) break;
+  }
+  statusMessageShow(msg, UI_COL_WARN);
+}
+
 // Creates the new spool from the template, then attaches the tag.
 void doCopySpoolCreate(int template_spool_id, int template_filament_id, float template_initial,
                        float tare_g, float chosen_core_g) {
-  if (!wifi_ok) return;
+  // What the card read for the copy (copy_bbs.h) goes on every way out of
+  // here, a create that was never tried included.
+  if (!wifi_ok) { copyBbsClear(); return; }
   // The copy's empty spool (tare_g: the type chosen, else the template's) is
   // one someone stored, at whichever level spoolTare() found it: the reading
   // without the parts on the spool (spool_extras.h) is weighed against it,
   // and a full copy files what it weighs as its full weight (spool_start.h).
-  // Behind BamBuddy the full weight stays the template's and only what is
-  // left comes from here (backendCreateSpool()).
+  // Behind Bambuddy on Spoolman that full weight is the copy's label, the
+  // one the card priced; in Bambuddy's own inventory the label stays the
+  // template's and only what is left comes from here (copy_bbs.h).
   const float bare = spoolExtrasBareReading();
   const SpoolStart start = spoolStartValues(bare, (int)lroundf(tare_g),
                                             tare_g > 0.0f ? TARE_Q_KNOWN : TARE_Q_NONE,
@@ -149,16 +223,24 @@ void doCopySpoolCreate(int template_spool_id, int template_filament_id, float te
   int new_id = 0;
   int code = serverReachNote(backendCreateSpool(cfg_spoolman_base, template_spool_id, template_filament_id,
     (float)start.initial_g, tare_g, start.remaining_g, &new_id, 8000, chosen_core_g), true);
+  // Read before the load is cleared. Elsewhere nothing goes missing, and the
+  // bits a copy behind Spoolman left before a switch of backend must not
+  // speak for this one: no other backend's create resets them.
+  const uint8_t missing = spoolTypesActive() ? copyBbsLastMissing() : (uint8_t)CM_NONE;
+  copyBbsClear();
   if ((code == 200 || code == 201) && new_id > 0) {
     Serial.printf("Copy spool created: new ID=%d\n", new_id);
-    logSDf("Copy spool created: tmpl_spool=%d fid=%d new_spool_id=%d",
-           template_spool_id, template_filament_id, new_id);
+    logSDf("Copy spool created: tmpl_spool=%d fid=%d new_spool_id=%d missing=0x%02x",
+           template_spool_id, template_filament_id, new_id, (unsigned)missing);
     // A spool the kept list does not have, and a row for it cannot be made up
     // from here. The stamp would catch it; BamBuddy has none.
     spoolCacheForget("spool created by copy");
+    // The card's list asked this copy's type: the first weighing does not
+    // ask it again (tare_entry.h).
+    if (copy_create_asked) tareEntryFirstWeighDone(new_id);
     // The spool exists either way; a tag that could not be bound has said so
     // on the status line, and that must stay readable.
-    if (finishCopyFlow(new_id)) statusMessageShow(T(STR_COPY_OK), UI_COL_GOOD);
+    if (finishCopyFlow(new_id)) copyCreatedStatus(missing);
     return;
   }
   Serial.printf("Copy spool POST failed: HTTP %d\n", code);
@@ -820,6 +902,7 @@ void copyCreateRequest(int template_spool_id, int template_filament_id, float te
   copy_create_ini  = template_initial;
   copy_create_spw  = tare_g;
   copy_create_core = chosen_core_g;
+  copy_create_asked = copyTypeAsked();
   copy_create_pending = true;
 }
 
@@ -859,5 +942,7 @@ void copyFlowDeferredActions() {
     closeCopyEntryPopup();
     doCopySpoolCreate(copy_create_sid, copy_create_fid, copy_create_ini, copy_create_spw,
                       copy_create_core);
+    // Created or not: nothing is left for a later create.
+    copy_create_asked = false;
   }
 }

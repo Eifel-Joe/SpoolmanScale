@@ -131,7 +131,8 @@ void printCardTick() {
   s_angle = (uint16_t)((s_angle + PC_ARC_STEP_DEG) % 360);
   lv_arc_set_angles(s_arc, s_angle, (s_angle + PC_ARC_DEG) % 360);
 
-  const BleSessionPhase phase = bleSessionPhase();
+  // The chosen printer's driver: the Bluetooth session, or the Brother's.
+  const BleSessionPhase phase = labelPrinterSessionPhase();
   if ((int)phase != s_shown_phase) {
     s_shown_phase = (int)phase;
     lv_label_set_text(s_title, T(phaseText(phase)));
@@ -140,7 +141,7 @@ void printCardTick() {
   }
   if (phase == BLE_PHASE_SEND) {
     size_t sent = 0, total = 0;
-    bleSessionBytes(&sent, &total);
+    labelPrinterSessionBytes(&sent, &total);
     const int pct = total ? (int)(sent * 100 / total) : 0;
     if (pct != s_shown_pct) {
       s_shown_pct = pct;
@@ -181,10 +182,15 @@ void printCardResult(LabelPrintResult result, const char* detail, bool offer_own
   if (s_arc) { lv_obj_del(s_arc); s_arc = nullptr; }
 
   const bool ok = (result == LP_OK);
-  const bool unconfirmed = (result == LP_SENT_UNCONFIRMED);
+  // A Brother never confirms: "sent" is all it can be told, so it takes the
+  // way of a print sent without a confirmation - yellow, and it waits for OK,
+  // so the "do not print again" under it is read (design L1, ruling 6).
+  const bool net_sent = (result == LP_NET_SENT);
+  const bool unconfirmed = (result == LP_SENT_UNCONFIRMED) || net_sent;
   const char* symbol = ok ? LV_SYMBOL_OK : LV_SYMBOL_WARNING;
   const uint32_t tone = ok ? UI_COL_GOOD : (unconfirmed ? UI_COL_WARN : UI_COL_BAD);
   const int title = ok ? STR_PRN_DONE_TITLE
+                  : net_sent ? STR_PRN_NET_SENT_TITLE
                   : unconfirmed ? STR_PRN_UNCONF_TITLE : STR_PRN_FAIL_TITLE;
   // A label that went onto thermal paper gets the one thing to know about
   // it: the dryer blackens it (Nikolai, 30.09.2026). "The printer confirmed"
