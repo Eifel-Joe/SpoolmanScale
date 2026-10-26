@@ -23,6 +23,8 @@
 #include "services/user_options.h"
 #include "services/wifi_manager.h"
 #include "ui/confirm_popup.h"
+#include "ui/weight_button.h"
+#include "ui/weight_popup.h"
 #include "ui/diag_banner.h"
 #include "ui/dried_action.h"
 #include "ui/update_badges.h"
@@ -795,23 +797,15 @@ void buildUI() {
     lv_obj_set_style_shadow_width(btn_weight_main, 0, 0);
     lv_obj_add_event_cb(btn_weight_main, [](lv_event_t *e) {
       logSD("UI: Button -> Update Weight");
-      { char qb[64]; backendText(T(STR_POPUP_WEIGHT_Q), qb, sizeof(qb)); showConfirmPopup(qb, 2); }
+      showWeightPopup();
     }, LV_EVENT_CLICKED, NULL);
     lv_obj_t *lbl_wm = lv_label_create(btn_weight_main);
     lbl_weight_main_lbl = lbl_wm;
-    {
-      char wmbuf[48];
-      if (g_auto_weight)
-        snprintf(wmbuf, sizeof(wmbuf), "%s (A)", T(STR_BTN_WEIGHT));
-      else {
-        copyT(wmbuf, sizeof(wmbuf), STR_BTN_WEIGHT);
-      }
-      lv_label_set_text(lbl_wm, wmbuf);
-    }
-    lv_obj_set_style_text_color(lbl_wm, g_auto_weight ? lv_color_hex(UI_COL_WEIGHT_AUTO) : lv_color_hex(UI_COL_WEIGHT_TEXT), 0);
     lv_obj_set_style_text_font(lbl_wm, &lv_font_montserrat_ext_16, 0);
     lv_obj_set_style_text_align(lbl_wm, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(lbl_wm, LV_ALIGN_CENTER, 0, 0);
+    // Caption, colours and the countdown fill: see weight_button.h.
+    weightButtonAttach(btn_weight_main, lbl_wm);
   } else {
     // Same geometry as the button it stands in for. The colours are the ones
     // the location button in More Info already wears, so the two read as one

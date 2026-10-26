@@ -213,22 +213,8 @@ const char* const STRINGS[][3] = {
   // Weight popup
   { "Heute getrocknet\nspeichern?", "Save dried\ntoday?",
     "Enregistrer le séchage\nd'aujourd'hui ?" },  // STR_POPUP_DRIED_Q
-  { "Gewicht in\nSpoolman updaten?", "Update weight\nin Spoolman?",
-    "Mettre le poids à jour\ndans Spoolman ?" },  // STR_POPUP_WEIGHT_Q
-  { "Leergewicht\nmessen / eingeben", "Empty spool weight\nweigh / type in",
-    "Poids à vide\nmesurer / saisir" },  // STR_BTN_EMPTY_SPOOL
-  { "Ja, bestätigen",                 "Yes, confirm",                        "Oui, confirmer" },  // STR_BTN_CONFIRMED
+  { "Ja, bestätigen",               "Yes, confirm",       "Oui, confirmer" },  // STR_BTN_CONFIRMED
 
-  // Spool weight sub-popup
-  { "Spulengewicht: %.0f g speichern als...",
-    "Save spool weight: %.0f g as...",
-    "Poids à vide %.0f g : enregistrer pour..." },  // STR_SPOOL_WEIGHT_TITLE
-  { "Diese Spule\n(spool_weight)", "This spool\n(spool_weight)",
-    "Cette bobine\n(spool_weight)" },  // STR_BTN_THIS_SPOOL
-  { "Dieses Filament\n(spool_weight)", "This filament\n(spool_weight)",
-    "Ce filament\n(spool_weight)" },  // STR_BTN_THIS_FILAMENT
-  { "Hersteller\n(empty_spool_weight)", "Vendor\n(empty_spool_weight)",
-    "Fabricant\n(empty_spool_weight)" },  // STR_BTN_THIS_VENDOR
 
   // Link Flow
   { "Bambu-Spule verknüpfen", "Link Bambu spool",  "Lier une bobine Bambu" },  // STR_LINK_BAMBU_TITLE
@@ -308,10 +294,6 @@ const char* const STRINGS[][3] = {
   { "Spule wirklich\narchivieren?", "Really archive\nthis spool?",
     "Voulez-vous vraiment\narchiver cette bobine ?" },  // STR_ARCHIVE_CONFIRM
 
-  // Weight popup archive button
-  { LV_SYMBOL_CLOSE " leer / Archivieren\nremaining=0",
-    LV_SYMBOL_CLOSE " empty / Archive\nremaining=0",
-    LV_SYMBOL_CLOSE " vide / Archiver\nremaining=0" },  // STR_BTN_ARCHIVE_EMPTY
 
   // Welcome language select screen
   { "Sprache und Zeitzone", "Language and time zone", "Langue et fuseau horaire" },  // STR_WELCOME_LANG_TITLE
@@ -336,16 +318,6 @@ const char* const STRINGS[][3] = {
   // Link entry context
   { "%s | nicht in Spoolman", "%s | not in Spoolman", "%s | absente de Spoolman" },  // STR_LINK_CTX_NOT_IN_SM
 
-  // Weight popup buttons (with snprintf)
-  { LV_SYMBOL_OK " Ohne Beutel\n%.0fg",
-    LV_SYMBOL_OK " No bag\n%.0fg",
-    LV_SYMBOL_OK " Sans sachet\n%.0fg" },  // STR_BTN_NO_BAG_VAL
-  { LV_SYMBOL_OK " Mit Beutel\n%.0fg - %.0fg",
-    LV_SYMBOL_OK " With bag\n%.0fg - %.0fg",
-    LV_SYMBOL_OK " Avec sachet\n%.0fg - %.0fg" },  // STR_BTN_WITH_BAG_VAL
-  { LV_SYMBOL_PLUS " Neue Spule\n%.0fg netto",
-    LV_SYMBOL_PLUS " New spool\n%.0fg net",
-    LV_SYMBOL_PLUS " Nouvelle bobine\n%.0fg net" },  // STR_BTN_NEW_SPOOL_VAL
 
   // First boot welcome screen
   { "Willkommen!",
@@ -743,19 +715,10 @@ const char* const STRINGS[][3] = {
   { "Mehr Materialien gefunden - nicht gelistet? Per Spool-ID verknüpfen", "More materials found - not listed? Use Spool-ID",
     "Liste incomplète - matériau absent ? Liez par l'ID de bobine" },  // STR_LIST_MORE_MATS
 
-  // Auto-Weight
-  { "Auto-Gewichtsupdate",
-    "Auto weight update",
-    "Envoi auto du poids" },  // STR_AUTO_WEIGHT_TITLE
-  { "Sobald eine Spule erkannt und das Gewicht\n3 Sekunden stabil ist, wird es automatisch\ngespeichert (ohne Beutel).",
-    "Once a spool is detected and the weight\nis stable for 3 seconds, it will be saved\nautomatically (without bag).",
-    "Dès qu'une bobine est reconnue et que le poids\nest stable pendant 3 secondes, il est enregistré\nautomatiquement (sachet non déduit)." },  // STR_AUTO_WEIGHT_INFO
-  { LV_SYMBOL_REFRESH " Auto aktivieren",
-    LV_SYMBOL_REFRESH " Enable auto",
-    LV_SYMBOL_REFRESH " Activer le mode auto" },  // STR_AUTO_WEIGHT_ENABLE
-  { LV_SYMBOL_REFRESH " Auto deaktivieren",
-    LV_SYMBOL_REFRESH " Disable auto",
-    LV_SYMBOL_REFRESH " Arrêter le mode auto" },  // STR_AUTO_WEIGHT_DISABLE
+  // Auto-Weight: the help text behind the switch in the scale menu
+  { "Liegt eine erkannte Spule 3 Sekunden still, wird ihr Gewicht ohne Beutel gesendet. Unter 1 g Änderung wird nichts gesendet. Ist sie mehr als 5 g schwerer als gespeichert, sendet die Waage nicht und fragt nach.",
+    "When a recognised spool lies still for 3 seconds, its weight is sent, without the bag. Under 1 g of change nothing is sent. If it is more than 5 g heavier than stored, the scale sends nothing and asks.",
+    "Quand une bobine reconnue reste immobile 3 secondes, son poids est envoyé, sans le sachet. En dessous de 1 g de différence, rien n'est envoyé. Si elle pèse plus de 5 g de plus que la valeur enregistrée, la balance n'envoie rien et demande." },  // STR_AUTO_WEIGHT_INFO
   { "Lagerort",
     "Location",
     "Emplacement" },  // STR_BTN_LOCATION
@@ -946,17 +909,6 @@ const char* const STRINGS[][3] = {
   { "Wird nach einer Verknüpfung aus FilaMan innerhalb von 10 Sekunden kein Tag aufgelegt, lädt die Waage die dort gewählte Spule trotzdem und zeigt sie an. Gewogen wird sie danach wie jede andere: bei eingeschalteter Automatik von selbst, sonst über den Gewichtsknopf. FilaMans eigener Dialog meldet dabei einen Fehler, weil dort kein Tag geschrieben wurde - geladen ist die Spule trotzdem. Auf einen Tag wird nie etwas geschrieben, und die Zuordnung endet, sobald die Spule wieder heruntergenommen wird.",
     "If no tag is presented within 10 seconds of a link from FilaMan, the scale loads the spool chosen there anyway and shows it. Weighing then works as for any other spool: on its own when automatic weighing is on, otherwise through the weight button. FilaMan's own dialog reports an error because no tag was written there - the spool is loaded regardless. Nothing is ever written to a tag, and the spool is released as soon as it is taken off the pad.",
     "Si aucun tag n'est posé dans les 10 secondes qui suivent une liaison lancée depuis FilaMan, la balance charge quand même la bobine choisie dans FilaMan et l'affiche. La pesée se fait ensuite comme pour toute autre bobine : toute seule si la pesée automatique est activée, sinon avec le bouton Envoyer le poids. FilaMan affiche de son côté une erreur, puisqu'aucun tag n'a été écrit, mais la bobine est bien chargée. Rien n'est jamais écrit sur un tag, et cette association temporaire prend fin dès que la bobine est retirée de la balance." },  // STR_FLM_TAGLESS_INFO
-  // FilaMan variants of the spool-weight scope buttons. The Spoolman ones
-  // carry the REST field name in brackets, which is a real reading aid there
-  // because the three scopes use three different names. In FilaMan two of
-  // the three are called the same thing, so the bracket helps nobody and is
-  // simply wrong on top. FilaMan also calls a vendor a manufacturer.
-  { "Diese Spule",     "This spool",    "Cette bobine" },  // STR_BTN_THIS_SPOOL_FM
-  { "Dieses Filament", "This filament", "Ce filament" },  // STR_BTN_THIS_FILAMENT_FM
-  { "Hersteller",      "Manufacturer",  "Fabricant" },  // STR_BTN_THIS_VENDOR_FM
-  { LV_SYMBOL_CLOSE " leer / Archivieren\nRest wird 0",
-    LV_SYMBOL_CLOSE " empty / Archive\nremaining set to 0",
-    LV_SYMBOL_CLOSE " vide / Archiver\nreste mis à 0" },  // STR_BTN_ARCHIVE_EMPTY_FM
 
   // Auto AMS assignment. FilaMan marks a freshly weighed spool as pending on
   // every printer driver for a few seconds, so the next tray to be loaded
@@ -1877,12 +1829,6 @@ const char* const STRINGS[][3] = {
     "Which sections are served is decided on the device under",
     "Les sections proposées se choisissent sur l'appareil, dans" },  // STR_W_FOOT_GATE_ALL
 
-  // Weight popup, in place of the archive button when the spool is archived.
-  // The %.0f is the net weight on the pad: the button names the number it is
-  // about to write, so nothing is decided out of sight.
-  { LV_SYMBOL_REFRESH " Reaktivieren\nRest wird %.0f g",
-    LV_SYMBOL_REFRESH " Reactivate\nremaining set to %.0f g",
-    LV_SYMBOL_REFRESH " Réactiver\nrestant mis à %.0f g" },  // STR_BTN_REACTIVATE
 
   // Backend options, mirrored in the browser
   { "Wird geladen ...",
@@ -2939,13 +2885,7 @@ const char* const STRINGS[][3] = {
   { "Der Server hat das Anfangsgewicht nicht übernommen. Es gilt weiter der alte Wert.",
     "The server did not accept the initial weight. The old value still stands.",
     "Le serveur n'a pas accepté le poids initial. L'ancienne valeur reste valable." },  // STR_INIT_W_FAIL_TEXT
-  // Empty spool weight, weighed or typed in (issue #40)
-  { "Leergewicht der Spule", "Empty spool weight",
-    "Poids de la bobine vide" },  // STR_TARE_CHOICE_TITLE
-  { "Leere Spule wiegen\njetzt auf der Waage: %.0f g", "Weigh the empty spool\non the scale now: %.0f g",
-    "Peser la bobine vide\nsur la balance : %.0f g" },  // STR_TARE_CHOICE_WEIGH
-  { "Wert eingeben\nbekannt oder vom Hersteller", "Type in a value\nknown or from the maker",
-    "Saisir une valeur\nconnue ou du fabricant" },  // STR_TARE_CHOICE_TYPE
+  // Empty spool weight typed in (issue #40)
   { "Leergewicht eingeben", "Enter empty spool weight",
     "Saisir le poids à vide" },  // STR_TARE_ENTER_TITLE
   { "Waage %.0f g\n- Spule %.0f g\n= Rest %.0f g", "Scale %.0f g\n- spool %.0f g\n= %.0f g left",
@@ -3531,12 +3471,9 @@ const char* const STRINGS[][3] = {
     "Corrige la dérive lente du zéro tant que le plateau est vide.\n\nSi le poids reste stable entre 0,5 et 5 g (positif ou négatif) pendant 3 secondes, cette valeur devient le nouveau zéro. Rien ne se passe tant qu'un tag est détecté ou qu'une bobine est posée. Plus de 5 g n'est jamais corrigé, et il s'écoule au moins une minute entre deux corrections.\n\nLe bouton TARE fonctionne toujours comme avant." },  // STR_BTN_AUTO_TARE_INFO
   // The mark on the TARE button while auto-tare is on
   { "A", "A", "A" },  // STR_TARE_AUTO_MARK
-  // The bag weight at 0: the menu row says so, and the weight popup has one
-  // button instead of two
+  // The bag weight at 0: the menu row says so, and the weight popup leaves
+  // out its bag switch
   { "Aus - kein Beutel", "Off - no bag", "Sans sachet" },  // STR_BAG_OFF_SUB
-  { LV_SYMBOL_OK " Übernehmen\n%.0fg",
-    LV_SYMBOL_OK " Apply\n%.0fg",
-    LV_SYMBOL_OK " Valider\n%.0fg" },  // STR_BTN_WEIGHT_VAL
   // The empty spool weight the netto subtracts, shown in the live zone
   // without a bag
   { "Spule", "Spool", "Bobine" },  // STR_LBL_SPOOL_TARE_CAP
@@ -4065,6 +4002,60 @@ const char* const STRINGS[][3] = {
   // Replaces the file name under the status once an upload failed.
   { "Im Browser erneut versuchen", "Try again in the browser",
     "Réessayez dans le navigateur" },  // STR_OTA_RETRY_HINT
+  // The weight button on the main screen, after the automatic weighing has
+  // looked at a spool that lay still. 202 px at f16, behind an icon.
+  { "%.0f g gesendet",     "%.0f g sent",       "%.0f g envoyés" },  // STR_WB_SENT
+  { "%.0f g, unverändert", "%.0f g, unchanged", "%.0f g, inchangé" },  // STR_WB_UNCHANGED
+  // Heavier than the backend by this much: nothing sent, a tap asks.
+  { "%+.0f g, prüfen", "%+.0f g, check", "%+.0f g, à vérifier" },  // STR_WB_RISE
+  // The weight popup (weight_popup.cpp). Its first line when the spool
+  // reads heavier than stored; %s is the backend's name. 436 px at f14.
+  { "Schwerer als in %s: Beutel drauf? Andere Spule?",
+    "Heavier than in %s: bag on it? Another spool?",
+    "Plus lourde que dans %s : sachet ? Autre bobine ?" },  // STR_WP_RISE_LINE
+  // The large button, f24, 436 px with a tick before it.
+  { "%.0f g senden",          "Send %.0f g",        "Envoyer %.0f g" },  // STR_WP_SEND
+  { "%.0f g trotzdem senden", "Send %.0f g anyway", "Envoyer %.0f g quand même" },  // STR_WP_SEND_ANYWAY
+  // Under it while the bag switch is on: the reading, and what came off it.
+  { "%.0f g abzüglich %.0f g Beutel", "%.0f g less %.0f g for the bag",
+    "%.0f g moins %.0f g de sachet" },  // STR_WP_BAG_MINUS
+  { "Reaktivieren",                   "Reactivate",                     "Réactiver" },  // STR_WP_REACTIVATE
+  { "Rest wird %.0f g", "Remaining becomes %.0f g",
+    "Le reste passe à %.0f g" },  // STR_WP_REACT_SUB
+  // The two switch rows under it: title f16, subtitle f12.
+  { "Im Beutel gewogen",          "Weighed in the bag",              "Pesée dans le sachet" },  // STR_WP_BAG_ROW
+  { "zieht %.0f g ab",            "takes off %.0f g",                "retire %.0f g" },  // STR_WP_BAG_SUB
+  { "mit Beutel wären es %.0f g", "with the bag it would be %.0f g", "avec le sachet : %.0f g" },  // STR_WP_BAG_HINT
+  { "Automatisch senden",         "Send automatically",              "Envoi automatique" },  // STR_WP_AUTO_ROW
+  { "nach 3 s Ruhe, ohne Beutel", "after 3 s at rest, without bag",
+    "après 3 s immobile, sans sachet" },  // STR_WP_AUTO_SUB
+  // The bottom row: 120 px for Archive, 150 px each for the other two, f14.
+  { "Archivieren", "Archive", "Archiver" },  // STR_WP_ARCHIVE
+  { "Optionen",    "Options", "Options" },  // STR_WP_OPTIONS
+  // The popup's Options, f16 titles and f12 subtitles.
+  { "Als volle Spule übernehmen", "Take as a full spool",
+    "Reprendre comme bobine pleine" },  // STR_WP_FULL
+  { "Startgewicht wird %.0f g, Rest voll", "Initial weight becomes %.0f g, full",
+    "Poids initial %.0f g, bobine pleine" },  // STR_WP_FULL_SUB
+  { "Leere Spule wiegen", "Weigh the empty spool",
+    "Peser la bobine vide" },  // STR_WP_WEIGH_EMPTY
+  { "jetzt auf der Waage: %.0f g", "on the scale now: %.0f g",
+    "sur la balance : %.0f g" },  // STR_WP_WEIGH_EMPTY_SUB
+  { "Leergewicht eingeben", "Enter the empty weight",
+    "Saisir le poids à vide" },  // STR_WP_TYPE_EMPTY
+  { "bekannt oder vom Hersteller", "known, or from the maker",
+    "connu ou donné par le fabricant" },  // STR_WP_TYPE_EMPTY_SUB
+  // Where an empty spool weight goes. Title f16 on 436 px.
+  { "%.0f g als Leergewicht speichern für", "Store %.0f g as the empty weight of",
+    "Enregistrer %.0f g comme poids à vide pour" },  // STR_SW_SCOPE_TITLE
+  { "Nur diese Spule", "This spool only",
+    "Cette bobine seulement" },  // STR_SW_ONLY_SPOOL
+  { "Alle Spulen dieses Filaments", "Every spool of this filament",
+    "Toutes les bobines de ce filament" },  // STR_SW_ALL_FILAMENT
+  { "Alle Spulen des Herstellers", "Every spool of this brand",
+    "Toutes les bobines de la marque" },  // STR_SW_ALL_VENDOR
+  // On the row whose value applies now, f14 right of the title.
+  { "gilt: %.0f g", "now: %.0f g", "actuel : %.0f g" },  // STR_SW_CURRENT
 };
 
 StringID tagWriteResultString(uint8_t code) {

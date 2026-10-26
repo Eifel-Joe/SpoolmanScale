@@ -1,14 +1,14 @@
 #pragma once
 
-// The empty spool weight, weighed or typed in (issue #40). Opened from the
-// weight popup's empty spool button. Either way the value goes on to the
-// popup that asks where it is stored - spool, filament or brand.
-void showTareChoice();
+// The empty spool weight typed in (issue #40), from the weight popup's
+// Options. The value goes on to the question where it is stored - spool,
+// filament or brand - the same one a weighed value goes to.
+void showTareEntryPad();
 
-// Both dialogs of this file, for the navigation. Closed, not hidden.
+// The keypad, for the navigation. Closed, not hidden.
 void closeTareEntry();
 
-// The choice or the keypad is up. Counts as a modal like the weight popup:
+// The keypad is up. Counts as a modal like the weight popup:
 // no automatic weighing and no question on removal while it stands.
 bool isTareEntryOpen();
 

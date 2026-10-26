@@ -537,6 +537,31 @@ lv_obj_t* padButton(lv_obj_t* parent, int x, int y, int w, int h, uint32_t bg, u
   return b;
 }
 
+lv_obj_t* uiPopupBox(lv_obj_t** slot, int w, int h) {
+  releaseScreen(slot);
+  lv_obj_t* scrim = lv_obj_create(lv_scr_act());
+  *slot = scrim;
+  lv_obj_set_size(scrim, LV_HOR_RES, LV_VER_RES);
+  lv_obj_set_pos(scrim, 0, 0);
+  lv_obj_set_style_bg_color(scrim, lv_color_hex(UI_COL_SCRIM), 0);
+  lv_obj_set_style_bg_opa(scrim, UI_OPA_SCRIM, 0);
+  lv_obj_set_style_border_width(scrim, 0, 0);
+  lv_obj_set_style_radius(scrim, 0, 0);
+  lv_obj_set_style_pad_all(scrim, 0, 0);
+  lv_obj_clear_flag(scrim, LV_OBJ_FLAG_SCROLLABLE);
+
+  lv_obj_t* box = lv_obj_create(scrim);
+  lv_obj_set_size(box, w, h);
+  lv_obj_align(box, LV_ALIGN_CENTER, 0, 0);
+  lv_obj_set_style_bg_color(box, lv_color_hex(UI_COL_SURFACE), 0);
+  lv_obj_set_style_border_color(box, lv_color_hex(UI_COL_POPUP_BORDER), 0);
+  lv_obj_set_style_border_width(box, 2, 0);
+  lv_obj_set_style_radius(box, UI_RADIUS_BOX, 0);
+  lv_obj_set_style_pad_all(box, 0, 0);
+  lv_obj_clear_flag(box, LV_OBJ_FLAG_SCROLLABLE);
+  return box;
+}
+
 lv_obj_t* padLabel(lv_obj_t* btn, const char* text, uint32_t col, const lv_font_t* font) {
   lv_obj_t* l = lv_label_create(btn);
   lv_label_set_text(l, text);

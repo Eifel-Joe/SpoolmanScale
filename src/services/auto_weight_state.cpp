@@ -5,3 +5,4 @@ bool g_auto_loc_popup = false;
 bool g_auto_tare = false;
 float auto_weight_last_val = -9999.0f;
 unsigned long auto_weight_stable_ms = 0;
+bool auto_weight_done = false;

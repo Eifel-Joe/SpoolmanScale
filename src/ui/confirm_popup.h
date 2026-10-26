@@ -6,6 +6,15 @@ bool isConfirmPopupOpen();
 // Where an empty spool weight is stored: spool, filament or brand. measured
 // is false for a typed value, which drops the hint about a bag on the pad.
 void showSpoolWeightScope(float grams, bool measured);
+
+// The weight popup's writes, parked like every other one here until the
+// next loop pass.
+void confirmQueueWeight(float netto_g, float gross_g);
+// Takes the spool as full at netto_g, or first asks where a derived empty
+// spool weight goes when none is known at all.
+void confirmNewSpool(float netto_g);
+// The weight confirmNewSpool() will write as the initial weight.
+float confirmNewSpoolShownG(float netto_g);
 // That question is up. A modal like the rest: the value in it is about to
 // change the tare, and an automatic weighing meanwhile would use the old one.
 bool isSpoolWeightScopeOpen();

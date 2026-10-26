@@ -17,6 +17,7 @@
 #include "ui/tag_display.h"
 #include "ui/theme.h"
 #include "ui/ui_common.h"
+#include "ui/weight_button.h"
 
 static bool          s_active     = false;
 static int           s_id         = 0;
@@ -37,24 +38,12 @@ static void paintStatus() {
   lv_obj_set_style_text_color(lbl_status, lv_color_hex(UI_COL_STATUS_BLUE), 0);
 }
 
-// The weight button reads plain while the state holds: "(A)" would promise a
-// save that does not happen. Back to the idle look afterwards, the same two
-// the main screen starts with.
-static void paintWeightButton(bool by_id) {
-  if (!lbl_weight_main_lbl) return;
-  char buf[48];
-  const bool auto_look = g_auto_weight && !by_id;
-  if (auto_look) snprintf(buf, sizeof(buf), "%s (A)", T(STR_BTN_WEIGHT));
-  else           copyT(buf, sizeof(buf), STR_BTN_WEIGHT);
-  lv_label_set_text(lbl_weight_main_lbl, buf);
-  lv_obj_set_style_text_color(lbl_weight_main_lbl,
-                              lv_color_hex(auto_look ? UI_COL_WEIGHT_AUTO : UI_COL_WEIGHT_TEXT), 0);
-}
 
 static void endIdSpool(const char* why, bool clear_display) {
   logSDf("IdSpool: spool %d no longer shown (%s)", s_id, why);
   s_active = false;
-  paintWeightButton(false);
+  // Back to the idle look: the automatic one again, if it is on.
+  weightButtonIdle();
   if (clear_display) clearTagDisplay();
 }
 
@@ -83,7 +72,9 @@ void idSpoolAdopt(int spool_id) {
   // what was answered about it last time does not hold back the questions.
   g_loc_popup_shown_for_id = -1;
   paintStatus();
-  paintWeightButton(true);
+  // Plain while the state holds: the automatic look would promise a save
+  // that does not happen.
+  weightButtonIdle();
   logSDf("IdSpool: spool %d shown without a tag (load %.0fg)", spool_id, scale_weight_g);
 }
 

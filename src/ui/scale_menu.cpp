@@ -24,6 +24,7 @@
 #include "info_popup.h"
 #include "ui_common.h"
 #include "tare_mark.h"
+#include "weight_button.h"
 #include "theme.h"
 
 
@@ -167,6 +168,27 @@ void buildScaleSubScreen() {
     lv_obj_add_event_cb(btn, [](lv_event_t *e){
       logSD("BTN: Scale-Sub -> Bag Weight");
       show_bag_pending = true;
+    }, LV_EVENT_CLICKED, NULL); }
+
+  // Sending the weight on its own. Also a switch in the weight popup, where
+  // it is wanted on the spot; here is where it is looked for as a setting.
+  if (g_scale_fitted)
+  { char buf_s[8]; copyT(buf_s, sizeof(buf_s), g_auto_weight ? STR_ON : STR_OFF);
+    lv_obj_t *help = nullptr;
+    lv_obj_t *btn = makeListBtn(list, LV_SYMBOL_REFRESH, T(STR_WP_AUTO_ROW), T(STR_WP_AUTO_SUB),
+                                g_auto_weight, &help);
+    if (help) lv_obj_add_event_cb(help, infoPopupEventCb, LV_EVENT_CLICKED,
+                                  INFO_POPUP_ARG(STR_WP_AUTO_ROW, STR_AUTO_WEIGHT_INFO));
+    lv_obj_t *arr_lbl = lv_obj_get_child(btn, -1);
+    if (arr_lbl) {
+      lv_label_set_text(arr_lbl, buf_s);
+      lv_obj_set_style_text_color(arr_lbl, g_auto_weight ? lv_color_hex(UI_COL_ACCENT) : lv_color_hex(UI_COL_CAPTION), 0);
+      lv_obj_set_style_text_font(arr_lbl, &lv_font_montserrat_ext_14, 0);
+    }
+    lv_obj_add_event_cb(btn, [](lv_event_t *e){
+      logSD("BTN: Scale-Sub -> Auto-weight Toggle");
+      autoWeightSwitch(!g_auto_weight);
+      scale_sub_rebuild_pending = true;
     }, LV_EVENT_CLICKED, NULL); }
 
   // Only with a load cell, like the bag weight above it.

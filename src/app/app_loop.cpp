@@ -48,6 +48,7 @@
 #include "services/tag_write.h"
 #include "services/tag_link.h"
 #include "ui/ota_github.h"
+#include "ui/weight_button.h"
 #include "services/ota_state.h"
 #include "services/update_check.h"
 #include "ui/ota_browser.h"
@@ -224,12 +225,42 @@ static bool weightSaysSpoolStayed() {
 // this case does not have, so the intent is carried here instead.
 //
 // It needs an end as much as a beginning. "No tag" is also the condition that
-// clears aw_done for the next spool, so marking the spool weighable without
+// clears auto_weight_done for the next spool, so marking the spool weighable without
 // also saying when that stops would save it again on every pass through the
 // loop, for as long as it sat there.
 static bool aw_adopted      = false;
 static bool aw_adopted_seen = false;   // a real load has been on the pad since
-static bool aw_done         = false;   // this spool already saved
+
+// The spool has lain still long enough. What happens to the reading depends
+// on how it compares with what the backend holds (Nikolai, 26.10.2026):
+// heavier by more than AUTO_WEIGHT_RISE_G is held back and the button asks,
+// since filament only ever leaves a spool; within AUTO_WEIGHT_MIN_CHANGE_G
+// is the same value and costs no request; anything else is written. Never
+// minus the bag: a spool in use is weighed bare, and the popup has the
+// switch for the other case.
+static void autoWeightSettled(float gross) {
+  float netto = gross - (float)sm_spool_weight;
+  if (netto < 0.0f) netto = 0.0f;
+  const float diff = netto - sm_remaining;
+  if (diff > AUTO_WEIGHT_RISE_G) {
+    logSDf("Auto-Weight: spool %d reads %.0f g, %.0f g over the backend - not sent",
+           sm_id, netto, diff);
+    weightButtonShow(WL_RISE, diff);
+    return;
+  }
+  const bool unchanged = fabsf(diff) < AUTO_WEIGHT_MIN_CHANGE_G;
+  if (unchanged) {
+    logSDf("Auto-Weight: spool %d unchanged at %.0f g - not sent", sm_id, netto);
+    weightButtonShow(WL_UNCHANGED, netto);
+  } else {
+    weightButtonShow(WL_SENT, netto);
+    patchSpoolmanWeight(netto);
+  }
+  // Remembered either way, so a yes on removal can still open the window;
+  // an unchanged value has not gone out, and a yes is what sends it then.
+  if (amsAskActive()) amsNoteMeasurement(sm_id, netto, gross, !unchanged);
+  if (amsPickActive()) amsPickNote(sm_id, sm_filament_name);
+}
 
 // Lost more than half the reference. Nothing but taking the spool off does that.
 static bool weightSaysSpoolGone() {
@@ -242,33 +273,6 @@ static bool weightSaysSpoolGone() {
 // weighed on purpose, and that value gets written to FilaMan - so it must not
 // be a number the average was still chasing. Same criterion the auto weight
 // path uses: within AUTO_WEIGHT_THRESH_G for AUTO_WEIGHT_STABLE_MS.
-// The weight button's countdown in auto mode, made visible beyond the number:
-// each second its border flashes, thicker and in the countdown's own label
-// colour, for a moment. Timed from the loop with millis(), not an lv_timer,
-// and on the button that is always there - nothing new on the main screen.
-#define AW_PULSE_MS         150
-#define AW_PULSE_BORDER_PX  3
-#define AW_REST_BORDER_PX   1
-static unsigned long aw_pulse_ms = 0;   // when the current flash began, 0 = none
-
-static void weightPulseStart() {
-  if (!btn_weight_main) return;
-  lv_obj_set_style_border_width(btn_weight_main, AW_PULSE_BORDER_PX, 0);
-  lv_obj_set_style_border_color(btn_weight_main, lv_color_hex(UI_COL_WEIGHT_COUNT), 0);
-  aw_pulse_ms = millis();
-  if (aw_pulse_ms == 0) aw_pulse_ms = 1;
-}
-
-// Back to the border main_screen.cpp gives the button, once the flash is
-// over - also when the countdown ended or broke off in the middle of one.
-static void weightPulseTick() {
-  if (!aw_pulse_ms || millis() - aw_pulse_ms < AW_PULSE_MS) return;
-  aw_pulse_ms = 0;
-  if (!btn_weight_main) return;
-  lv_obj_set_style_border_width(btn_weight_main, AW_REST_BORDER_PX, 0);
-  lv_obj_set_style_border_color(btn_weight_main, lv_color_hex(UI_COL_WEIGHT_BG_PRESSED), 0);
-}
-
 static float         ams_settle_last  = -9999.0f;
 static unsigned long ams_settle_since = 0;
 static float         ams_settled_g    = 0.0f;
@@ -1250,7 +1254,7 @@ void appLoop() {
       // one does not leave its "already saved" behind.
       aw_adopted      = true;
       aw_adopted_seen = false;
-      aw_done         = false;
+      auto_weight_done = false;
       // Start the settling window here rather than inheriting one. A spool
       // that had already been sitting still for three seconds when the
       // trigger arrived would otherwise be written on the very first pass,
@@ -1565,7 +1569,6 @@ void appLoop() {
     }
   }
 
-  // aw_done: einmal gespeichert -> kein weiterer Patch bis Spule abgenommen
   // The adoption ends when the pad is empty again, or the moment a tag turns
   // up and takes over. Kept outside the g_auto_weight block on purpose: it
   // decides what the display is showing, and switching the automatic off must
@@ -1582,20 +1585,12 @@ void appLoop() {
   }
 
   if (g_auto_weight) {
-    static int  aw_last_shown_s = -1;  // verhindert unnoetige Label-Updates
-
-    // Spule abgenommen -> Reset fuer naechste Spule
-    if (!tag_present && !aw_adopted && aw_done) {
-      aw_done = false;
+    // Spool taken off: ready for the next one.
+    if (!tag_present && !aw_adopted && auto_weight_done) {
+      auto_weight_done = false;
       auto_weight_stable_ms = 0;
       auto_weight_last_val = -9999.0f;
-      aw_last_shown_s = -1;
-      if (lbl_weight_main_lbl) {
-        char wmbuf[48];
-        snprintf(wmbuf, sizeof(wmbuf), "%s (A)", T(STR_BTN_WEIGHT));
-        lv_label_set_text(lbl_weight_main_lbl, wmbuf);
-        lv_obj_set_style_text_color(lbl_weight_main_lbl, lv_color_hex(UI_COL_WEIGHT_AUTO), 0);
-      }
+      weightButtonIdle();
     }
 
     // A spool adopted without a tag counts as present: it was picked
@@ -1606,79 +1601,45 @@ void appLoop() {
     // stock. Bringing it back is a decision, and it has its own button.
     // Nor while an empty spool weight is being entered: the weighing would
     // be computed against the tare that is about to be replaced.
-    if (!aw_done && !isConfirmPopupOpen() && !isTareEntryOpen() && !isSpoolWeightScopeOpen() &&
+    if (!auto_weight_done && !isConfirmPopupOpen() && !isTareEntryOpen() && !isSpoolWeightScopeOpen() &&
         sm_found && !sm_archived && sm_id > 0 && scale_ready &&
         (tag_present || aw_adopted)) {
-      float cur = scale_weight_g;
+      const float cur = scale_weight_g;
       if (fabsf(cur - auto_weight_last_val) > AUTO_WEIGHT_THRESH_G) {
-        // Gewicht bewegt sich -> Timer neu starten
+        // Still moving: the window starts again, and the fill with it.
         auto_weight_last_val = cur;
         auto_weight_stable_ms = millis();
-        aw_last_shown_s = -1;
       } else if (auto_weight_stable_ms > 0 &&
                  millis() - auto_weight_stable_ms >= AUTO_WEIGHT_STABLE_MS) {
-        // 3 Sekunden stabil -> einmalig speichern
-        aw_done = true;
+        auto_weight_done = true;
         auto_weight_stable_ms = 0;
-        aw_last_shown_s = -1;
-        float netto = cur - (float)sm_spool_weight;
-        if (netto < 0) netto = 0;
-        // Haekchen im Button - bleibt bis Spule abgenommen wird
-        if (lbl_weight_main_lbl) {
-          char wmbuf[48];
-          snprintf(wmbuf, sizeof(wmbuf), "%s " LV_SYMBOL_OK, T(STR_BTN_WEIGHT));
-          lv_label_set_text(lbl_weight_main_lbl, wmbuf);
-          lv_obj_set_style_text_color(lbl_weight_main_lbl, lv_color_hex(UI_COL_WEIGHT_SENT), 0);
-        }
-        patchSpoolmanWeight(netto);
-        // Remembered, not held back: the value is in FilaMan now, this only
-        // lets a yes on removal report it once more to open the window.
-        if (amsAskActive()) amsNoteMeasurement(sm_id, netto, cur, true);
-        if (amsPickActive()) amsPickNote(sm_id, sm_filament_name);
+        autoWeightSettled(cur);
       } else if (auto_weight_stable_ms == 0) {
         auto_weight_last_val = cur;
         auto_weight_stable_ms = millis();
       } else {
-        // Countdown: sekuendlich Button-Text aktualisieren
-        unsigned long elapsed = millis() - auto_weight_stable_ms;
-        int rem = (int)((AUTO_WEIGHT_STABLE_MS - elapsed) / 1000) + 1;
-        if (rem < 1) rem = 1;
-        if (rem != aw_last_shown_s && lbl_weight_main_lbl) {
-          aw_last_shown_s = rem;
-          char wmbuf[48];
-          snprintf(wmbuf, sizeof(wmbuf), "%s %ds", T(STR_BTN_WEIGHT), rem);
-          lv_label_set_text(lbl_weight_main_lbl, wmbuf);
-          lv_obj_set_style_text_color(lbl_weight_main_lbl, lv_color_hex(UI_COL_WEIGHT_COUNT), 0);
-          weightPulseStart();
-        }
+        const float netto = cur - (float)sm_spool_weight;
+        weightButtonShow(WL_COUNTING, netto < 0.0f ? 0.0f : netto);
+        weightButtonFill(AUTO_WEIGHT_STABLE_MS - (millis() - auto_weight_stable_ms));
       }
-    } else if (!aw_done && !tag_present && !idSpoolActive()) {
-      // Kein Tag, kein Countdown -> Idle-Text "(A)"
+    } else if (!auto_weight_done && !tag_present && !idSpoolActive()) {
+      // No spool, no countdown: the idle look.
       // Not for a spool shown by its id: nothing is saved on its own there.
       if (auto_weight_stable_ms > 0) {
         auto_weight_stable_ms = 0;
         auto_weight_last_val = -9999.0f;
-        aw_last_shown_s = -1;
       }
       // While a window is running the button belongs to its countdown. A new
       // spool takes it back, which is right: that one matters more.
-      if (aw_last_shown_s != 0 && lbl_weight_main_lbl && !amsWindowOpen()) {
-        aw_last_shown_s = 0;
-        char wmbuf[48];
-        snprintf(wmbuf, sizeof(wmbuf), "%s (A)", T(STR_BTN_WEIGHT));
-        lv_label_set_text(lbl_weight_main_lbl, wmbuf);
-        lv_obj_set_style_text_color(lbl_weight_main_lbl, lv_color_hex(UI_COL_WEIGHT_AUTO), 0);
-      }
+      if (!amsWindowOpen()) weightButtonIdle();
     }
   } else {
-    // Auto AUS: Timer sauber halten
+    // Auto off: keep the timer clean.
     if (auto_weight_stable_ms > 0) {
       auto_weight_stable_ms = 0;
       auto_weight_last_val = -9999.0f;
     }
   }
-
-  weightPulseTick();
 
   // The offer goes stale when the spool is left sitting on the pad. Only the
   // note is dropped, the weight went out when it was measured.

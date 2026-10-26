@@ -22,30 +22,32 @@
 #include "app/id_spool.h"
 #include "spoolman_screen.h"
 #include "tare_entry.h"
+#include "weight_popup.h"
 #include "lang.h"
 #include "theme.h"
 
 
 static lv_obj_t *confirm_popup = nullptr;
 static int confirm_action = 0;
-static lv_obj_t *lbl_auto_weight_btn = nullptr;
-// The three dialogs this file opens on top of the main popup. They used to
-// be locals of the callback that built them, so nothing could close them
-// from outside and a navigation left them standing over the next screen.
+// The dialogs this file opens besides the question itself. They used to be
+// locals of the callback that built them, so nothing could close them from
+// outside and a navigation left them standing over the next screen.
 static lv_obj_t *s_scope_popup = nullptr;   // where the empty spool weight goes
-static lv_obj_t *s_auto_popup  = nullptr;   // the auto-weight question
 static lv_obj_t *s_cap_popup   = nullptr;   // BamBuddy's label weight question
 
 void closeConfirmPopups() {
   closeConfirmPopup();
+  closeWeightPopups();
   releaseScreen(&s_scope_popup);
-  releaseScreen(&s_auto_popup);
   releaseScreen(&s_cap_popup);
   closeTareEntry();
 }
 
+// The weight popup counts as one of these. It lived in this file until
+// 26.10.2026, and every place that waits for a question to be answered -
+// the automatic weighing, the tag lookups, uiModalWaiting() - asks here.
 bool isConfirmPopupOpen() {
-  return confirm_popup != nullptr;
+  return confirm_popup != nullptr || isWeightPopupOpen();
 }
 
 bool isSpoolWeightScopeOpen() {
@@ -59,7 +61,6 @@ void closeConfirmPopup() {
   // The pointer is dropped now, so the popup counts as closed from this line.
   if (confirm_popup) { lv_obj_del_async(confirm_popup); confirm_popup = nullptr; }
   confirm_action = 0;
-  lbl_auto_weight_btn = nullptr;  // gone with the popup
 }
 
 // What a button asked for, carried to appLoop(). Every one of these reaches
@@ -187,10 +188,6 @@ static void freeTagConfirmed() {
 // pad, but a brand new spool can derive it instead -- see the New spool button.
 static float s_tare_prompt_g = 0.0f;
 static float s_cap_measured  = 0.0f;
-// What the reactivate button says it will write. Settled while the popup is
-// built and reused in the callback, so the number the user read is the number
-// that lands - re-measuring on the click would quietly write something else.
-static float s_reactivate_g   = 0.0f;
 static bool  s_tare_then_new = false;
 
 // After a tare is stored from the New spool flow the initial weight follows
@@ -246,6 +243,92 @@ static bool newSpoolDerivesTare(float* out_tare) {
   return true;
 }
 
+// The question where an empty spool weight goes, rebuilt 26.10.2026 with the
+// weight popup: the three places in words rather than backend field names,
+// each with what it reaches, and the one whose value applies now saying so.
+// One screen's coordinates, inside the box.
+#define SW_BOX_W     460
+#define SW_X          10
+#define SW_INNER_W   436
+#define SW_TITLE_Y    10
+#define SW_WARN_Y     38
+#define SW_WARN_H     28
+#define SW_ROWS_Y     40     // without the bag warning
+#define SW_ROWS_Y_WARN 74
+#define SW_ROW_H      52
+#define SW_ROW_STEP   58
+#define SW_BTN_H      46
+#define SW_SUB_W     260
+
+static void scopePicked(ConfirmJob job) {
+  s_job = job; s_job_value = s_tare_prompt_g; s_job_spool_id = s_tare_spool_id;
+  releaseScreen(&s_scope_popup);
+}
+
+struct ScopeRow { int title_id; const char *sub; uint8_t source; lv_event_cb_t cb; };
+
+static void scopeRow(lv_obj_t *box, int y, const ScopeRow &r) {
+  lv_obj_t *b = lv_btn_create(box);
+  lv_obj_set_size(b, SW_INNER_W, SW_ROW_H);
+  lv_obj_set_pos(b, SW_X, y);
+  lv_obj_set_style_bg_color(b, lv_color_hex(UI_COL_ROW), 0);
+  lv_obj_set_style_bg_color(b, lv_color_hex(UI_COL_ROW_PRESS_FILL), LV_STATE_PRESSED);
+  lv_obj_set_style_border_width(b, 1, 0);
+  lv_obj_set_style_border_color(b, lv_color_hex(UI_COL_ROW_PRESSED), 0);
+  lv_obj_set_style_radius(b, UI_RADIUS_BTN, 0);
+  lv_obj_set_style_shadow_width(b, 0, 0);
+  lv_obj_set_style_pad_all(b, 0, 0);
+  lv_obj_add_event_cb(b, r.cb, LV_EVENT_CLICKED, NULL);
+
+  lv_obj_t *t = lv_label_create(b);
+  lv_label_set_text(t, T(r.title_id));
+  lv_obj_set_style_text_font(t, UI_FONT_BODY, 0);
+  lv_obj_set_style_text_color(t, lv_color_hex(UI_COL_INK), 0);
+  lv_obj_align(t, LV_ALIGN_LEFT_MID, 14, -9);
+  lv_obj_t *sub = labelOneLine(b, r.sub, UI_FONT_CAPTION, SW_SUB_W);
+  lv_obj_set_style_text_color(sub, lv_color_hex(UI_COL_CAPTION), 0);
+  lv_obj_align(sub, LV_ALIGN_LEFT_MID, 14, 11);
+
+  if (sm_tare_source != TARE_NONE && sm_tare_source == r.source) {
+    char cur[32];
+    snprintf(cur, sizeof(cur), T(STR_SW_CURRENT), (float)sm_spool_weight);
+    lv_obj_t *c = lv_label_create(b);
+    lv_label_set_text(c, cur);
+    lv_obj_set_style_text_font(c, UI_FONT_SMALL, 0);
+    lv_obj_set_style_text_color(c, lv_color_hex(UI_COL_ACCENT), 0);
+    lv_obj_align(c, LV_ALIGN_RIGHT_MID, -36, 0);
+  }
+  lv_obj_t *arr = lv_label_create(b);
+  lv_label_set_text(arr, LV_SYMBOL_RIGHT);
+  lv_obj_set_style_text_font(arr, UI_FONT_BODY, 0);
+  lv_obj_set_style_text_color(arr, lv_color_hex(UI_COL_INK_FAINT), 0);
+  lv_obj_align(arr, LV_ALIGN_RIGHT_MID, -14, 0);
+}
+
+// A bag on the pad is counted into the reading, and this number may be
+// written to an entire brand. The device cannot tell whether one is there,
+// so it says so rather than silently subtracting a weight that might not be
+// on the scale at all.
+static void scopeBagWarning(lv_obj_t *box) {
+  lv_obj_t *strip = lv_obj_create(box);
+  lv_obj_set_size(strip, SW_INNER_W, SW_WARN_H);
+  lv_obj_set_pos(strip, SW_X, SW_WARN_Y);
+  lv_obj_set_style_bg_color(strip, lv_color_hex(UI_COL_AMBER_BG), 0);
+  lv_obj_set_style_border_color(strip, lv_color_hex(UI_COL_AMBER_LINE), 0);
+  lv_obj_set_style_border_width(strip, 1, 0);
+  lv_obj_set_style_radius(strip, UI_RADIUS_BTN, 0);
+  lv_obj_set_style_pad_all(strip, 0, 0);
+  lv_obj_clear_flag(strip, LV_OBJ_FLAG_SCROLLABLE);
+  char num[64], buf[72];
+  snprintf(num, sizeof(num), T(STR_SPOOL_WEIGHT_BAG_HINT), bag_weight_g);
+  snprintf(buf, sizeof(buf), LV_SYMBOL_WARNING "  %s", num);
+  lv_obj_t *l = lv_label_create(strip);
+  lv_label_set_text(l, buf);
+  lv_obj_set_style_text_font(l, UI_FONT_CAPTION, 0);
+  lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_WARN), 0);
+  lv_obj_align(l, LV_ALIGN_LEFT_MID, 10, 0);
+}
+
 // measured: the value is a reading off the pad, so a bag on it would be in
 // there too. A typed value knows nothing of the bag.
 static void showSpoolWeightPopup(float grams, bool then_new_spool, bool measured = true) {
@@ -255,130 +338,75 @@ static void showSpoolWeightPopup(float grams, bool then_new_spool, bool measured
   // see tare_entry.cpp.
   s_tare_spool_id = sm_id;
 
-      // Sub-popup: where should the spool weight be written?
-      const float w = s_tare_prompt_g;
-      // Not every backend has all three places to put it. BamBuddy has no
-      // filament and no vendor object at all, and behind its Spoolman proxy
-      // even the spool's own core weight is discarded on write. Buttons for
-      // those are not built rather than built and left to fail.
-      const bool scope_spool  = backendCanTareSpool();
-      const bool scope_shared = backendCanTareFilamentOrVendor();
+  // Not every backend has all three places to put it. BamBuddy has no
+  // filament and no vendor object at all, and behind its Spoolman proxy even
+  // the spool's own core weight is discarded on write. Rows for those are
+  // not built rather than built and left to fail.
+  const bool shared = backendCanTareFilamentOrVendor();
+  char spool_sub[48], fil_sub[72];
+  snprintf(spool_sub, sizeof(spool_sub), "#%d  %s", sm_id, sm_filament_name);
+  snprintf(fil_sub, sizeof(fil_sub), "%s%s%s", sm_vendor_g, sm_vendor_g[0] ? " " : "", sm_filament_name);
+  const ScopeRow rows[] = {
+    { STR_SW_ONLY_SPOOL,   spool_sub,   TARE_SPOOL,    [](lv_event_t *e) { scopePicked(CJ_TARE_SPOOL); } },
+    { STR_SW_ALL_FILAMENT, fil_sub,     TARE_FILAMENT, [](lv_event_t *e) { scopePicked(CJ_TARE_FILAMENT); } },
+    { STR_SW_ALL_VENDOR,   sm_vendor_g, TARE_VENDOR,   [](lv_event_t *e) { scopePicked(CJ_TARE_VENDOR); } },
+  };
+  const bool shown[] = { backendCanTareSpool(), shared, shared };
+  const int n = (shown[0] ? 1 : 0) + (shared ? 2 : 0);
+  const bool warn = measured && bag_weight_g > 0.0f;
+  const int y0 = warn ? SW_ROWS_Y_WARN : SW_ROWS_Y;
+  const int cancel_y = y0 + n * SW_ROW_STEP;
+  lv_obj_t *box = uiPopupBox(&s_scope_popup, SW_BOX_W, cancel_y + SW_BTN_H + 12);
 
-      releaseScreen(&s_scope_popup);
-      lv_obj_t *popup = lv_obj_create(lv_scr_act());
-      s_scope_popup = popup;
-      lv_obj_set_size(popup, 480, 320);
-      lv_obj_set_pos(popup, 0, 0);
-      lv_obj_set_style_bg_color(popup, lv_color_hex(UI_COL_GROUND), 0);
-      lv_obj_set_style_bg_opa(popup, LV_OPA_COVER, 0);
-      lv_obj_set_style_border_width(popup, 0, 0);
-      lv_obj_set_style_pad_all(popup, 0, 0);
-      lv_obj_clear_flag(popup, LV_OBJ_FLAG_SCROLLABLE);
+  char title[64];
+  snprintf(title, sizeof(title), T(STR_SW_SCOPE_TITLE), grams);
+  lv_obj_t *t = labelOneLine(box, title, UI_FONT_BODY, SW_INNER_W);
+  lv_obj_set_style_text_color(t, lv_color_hex(UI_COL_INK), 0);
+  lv_obj_set_pos(t, SW_X + 4, SW_TITLE_Y);
+  if (warn) scopeBagWarning(box);
 
-      // Title
-      lv_obj_t *title = lv_label_create(popup);
-      char title_buf[48];
-      snprintf(title_buf, sizeof(title_buf), T(STR_SPOOL_WEIGHT_TITLE), w);
-      lv_label_set_text(title, title_buf);
-      lv_obj_set_style_text_color(title, lv_color_hex(UI_COL_ACCENT), 0);
-      lv_obj_set_style_text_font(title, &lv_font_montserrat_ext_14, 0);
-      lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 10);
+  int y = y0;
+  for (size_t i = 0; i < sizeof(rows) / sizeof(rows[0]); i++) {
+    if (!shown[i]) continue;
+    scopeRow(box, y, rows[i]);
+    y += SW_ROW_STEP;
+  }
 
-      // Rows are placed one after another so a missing scope leaves no hole.
-      int row_y = 36;
-
-      // Button 1: this spool
-      lv_obj_t *b1 = lv_btn_create(popup);
-      lv_obj_set_size(b1, 460, 60); lv_obj_set_pos(b1, 10, row_y);
-      if (!scope_spool) lv_obj_add_flag(b1, LV_OBJ_FLAG_HIDDEN);
-      else row_y += 70;
-      lv_obj_set_style_bg_color(b1, lv_color_hex(UI_COL_CHIP), 0);
-      lv_obj_set_style_radius(b1, 8, 0); lv_obj_set_style_shadow_width(b1, 0, 0);
-      { lv_obj_t *l = lv_label_create(b1);
-        lv_label_set_text(l, T(backendIsFilaMan() ? STR_BTN_THIS_SPOOL_FM
-                                                  : STR_BTN_THIS_SPOOL));
-        lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_INK_2), 0);
-        lv_obj_set_style_text_font(l, &lv_font_montserrat_ext_16, 0);
-        lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_center(l); }
-      lv_obj_add_event_cb(b1, [](lv_event_t *e) {
-        s_job = CJ_TARE_SPOOL; s_job_value = s_tare_prompt_g; s_job_spool_id = s_tare_spool_id;
-        releaseScreen(&s_scope_popup);
-      }, LV_EVENT_CLICKED, NULL);
-
-      // Button 2: this filament
-      lv_obj_t *b2 = lv_btn_create(popup);
-      lv_obj_set_size(b2, 460, 60); lv_obj_set_pos(b2, 10, row_y);
-      if (!scope_shared) lv_obj_add_flag(b2, LV_OBJ_FLAG_HIDDEN);
-      else row_y += 70;
-      lv_obj_set_style_bg_color(b2, lv_color_hex(UI_COL_FILAMENT_BG), 0);
-      lv_obj_set_style_radius(b2, 8, 0); lv_obj_set_style_shadow_width(b2, 0, 0);
-      { lv_obj_t *l = lv_label_create(b2);
-        lv_label_set_text(l, T(backendIsFilaMan() ? STR_BTN_THIS_FILAMENT_FM
-                                                  : STR_BTN_THIS_FILAMENT));
-        lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_INK_2), 0);
-        lv_obj_set_style_text_font(l, &lv_font_montserrat_ext_16, 0);
-        lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_center(l); }
-      lv_obj_add_event_cb(b2, [](lv_event_t *e) {
-        s_job = CJ_TARE_FILAMENT; s_job_value = s_tare_prompt_g; s_job_spool_id = s_tare_spool_id;
-        releaseScreen(&s_scope_popup);
-      }, LV_EVENT_CLICKED, NULL);
-
-      // Button 3: vendor
-      lv_obj_t *b3 = lv_btn_create(popup);
-      lv_obj_set_size(b3, 460, 60); lv_obj_set_pos(b3, 10, row_y);
-      if (!scope_shared) lv_obj_add_flag(b3, LV_OBJ_FLAG_HIDDEN);
-      else row_y += 70;
-      lv_obj_set_style_bg_color(b3, lv_color_hex(UI_COL_AMBER_BG), 0);
-      lv_obj_set_style_radius(b3, 8, 0); lv_obj_set_style_shadow_width(b3, 0, 0);
-      { lv_obj_t *l = lv_label_create(b3);
-        // Spoolman's vendor is FilaMan's manufacturer, and the bracketed field
-        // names below the title only hold for Spoolman - see the lang.cpp entries.
-        lv_label_set_text(l, T(backendIsFilaMan() ? STR_BTN_THIS_VENDOR_FM
-                                                  : STR_BTN_THIS_VENDOR));
-        lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_INK_2), 0);
-        lv_obj_set_style_text_font(l, &lv_font_montserrat_ext_16, 0);
-        lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_center(l); }
-      lv_obj_add_event_cb(b3, [](lv_event_t *e) {
-        s_job = CJ_TARE_VENDOR; s_job_value = s_tare_prompt_g; s_job_spool_id = s_tare_spool_id;
-        releaseScreen(&s_scope_popup);
-      }, LV_EVENT_CLICKED, NULL);
-
-      // Button 4: cancel, right under whatever was built above
-      lv_obj_t *b4 = lv_btn_create(popup);
-      lv_obj_set_size(b4, 460, 40); lv_obj_set_pos(b4, 10, row_y + 10);
-      lv_obj_set_style_bg_color(b4, lv_color_hex(UI_COL_BAD_BG), 0);
-      lv_obj_set_style_radius(b4, 8, 0); lv_obj_set_style_shadow_width(b4, 0, 0);
-      { lv_obj_t *l = lv_label_create(b4);
-        lv_label_set_text(l, T(STR_CANCEL));
-        lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_BAD_TEXT), 0);
-        lv_obj_set_style_text_font(l, &lv_font_montserrat_ext_14, 0);
-        lv_obj_center(l); }
-      lv_obj_add_event_cb(b4, [](lv_event_t *e) {
-        s_tare_then_new = false;
-        releaseScreen(&s_scope_popup);
-      }, LV_EVENT_CLICKED, NULL);
-
-      // A bag on the pad is counted into the reading, and this number may be
-      // written to an entire brand. The device cannot tell whether one is
-      // there, so it says so rather than silently subtracting a weight that
-      // might not be on the scale at all.
-      if (measured && bag_weight_g > 0.0f) {
-        lv_obj_t *bag_hint = lv_label_create(popup);
-        char bag_buf[64];
-        snprintf(bag_buf, sizeof(bag_buf), T(STR_SPOOL_WEIGHT_BAG_HINT), bag_weight_g);
-        lv_label_set_text(bag_hint, bag_buf);
-        lv_obj_set_style_text_color(bag_hint, lv_color_hex(UI_COL_WARN), 0);
-        lv_obj_set_style_text_font(bag_hint, &lv_font_montserrat_ext_12, 0);
-        lv_obj_align(bag_hint, LV_ALIGN_TOP_MID, 0, 300);
-      }
-
-    }
+  // Neutral like the weight popup's Close: nothing is lost by leaving.
+  lv_obj_t *cancel = padButton(box, SW_X, cancel_y, SW_INNER_W, SW_BTN_H, UI_COL_ROW, UI_COL_ROW_PRESS_FILL);
+  lv_obj_set_style_radius(cancel, UI_RADIUS_BTN, 0);
+  padLabel(cancel, T(STR_CANCEL), UI_COL_INK_2, UI_FONT_SMALL);
+  lv_obj_add_event_cb(cancel, [](lv_event_t *e) {
+    s_tare_then_new = false;
+    releaseScreen(&s_scope_popup);
+  }, LV_EVENT_CLICKED, NULL);
+}
 
 void showSpoolWeightScope(float grams, bool measured) {
   showSpoolWeightPopup(grams, false, measured);
+}
+
+void confirmQueueWeight(float netto_g, float gross_g) {
+  // The numbers are taken now, the request runs on the next loop pass.
+  s_job = CJ_WEIGHT; s_job_value = netto_g; s_job_gross = gross_g;
+}
+
+// Where nothing is known about the empty spool, taking it as full derives
+// that first and asks where it goes; the initial weight follows from it.
+void confirmNewSpool(float netto_g) {
+  float derived = 0.0f;
+  if (newSpoolDerivesTare(&derived)) {
+    showSpoolWeightPopup(derived, true);   // stores the tare, then the initial
+    return;
+  }
+  s_job = CJ_INITIAL; s_job_value = netto_g;
+}
+
+// Name the weight the button will really write. Where the tare is derived
+// that is the nominal filament weight, not the reading minus a tare that is
+// about to be replaced - and those two differ by the whole spool.
+float confirmNewSpoolShownG(float netto_g) {
+  return newSpoolDerivesTare(nullptr) ? sm_total : netto_g;
 }
 
 void showConfirmPopup(const char* msg, int action) {
@@ -409,487 +437,92 @@ void showConfirmPopup(const char* msg, int action) {
   lv_obj_set_style_text_align(lbl_q, LV_TEXT_ALIGN_CENTER, 0);
   lv_label_set_long_mode(lbl_q, LV_LABEL_LONG_WRAP);
 
-  if (action == 2) {
-    // Layout: 4 Zeilen - Row1=66, Row2=52, Row3=52, Row4=42
-    // BOX_H = 8+28+6+66+6+52+6+52+6+42+8 = 280px (original)
-    const int BOX_W  = 460;
-    const int H_ROW1 = 66;
-    const int H_ROW2 = 52;
-    const int H_ROW3 = 52;
-    const int H_ROW4 = 42;
-    const int PAD    = 6;
-    const int EDGE   = 8;
-    const int HDR_H  = 28;
-    const int BOX_H  = EDGE + HDR_H + PAD + H_ROW1 + PAD + H_ROW2 + PAD + H_ROW3 + PAD + H_ROW4 + EDGE;
-
-    lv_obj_set_size(box, BOX_W, BOX_H);
-    lv_obj_align(box, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_style_pad_all(box, 0, 0);
-
-    lv_obj_set_width(lbl_q, BOX_W - 2*EDGE);
-    lv_obj_set_pos(lbl_q, EDGE, 6);
-    lv_obj_set_style_text_font(lbl_q, &lv_font_montserrat_ext_14, 0);
-    lv_obj_set_style_text_align(lbl_q, LV_TEXT_ALIGN_CENTER, 0);
-
-    const int Y1 = EDGE + HDR_H + PAD;
-    const int Y2 = Y1 + H_ROW1 + PAD;
-    const int Y3 = Y2 + H_ROW2 + PAD;
-    const int Y4 = Y3 + H_ROW3 + PAD;
-
-    // True when at least one tare scope reaches the database. Decides both
-    // whether the button below exists and how wide its neighbour is.
-    const bool tare_writable = backendCanTareSpool() || backendCanTareFilamentOrVendor();
-
-    const int BW2 = (BOX_W - 2*EDGE - PAD) / 2;
-    const int XL  = EDGE;
-    const int XR  = EDGE + BW2 + PAD;
-
-    float netto_plain = scale_weight_g - (float)sm_spool_weight;
-    // Settled here, with the same arithmetic the weight buttons use, so the
-    // reactivate button below can name the number it will write.
-    s_reactivate_g = (netto_plain < 0) ? 0.0f : netto_plain;
-    if (netto_plain < 0) netto_plain = 0;
-
-    // ── Row 1 left: without bag ──
-    lv_obj_t *btn1 = lv_btn_create(box);
-    // Without a bag this is the only weight button and takes the whole row.
-    lv_obj_set_size(btn1, bagInUse() ? BW2 : BOX_W - 2*EDGE, H_ROW1);
-    lv_obj_set_pos(btn1, XL, Y1);
-    lv_obj_set_style_bg_color(btn1, lv_color_hex(UI_COL_OK_BG), 0);
-    lv_obj_set_style_bg_color(btn1, lv_color_hex(UI_COL_OK_BG_PRESSED), LV_STATE_PRESSED);
-    lv_obj_set_style_radius(btn1, 8, 0);
-    lv_obj_set_style_shadow_width(btn1, 0, 0);
-    lv_obj_add_event_cb(btn1, [](lv_event_t *e) {
-      closeConfirmPopup();
-      float r = scale_weight_g - (float)sm_spool_weight;
-      if (r < 0) r = 0;
-      // The numbers are taken now, the request runs on the next loop pass.
-      s_job = CJ_WEIGHT; s_job_value = r; s_job_gross = scale_weight_g;
-    }, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *l1 = lv_label_create(btn1);
-    char buf1[48];
-    snprintf(buf1, sizeof(buf1), T(bagInUse() ? STR_BTN_NO_BAG_VAL : STR_BTN_WEIGHT_VAL), netto_plain);
-    lv_label_set_text(l1, buf1);
-    lv_obj_set_style_text_color(l1, lv_color_hex(UI_COL_OK_TEXT), 0);
-    lv_obj_set_style_text_font(l1, &lv_font_montserrat_ext_16, 0);
-    lv_obj_set_style_text_align(l1, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_center(l1);
-
-    if (bagInUse()) {
-      // ── Row 1 right: with bag ──
-      lv_obj_t *btn2 = lv_btn_create(box);
-      lv_obj_set_size(btn2, BW2, H_ROW1);
-      lv_obj_set_pos(btn2, XR, Y1);
-      lv_obj_set_style_bg_color(btn2, lv_color_hex(UI_COL_OK_BG), 0);
-      lv_obj_set_style_bg_color(btn2, lv_color_hex(UI_COL_BAG_BG_PRESSED), LV_STATE_PRESSED);
-      lv_obj_set_style_radius(btn2, 8, 0);
-      lv_obj_set_style_shadow_width(btn2, 0, 0);
-      lv_obj_add_event_cb(btn2, [](lv_event_t *e) {
-        closeConfirmPopup();
-        float r = scale_weight_g - (float)sm_spool_weight - bag_weight_g;
-        if (r < 0) r = 0;
-        // Gross without the bag: that is what the scale would have shown had
-        // the spool been weighed bare, and it is what FilaMan has to be told.
-        s_job = CJ_WEIGHT; s_job_value = r; s_job_gross = scale_weight_g - bag_weight_g;
-      }, LV_EVENT_CLICKED, NULL);
-      lv_obj_t *l2 = lv_label_create(btn2);
-      char buf2[56];
-      snprintf(buf2, sizeof(buf2), T(STR_BTN_WITH_BAG_VAL), netto_plain, bag_weight_g);
-      lv_label_set_text(l2, buf2);
-      lv_obj_set_style_text_color(l2, lv_color_hex(UI_COL_OK_TEXT), 0);
-      lv_obj_set_style_text_font(l2, &lv_font_montserrat_ext_16, 0);
-      lv_obj_set_style_text_align(l2, LV_TEXT_ALIGN_CENTER, 0);
-      lv_obj_center(l2);
-    }
-
-    // ── Zeile 2 Links: Neue Spule ──
-    lv_obj_t *btn3 = lv_btn_create(box);
-    lv_obj_set_size(btn3, BW2, H_ROW2);
-    lv_obj_set_pos(btn3, XL, Y2);
-    lv_obj_set_style_bg_color(btn3, lv_color_hex(UI_COL_CHIP), 0);
-    lv_obj_set_style_bg_color(btn3, lv_color_hex(UI_COL_PRESS_FILL), LV_STATE_PRESSED);
-    lv_obj_set_style_radius(btn3, 8, 0);
-    lv_obj_set_style_shadow_width(btn3, 0, 0);
-    lv_obj_add_event_cb(btn3, [](lv_event_t *e) {
-      closeConfirmPopup();
-      float derived = 0.0f;
-      if (newSpoolDerivesTare(&derived)) {
-        showSpoolWeightPopup(derived, true);   // stores the tare, then the initial
-        return;
-      }
-      float initial = scale_weight_g - (float)sm_spool_weight;
-      if (initial < 0) initial = 0;
-      s_job = CJ_INITIAL; s_job_value = initial;
-    }, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *l3 = lv_label_create(btn3);
-    char buf3[56];
-    // Name the weight the button will really write. Where the tare is derived
-    // that is the nominal filament weight, not the reading minus a tare that
-    // is about to be replaced - and those two differ by the whole spool.
-    const bool derives_tare = newSpoolDerivesTare(nullptr);
-    float new_spool_shown = derives_tare ? sm_total : netto_plain;
-    snprintf(buf3, sizeof(buf3), T(STR_BTN_NEW_SPOOL_VAL), new_spool_shown);
-    // An inherited tare carries into the filament weight measured against it,
-    // so the button says where it came from - same wording as the spool
-    // details, so the two read as one statement rather than two.
-    const char *tare_note = "";
-    if (!derives_tare && sm_tare_source == TARE_FILAMENT) tare_note = T(STR_TARE_FROM_FILAMENT);
-    else if (!derives_tare && sm_tare_source == TARE_VENDOR) tare_note = T(STR_TARE_FROM_BRAND);
-    if (tare_note[0]) {
-      const size_t used = strlen(buf3);
-      snprintf(buf3 + used, sizeof(buf3) - used, "%s", tare_note);
-    }
-    lv_label_set_text(l3, buf3);
-    lv_obj_set_style_text_color(l3, lv_color_hex(UI_COL_ALT_TEXT), 0);
-    lv_obj_set_style_text_font(l3, &lv_font_montserrat_ext_14, 0);
-    lv_obj_set_style_text_align(l3, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_center(l3);
-
-    // ── Row 2 right: empty spool weight, weighed or typed in ──
-    // Dropped entirely where no tare scope can be written - which is the case
-    // for BamBuddy behind Spoolman. The place stays empty on purpose rather
-    // than letting the neighbour grow into it: a button that changes width
-    // depending on the backend reads as a different button.
-    if (tare_writable) {
-    lv_obj_t *btn4 = lv_btn_create(box);
-    lv_obj_set_size(btn4, BW2, H_ROW2);
-    lv_obj_set_pos(btn4, XR, Y2);
-    lv_obj_set_style_bg_color(btn4, lv_color_hex(UI_COL_LINE_SOFT), 0);
-    lv_obj_set_style_bg_color(btn4, lv_color_hex(UI_COL_RULE), LV_STATE_PRESSED);
-    lv_obj_set_style_radius(btn4, 8, 0);
-    lv_obj_set_style_shadow_width(btn4, 0, 0);
-    lv_obj_add_event_cb(btn4, [](lv_event_t *e) {
-      closeConfirmPopup();
-      showTareChoice();
-    }, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *l4 = lv_label_create(btn4);
-    lv_label_set_text(l4, T(STR_BTN_EMPTY_SPOOL));
-    lv_obj_set_style_text_color(l4, lv_color_hex(UI_COL_ALT_TEXT), 0);
-    lv_obj_set_style_text_font(l4, &lv_font_montserrat_ext_14, 0);
-    lv_obj_set_style_text_align(l4, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_center(l4);
-    }
-
-    // ── Row 3 links: Auto-Speichern Toggle ──
-    // AN->AUS: sofort deaktivieren + Popup schliessen
-    // AUS->AN: aktivieren + Popup schliessen, Hintergrund laeuft ab jetzt
-    lv_obj_t *btn5 = lv_btn_create(box);
-    lv_obj_set_size(btn5, BW2, H_ROW3);
-    lv_obj_set_pos(btn5, XL, Y3);
-    lv_obj_set_style_bg_color(btn5, g_auto_weight ? lv_color_hex(UI_COL_GO_BG) : lv_color_hex(UI_COL_DISABLED_BG), 0);
-    lv_obj_set_style_bg_color(btn5, g_auto_weight ? lv_color_hex(UI_COL_GO_BG_PRESSED) : lv_color_hex(UI_COL_QUIET_BG_PRESSED), LV_STATE_PRESSED);
-    lv_obj_set_style_border_width(btn5, 1, 0);
-    lv_obj_set_style_border_color(btn5, g_auto_weight ? lv_color_hex(UI_COL_ACCENT) : lv_color_hex(UI_COL_LINE_SOFT), 0);
-    lv_obj_set_style_radius(btn5, 8, 0);
-    lv_obj_set_style_shadow_width(btn5, 0, 0);
-    lv_obj_add_event_cb(btn5, [](lv_event_t *e) {
-      if (g_auto_weight) {
-        // Deaktivieren: sofort, kein zweites Popup
-        g_auto_weight = false;
-        auto_weight_stable_ms = 0;
-        auto_weight_last_val = -9999.0f;
-        // Was written to the "spool" namespace while loadPrefs() reads from
-        // "spoolscale", so the setting silently reverted on every reboot.
-        prefsPutBool("auto_weight", false);
-        logSD("Auto-Weight: deaktiviert");
-        if (lbl_weight_main_lbl) {
-          char wmbuf[40];
-          copyT(wmbuf, sizeof(wmbuf), STR_BTN_WEIGHT);
-          lv_label_set_text(lbl_weight_main_lbl, wmbuf);
-          lv_obj_set_style_text_color(lbl_weight_main_lbl, lv_color_hex(UI_COL_WEIGHT_TEXT), 0);
-        }
-        closeConfirmPopup();
-      } else {
-        // Aktivieren: zweites Bestaetigungs-Popup zeigen
-        // Gewichts-Popup verstecken (nicht loeschen - cancel bringt es zurueck)
-        if (confirm_popup) lv_obj_add_flag(confirm_popup, LV_OBJ_FLAG_HIDDEN);
-
-        releaseScreen(&s_auto_popup);
-        lv_obj_t *apop = lv_obj_create(lv_scr_act());
-        s_auto_popup = apop;
-        lv_obj_set_size(apop, 480, 320);
-        lv_obj_set_pos(apop, 0, 0);
-        lv_obj_set_style_bg_color(apop, lv_color_hex(UI_COL_SCRIM), 0);
-        lv_obj_set_style_bg_opa(apop, UI_OPA_SCRIM, 0);
-        lv_obj_set_style_border_width(apop, 0, 0);
-        lv_obj_set_style_radius(apop, 0, 0);
-        lv_obj_set_style_pad_all(apop, 0, 0);
-        lv_obj_clear_flag(apop, LV_OBJ_FLAG_SCROLLABLE);
-
-        lv_obj_t *abox = lv_obj_create(apop);
-        lv_obj_set_size(abox, 460, 220);
-        lv_obj_align(abox, LV_ALIGN_CENTER, 0, 0);
-        lv_obj_set_style_bg_color(abox, lv_color_hex(UI_COL_SURFACE), 0);
-        lv_obj_set_style_border_color(abox, lv_color_hex(UI_COL_POPUP_BORDER), 0);
-        lv_obj_set_style_border_width(abox, 2, 0);
-        lv_obj_set_style_radius(abox, 12, 0);
-        lv_obj_set_style_pad_all(abox, 0, 0);
-        lv_obj_clear_flag(abox, LV_OBJ_FLAG_SCROLLABLE);
-
-        // The same circular arrow the button carries, on its own line so it
-        // reads as the mark of this setting rather than as part of the
-        // sentence. Both sizes below are already linked elsewhere, so the
-        // larger type costs no flash.
-        lv_obj_t *aicon = lv_label_create(abox);
-        lv_label_set_text(aicon, LV_SYMBOL_REFRESH);
-        lv_obj_set_style_text_color(aicon, lv_color_hex(UI_COL_ACCENT), 0);
-        lv_obj_set_style_text_font(aicon, &lv_font_montserrat_ext_24, 0);
-        lv_obj_align(aicon, LV_ALIGN_TOP_MID, 0, 12);
-
-        // Titel
-        lv_obj_t *atitle = lv_label_create(abox);
-        char atbuf[48]; copyT(atbuf, sizeof(atbuf), STR_AUTO_WEIGHT_TITLE);
-        lv_label_set_text(atitle, atbuf);
-        lv_obj_set_style_text_color(atitle, lv_color_hex(UI_COL_ACCENT), 0);
-        lv_obj_set_style_text_font(atitle, &lv_font_montserrat_ext_20, 0);
-        lv_obj_set_style_text_align(atitle, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_set_width(atitle, 444);
-        lv_obj_set_pos(atitle, 8, 44);
-
-        // Info-Text. Both languages carry three hard line breaks, so the block
-        // below is 3 lines at 14 px and ends well clear of the buttons at 156.
-        lv_obj_t *ainfo = lv_label_create(abox);
-        char aibuf[160]; copyT(aibuf, sizeof(aibuf), STR_AUTO_WEIGHT_INFO);
-        lv_label_set_text(ainfo, aibuf);
-        lv_obj_set_style_text_color(ainfo, lv_color_hex(UI_COL_INK_2), 0);
-        lv_obj_set_style_text_font(ainfo, &lv_font_montserrat_ext_14, 0);
-        lv_obj_set_style_text_align(ainfo, LV_TEXT_ALIGN_CENTER, 0);
-        lv_label_set_long_mode(ainfo, LV_LABEL_LONG_WRAP);
-        lv_obj_set_width(ainfo, 444);
-        lv_obj_set_pos(ainfo, 8, 78);
-
-        // Bestaetigen-Button
-        lv_obj_t *abtn_ok = lv_btn_create(abox);
-        lv_obj_set_size(abtn_ok, 222, 52);
-        lv_obj_set_pos(abtn_ok, 8, 156);
-        lv_obj_set_style_bg_color(abtn_ok, lv_color_hex(UI_COL_GO_BG), 0);
-        lv_obj_set_style_bg_color(abtn_ok, lv_color_hex(UI_COL_GO_BG_PRESSED), LV_STATE_PRESSED);
-        lv_obj_set_style_radius(abtn_ok, 8, 0);
-        lv_obj_set_style_shadow_width(abtn_ok, 0, 0);
-        lv_obj_add_event_cb(abtn_ok, [](lv_event_t *e) {
-          // Aktivieren
-          g_auto_weight = true;
-          auto_weight_stable_ms = 0;
-          auto_weight_last_val = -9999.0f;
-          prefsPutBool("auto_weight", true);
-          logSD("Auto-Weight: aktiviert");
-          if (lbl_weight_main_lbl) {
-            char wmbuf[48];
-            snprintf(wmbuf, sizeof(wmbuf), "%s (A)", T(STR_BTN_WEIGHT));
-            lv_label_set_text(lbl_weight_main_lbl, wmbuf);
-            lv_obj_set_style_text_color(lbl_weight_main_lbl, lv_color_hex(UI_COL_WEIGHT_AUTO), 0);
-          }
-          releaseScreen(&s_auto_popup);   // zweites Popup weg
-          closeConfirmPopup();            // erstes Popup weg
-        }, LV_EVENT_CLICKED, NULL);
-        lv_obj_t *abtn_ok_lbl = lv_label_create(abtn_ok);
-        char acbuf[32]; copyT(acbuf, sizeof(acbuf), STR_CONFIRM);
-        lv_label_set_text(abtn_ok_lbl, acbuf);
-        lv_obj_set_style_text_color(abtn_ok_lbl, lv_color_hex(UI_COL_OK_TEXT_2), 0);
-        lv_obj_set_style_text_font(abtn_ok_lbl, &lv_font_montserrat_ext_14, 0);
-        lv_obj_align(abtn_ok_lbl, LV_ALIGN_CENTER, 0, 0);
-
-        // Abbrechen-Button
-        lv_obj_t *abtn_cancel = lv_btn_create(abox);
-        lv_obj_set_size(abtn_cancel, 222, 52);
-        lv_obj_set_pos(abtn_cancel, 238, 156);
-        lv_obj_set_style_bg_color(abtn_cancel, lv_color_hex(UI_COL_BAD_BG), 0);
-        lv_obj_set_style_bg_color(abtn_cancel, lv_color_hex(UI_COL_BAD_BG_PRESSED), LV_STATE_PRESSED);
-        lv_obj_set_style_radius(abtn_cancel, 8, 0);
-        lv_obj_set_style_shadow_width(abtn_cancel, 0, 0);
-        lv_obj_add_event_cb(abtn_cancel, [](lv_event_t *e) {
-          releaseScreen(&s_auto_popup);
-          // Erstes Popup wieder einblenden
-          if (confirm_popup) lv_obj_clear_flag(confirm_popup, LV_OBJ_FLAG_HIDDEN);
-        }, LV_EVENT_CLICKED, NULL);
-        lv_obj_t *abtn_cancel_lbl = lv_label_create(abtn_cancel);
-        char acancelbuf[32]; copyT(acancelbuf, sizeof(acancelbuf), STR_CANCEL);
-        lv_label_set_text(abtn_cancel_lbl, acancelbuf);
-        lv_obj_set_style_text_color(abtn_cancel_lbl, lv_color_hex(UI_COL_BAD_TEXT), 0);
-        lv_obj_set_style_text_font(abtn_cancel_lbl, &lv_font_montserrat_ext_14, 0);
-        lv_obj_align(abtn_cancel_lbl, LV_ALIGN_CENTER, 0, 0);
-      }
-    }, LV_EVENT_CLICKED, NULL);
-    lbl_auto_weight_btn = lv_label_create(btn5);
-    {
-      char abuf[48];
-      strncpy(abuf, g_auto_weight ? T(STR_AUTO_WEIGHT_DISABLE) : T(STR_AUTO_WEIGHT_ENABLE), sizeof(abuf)-1);
-      abuf[sizeof(abuf)-1] = '\0';
-      lv_label_set_text(lbl_auto_weight_btn, abuf);
-    }
-    lv_obj_set_style_text_color(lbl_auto_weight_btn, g_auto_weight ? lv_color_hex(UI_COL_ACCENT) : lv_color_hex(UI_COL_CAPTION), 0);
-    // 16 rather than 14: this row carries the one setting in the popup that is
-    // not about the spool in hand, and at 14 it read as a footnote. The row is
-    // 219 px wide, which the longer German wording still fits at this size.
-    //
-    // The circular arrow names the feature rather than the action, the way the
-    // drop names the drying date. Enabled or disabled is already said twice
-    // over, by the wording and by the colour, and a play/stop pair said it a
-    // third time while leaving nothing to recognise the row by.
-    lv_obj_set_style_text_font(lbl_auto_weight_btn, &lv_font_montserrat_ext_16, 0);
-    lv_obj_set_style_text_align(lbl_auto_weight_btn, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_center(lbl_auto_weight_btn);
-
-    // ── Row 3 right: empty / archive, or its opposite ──
-    //
-    // On an archived spool this is the way back. Same place, because it is the
-    // same decision seen from the other side, and there is no room for a fifth
-    // button anyway. Green rather than orange: archiving takes a spool out of
-    // circulation, this puts it back.
-    lv_obj_t *btn6 = lv_btn_create(box);
-    lv_obj_set_size(btn6, BW2, H_ROW3);
-    lv_obj_set_pos(btn6, XR, Y3);
-    lv_obj_set_style_bg_color(btn6, lv_color_hex(sm_archived ? UI_COL_GO_BG : UI_COL_ARCHIVE_BG), 0);
-    lv_obj_set_style_bg_color(btn6, lv_color_hex(sm_archived ? UI_COL_RESTORE_BG_PRESSED : UI_COL_ARCHIVE_BG_PRESSED),
-                              LV_STATE_PRESSED);
-    lv_obj_set_style_radius(btn6, 8, 0);
-    lv_obj_set_style_shadow_width(btn6, 0, 0);
-    lv_obj_add_event_cb(btn6, [](lv_event_t *e) {
-      closeConfirmPopup();
-      if (sm_archived) {
-        // No confirmation step: the button already named the number it writes,
-        // and the action is undoable by archiving again. Deferred like every
-        // other network call reached from a callback.
-        reactivate_weight_g = s_reactivate_g;
-        reactivate_pending  = true;
-        return;
-      }
-      // Separate confirmation popup for archiving
-      showConfirmPopup(T(STR_ARCHIVE_CONFIRM), 3);
-    }, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *l6 = lv_label_create(btn6);
-    if (sm_archived) {
-      // The subtitle carries the weight this will write, so the button says
-      // what it does. Formatted here rather than in the table because the
-      // number only exists once the spool is on the pad.
-      char rb[64];
-      snprintf(rb, sizeof(rb), T(STR_BTN_REACTIVATE), s_reactivate_g);
-      lv_label_set_text(l6, rb);
-    } else {
-      // "remaining=0" is Spoolman's field name. FilaMan archives through a
-      // status endpoint and calls the field something else, so it says the same
-      // thing in words there.
-      lv_label_set_text(l6, T(backendIsFilaMan() ? STR_BTN_ARCHIVE_EMPTY_FM
-                                                 : STR_BTN_ARCHIVE_EMPTY));
-    }
-    lv_obj_set_style_text_color(l6, lv_color_hex(sm_archived ? UI_COL_ACCENT : UI_COL_ARCHIVE_TEXT), 0);
-    lv_obj_set_style_text_font(l6, &lv_font_montserrat_ext_14, 0);
-    lv_obj_set_style_text_align(l6, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_center(l6);
-
-    // A spool shown by its id is never weighed on its own, so the switch has
-    // nothing to switch here; the right-hand button takes the row.
-    if (idSpoolActive()) {
-      lv_obj_add_flag(btn5, LV_OBJ_FLAG_HIDDEN);
-      lv_obj_set_width(btn6, BOX_W - 2*EDGE);
-      lv_obj_set_x(btn6, XL);
-    }
-
-    // ── Row 4: cancel (full width) ──
-    const int BW_FULL = BOX_W - 2*EDGE;
-    lv_obj_t *btn7 = lv_btn_create(box);
-    lv_obj_set_size(btn7, BW_FULL, H_ROW4);
-    lv_obj_set_pos(btn7, XL, Y4);
-    lv_obj_set_style_bg_color(btn7, lv_color_hex(UI_COL_BAD_BG), 0);
-    lv_obj_set_style_bg_color(btn7, lv_color_hex(UI_COL_BAD_BG_PRESSED), LV_STATE_PRESSED);
-    lv_obj_set_style_radius(btn7, 8, 0);
-    lv_obj_set_style_shadow_width(btn7, 0, 0);
-    lv_obj_add_event_cb(btn7, [](lv_event_t *e){ closeConfirmPopup(); }, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *l7 = lv_label_create(btn7);
-    lv_label_set_text(l7, T(STR_CANCEL));
-    lv_obj_set_style_text_color(l7, lv_color_hex(UI_COL_BAD_TEXT), 0);
-    lv_obj_set_style_text_font(l7, &lv_font_montserrat_ext_16, 0);
-    lv_obj_set_style_text_align(l7, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_center(l7);
-
-  } else {
-    // Standard popup: an icon, the question, yes / no.
-    //
-    // The icon names the consequence before the sentence is read, and the
-    // three that land here are different enough to deserve their own: a drop
-    // for drying, a bin for archiving, a warning for throwing an address
-    // away. The drop is the same one the BamBuddy options screen already uses
-    // for the drying date.
-    //
-    // Height follows the text. Two short lines at 20 px need far less room
-    // than the address warning, which is a full paragraph and stays at 16 px
-    // so it does not run into the buttons.
-    const char*      icon     = LV_SYMBOL_WARNING;
-    uint32_t         icon_col = UI_COL_WARN;
-    const lv_font_t* q_font   = &lv_font_montserrat_ext_20;
-    int              box_h    = 210;
-    if (action == 1) {                       // dried today
-      icon = LV_SYMBOL_TINT;  icon_col = UI_COL_DRY;
-    } else if (action == 3) {                // archive spool
-      icon = LV_SYMBOL_TRASH; icon_col = UI_COL_ARCHIVE_TEXT;
-    } else {                                 // long text, e.g. discard address
-      q_font = &lv_font_montserrat_ext_16;
-      box_h  = 250;
-    }
-    const int BOX_W = 400;
-    const int BTN_H = 56;
-    const int BTN_Y = box_h - BTN_H - 18;
-
-    lv_obj_set_size(box, BOX_W, box_h);
-    lv_obj_align(box, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_style_pad_all(box, 0, 0);
-
-    lv_obj_t *lbl_icon = lv_label_create(box);
-    lv_label_set_text(lbl_icon, icon);
-    lv_obj_set_style_text_color(lbl_icon, lv_color_hex(icon_col), 0);
-    // 24 rather than something larger on purpose: it is the biggest size the
-    // firmware already links. Pulling in a font for one glyph cost 74 kB of
-    // flash when this was first written at 32.
-    lv_obj_set_style_text_font(lbl_icon, &lv_font_montserrat_ext_24, 0);
-    lv_obj_align(lbl_icon, LV_ALIGN_TOP_MID, 0, 14);
-
-    lv_obj_set_style_text_font(lbl_q, q_font, 0);
-    lv_obj_set_width(lbl_q, BOX_W - 40);
-    lv_obj_align(lbl_q, LV_ALIGN_TOP_MID, 0, 62);
-
-    lv_obj_t *btn_ja = lv_btn_create(box);
-    lv_obj_set_size(btn_ja, 170, BTN_H);
-    lv_obj_set_pos(btn_ja, 12, BTN_Y);
-    lv_obj_set_style_bg_color(btn_ja, lv_color_hex(UI_COL_OK_BG), 0);
-    lv_obj_set_style_bg_color(btn_ja, lv_color_hex(UI_COL_OK_BG_PRESSED), LV_STATE_PRESSED);
-    lv_obj_set_style_radius(btn_ja, 8, 0);
-    lv_obj_set_style_shadow_width(btn_ja, 0, 0);
-    lv_obj_add_event_cb(btn_ja, [](lv_event_t *e) {
-      int act = confirm_action;
-      closeConfirmPopup();
-      if (act == 1) btn_dried_cb(nullptr);
-      if (act == 3) s_job = CJ_ARCHIVE;
-      // 7 = release the tag of the spool just archived. Flags only.
-      if (act == 7) freeTagConfirmed();
-      if (act == 4) spoolmanClearHost();
-      // 5 = downgrade confirmed on the OTA screen. Only the flag here; the
-      // download runs from appLoop().
-      if (act == 5) gh_downgrade_pending = true;
-      // 6 = reset the calibration. The flag again: it writes NVS and rebuilds
-      // the screen this button was opened from.
-      if (act == 6) cal_reset_pending = true;
-    }, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *lbl_ja = lv_label_create(btn_ja);
-    lv_label_set_text(lbl_ja, T(action == 7 ? STR_BTN_FREE_TAG : STR_BTN_CONFIRMED));
-    lv_obj_set_style_text_font(lbl_ja, &lv_font_montserrat_ext_18, 0);
-    lv_obj_set_style_text_color(lbl_ja, lv_color_hex(UI_COL_OK_TEXT), 0);
-    lv_obj_center(lbl_ja);
-
-    lv_obj_t *btn_nein = lv_btn_create(box);
-    lv_obj_set_size(btn_nein, 170, BTN_H);
-    lv_obj_set_pos(btn_nein, 218, BTN_Y);
-    lv_obj_set_style_bg_color(btn_nein, lv_color_hex(UI_COL_BAD_BG), 0);
-    lv_obj_set_style_bg_color(btn_nein, lv_color_hex(UI_COL_BAD_BG_PRESSED), LV_STATE_PRESSED);
-    lv_obj_set_style_radius(btn_nein, 8, 0);
-    lv_obj_set_style_shadow_width(btn_nein, 0, 0);
-    lv_obj_add_event_cb(btn_nein, [](lv_event_t *e){ closeConfirmPopup(); }, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *lbl_nein = lv_label_create(btn_nein);
-    // Keeping the tag is a fine answer after an archive, not a cancel.
-    lv_label_set_text(lbl_nein, T(action == 7 ? STR_TW_BTN_KEEP : STR_CANCEL));
-    lv_obj_set_style_text_font(lbl_nein, &lv_font_montserrat_ext_18, 0);
-    lv_obj_set_style_text_color(lbl_nein, lv_color_hex(UI_COL_BAD_TEXT), 0);
-    lv_obj_center(lbl_nein);
+  // Standard popup: an icon, the question, yes / no.
+  //
+  // The icon names the consequence before the sentence is read, and the
+  // three that land here are different enough to deserve their own: a drop
+  // for drying, a bin for archiving, a warning for throwing an address
+  // away. The drop is the same one the BamBuddy options screen already uses
+  // for the drying date.
+  //
+  // Height follows the text. Two short lines at 20 px need far less room
+  // than the address warning, which is a full paragraph and stays at 16 px
+  // so it does not run into the buttons.
+  const char*      icon     = LV_SYMBOL_WARNING;
+  uint32_t         icon_col = UI_COL_WARN;
+  const lv_font_t* q_font   = &lv_font_montserrat_ext_20;
+  int              box_h    = 210;
+  if (action == 1) {                       // dried today
+    icon = LV_SYMBOL_TINT;  icon_col = UI_COL_DRY;
+  } else if (action == 3) {                // archive spool
+    icon = LV_SYMBOL_TRASH; icon_col = UI_COL_ARCHIVE_TEXT;
+  } else {                                 // long text, e.g. discard address
+    q_font = &lv_font_montserrat_ext_16;
+    box_h  = 250;
   }
+  const int BOX_W = 400;
+  const int BTN_H = 56;
+  const int BTN_Y = box_h - BTN_H - 18;
+
+  lv_obj_set_size(box, BOX_W, box_h);
+  lv_obj_align(box, LV_ALIGN_CENTER, 0, 0);
+  lv_obj_set_style_pad_all(box, 0, 0);
+
+  lv_obj_t *lbl_icon = lv_label_create(box);
+  lv_label_set_text(lbl_icon, icon);
+  lv_obj_set_style_text_color(lbl_icon, lv_color_hex(icon_col), 0);
+  // 24 rather than something larger on purpose: it is the biggest size the
+  // firmware already links. Pulling in a font for one glyph cost 74 kB of
+  // flash when this was first written at 32.
+  lv_obj_set_style_text_font(lbl_icon, &lv_font_montserrat_ext_24, 0);
+  lv_obj_align(lbl_icon, LV_ALIGN_TOP_MID, 0, 14);
+
+  lv_obj_set_style_text_font(lbl_q, q_font, 0);
+  lv_obj_set_width(lbl_q, BOX_W - 40);
+  lv_obj_align(lbl_q, LV_ALIGN_TOP_MID, 0, 62);
+
+  lv_obj_t *btn_ja = lv_btn_create(box);
+  lv_obj_set_size(btn_ja, 170, BTN_H);
+  lv_obj_set_pos(btn_ja, 12, BTN_Y);
+  lv_obj_set_style_bg_color(btn_ja, lv_color_hex(UI_COL_OK_BG), 0);
+  lv_obj_set_style_bg_color(btn_ja, lv_color_hex(UI_COL_OK_BG_PRESSED), LV_STATE_PRESSED);
+  lv_obj_set_style_radius(btn_ja, 8, 0);
+  lv_obj_set_style_shadow_width(btn_ja, 0, 0);
+  lv_obj_add_event_cb(btn_ja, [](lv_event_t *e) {
+    int act = confirm_action;
+    closeConfirmPopup();
+    if (act == 1) btn_dried_cb(nullptr);
+    if (act == 3) s_job = CJ_ARCHIVE;
+    // 7 = release the tag of the spool just archived. Flags only.
+    if (act == 7) freeTagConfirmed();
+    if (act == 4) spoolmanClearHost();
+    // 5 = downgrade confirmed on the OTA screen. Only the flag here; the
+    // download runs from appLoop().
+    if (act == 5) gh_downgrade_pending = true;
+    // 6 = reset the calibration. The flag again: it writes NVS and rebuilds
+    // the screen this button was opened from.
+    if (act == 6) cal_reset_pending = true;
+  }, LV_EVENT_CLICKED, NULL);
+  lv_obj_t *lbl_ja = lv_label_create(btn_ja);
+  lv_label_set_text(lbl_ja, T(action == 7 ? STR_BTN_FREE_TAG : STR_BTN_CONFIRMED));
+  lv_obj_set_style_text_font(lbl_ja, &lv_font_montserrat_ext_18, 0);
+  lv_obj_set_style_text_color(lbl_ja, lv_color_hex(UI_COL_OK_TEXT), 0);
+  lv_obj_center(lbl_ja);
+
+  lv_obj_t *btn_nein = lv_btn_create(box);
+  lv_obj_set_size(btn_nein, 170, BTN_H);
+  lv_obj_set_pos(btn_nein, 218, BTN_Y);
+  lv_obj_set_style_bg_color(btn_nein, lv_color_hex(UI_COL_BAD_BG), 0);
+  lv_obj_set_style_bg_color(btn_nein, lv_color_hex(UI_COL_BAD_BG_PRESSED), LV_STATE_PRESSED);
+  lv_obj_set_style_radius(btn_nein, 8, 0);
+  lv_obj_set_style_shadow_width(btn_nein, 0, 0);
+  lv_obj_add_event_cb(btn_nein, [](lv_event_t *e){ closeConfirmPopup(); }, LV_EVENT_CLICKED, NULL);
+  lv_obj_t *lbl_nein = lv_label_create(btn_nein);
+  // Keeping the tag is a fine answer after an archive, not a cancel.
+  lv_label_set_text(lbl_nein, T(action == 7 ? STR_TW_BTN_KEEP : STR_CANCEL));
+  lv_obj_set_style_text_font(lbl_nein, &lv_font_montserrat_ext_18, 0);
+  lv_obj_set_style_text_color(lbl_nein, lv_color_hex(UI_COL_BAD_TEXT), 0);
+  lv_obj_center(lbl_nein);
 }
 
 // ============================================================

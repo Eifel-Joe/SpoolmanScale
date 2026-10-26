@@ -16,11 +16,10 @@
 // Issue #40: a spool that is still in use has no empty reel to weigh, but its
 // empty weight is often known - printed on the box, measured on a sister
 // spool, or listed by the maker. The weight popup's empty spool button
-// therefore asks first how the number is to be had, and a typed number then
-// takes the same way to the server as a weighed one.
+// offers typing it in next to weighing it, and a typed number then takes the
+// same way to the server as a weighed one.
 
-static lv_obj_t *s_choice = nullptr;   // weigh or type
-static lv_obj_t *s_pad    = nullptr;   // the keypad
+static lv_obj_t *s_pad = nullptr;   // the keypad
 
 static char      s_input[8]  = "";
 static lv_obj_t *s_lbl_input = nullptr;
@@ -41,11 +40,10 @@ static int   s_spool_id = 0;
 static float s_open_g   = 0.0f;
 
 bool isTareEntryOpen() {
-  return s_choice != nullptr || s_pad != nullptr;
+  return s_pad != nullptr;
 }
 
 void closeTareEntry() {
-  releaseScreen(&s_choice);
   releaseScreen(&s_pad);
   s_lbl_input = nullptr;
   s_lbl_info  = nullptr;
@@ -215,84 +213,13 @@ static void showTarePad() {
   refreshPad();
 }
 
-// ---------------------------------------------------------------------------
-//  Weigh or type
-// ---------------------------------------------------------------------------
-
-static lv_obj_t *choiceButton(lv_obj_t *box, int y, int w, int h, const char *text) {
-  lv_obj_t *b = lv_btn_create(box);
-  lv_obj_set_size(b, w, h);
-  lv_obj_set_pos(b, 12, y);
-  lv_obj_set_style_bg_color(b, lv_color_hex(UI_COL_CHIP), 0);
-  lv_obj_set_style_bg_color(b, lv_color_hex(UI_COL_PRESS_FILL), LV_STATE_PRESSED);
-  lv_obj_set_style_radius(b, UI_RADIUS_BTN, 0);
-  lv_obj_set_style_shadow_width(b, 0, 0);
-  padLabel(b, text, UI_COL_INK_2, UI_FONT_SMALL);
-  return b;
-}
-
-void showTareChoice() {
-  logSD("SHOW: TareChoice");
+// Opened from the weight popup's Options, which offer weighing the empty
+// spool beside it; the choice that used to stand between the two is gone.
+void showTareEntryPad() {
   closeTareEntry();
   s_spool_id = sm_id;
   s_open_g   = scale_weight_g;
-
-  lv_obj_t *scrim = lv_obj_create(lv_scr_act());
-  s_choice = scrim;
-  lv_obj_set_size(scrim, 480, 320);
-  lv_obj_set_pos(scrim, 0, 0);
-  lv_obj_set_style_bg_color(scrim, lv_color_hex(UI_COL_SCRIM), 0);
-  lv_obj_set_style_bg_opa(scrim, UI_OPA_SCRIM, 0);
-  lv_obj_set_style_border_width(scrim, 0, 0);
-  lv_obj_set_style_radius(scrim, 0, 0);
-  lv_obj_set_style_pad_all(scrim, 0, 0);
-  lv_obj_clear_flag(scrim, LV_OBJ_FLAG_SCROLLABLE);
-
-  const int BOX_W = 440, BOX_H = 262, BTN_H = 70, GAP = 10;
-  lv_obj_t *box = lv_obj_create(scrim);
-  lv_obj_set_size(box, BOX_W, BOX_H);
-  lv_obj_align(box, LV_ALIGN_CENTER, 0, 0);
-  lv_obj_set_style_bg_color(box, lv_color_hex(UI_COL_SURFACE), 0);
-  lv_obj_set_style_border_color(box, lv_color_hex(UI_COL_POPUP_BORDER), 0);
-  lv_obj_set_style_border_width(box, 2, 0);
-  lv_obj_set_style_radius(box, UI_RADIUS_BOX, 0);
-  lv_obj_set_style_pad_all(box, 0, 0);
-  lv_obj_clear_flag(box, LV_OBJ_FLAG_SCROLLABLE);
-  const int BTN_W = BOX_W - 2 * 12;
-
-  lv_obj_t *title = lv_label_create(box);
-  lv_label_set_text(title, T(STR_TARE_CHOICE_TITLE));
-  lv_obj_set_style_text_color(title, lv_color_hex(UI_COL_INK), 0);
-  lv_obj_set_style_text_font(title, UI_FONT_TITLE, 0);
-  lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 12);
-
-  int y = 44;
-  char weigh_buf[96];
-  snprintf(weigh_buf, sizeof(weigh_buf), T(STR_TARE_CHOICE_WEIGH), scale_weight_g);
-  lv_obj_t *weigh = choiceButton(box, y, BTN_W, BTN_H, weigh_buf);
-  lv_obj_add_event_cb(weigh, [](lv_event_t *e) {
-    // The reading at the moment of the press, as the old button took it.
-    const float g = scale_weight_g;
-    closeTareEntry();
-    showSpoolWeightScope(g, true);
-  }, LV_EVENT_CLICKED, NULL);
-  y += BTN_H + GAP;
-
-  char type_buf[96];
-  snprintf(type_buf, sizeof(type_buf), LV_SYMBOL_KEYBOARD "  %s", T(STR_TARE_CHOICE_TYPE));
-  lv_obj_t *type = choiceButton(box, y, BTN_W, BTN_H, type_buf);
-  lv_obj_add_event_cb(type, [](lv_event_t *e) {
-    releaseScreen(&s_choice);
-    showTarePad();
-  }, LV_EVENT_CLICKED, NULL);
-  y += BTN_H + GAP;
-
-  lv_obj_t *cancel = padButton(box, 12, y, BTN_W, UI_TOUCH_MIN,
-                               UI_COL_BAD_BG, UI_COL_BAD_BG_PRESSED);
-  lv_obj_set_style_radius(cancel, UI_RADIUS_BTN, 0);
-  lv_obj_set_style_border_width(cancel, 0, 0);
-  padLabel(cancel, T(STR_CANCEL), UI_COL_BAD_TEXT, UI_FONT_SMALL);
-  lv_obj_add_event_cb(cancel, [](lv_event_t *e) { closeTareEntry(); }, LV_EVENT_CLICKED, NULL);
+  showTarePad();
 }
 
 void tareEntryTick() {
