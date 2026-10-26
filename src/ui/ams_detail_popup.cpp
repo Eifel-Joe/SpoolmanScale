@@ -52,7 +52,7 @@
 #define AMSD_VF           16
 
 #define AMSD_SWATCH       42
-#define AMSD_SWATCH_TAP_EXT_PX 4   // a tap this far past the swatch opens the colour tile
+#define AMSD_SWATCH_TAP_EXT_PX 10  // a tap this far past the swatch opens the colour tile
 #define AMSD_ID_X         60
 #define AMSD_ID_W         46
 #define AMSD_MAT_X        114

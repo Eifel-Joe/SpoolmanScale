@@ -38,9 +38,10 @@
 #include "ui/theme.h"
 #include "ui_common.h"
 
-// How far past the 42 px colour swatch a tap still opens the colour tile:
-// 50 px in all, and no further up, where the status line answers its own tap.
-#define MAIN_SWATCH_TAP_EXT_PX  4
+// How far past the 42 px colour swatch a tap still opens the colour tile.
+// Upwards the status bar ends it at y=48, see below; what is left is 64 px
+// wide, from the panel edge to the ID column, and 57 px high.
+#define MAIN_SWATCH_TAP_EXT_PX  14
 
 // ============================================================
 //  FILL DISPLAY WITH TAG DATA
@@ -357,6 +358,10 @@ void buildUI() {
   lv_obj_set_style_pad_all(lbl_color_swatch, 0, 0);
   lv_obj_clear_flag(lbl_color_swatch, LV_OBJ_FLAG_SCROLLABLE);
   colorTileAttach(lbl_color_swatch, mainSwatchTileSpec, MAIN_SWATCH_TAP_EXT_PX);
+  // Behind everything else on the screen, so the header and the status bar,
+  // whose line switches between tag and spool, keep their taps where the
+  // wider touch area reaches into them. Nothing is drawn over the swatch.
+  lv_obj_move_to_index(lbl_color_swatch, 0);
 
   // Cap: ID (x=58, y=53)
   lv_obj_t *lbl_id_cap = lv_label_create(lv_scr_act());
