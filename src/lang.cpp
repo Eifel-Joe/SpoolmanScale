@@ -3966,6 +3966,58 @@ const char* const STRINGS[][3] = {
   { "%s | leer %.0f g",
     "%s | empty %.0f g",
     "%s | vide %.0f g" },  // STR_COPY_CARD_TARE
+  // Printing on the PC through FilaMan
+  { "Am PC drucken",
+    "Print on the PC",
+    "Imprimer sur le PC" },  // STR_PCP_TITLE
+  { "Über FilaMan. Dazu muss FilaMan am PC im Browser offen sein.",
+    "Through FilaMan. FilaMan has to be open in a browser on the PC.",
+    "Via FilaMan, qui doit être ouvert dans un navigateur sur le PC." },  // STR_PCP_SUB
+  { "Spulen-Etikett",
+    "Spool label",
+    "Étiquette bobine" },  // STR_PCP_SPOOL
+  { "Filament-Etikett",
+    "Filament label",
+    "Étiquette filament" },  // STR_PCP_FILAMENT
+  { "Wird an FilaMan gesendet ...",
+    "Sending to FilaMan ...",
+    "Envoi à FilaMan ..." },  // STR_PCP_SENDING
+  { "An FilaMan gesendet",
+    "Sent to FilaMan",
+    "Envoyé à FilaMan" },  // STR_PCP_SENT_TITLE
+  { "Das Etikett erscheint im offenen FilaMan-Tab. Dort drucken.",
+    "The label shows up in the open FilaMan tab. Print it from there.",
+    "L'étiquette s'affiche dans l'onglet FilaMan ouvert. Imprimez-la." },  // STR_PCP_SENT_TEXT
+  { "Nicht gesendet",
+    "Not sent",
+    "Non envoyé" },  // STR_PCP_FAIL_TITLE
+  { "Dieses FilaMan nimmt noch keine Druckanfragen an. Nötig ist FilaMan 1.4.3 oder neuer.",
+    "This FilaMan does not take print requests yet. It needs FilaMan 1.4.3 or newer.",
+    "Ce FilaMan ne gère pas encore l'impression sur PC. Il faut FilaMan 1.4.3 ou plus récent." },  // STR_PCP_NO_ROUTE
+  { "Spule per ID",
+    "Spool by ID",
+    "Bobine par ID" },  // STR_BTN_SPOOL_BY_ID
+  { "Die ID steht in Spoolman und auf dem Etikett. Ohne Tag wird das Gewicht nur gespeichert, wenn du \"Gewicht updaten\" tippst.",
+    "The ID is shown in Spoolman and on the label. Without a tag the weight is saved only when you tap \"Update Weight\".",
+    "L'ID figure dans Spoolman et sur l'étiquette. Sans tag, le poids n'est enregistré que si vous touchez \"Envoyer le poids\"." },  // STR_IDPAD_INFO
+  { "Suchen",
+    "Search",
+    "Chercher" },  // STR_IDPAD_SEARCH
+  { "Suche ...",
+    "Searching ...",
+    "Recherche ..." },  // STR_IDPAD_SEARCHING
+  { "Diese Spule",
+    "This spool",
+    "Cette bobine" },  // STR_IDPAD_THIS_SPOOL
+  { "Keine Spule mit ID %d",
+    "No spool with ID %d",
+    "Aucune bobine ID %d" },  // STR_IDPAD_NOT_FOUND
+  { "Ziffern prüfen und erneut suchen.",
+    "Check the digits and search again.",
+    "Vérifiez les chiffres et recherchez." },  // STR_IDPAD_NOT_FOUND_HINT
+  { "Per ID geladen - kein Tag",
+    "Loaded by ID - no tag",
+    "Chargée par ID - sans tag" },  // STR_ID_SPOOL_STATUS
 };
 
 StringID tagWriteResultString(uint8_t code) {

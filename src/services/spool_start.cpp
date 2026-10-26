@@ -16,6 +16,12 @@ static SpoolStart asFull(int label_g, int tare_g, float net_g, StartVerdict verd
   return s;
 }
 
+TareQuality spoolTareQuality(int tare_g, bool fixed_default, int default_g) {
+  if (tare_g <= 0) return TARE_Q_NONE;
+  if (fixed_default && tare_g == default_g) return TARE_Q_DEFAULT;
+  return TARE_Q_KNOWN;
+}
+
 SpoolStart spoolStartValues(float gross_g, int tare_g, TareQuality tare_q, int label_g) {
   if (tare_g <= 0 || tare_q == TARE_Q_NONE) {
     // Without an empty spool the reading cannot be split into spool and

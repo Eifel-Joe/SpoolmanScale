@@ -98,45 +98,45 @@ int main() {
 
   // The types of that vendor within 10 g of the reading, the closest first.
   // 250 and 253 are 3 and 6 g from 247; 216 is far off.
-  n = spoolTypeNear(cat, 7, "Bambu Lab", 247.0f, SPOOL_TYPE_NEAR_G, out, SPOOL_TYPE_NEAR_MAX);
+  n = spoolTypeNear(cat, 7, {"Bambu Lab", 247.0f, SPOOL_TYPE_NEAR_G}, out, SPOOL_TYPE_NEAR_MAX);
   assert(n == 2);
   assert(idxIs(out, n, {1, 2}));
   // Exactly 10 g away still counts (250 - 240), 253 at 13 g does not.
-  n = spoolTypeNear(cat, 7, "Bambu Lab", 240.0f, 10.0f, out, SPOOL_TYPE_NEAR_MAX);
+  n = spoolTypeNear(cat, 7, {"Bambu Lab", 240.0f, 10.0f}, out, SPOOL_TYPE_NEAR_MAX);
   assert(n == 1);
   assert(idxIs(out, n, {1}));
-  n = spoolTypeNear(cat, 7, "Tinmorry", 203.4f, 10.0f, out, SPOOL_TYPE_NEAR_MAX);
+  n = spoolTypeNear(cat, 7, {"Tinmorry", 203.4f, 10.0f}, out, SPOOL_TYPE_NEAR_MAX);
   assert(n == 1);
   assert(idxIs(out, n, {4}));
   // A vendor without a type in the list is looked for in all of them: 205 g
   // is 2 g from 203, 200 g is 3 g, so the cardboard comes first.
-  n = spoolTypeNear(cat, 7, "Overture", 203.0f, 10.0f, out, SPOOL_TYPE_NEAR_MAX);
+  n = spoolTypeNear(cat, 7, {"Overture", 203.0f, 10.0f}, out, SPOOL_TYPE_NEAR_MAX);
   assert(n == 2);
   assert(idxIs(out, n, {6, 4}));
   // At the same distance the order of the list decides (250 first, then 251
   // and 249 which are both 1 g away, then 252 and 248 at 2 g), and the
   // sixth type has no room.
   clearOut(out);
-  n = spoolTypeNear(dense, 6, "Bambu Lab", 250.0f, 10.0f, out, 5);
+  n = spoolTypeNear(dense, 6, {"Bambu Lab", 250.0f, 10.0f}, out, 5);
   assert(n == 5);
   assert(idxIs(out, n, {0, 1, 2, 3, 4}));
   assert(out[5] == -1);
   // The five nearest, not the first five of the list: F is 0 g away and
   // stands last, so it comes first, and A (8 g, the farthest) has no room.
   clearOut(out);
-  n = spoolTypeNear(dense2, 6, "Bambu Lab", 250.0f, SPOOL_TYPE_NEAR_G, out, 5);
+  n = spoolTypeNear(dense2, 6, {"Bambu Lab", 250.0f, SPOOL_TYPE_NEAR_G}, out, 5);
   assert(n == 5);
   assert(idxIs(out, n, {5, 4, 3, 2, 1}));
   assert(out[5] == -1);
   // With a tolerance of a kilogram the nearest type is still one: 167 g is
   // 13 g from 180, 200 g is 20 g.
   clearOut(out);
-  n = spoolTypeNear(cat, 7, "Tinmorry", 180.0f, 1000.0f, out, 1);
+  n = spoolTypeNear(cat, 7, {"Tinmorry", 180.0f, 1000.0f}, out, 1);
   assert(n == 1);
   assert(idxIs(out, n, {3}));
   assert(out[1] == -1);
   // No weight, no type.
-  n = spoolTypeNear(cat, 7, "Tinmorry", 0.0f, 10.0f, out, SPOOL_TYPE_NEAR_MAX);
+  n = spoolTypeNear(cat, 7, {"Tinmorry", 0.0f, 10.0f}, out, SPOOL_TYPE_NEAR_MAX);
   assert(n == 0);
 
   // A full spool on the scale with nothing on it but the spool: what is over

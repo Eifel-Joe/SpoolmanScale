@@ -18,6 +18,7 @@
 #include "ui/language_screen.h"
 #include "ui/nfc_reset_popup.h"
 #include "ui/ota_github.h"
+#include "ui/pc_print_popup.h"
 #include "ui/printer_screen.h"
 #include "ui/printer_offset_screen.h"
 #include "ui/print_sheet.h"
@@ -33,6 +34,7 @@
 #include "ui/header_status.h"
 #include "ui/settings_screen.h"
 #include "ui/spool_flow.h"
+#include "ui/spool_id_pad.h"
 #include "ui/tag_view.h"
 
 
@@ -116,6 +118,8 @@ void hideAllOverlays() {
   closeNfcResetHint();
   closeFactoryResetPopup();
   closeMoreInfoPopups();
+  closePcPrintPopup();
+  closeSpoolIdPad();
   closeTagView();
   closeBleDeviceCard();
 }

@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "app_config.h"
+#include "app/label_link.h"
 #include "hardware/sd_logger.h"
 #include "lang.h"
 #include "services/backend.h"
@@ -731,7 +732,8 @@ void labelQrForSpool(int spool_id, char* out, size_t n) {
   // format or the spool page, and its scanner reads both; only the page
   // opens on a phone - "WEB+SPOOLMAN:S-239" left the iPhone with plain text
   // (Nikolai, 30.09.2026). The tag format stays for a scale with no address.
-  const char* base = backendBaseUrl();
+  // The address is the server's own for its labels where it has one.
+  const char* base = labelLinkBase();
   if (backendIsFilaMan())       snprintf(out, n, "%s/spools/%d", base, spool_id);
   else if (backendIsBamBuddy()) snprintf(out, n, "%s/inventory?spool=%d", base, spool_id);
   else if (base[0] && strcmp(base, "http://") != 0) snprintf(out, n, "%s/spool/show/%d", base, spool_id);
@@ -741,7 +743,7 @@ void labelQrForSpool(int spool_id, char* out, size_t n) {
 void labelQrForFilament(int filament_id, char* out, size_t n) {
   if (!out || !n) return;
   out[0] = '\0';
-  const char* base = backendBaseUrl();
+  const char* base = labelLinkBase();
   // BamBuddy keeps no filament, and a Spoolman with no address has no page.
   if (filament_id <= 0 || backendIsBamBuddy() || !base[0] || strcmp(base, "http://") == 0) return;
   if (backendIsFilaMan()) snprintf(out, n, "%s/filaments/%d", base, filament_id);

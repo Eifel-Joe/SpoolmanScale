@@ -119,6 +119,15 @@
 // for a spool that simply has no tag on it.
 #define REMOTE_LINK_TAGLESS_MS  10000
 
+// A spool shown by its typed id (app/id_spool.h). It counts as put on the pad
+// from this load, the threshold the location question uses for a real spool,
+// and is dropped again when nothing was put on within the idle time. Once
+// lifted it stays shown for the grace a lifted tag gets (NO_TAG_CLEAR_MS in
+// app_loop.cpp), so a location or weight it is carried away during finds it.
+#define ID_SPOOL_LOAD_MIN_G     50.0f
+#define ID_SPOOL_IDLE_MS        120000UL
+#define ID_SPOOL_LIFTED_MS      60000UL
+
 // A spool that reads a few grams over its label weight is simply full, not
 // mislabelled. Only a real difference is worth interrupting the weighing for.
 #define BB_CAP_TOLERANCE_G   2.0f
