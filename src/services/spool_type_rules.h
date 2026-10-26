@@ -138,6 +138,23 @@ bool spoolLabelAsk(bool bambuddy, float label, float rest);
 // this file.
 SpoolTypeAsk spoolTypeFirstAsk(float total, float remaining, float bare, bool own_tare, float stored_tare);
 
+// The empty weight a spool created at the scale is weighed against. Wurzel: a
+// type picked for the new spool has to count as the stored tare of that spool,
+// and the chain of the inventory (spool, filament, vendor) must not outrank it.
+// Fix: a type chosen (chosen_g > 0) goes before the chain and is trusted, even
+// when it says Bambu's fixed 250 g (V25). NOT-TO-DO: treating a chosen 250 g
+// like the chain's 250 g (not trusted) gives the wrong nominal weight and 10 g
+// more tolerance; putting the type into the filament or vendor slot fails too,
+// since each holds one empty weight only. trusted may be null.
+int spoolTypeCreateTare(int chosen_g, int chain_g, bool chain_trusted, bool* trusted);
+
+// The empty weight a new spool keeps as its own (L21). Wurzel: a tare that the
+// new spool inherited from another spool must not be written onto it as its
+// own. Fix: an inherited one gives 0, which leaves the field out; otherwise the
+// tare, never negative. NOT-TO-DO: passing tare_g through unchanged writes the
+// inherited value onto the new spool, which L21 forbids.
+int spoolTypeOwnCore(int tare_g, bool inherited);
+
 // src without the blanks on both sides, cut to n - 1 bytes and never in the
 // middle of a UTF-8 character (a cut that would leave half of one drops the
 // whole character). Writes the terminator even for an empty or null src; src
