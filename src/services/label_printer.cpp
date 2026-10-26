@@ -106,9 +106,11 @@ static const LabelPrinterProfile PROFILE_NIIMBOT_M2 = {
 // they get profiles of their own once someone can try one. DK paper darkens
 // by heat, no ribbon. The mm spans say DK-11209, 62 x 29, but for this
 // protocol the label table in brother_ql_rules.cpp decides what it takes.
+// Hardware proven: Joerg printed the test label and a spool label on his
+// QL-820NWBc with DK-11209 from v0.8.5-beta.6 (26.10.2026).
 static const LabelPrinterProfile PROFILE_BROTHER_QL820 = {
   LP_MODEL_BROTHER_QL820, "Brother", "QL-810W/820NWB", 62, 29, 62, 62, 29, 29, 720, 720,
-  true /* experimental until it has printed on one */, true /* DK paper is thermal */,
+  false, true /* DK paper is thermal */,
   300, LP_PROTO_BROTHER_QL
 };
 
