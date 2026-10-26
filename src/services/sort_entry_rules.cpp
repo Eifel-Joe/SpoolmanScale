@@ -96,8 +96,12 @@ static const char* leadingLine(const char* text) {
   return best;
 }
 
-static bool isHexDigit(char c) {
-  return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+// The value of a hexadecimal digit, -1 for anything else.
+static int hexValue(char c) {
+  if (c >= '0' && c <= '9') return c - '0';
+  if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+  if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+  return -1;
 }
 
 bool sortEntrySame(const char* a, const char* b) {
@@ -120,7 +124,7 @@ bool sortEntryHex(const char* text, char out[7]) {
   char digits[7] = "";
   int n = 0;
   for (; text[n]; n++) {
-    if (n >= 6 || !isHexDigit(text[n])) return false;
+    if (n >= 6 || hexValue(text[n]) < 0) return false;
     const char c = text[n];
     digits[n] = (c >= 'a' && c <= 'f') ? (char)(c - ('a' - 'A')) : c;
   }
@@ -231,6 +235,50 @@ void sortEntrySplitName(const char* name, const char* material, char line[SORT_L
 
 // ---- a Spoolman extra --------------------------------------------------
 
+// The text of an extra is decoded into this scratch first and cut into the
+// caller's buffer by utf8Cut() afterwards. It holds more than any name of the
+// lists (two fields' worth); what does not fit is dropped.
+struct ExtraScratch {
+  char   text[2 * SORT_NAME_MAX];
+  size_t n;       // bytes in text
+  bool   full;    // something did not fit: nothing more is taken
+};
+
+// Appends len bytes, whole or not at all (a UTF-8 sequence made of an escape
+// is never split here); the last byte of text stays free for the terminator.
+static void extraPut(ExtraScratch* x, const char* bytes, size_t len) {
+  if (x->full) return;
+  if (x->n + len >= sizeof(x->text)) {
+    x->full = true;
+    return;
+  }
+  memcpy(x->text + x->n, bytes, len);
+  x->n += len;
+}
+
+// The UTF-8 bytes of a code point of the basic plane, 1 to 3 of them; returns
+// how many. A surrogate half (D800 to DFFF) and 0 are no character of their
+// own and give '?'.
+static size_t utf8Of(unsigned cp, char out[3]) {
+  if (cp == 0 || (cp >= 0xD800 && cp <= 0xDFFF)) {
+    out[0] = '?';
+    return 1;
+  }
+  if (cp < 0x80) {
+    out[0] = (char)cp;
+    return 1;
+  }
+  if (cp < 0x800) {
+    out[0] = (char)(0xC0 | (cp >> 6));
+    out[1] = (char)(0x80 | (cp & 0x3F));
+    return 2;
+  }
+  out[0] = (char)(0xE0 | (cp >> 12));
+  out[1] = (char)(0x80 | ((cp >> 6) & 0x3F));
+  out[2] = (char)(0x80 | (cp & 0x3F));
+  return 3;
+}
+
 bool sortEntryExtraText(const char* raw, char* out, size_t out_size) {
   if (!out || !out_size) return false;
   out[0] = '\0';
@@ -239,15 +287,29 @@ bool sortEntryExtraText(const char* raw, char* out, size_t out_size) {
   while (*p == ' ') p++;
   if (*p != '"') return false;   // not a JSON string: none, a number, null
   p++;
-  size_t n = 0;
+  ExtraScratch x;
+  x.n = 0;
+  x.full = false;
   bool closed = false;
-  bool cut = false;
-  unsigned char dropped = 0;   // the first byte that did not fit
   for (; *p; p++) {
     char c = *p;
     if (c == '"') {
       closed = true;
       break;
+    }
+    if (c == '\\' && p[1] == 'u') {
+      // A backslash, u and exactly four hex digits, or the text is not usable.
+      unsigned cp = 0;
+      for (int k = 0; k < 4; k++) {
+        const int v = hexValue(p[2 + k]);   // stops at a terminator: no read past it
+        if (v < 0) return false;
+        cp = (cp << 4) | (unsigned)v;
+      }
+      char bytes[3];
+      const size_t len = utf8Of(cp, bytes);
+      extraPut(&x, bytes, len);
+      p += 5;   // the 'u' and the four digits; the loop steps past the last one
+      continue;
     }
     // The escapes of a quote, a backslash and a slash are resolved; any other
     // stays as it was written, so that nothing is lost.
@@ -255,24 +317,17 @@ bool sortEntryExtraText(const char* raw, char* out, size_t out_size) {
       p++;
       c = *p;
     }
-    if (n + 1 < out_size) out[n++] = c;
-    else if (!cut) {
-      cut = true;
-      dropped = (unsigned char)c;
-    }
+    extraPut(&x, &c, 1);
   }
-  if (!closed) {   // cut off on the way: half a text is worse than none
-    out[0] = '\0';
-    return false;
-  }
-  // The cut fell inside a UTF-8 sequence (the byte after it is a continuation
-  // byte): back to the start of that sequence, as utf8Cut() does.
-  if (cut && (dropped & 0xC0) == 0x80) {
-    while (n > 0 && ((unsigned char)out[n - 1] & 0xC0) == 0x80) n--;
-    if (n > 0) n--;
-  }
-  out[n] = '\0';
-  return n > 0;
+  if (!closed) return false;   // cut off on the way: half a text is worse than none
+  x.text[x.n] = '\0';
+  // The cut never goes beyond the scratch's last but one byte, so that when
+  // the scratch was full the byte after the cut is there for utf8Cut() to see
+  // (it backs off from a sequence it would split by looking at that byte).
+  size_t limit = out_size - 1;
+  if (limit > sizeof(x.text) - 2) limit = sizeof(x.text) - 2;
+  utf8Cut(x.text, limit, out, out_size);
+  return out[0] != '\0';
 }
 
 // ---- the input of the card ---------------------------------------------

@@ -20,7 +20,10 @@
 //  green", "Light-Green" and "LightGreen" are one name, so the same colour is
 //  not entered twice under three spellings and the inventory does not grow a
 //  second "fiberlogy" next to "Fiberlogy". The first spelling that was added
-//  to a list stays, and the sources add in order of rank: the database first.
+//  to a list stays, and the sources add in order of rank: the inventory first,
+//  then the database, then the usual values (plan, Festlegung 8). What the
+//  inventory has already stays in its spelling and with its hue, the
+//  database's spelling is only for what is new.
 //
 //  What the steps collect ends up in a SortEntry, and sortEntryToInput()
 //  turns that into the TagCreateInput the card for a new spool reads, with
@@ -152,12 +155,17 @@ void sortEntrySplitName(const char* name, const char* material, char line[SORT_L
 
 // Reads the value of a Spoolman extra field, which is kept as JSON text, as
 // the text it holds: the string "\"Light Green\"" (quotes included) gives
-// Light Green, and the escapes of a quote and of a backslash inside it are
-// resolved; any other escape stays as it was written. The text is cut to
-// out_size - 1 bytes at a character boundary. False, with out empty, for a
-// null or empty value, for the empty string ("\"\""), for anything that is not
-// a JSON string (a number, null) or has lost its closing quote, and for an
-// unusable out.
+// Light Green. The escapes of a quote, a backslash and a slash inside it are
+// resolved, and so is the u escape (a backslash, u and four hex digits, the
+// way Python's json.dumps writes a non-ASCII character): it gives the UTF-8 of
+// that character (the escape of the small u umlaut, 00FC, gives the two bytes
+// C3 BC). A surrogate half (D800 to DFFF) and the escape of 0 give '?'.
+// Any other escape stays as it was written. The text is cut to out_size - 1
+// bytes at a character boundary, and to 2 * SORT_NAME_MAX - 2 bytes at the
+// most. False, with out empty, for a null or empty value, for the empty
+// string ("\"\""), for anything that is not a JSON string (a number, null)
+// or has lost its closing quote, for a u escape with fewer than four hex
+// digits, and for an unusable out.
 bool sortEntryExtraText(const char* raw, char* out, size_t out_size);
 
 // Turns what was collected into the input of the card for a new spool, from

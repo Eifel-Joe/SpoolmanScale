@@ -82,7 +82,9 @@ int main() {
   // No name is no name.
   assert(!sortEntrySame(nullptr, nullptr) && !sortEntrySame("ABS", nullptr) && !sortEntrySame(nullptr, "ABS"));
 
-  // The first spelling stays: the database's, added first (Festlegung 4).
+  // The first spelling stays, with its hue, whatever the later one is and
+  // wherever it comes from (the sources add the inventory first, then the
+  // database, plan Festlegung 8).
   SortChoices* l = new SortChoices(); l->n = 0;
   assert(sortChoicesAdd(l, "Light Green", "90EE90", SF_DB) == 0);
   assert(sortChoicesAdd(l, "light green", "00FF00", SF_OWNED) == 0 && l->n == 1);
@@ -185,6 +187,26 @@ int main() {
   assert(!sortEntryExtraText("", ex, sizeof(ex)) && ex[0] == '\0');
   strcpy(ex, "stale");
   assert(!sortEntryExtraText(nullptr, ex, sizeof(ex)) && ex[0] == '\0');
+  // Not a JSON string, or one that lost its closing quote: nothing.
+  strcpy(ex, "stale");
+  assert(!sortEntryExtraText("\"abc", ex, sizeof(ex)) && ex[0] == '\0');
+  strcpy(ex, "stale");
+  assert(!sortEntryExtraText("123", ex, sizeof(ex)) && ex[0] == '\0');
+  // A text over the buffer is cut at a character boundary: 30 capital umlauts
+  // are 60 bytes, 47 fit, so 23 of them (46 bytes) stay.
+  std::string umlauts = "\"";
+  for (int i = 0; i < 30; i++) umlauts += "\xC3\x84";
+  umlauts += "\"";
+  assert(sortEntryExtraText(umlauts.c_str(), ex, sizeof(ex)));
+  assert(strlen(ex) == 46 && utf8Ok(ex) && memcmp(ex, umlauts.c_str() + 1, 46) == 0);
+  // Python's json.dumps writes a non-ASCII character as the u escape: the
+  // UTF-8 of one to three bytes comes out. A surrogate half is '?', an escape
+  // with fewer than four hex digits is no text.
+  assert(sortEntryExtraText("\"Gr\\u00fcn\"", ex, sizeof(ex)) && strcmp(ex, "Gr\xC3\xBC" "n") == 0);
+  assert(sortEntryExtraText("\"\\u20ac\"", ex, sizeof(ex)) && strcmp(ex, "\xE2\x82\xAC") == 0);
+  assert(sortEntryExtraText("\"\\ud83d\"", ex, sizeof(ex)) && strcmp(ex, "?") == 0);
+  strcpy(ex, "stale");
+  assert(!sortEntryExtraText("\"\\u00f\"", ex, sizeof(ex)) && ex[0] == '\0');
 
   // Fiberlogy ABS light green (Spec 8 W) into the input.
   SortEntry e = fiberlogy();
