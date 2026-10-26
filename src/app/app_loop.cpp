@@ -490,6 +490,33 @@ static int  loc_popup_pending_id = -1;              // debounced popup: sm_id sc
 static int  ams_popup_pending_id = -1;              // same, for the AMS question; answered first when both are due
 static int  pick_popup_pending_id = -1;             // same, for the AMS bay picker; only one of the three is ever set per backend
 
+// A spool shown by its id has no tag to leave the reader, so its own lift
+// raises the questions a lifted tag gets, by the same switches, and the block
+// in appLoop() asks them as it does for a tag. The tag path is untouched.
+// One rule is the id's own: the AMS question only follows a weight sent with
+// "Update weight". The settled reading the tag path stands in would be a
+// weight written, unasked, to a spool picked by a typed number.
+static void idSpoolLiftQuestions() {
+  float load_g = 0.0f;
+  if (!idSpoolTakeLift(&load_g)) return;
+  if (!wifi_ok || !sm_found || sm_archived || sm_id <= 0) return;
+  // The block cross-checks the lift against what the pad carried, as for a tag.
+  loc_weight_ref   = load_g;
+  loc_weight_valid = true;
+  loc_kept         = false;
+  if (g_auto_loc_popup && g_loc_popup_shown_for_id != sm_id) loc_popup_pending_id = sm_id;
+  if (amsAskActive() && amsHasPending() && amsPendingSpoolId() == sm_id) {
+    ams_popup_pending_id = sm_id;
+  }
+  if (amsPickActive()) {
+    if (!amsPickHasPending()) amsPickNote(sm_id, sm_filament_name);
+    if (amsPickPendingSpoolId() == sm_id) pick_popup_pending_id = sm_id;
+  }
+  logSDf("IdSpool: spool %d lifted from %.0fg, asking location=%d ams=%d bay=%d", sm_id,
+         load_g, (int)(loc_popup_pending_id > 0), (int)(ams_popup_pending_id > 0),
+         (int)(pick_popup_pending_id > 0));
+}
+
 // The AMS button on a device without a load cell, one pass after the tap.
 // Asked again rather than trusted: a spool can have left the screen between
 // the tap and this pass.
@@ -1135,6 +1162,7 @@ void appLoop() {
   tareEntryTick();
   spoolIdPadTick();
   idSpoolTick();
+  idSpoolLiftQuestions();
   if (!tag_present && weightSaysSpoolGone()) loc_left_pad = true;
   // Debounced popups after a removal, cross-checked against the scale.
   // The AMS question and the location question hang off the same event, so

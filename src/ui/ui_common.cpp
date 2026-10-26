@@ -270,6 +270,19 @@ void uiCountdownFillSet(lv_obj_t *fill, lv_coord_t full_w, lv_coord_t *drawn_w,
   lv_obj_set_x(fill, full_w - w);
 }
 
+bool uiMainScreenCovered() {
+  lv_obj_t* const layers[] = { lv_scr_act(), lv_layer_top() };
+  for (lv_obj_t* layer : layers) {
+    const uint32_t n = lv_obj_get_child_cnt(layer);
+    for (uint32_t i = 0; i < n; i++) {
+      lv_obj_t* o = lv_obj_get_child(layer, i);
+      if (lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN)) continue;
+      if (lv_obj_get_width(o) >= LV_HOR_RES && lv_obj_get_height(o) >= LV_VER_RES) return true;
+    }
+  }
+  return false;
+}
+
 void buildSubHeader(lv_obj_t *parent, const char *title,
                     lv_event_cb_t back_cb, const char *back_hint) {
   (void)back_hint;

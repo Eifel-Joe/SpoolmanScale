@@ -34,6 +34,11 @@ void uiSecondaryFill(lv_obj_t *btn);
 void uiCountdownFillSet(lv_obj_t *fill, lv_coord_t full_w, lv_coord_t *drawn_w,
                         uint32_t remaining_ms, uint32_t total_ms);
 
+// Something lies over the main screen. Every overlay of this firmware covers
+// the whole panel, and nothing of the main screen does, so the size says it
+// without a list of screens that would fall behind the next one added.
+bool uiMainScreenCovered();
+
 // Frees a screen object that is about to be replaced and clears the pointer.
 // Call at the top of every build*Screen() function: without it the previous
 // object is orphaned in LVGL's memory and never reclaimed.
