@@ -30,6 +30,9 @@
 // is the target when it switches between tag and spool.
 #define STATUS_TAP_EXT_PX       5
 
+static SpoolColor s_swatch_color  = {};
+static SpoolColor s_swatch_second = {};
+
 static unsigned long s_msg_ms = 0;                       // 0: nothing held
 static char          s_msg_uid[sizeof(g_tag.uid_str)] = "";
 
@@ -41,6 +44,25 @@ void statusMessageShow(const char* text, uint32_t color) {
   s_msg_ms = millis() ? millis() : 1;
 }
 
+void mainSwatchPaint(const SpoolColor& c, const SpoolColor* second) {
+  s_swatch_color  = c;
+  s_swatch_second = second ? *second : SpoolColor{};
+  swatchPaint(lbl_color_swatch, c);
+}
+
+const SpoolColor* tagSecondColor(const SpoolColor& shown) {
+  if (!shown.valid || g_tag.color_count < 2 || !g_tag.color2.valid) return nullptr;
+  if (shown.rgb != g_tag.color.rgb || shown.alpha != g_tag.color.alpha) return nullptr;
+  return &g_tag.color2;
+}
+
+ColorTileSpec mainSwatchTileSpec() {
+  // The name label holds "-" or nothing while no filament is known.
+  const char* name = lbl_filament_name ? lv_label_get_text(lbl_filament_name) : "";
+  if (strcmp(name, "-") == 0) name = "";
+  return ColorTileSpec{s_swatch_color, s_swatch_second, name};
+}
+
 void applyTagSpoolView() {
   if (!lbl_material || !lbl_vendor || !lbl_color_swatch) return;
   if (tagSpoolLookupShowsSpool()) {
@@ -49,7 +71,7 @@ void applyTagSpoolView() {
     lv_label_set_text(lbl_material, m[0] ? m : "-");
     lv_label_set_text(lbl_vendor,   v[0] ? v : "-");
     SpoolColor c;
-    if (spoolColorParse(tagSpoolLookupColor(), &c)) swatchPaint(lbl_color_swatch, c);
+    if (spoolColorParse(tagSpoolLookupColor(), &c)) mainSwatchPaint(c, nullptr);
     return;
   }
   // The tag's side, painted exactly as updateDisplay() and applyServerColor()
@@ -59,7 +81,7 @@ void applyTagSpoolView() {
   SpoolColor server;
   spoolColorParse(sm_color_global, &server);
   const SpoolColor shown = spoolColorResolve(g_tag.color, server);
-  if (shown.valid) swatchPaint(lbl_color_swatch, shown);
+  if (shown.valid) mainSwatchPaint(shown, tagSecondColor(shown));
 }
 
 void tagSpoolViewAttach(lv_obj_t* status_label) {

@@ -4017,6 +4017,14 @@ const char* const STRINGS[][3] = {
   { "Den geparkten Satz %s löschen? Seine Adressen und Zugangsdaten sind dann weg. Der aktive Satz bleibt.",
     "Delete the parked set %s? Its addresses and credentials are gone then. The active set stays.",
     "Supprimer le jeu en réserve %s ? Ses adresses et identifiants sont alors perdus. Le jeu actif reste." },  // STR_W_SETS_DELETE_ASK
+  // The colour tile a tap on a swatch opens: what kind of colour it shows,
+  // beside its codes. A Bambu tag does not say gradient or dual colour.
+  { "Zwei Farben",
+    "Two colours",
+    "Deux couleurs" },  // STR_COLOR_TILE_TWO
+  { "Transluzent",
+    "Translucent",
+    "Translucide" },  // STR_COLOR_TILE_CLEAR
 };
 
 StringID tagWriteResultString(uint8_t code) {

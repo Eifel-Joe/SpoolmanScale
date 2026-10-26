@@ -37,6 +37,10 @@
 #include "ui/theme.h"
 #include "ui_common.h"
 
+// How far past the 42 px colour swatch a tap still opens the colour tile:
+// 50 px in all, and no further up, where the status line answers its own tap.
+#define MAIN_SWATCH_TAP_EXT_PX  4
+
 // ============================================================
 //  FILL DISPLAY WITH TAG DATA
 // ============================================================
@@ -66,7 +70,7 @@ void updateDisplay() {
   char tag_hex[SPOOL_COLOR_HEX_MAX];
   spoolColorFormat(g_tag.color, tag_hex, sizeof(tag_hex));
   lv_label_set_text(lbl_color, tag_hex[0] ? tag_hex : "-");
-  if (g_tag.color.valid) swatchPaint(lbl_color_swatch, g_tag.color);
+  if (g_tag.color.valid) mainSwatchPaint(g_tag.color, tagSecondColor(g_tag.color));
 
   // Temp (Zone 3 Row B)
   char temp_str[24];
@@ -108,7 +112,7 @@ void showTagInfoOnDisplay(const TagInfo *ti) {
     char hex[SPOOL_COLOR_HEX_MAX];
     spoolColorFormat(c, hex, sizeof(hex));
     lv_label_set_text(lbl_color, hex);
-    swatchPaint(lbl_color_swatch, c);
+    mainSwatchPaint(c, nullptr);
   }
 
   // Both ends or neither: a range printed from a single value would read as a
@@ -351,6 +355,7 @@ void buildUI() {
   lv_obj_set_style_border_width(lbl_color_swatch, 1, 0);
   lv_obj_set_style_pad_all(lbl_color_swatch, 0, 0);
   lv_obj_clear_flag(lbl_color_swatch, LV_OBJ_FLAG_SCROLLABLE);
+  colorTileAttach(lbl_color_swatch, mainSwatchTileSpec, MAIN_SWATCH_TAP_EXT_PX);
 
   // Cap: ID (x=58, y=53)
   lv_obj_t *lbl_id_cap = lv_label_create(lv_scr_act());

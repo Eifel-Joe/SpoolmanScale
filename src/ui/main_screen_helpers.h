@@ -3,6 +3,9 @@
 #include <stdint.h>
 #include <lvgl.h>
 
+#include "services/spool_color.h"
+#include "ui/color_tile_popup.h"
+
 void updateLinkButton();
 
 // The status line's resting text while a tag lies on the pad: found, found
@@ -20,6 +23,20 @@ void statusMessageShow(const char* text, uint32_t color);
 // spool, from whichever side tagSpoolLookupShowsSpool() names. Temperature and
 // everything else stay as they are. Nothing but repainting three labels.
 void applyTagSpoolView();
+
+// The main screen's colour swatch, painted and remembered for the colour tile
+// it opens. Every paint of that swatch goes through here, or the tile would
+// show another colour than the square it was opened from. `second` is a two
+// colour spool's other colour, nullptr for one colour.
+void mainSwatchPaint(const SpoolColor& c, const SpoolColor* second);
+
+// The second colour of the Bambu tag on the pad when `shown` is the tag's own
+// colour, nullptr otherwise: a server colour that won is one colour only.
+const SpoolColor* tagSecondColor(const SpoolColor& shown);
+
+// What the tile shows for the main screen's swatch: the colour remembered
+// above and the filament name on screen.
+ColorTileSpec mainSwatchTileSpec();
 
 // Makes the status line the switch between the two: tappable, and only
 // answering while tag and spool differ. Once, where the line is built.

@@ -789,6 +789,21 @@ static void openStatusPicker() {
 #define MI_SPOOL_SWATCH      18
 #define MI_SPOOL_SWATCH_DY    3
 #define MI_SPOOL_SWATCH_GAP   8
+// How far past the 42 px swatch a tap still opens the colour tile.
+#define MI_SWATCH_TAP_EXT_PX  4
+
+// The same colour the home screen shows: the tag's where it names one, the
+// server's where it does not. An NTAG has no tag colour here, so the server
+// decides alone. Painted on the swatch and shown by its colour tile.
+static ColorTileSpec moreInfoTileSpec() {
+  SpoolColor server_color;
+  spoolColorParse(sm_color_global, &server_color);
+  ColorTileSpec spec = mainSwatchTileSpec();   // for the name on screen
+  spec.color = spoolColorResolve(g_tag.color, server_color);
+  const SpoolColor* second = tagSecondColor(spec.color);
+  spec.second = second ? *second : SpoolColor{};
+  return spec;
+}
 
 void buildMoreInfoScreen() {
   logSD("BUILD: MoreInfoScreen");
@@ -933,12 +948,10 @@ void buildMoreInfoScreen() {
   lv_obj_set_style_border_width(swatch, 1, 0);
   lv_obj_set_style_pad_all(swatch, 0, 0);
   lv_obj_clear_flag(swatch, LV_OBJ_FLAG_SCROLLABLE);
-  // The same colour the home screen shows: the tag's where it names one, the
-  // server's where it does not. An NTAG has no tag colour here, so the server
-  // decides alone.
+  swatchPaint(swatch, moreInfoTileSpec().color);
+  colorTileAttach(swatch, moreInfoTileSpec, MI_SWATCH_TAP_EXT_PX);
   SpoolColor server_color;
   spoolColorParse(sm_color_global, &server_color);
-  swatchPaint(swatch, spoolColorResolve(g_tag.color, server_color));
 
   // SM-ID value
   lv_obj_t *lbl_id = lv_label_create(box);
