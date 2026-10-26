@@ -479,9 +479,13 @@ void sortChooseMaker(const char* name) {
 // ------------------------------------------------------------
 
 void sortEntryClose() {
-  // The card stands for the index load only between the open and the first step.
-  if (s_index != IDX_NONE) linkWaitCardHide();
+  sortKeysClose();
+  // The card stands for the index load between the open and the first step,
+  // and for the loads of a material chosen.
+  if (s_index != IDX_NONE || s_ui.waiting) linkWaitCardHide();
   s_index = IDX_NONE;
+  s_ui.waiting = false;
+  s_ui.exists[0] = '\0';
   // A tap parked in the same pass must not open the entry again over the
   // screen that follows (deleteSpoolFlowOverlays() closes it from the loop).
   s_nav = SN_NONE;
@@ -619,6 +623,10 @@ static void goBack() {
 static void newEntry() {
   if (s_ui.step == SS_MAKER)
     sortKeysShow(SK_TEXT, STR_SORT_KEY_MAKER, sizeof(s_ui.entry.vendor) - 1, sortMakerTyped);
+  else if (s_ui.step == SS_MATERIAL)
+    sortKeysShow(SK_TEXT, STR_SORT_KEY_MATERIAL, sizeof(s_ui.entry.material) - 1, sortMaterialTyped);
+  else if (s_ui.step == SS_LINE)
+    sortKeysShow(SK_TEXT, STR_SORT_KEY_LINE, sizeof(s_ui.entry.line) - 1, sortLineTyped);
 }
 
 static void runNav(uint8_t nav, int arg) {
@@ -638,7 +646,7 @@ static void runNav(uint8_t nav, int arg) {
       if (arg < brandCount()) sortChooseMaker(sortData()->brands.item[arg].name);
       break;
     case SN_LAST:   sortChooseMaker(s_ui.last_vendor); break;
-    default: break;
+    default:        sortStepsNav(nav, arg); break;
   }
 }
 
@@ -650,9 +658,10 @@ void sortEntryTick() {
     s_nav = SN_NONE;
     runNav(nav, arg);
   }
+  sortKeysTick();
   // Last, right before dbPickTick(): a database load of the entry that has
   // finished is collected here before the picker's tick could take it
   // (sortSourceTick() starts one again that vanished, but the window stays
-  // as small as one pass allows).
-  sortSourceTick();
+  // as small as one pass allows). The material step only reads its answer.
+  sortMaterialLoads(sortSourceTick());
 }

@@ -5,17 +5,19 @@
 #include <stdint.h>
 
 #include "services/sort_entry_rules.h"
+#include "services/sort_entry_source.h"
 
 // ============================================================
 //  A NEW FILAMENT SORT ENTERED AT THE SCALE: WHAT THE STEPS SHARE
 //
 //  The entry (sort_entry_screen.h) is one screen whose list changes from
 //  step to step. sort_entry_screen.cpp holds the frame, the ways in and the
-//  maker step; the keyboard and the steps after the maker live in
-//  sort_entry_keys.cpp and sort_entry_pick.cpp. What they share is here: the
-//  state of the entry, the parked navigation and the building blocks of the
-//  frame, a copy of those of "New from database" (db_pick_screen.cpp), so
-//  the two look alike without one file reaching into the other.
+//  maker step; the keyboard lives in sort_entry_keys.cpp, the material and
+//  the line step in sort_entry_steps.cpp, colour and weight in
+//  sort_entry_pick.cpp. What they share is here: the state of the entry,
+//  the parked navigation and the building blocks of the frame, a copy of
+//  those of "New from database" (db_pick_screen.cpp), so the two look alike
+//  without one file reaching into the other.
 //
 //  A tile's handler only parks (sortPark()); sortEntryTick() carries it out
 //  on the next loop pass, where a list may be rebuilt and the inventory asked.
@@ -46,17 +48,26 @@ enum SortNav : uint8_t {
   SN_LETTER,    // arg: 0 for a digit or a sign, 1-26 for A-Z
   SN_MAKER,     // arg: a maker of the database index (fdbMaker())
   SN_BRAND,     // arg: a brand of the inventory (sortData()->brands)
-  SN_LAST       // the maker chosen last
+  SN_LAST,      // the maker chosen last
+  SN_MATERIAL,  // arg: an entry of sortData()->materials
+  SN_LINE,      // arg: an entry of sortData()->lines
+  SN_NO_LINE    // "no line" on the line step
 };
 
 // The entry's state. entry fills step by step and starts empty at every
 // open; the last choices outlive the screen, in RAM until a restart (what
-// was created is in the inventory by then, plan Festlegung 8).
+// was created is in the inventory by then, plan Festlegung 8). exists is
+// the name a typed one matched in its list, said once on top of the next
+// step (sortExistsCaption()), empty for none. waiting: the database loads of
+// the chosen material are waited for (sortMaterialLoads()), behind the
+// waiting card once the first pass found them running.
 struct SortUi {
   SortEntry entry;
   SortStep  step;
   char      last_vendor[32];
   char      last_material[17];
+  char      exists[SORT_NAME_MAX];
+  bool      waiting;
 };
 SortUi& sortUi();
 
@@ -92,18 +103,46 @@ void      sortWaitShow();
 // waiting card, then the material step. The rest of the entry starts over.
 void sortChooseMaker(const char* name);
 
-// The keyboard (sort_entry_keys.cpp, Task 6): a title, one line of at most
-// max_len bytes; OK hands the trimmed text to done on a later pass, Cancel
-// closes the keys and leaves the step under them.
+// The keyboard (sort_entry_keys.cpp): a full screen over the step with a
+// title (a string id), one line of at most max_len bytes (cut to 47) and a
+// line for a word under it. SK_GRAMS has the number keys and takes digits
+// only, SK_HEX takes '#' and hex digits. OK parks the text without the
+// blanks around it; sortKeysTick() hands it to done on the loop, where done
+// may ask the inventory and build the next step. An empty text is answered
+// with "please type something" and done is not called. After done the keys
+// close, unless done said something under the field (sortKeysSay(): the
+// text is refused, the keys stay open) or opened the keys anew. Cancel
+// closes the keys and leaves the step under them as it was.
 enum SortKeyKind : uint8_t { SK_TEXT = 0, SK_HEX, SK_GRAMS };
 void sortKeysShow(uint8_t kind, int title_id, size_t max_len, void (*done)(const char* text));
-// The keyboard's answer on the maker step (Task 6): a name the index or the
-// inventory has (sortEntrySame) is that maker, anything else a new one;
-// either way on to sortChooseMaker().
+void sortKeysSay(const char* text);
+void sortKeysClose();
+// From sortEntryTick(), every pass.
+void sortKeysTick();
+
+// The keyboard's answer on the maker step: a name the inventory or the
+// index has (sortEntrySame) is that maker, said on top of the material step
+// (plan Festlegung 5), anything else a new one (Festlegung 7); either way on
+// to sortChooseMaker(). The same on the material step against the
+// materials and on the line step against the lines (sort_entry_steps.cpp).
 void sortMakerTyped(const char* text);
-// The steps after the maker, each built from its list in sortData() (Task 6:
-// material and line, Task 7: colour and weight).
+void sortMaterialTyped(const char* text);
+void sortLineTyped(const char* text);
+// The steps after the maker, each built from its list in sortData()
+// (sort_entry_steps.cpp: material and line, sort_entry_pick.cpp: colour and
+// weight).
 void sortShowMaterials();
 void sortShowLines();
 void sortShowColours();
 void sortShowWeights();
+// A tap of the material or the line step (SN_MATERIAL, SN_LINE,
+// SN_NO_LINE), carried out from sortEntryTick(). False for a nav it does not
+// know.
+bool sortStepsNav(uint8_t nav, int arg);
+// The database loads of the chosen material, with what sortSourceTick()
+// answered this pass: the waiting card while they run, then the lines and
+// the line step. Cancel on the card leaves the material step on screen.
+void sortMaterialLoads(SortLoad load);
+// "Already there: <name>" across the top of a new step, when a typed name
+// matched its list on the step before; said once.
+void sortExistsCaption(lv_obj_t* body);

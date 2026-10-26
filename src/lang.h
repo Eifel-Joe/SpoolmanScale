@@ -1874,6 +1874,15 @@ enum StringID {
   STR_SORT_NEW,               // the last tile of every step: to the keyboard
   STR_SORT_EXISTS,            // %s: the name a typed one matched in the list
 
+  // A filament entered at the scale: the keys, the material and the line (ui/sort_entry_keys.cpp, ui/sort_entry_steps.cpp)
+  STR_SORT_KEY_MAKER,         // the keyboard's title on the maker step
+  STR_SORT_KEY_MATERIAL,      // the keyboard's title on the material step
+  STR_SORT_KEY_LINE,          // the keyboard's title on the line step
+  STR_SORT_EMPTY,             // under the field when OK was pressed with nothing typed
+  STR_SORT_OTHER_MATERIALS,   // caption over the materials that are not the brand's
+  STR_SORT_NO_LINE,           // the first tile of the line step: the sort has no line
+  STR_SORT_LINE_TITLE,        // %s: the material chosen; the line step's title
+
   STR_COUNT
 };
 

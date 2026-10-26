@@ -435,3 +435,14 @@ STR_SORT_NOT_LISTED	14	446	NEVER	src/ui/sort_entry_screen.cpp sortEntryPickTile,
 STR_SORT_NEW	14	446	NEVER	src/ui/sort_entry_screen.cpp sortNewTile, the last tile of every step
 STR_SORT_LAST	14	452	NEVER	src/ui/sort_entry_screen.cpp sortCaption, SORT_ROW_W
 STR_SORT_EXISTS	14	452	WRAP:2	src/ui/sort_entry_*.cpp caption on top of the step after a typed name, SORT_ROW_W, %s a name
+# --- a filament entered at the scale: the keys, the material and the line (ui/sort_entry_keys.cpp, ui/sort_entry_steps.cpp) --------
+# The keyboard is a full screen with no buttons in its head, its title as wide as the one of "New spool type".
+STR_SORT_KEY_MAKER	18	460	NEVER	src/ui/sort_entry_keys.cpp sortKeysShow title, 480 - 2 * SORT_KEYS_SIDE (10)
+STR_SORT_KEY_MATERIAL	18	460	NEVER	src/ui/sort_entry_keys.cpp sortKeysShow title, 480 - 2 * SORT_KEYS_SIDE (10)
+STR_SORT_KEY_LINE	18	460	NEVER	src/ui/sort_entry_keys.cpp sortKeysShow title, 480 - 2 * SORT_KEYS_SIDE (10)
+STR_SORT_EMPTY	14	440	NEVER	src/ui/sort_entry_keys.cpp word line under the field, SORT_KEYS_FIELD_W (it wraps, two lines end above the keyboard)
+STR_SORT_OTHER_MATERIALS	14	452	NEVER	src/ui/sort_entry_steps.cpp sortCaption, SORT_ROW_W
+# A tile of three to a row (SORT_TILE_W 148), one label: minus 2 x (pad 2 + border 1).
+STR_SORT_NO_LINE	14	142	NEVER	src/ui/sort_entry_steps.cpp sortTile, the first tile of the line step
+# The header title, as the maker step's; %s is a material of up to 16 bytes, the label ends in dots beyond.
+STR_SORT_LINE_TITLE	16	376	NEVER	src/ui/sort_entry_steps.cpp sortTitle, 480 - 2 * (44 + 2 * 4)

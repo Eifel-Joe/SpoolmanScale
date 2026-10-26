@@ -4054,6 +4054,27 @@ const char* const STRINGS[][3] = {
   { "Gibt es schon: %s",
     "Already there: %s",
     "Existe déjà : %s" },  // STR_SORT_EXISTS
+  { "Neuer Hersteller",
+    "New vendor",
+    "Nouveau fabricant" },  // STR_SORT_KEY_MAKER
+  { "Neues Material",
+    "New material",
+    "Nouveau matériau" },  // STR_SORT_KEY_MATERIAL
+  { "Neue Linie",
+    "New line",
+    "Nouvelle gamme" },  // STR_SORT_KEY_LINE
+  { "Bitte etwas eingeben",
+    "Please type something",
+    "Veuillez saisir quelque chose" },  // STR_SORT_EMPTY
+  { "Weitere Materialien",
+    "Other materials",
+    "Autres matériaux" },  // STR_SORT_OTHER_MATERIALS
+  { "ohne Linie",
+    "no line",
+    "sans gamme" },  // STR_SORT_NO_LINE
+  { "%s: Linie wählen",
+    "%s: choose line",
+    "%s : choisir la gamme" },  // STR_SORT_LINE_TITLE
 };
 
 StringID tagWriteResultString(uint8_t code) {
