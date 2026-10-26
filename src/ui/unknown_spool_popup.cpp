@@ -14,6 +14,7 @@
 #include "services/tag_create.h"
 #include "services/user_options.h"
 #include "ui/db_pick_screen.h"
+#include "ui/sort_entry_screen.h"
 #include "ui/spool_flow.h"
 #include "ui/spool_flow_internal.h"
 #include "ui/spoolman_lookup.h"
@@ -51,6 +52,12 @@
 #define UNK_ID_W          64   // the spool id at the right end of the row
 #define UNK_TILE_SYMBOL_Y 16
 #define UNK_TILE_TEXT_Y   48   // a caption of two lines still ends inside
+// Four tiles to a row are 97 px each, and the German caption of the first one
+// is 97 px wide in the body font: the whole tile. A row of four sets its captions
+// in the small font, across the tile less its border and 2 px of air on each
+// side (measured, tools/ui_budgets.tsv).
+#define UNK_TILES_NARROW   4
+#define UNK_TILE_AIR       4
 // More spools than chips: the last chip says how many more there are.
 #define UNK_CHIPS          3
 // The card waits for the spool to settle on the pad, by the same stillness
@@ -63,7 +70,7 @@ enum UnkMode : uint8_t { UNK_ONE, UNK_MANY, UNK_CREATE, UNK_TILES };
 
 enum UnkAction : uint8_t {
   UA_NONE = 0, UA_LINK_PICK, UA_LINK_LIST, UA_CREATE, UA_OTHER,
-  UA_LINK_ENTRY, UA_DB, UA_COPY, UA_WEIGH
+  UA_LINK_ENTRY, UA_DB, UA_COPY, UA_WEIGH, UA_SORT
 };
 
 static lv_obj_t*     s_scr = nullptr;
@@ -429,23 +436,28 @@ static void tile(lv_obj_t* box, int i, int n, const char* symbol, int text_id, U
   lv_obj_add_event_cb(t, onAction, LV_EVENT_CLICKED, (void*)(intptr_t)a);
   lv_obj_t* s = label(t, symbol, UI_FONT_ICON, UI_COL_ACCENT);
   lv_obj_align(s, LV_ALIGN_TOP_MID, 0, UNK_TILE_SYMBOL_Y);
-  lv_obj_t* c = label(t, T(text_id), UI_FONT_BODY, UI_COL_INK_2);
-  lv_obj_set_width(c, w - UNK_X);
+  const bool narrow = n >= UNK_TILES_NARROW;
+  lv_obj_t* c = label(t, T(text_id), narrow ? UI_FONT_SMALL : UI_FONT_BODY, UI_COL_INK_2);
+  lv_obj_set_width(c, narrow ? w - UNK_TILE_AIR : w - UNK_X);
   lv_obj_set_style_text_align(c, LV_TEXT_ALIGN_CENTER, 0);
   lv_label_set_long_mode(c, LV_LABEL_LONG_WRAP);
   lv_obj_align(c, LV_ALIGN_TOP_MID, 0, UNK_TILE_TEXT_Y);
 }
 
 // Every way in, none suggested: the tag says nothing about the spool, or the
-// spool cache could not say which spool it might be.
+// spool cache could not say which spool it might be. Up to four tiles: the
+// list, a new spool from the tag or from the database, a filament entered at
+// the scale (a tag that is not a Bambu one, as on the copy card), the copy.
 static void buildTiles(lv_obj_t* box) {
   const bool from_tag = s_bambu && tagCreateOffered();
   const bool from_db  = !s_bambu && dbPickOffered();
-  const int n = (from_tag || from_db) ? 3 : 2;
+  const bool sort     = sortEntryOffered();
+  const int n = 2 + (from_tag || from_db) + sort;
   int i = 0;
   tile(box, i++, n, LV_SYMBOL_LIST, STR_REMOTE_LINK_CONFIRM, UA_LINK_ENTRY);
   if (from_tag) tile(box, i++, n, LV_SYMBOL_PLUS, STR_NEWTAG_BTN, UA_CREATE);
   if (from_db)  tile(box, i++, n, LV_SYMBOL_PLUS, STR_DBPICK_BTN, UA_DB);
+  if (sort)     tile(box, i++, n, LV_SYMBOL_EDIT, STR_SORT_BTN, UA_SORT);
   tile(box, i, n, LV_SYMBOL_COPY, STR_UNK_TILE_COPY, UA_COPY);
   answer(box, UNK_X, UNK_ROW_W, STR_UNK_BTN_WEIGH, UA_WEIGH, false);
 }
@@ -533,6 +545,7 @@ static void runAction() {
     case UA_CREATE:     newtag_open_pending = true;        break;
     case UA_LINK_ENTRY: showLinkEntryPopup(s_bambu);       break;
     case UA_DB:         dbPickEntryTap(nullptr);           break;
+    case UA_SORT:       sortEntryEntryTap(nullptr);        break;
     case UA_COPY:       showCopyEntryPopup();              break;
     default:            break;
   }

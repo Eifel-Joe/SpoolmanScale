@@ -7,6 +7,7 @@
 #include <strings.h>
 
 #include "../hardware/sd_logger.h"
+#include "bambuddy_name.h"
 #include "sort_entry_rules.h"
 #include "spoolman_api.h"
 #include "spoolman_filament_db.h"
@@ -28,6 +29,13 @@
 // ------------------------------------------------------------
 
 typedef bool (*FilamentAccept)(JsonObjectConst fil, const TagCreateInput& in);
+
+// Set at the top of spoolmanPlanTagFilament() and read by what names a new
+// filament or compares a name below: BamBuddy sits in front of this Spoolman
+// and keeps every filament as "<material> <line>" (bambuddy_name.h). A flag
+// of the call, kept here so that FilamentAccept and the helpers keep their
+// shape; the loop task is the only caller, and each plan sets it afresh.
+static bool s_bambuddy_names = false;
 
 static bool vendorIs(JsonObjectConst fil, const TagCreateInput& in) {
   const char* v = fil["vendor"]["name"] | "";
@@ -73,7 +81,15 @@ static bool acceptByLook(JsonObjectConst fil, const TagCreateInput& in) {
   if (!colorsFit(fil["color_hex"], in)) return false;
   // A database pick has the database's own name: PolyLite and PolyTerra
   // Black share maker, material and nearly the colour, never the name.
-  if (in.db_name[0]) return strcasecmp(fil["name"] | "", in.db_name) == 0;
+  // Behind BamBuddy the filament made from it has BamBuddy's name instead, and
+  // one BamBuddy renamed on the way has it too.
+  if (in.db_name[0]) {
+    if (strcasecmp(fil["name"] | "", in.db_name) == 0) return true;
+    if (!s_bambuddy_names) return false;
+    char bb[sizeof(TagFilamentPlan::name)];
+    bambuddyFilamentName(in.material, in.subtype, bb, sizeof(bb));
+    return strcasecmp(fil["name"] | "", bb) == 0;
+  }
   return tagCreateNameMatches(fil["name"] | "", in);
 }
 
@@ -85,9 +101,11 @@ static bool acceptByTypedName(JsonObjectConst fil, const TagCreateInput& in) {
   if (!vendorIs(fil, in)) return false;
   if (strcasecmp(fil["material"] | "", in.material) != 0) return false;
   if (!colorsFit(fil["color_hex"], in)) return false;
-  // Cut to the plan's name field, the name a filament created from it keeps.
+  // Cut to the plan's name field, the name a filament created from it keeps:
+  // BamBuddy's behind BamBuddy (the colour's name is on the spool there).
   char want[sizeof(TagFilamentPlan::name)];
-  tagCreateSpoolmanName(in, want, sizeof(want));
+  if (s_bambuddy_names) bambuddyFilamentName(in.material, in.subtype, want, sizeof(want));
+  else                  tagCreateSpoolmanName(in, want, sizeof(want));
   return sortEntrySame(fil["name"] | "", want);
 }
 
@@ -187,11 +205,14 @@ static void noteDbEntry(JsonObjectConst e, TagDbEntry* db) {
   db->bed_temp     = e["bed_temp"] | 0;
 }
 
-static void takeDbEntry(JsonObjectConst e, TagFilamentPlan* plan) {
+static void takeDbEntry(const TagCreateInput& in, JsonObjectConst e, TagFilamentPlan* plan) {
   noteDbEntry(e, &plan->db);
   plan->db_found = true;
   snprintf(plan->external_id, sizeof(plan->external_id), "%s", e["id"] | "");
-  snprintf(plan->name, sizeof(plan->name), "%s", e["name"] | "");
+  // The filament created from the entry is named as BamBuddy keeps it; the
+  // entry's own name stays in plan->db, which the card compares.
+  if (s_bambuddy_names) bambuddyFilamentName(in.material, in.subtype, plan->name, sizeof(plan->name));
+  else                  snprintf(plan->name, sizeof(plan->name), "%s", e["name"] | "");
   plan->density        = e["density"] | 0.0f;
   plan->spool_weight_g = (int)lroundf(e["spool_weight"] | 0.0f);
   plan->extruder_temp  = e["extruder_temp"] | 0;
@@ -211,7 +232,7 @@ struct DbLookup {
 static void lookupElement(JsonObjectConst e, void* p) {
   DbLookup* l = (DbLookup*)p;
   if (l->found || !dbEntryFits(e, *l->in)) return;
-  takeDbEntry(e, l->plan);
+  takeDbEntry(*l->in, e, l->plan);
   l->found = true;
 }
 
@@ -249,7 +270,7 @@ static bool findInDatabase(const char* base_url, const TagCreateInput& in, TagFi
   }
   for (JsonObjectConst e : doc.as<JsonArrayConst>()) {
     if (!dbEntryFits(e, in)) continue;
-    takeDbEntry(e, plan);
+    takeDbEntry(in, e, plan);
     return true;
   }
   return false;
@@ -259,7 +280,10 @@ static bool findInDatabase(const char* base_url, const TagCreateInput& in, TagFi
 // and filament_db.h brought everything the plan takes from it.
 static void takePickedEntry(const TagCreateInput& in, TagFilamentPlan* plan) {
   snprintf(plan->external_id, sizeof(plan->external_id), "%s", in.db_id);
-  snprintf(plan->name, sizeof(plan->name), "%s", in.db_name);
+  // Behind BamBuddy the new filament is named as BamBuddy keeps it, the
+  // database's name is for finding one again (acceptByLook).
+  if (s_bambuddy_names) bambuddyFilamentName(in.material, in.subtype, plan->name, sizeof(plan->name));
+  else                  snprintf(plan->name, sizeof(plan->name), "%s", in.db_name);
   plan->density        = in.db_density;
   plan->spool_weight_g = in.spool_weight_g;
   plan->extruder_temp  = in.temp_max;
@@ -460,14 +484,18 @@ static void planFromTag(const char* base_url, const TagCreateInput& in, TagFilam
     plan->no_density = true;
     return;
   }
-  tagCreateSpoolmanName(in, plan->name, sizeof(plan->name));
+  // A label and a typed sort alike: BamBuddy's name behind BamBuddy, the colour
+  // goes to the spool (backend_api.cpp, bambuddyCreateUnderSpoolman()).
+  if (s_bambuddy_names) bambuddyFilamentName(in.material, in.subtype, plan->name, sizeof(plan->name));
+  else                  tagCreateSpoolmanName(in, plan->name, sizeof(plan->name));
   plan->spool_weight_g = in.spool_weight_g;
   plan->state = TFS_CREATE_TAG;
 }
 
-void spoolmanPlanTagFilament(const char* base_url, const TagCreateInput& in,
-                             TagFilamentPlan* plan) {
+void spoolmanPlanTagFilament(const char* base_url, const TagCreateInput& in, TagFilamentPlan* plan,
+                             bool bambuddy_names) {
   tagFilamentPlanClear(plan);
+  s_bambuddy_names = bambuddy_names;
   // A filament picked from the inventory at the scale is the one, before any search.
   if (in.typed && in.known_filament_id > 0 && planKnown(base_url, in, plan)) return;
   // The database first: its id also finds a filament imported from it.

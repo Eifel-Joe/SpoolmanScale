@@ -34,7 +34,9 @@
 //  the chosen line's "Black", not "Black (Basic)". One the list does not have
 //  is new, and the colour grid asks for its hue: one of the 28 common colours
 //  (plan Festlegung 2) or six hex digits. The hue is what Spoolman finds the
-//  filament by next time, so the grid says so on top.
+//  filament by next time, so the grid says so on top, and "Enter hex" stands
+//  right under that hint, above the fields, so no scrolling is needed to
+//  reach it.
 //
 //  The weight step takes the diameter (1.75 mm unless 2.85 is tapped) and
 //  the net weight of a full spool, from the list or typed. Then the entry
@@ -60,6 +62,9 @@
 #define PICK_FIELD_W         ((SORT_BODY_W - 4 - (PICK_GRID_COLS - 1) * SORT_GAP) / PICK_GRID_COLS)
 #define PICK_FIELD_SWATCH    28
 #define PICK_FIELD_NAME_Y    (PICK_FIELD_SWATCH + 2)
+// A name wider than its field gets this much more than it measures, so that
+// the label's own width test never turns the last letter into dots.
+#define PICK_NAME_SLACK      2
 // A clear filament on a swatch: no hue, no alpha, the way Bambu writes it
 // and sortEntryToInput() files it; swatchPaint() draws it as glass.
 #define PICK_CLEAR_RGBA      "00000000"
@@ -294,11 +299,22 @@ static void gridField(lv_obj_t* body, int i) {
   lv_obj_t* l = lv_label_create(f);
   lv_label_set_text(l, SORT_COMMON[i].name);
   lv_obj_add_style(l, &s_st_field_name, 0);
-  // Two lines where the name has a blank ("Light Green"); a single word
-  // wider than the field ends in dots ("Transparent") rather than breaking.
+  // Two lines where the name has a blank ("Light Green"); a single word is one
+  // line. One wider than the field is drawn whole, centred under its swatch and
+  // across the field's edges ("Transparent": 73 px in the caption font, the
+  // field 61, and 10 px would still be 62): the names of its neighbours are
+  // shorter than the field and sit in the middle of theirs, so they do not meet.
   if (!strchr(SORT_COMMON[i].name, ' ')) {
     lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
     lv_obj_set_height(l, lv_font_get_line_height(UI_FONT_CAPTION));
+    lv_point_t size;
+    lv_txt_get_size(&size, SORT_COMMON[i].name, UI_FONT_CAPTION, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    if (size.x > PICK_FIELD_W) {
+      const int w = size.x + PICK_NAME_SLACK;
+      lv_obj_add_flag(f, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+      lv_obj_set_width(l, w);
+      lv_obj_set_x(l, (PICK_FIELD_W - w) / 2);
+    }
   }
 }
 
@@ -312,16 +328,18 @@ static void showGrid() {
   lv_obj_t* body = sortNewBody();
   logLvMem("sortentry-grid/pre", 0);
   sortCaption(body, T(STR_SORT_HUE_HINT));
+  // Under the hint, before the fields: the way to type the hue is not at the
+  // end of four rows, out of sight.
+  if (lvPoolHasRoomForRow()) {
+    lv_obj_t* t = sortTile(body, T(STR_SORT_HEX), SN_HEX, 0);
+    lv_obj_set_width(t, SORT_ROW_W);
+    lv_obj_add_style(t, &s_st_way, 0);
+  }
   int fields = 0;
   for (int i = 0; i < SORT_COMMON_COUNT; i++) {
     if (!lvPoolHasRoomForRow()) { logSDf("SortEntry: LVGL pool low, colour grid cut at %d", i); break; }
     gridField(body, i);
     fields++;
-  }
-  if (lvPoolHasRoomForRow()) {
-    lv_obj_t* t = sortTile(body, T(STR_SORT_HEX), SN_HEX, 0);
-    lv_obj_set_width(t, SORT_ROW_W);
-    lv_obj_add_style(t, &s_st_way, 0);
   }
   logLvMem("sortentry-grid/post", fields);
 }

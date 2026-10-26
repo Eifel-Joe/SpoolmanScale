@@ -519,7 +519,21 @@ STR_SORT_KEY_HEX	18	460	NEVER	src/ui/sort_entry_keys.cpp sortKeysShow title, 480
 STR_SORT_KEY_GRAMS	18	460	NEVER	src/ui/sort_entry_keys.cpp sortKeysShow title, 480 - 2 * SORT_KEYS_SIDE (10)
 STR_SORT_HEX_BAD	14	440	NEVER	src/ui/sort_entry_keys.cpp word line under the field, SORT_KEYS_FIELD_W
 STR_SORT_GRAMS_BAD	14	440	NEVER	src/ui/sort_entry_keys.cpp word line under the field, SORT_KEYS_FIELD_W
-# "Enter hex" across the list under the grid (SORT_ROW_W), one label: minus 2 x (pad 2 + border 1).
-STR_SORT_HEX	14	446	NEVER	src/ui/sort_entry_pick.cpp sortTile widened to SORT_ROW_W, under the colour grid
+# "Enter hex" across the list right under the hint over the grid (SORT_ROW_W), one label: minus 2 x (pad 2 + border 1).
+STR_SORT_HEX	14	446	NEVER	src/ui/sort_entry_pick.cpp sortTile widened to SORT_ROW_W, under the hint, above the colour grid
 # A tile of three to a row (SORT_TILE_W 148), one label: minus 2 x (pad 2 + border 1).
 STR_SORT_TYPE_GRAMS	14	142	NEVER	src/ui/sort_entry_pick.cpp sortTile, the last tile of the weight step
+
+# --- the tiles of the unknown spool's card, with "Enter filament" as a fourth (unknown_spool_popup.cpp) ---
+# Four tiles to a row are (UNK_ROW_W 412 - 3 * UNK_GAP 8) / 4 = 97 px, and the German
+# "Verknüpfen" is 97 px in the body font (16), the whole tile: a row of four sets the
+# captions in the small font (14) across 97 - UNK_TILE_AIR (4) = 93 px, two lines at most
+# (the symbol at y 16, the caption from y 48, the tile 96 high). fit_check --measure 14:
+# Verknüpfen 87, Datenbank 82, Nouvelle de 87, eingeben 71, filament 62, Kopie 42.
+# A row of three (a tag that is not a Bambu one, no database) is 132 px, body font,
+# the caption 132 - UNK_X (12) = 120 px: "Sorte eingeben" (125 px) wraps to two lines.
+STR_REMOTE_LINK_CONFIRM	14	93	NEVER	src/ui/unknown_spool_popup.cpp tile caption, a row of four
+STR_UNK_TILE_COPY	14	93	NEVER	src/ui/unknown_spool_popup.cpp tile caption, a row of four
+STR_DBPICK_BTN	14	93	WRAP:2	src/ui/unknown_spool_popup.cpp tile caption, a row of four
+STR_SORT_BTN	14	93	WRAP:2	src/ui/unknown_spool_popup.cpp tile caption, a row of four
+STR_SORT_BTN	16	120	WRAP:2	src/ui/unknown_spool_popup.cpp tile caption, a row of three
