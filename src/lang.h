@@ -150,7 +150,6 @@ enum StringID {
   STR_OTA_UPLOADING,
   STR_OTA_SUCCESS,
   STR_OTA_FAIL,
-  STR_BTN_STOP_SERVER,
   STR_OTA_CURRENT,
 
   // QR Popups
@@ -1931,6 +1930,8 @@ enum StringID {
   STR_WEB_STEP_CREDS_BB,
   STR_WEB_DRY_HINT,
   STR_OTA_FILE_NAME,
+  STR_OTA_INSTALLED_CAP,
+  STR_OTA_RETRY_HINT,
 
   // A copy behind Bambuddy on Spoolman: what it takes over (design note J)
   STR_COPY_CARD_PROFILE,    // copy card: %s the template's profile, "-" without one
