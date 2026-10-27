@@ -1,6 +1,6 @@
 {
   "name": "SpoolmanScale (Waveshare ESP32-S3-Touch-LCD-7)",
-  "version": "v0.8.4",
+  "version": "v0.8.5",
   "home_assistant_domain": null,
   "new_install_prompt_erase": true,
   "builds": [

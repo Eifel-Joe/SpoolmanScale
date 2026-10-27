@@ -1,6 +1,6 @@
 {
   "name": "SpoolmanScale (WT32-SC01 Plus)",
-  "version": "v0.8.4",
+  "version": "v0.8.5",
   "home_assistant_domain": null,
   "new_install_prompt_erase": true,
   "builds": [
