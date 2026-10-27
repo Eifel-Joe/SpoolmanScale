@@ -11,46 +11,83 @@
 #include "lang.h"
 #include "services/prefs_store.h"
 #include "ui_common.h"
+#include "setup_frame.h"
 #include "wifi_setup_screen.h"
-#include "services/backend.h"
 #include "services/time_service.h"
 #include "services/wifi_manager.h"
 #include "timezone_screen.h"
 #include "theme.h"
 
+// ============================================================
+//  LANGUAGE - the very first screen
+// ============================================================
 
+// Shown before anything else, so it cannot assume a language: the line under
+// the logo greets in all three, and each language names itself.
+struct LangRow { const char *name; uint8_t lang; };
+static const LangRow LANG_ROWS[] = {
+  { "English",  LANG_EN },
+  { "Deutsch",  LANG_DE },
+  { "Français", LANG_FR },
+};
+static_assert(sizeof(LANG_ROWS) / sizeof(LANG_ROWS[0]) == LANG_COUNT,
+              "LANG_ROWS is out of step with enum Lang");
 
-// The choice, held across rebuilds of the screen: picking a language restyles
-// the buttons, and coming back from the time zone picker rebuilds it whole.
-// -1 means "not worked out yet".
-static int  wel_lang_sel   = -1;   // 0 = DE, 1 = EN, 2 = FR, same values as the "lang" key
-static int  wel_tz_sel     = -1;   // index into TZ_LIST
-static bool wel_tz_touched = false;
+#define LANG_ROW_X        24
+#define LANG_ROW_W       432
+#define LANG_ROW_H        60
+#define LANG_ROW_Y0       88
+#define LANG_ROW_STEP     70
+#define LANG_LOGO_Y       16
+#define LANG_GREETING_Y   52
+#define LANG_TEXT_INSET   18
 
-static lv_obj_t *wel_btn_en = nullptr, *wel_lbl_en = nullptr;
-static lv_obj_t *wel_btn_de = nullptr, *wel_lbl_de = nullptr;
-static lv_obj_t *wel_btn_fr = nullptr, *wel_lbl_fr = nullptr;
-static lv_obj_t *wel_lbl_tz = nullptr;
-
-static void welStyleLangBtn(lv_obj_t *btn, lv_obj_t *lbl, bool active) {
-  if (!btn || !lbl) return;
-  lv_obj_set_style_bg_color(btn, lv_color_hex(active ? UI_COL_CHOICE_BG : UI_COL_SURFACE), 0);
-  lv_obj_set_style_border_color(btn, lv_color_hex(active ? UI_COL_ACCENT : UI_COL_LINE), 0);
-  lv_obj_set_style_text_color(lbl, lv_color_hex(active ? UI_COL_ACCENT : UI_COL_CAPTION), 0);
+// Stores the language and restarts at once. Every text after this screen is
+// pulled as its screen is built, and the main screen underneath is already
+// built in the old language, so a restart is the only clean switch. The time
+// zone is asked on the next screen, which already speaks the new language.
+static void onLanguagePicked(lv_event_t *e) {
+  static const char *const LANG_TAG[] = { "DE", "EN", "FR" };
+  static_assert(sizeof(LANG_TAG) / sizeof(LANG_TAG[0]) == LANG_COUNT,
+                "LANG_TAG is out of step with enum Lang");
+  const uint8_t lang = (uint8_t)(intptr_t)lv_obj_get_user_data(lv_event_get_target(e));
+  if (lang >= LANG_COUNT) return;
+  prefsPutUChar("lang", lang);
+  prefsPutBool("lang_set", true);
+  prefsPutBool("first_boot", true);
+  prefsFlush();      // parked while LVGL dispatches; the restart comes next
+  logSDf("Setup: language=%s -> restart", LANG_TAG[lang]);
+  ESP.restart();
 }
 
-// Restyles in place rather than rebuilding: a rebuild from a button's own
-// callback is avoidable here, and the screen has nothing else to re-read.
-static void welRefresh() {
-  welStyleLangBtn(wel_btn_en, wel_lbl_en, wel_lang_sel == 1);
-  welStyleLangBtn(wel_btn_de, wel_lbl_de, wel_lang_sel == 0);
-  welStyleLangBtn(wel_btn_fr, wel_lbl_fr, wel_lang_sel == 2);
-  if (wel_lbl_tz && wel_tz_sel >= 0 && (size_t)wel_tz_sel < TZ_COUNT) {
-    char buf[48];
-    strncpy(buf, TZ_LIST[wel_tz_sel].name, sizeof(buf) - 1);
-    buf[sizeof(buf) - 1] = '\0';
-    lv_label_set_text(wel_lbl_tz, buf);
-  }
+static void addLanguageRow(lv_obj_t *scr, size_t i) {
+  // Marked only when the language was chosen before and the screen was
+  // reached by going back; on a new device nothing is chosen yet.
+  const bool active = cfg_lang_set && LANG_ROWS[i].lang == (uint8_t)g_lang;
+
+  lv_obj_t *b = lv_btn_create(scr);
+  lv_obj_set_size(b, LANG_ROW_W, LANG_ROW_H);
+  lv_obj_set_pos(b, LANG_ROW_X, LANG_ROW_Y0 + (int)i * LANG_ROW_STEP);
+  lv_obj_set_style_radius(b, UI_RADIUS_ROW, 0);
+  lv_obj_set_style_shadow_width(b, 0, 0);
+  lv_obj_set_style_bg_color(b, lv_color_hex(active ? UI_COL_PICKED_BG : UI_COL_SURFACE), 0);
+  lv_obj_set_style_bg_color(b, lv_color_hex(UI_COL_PRESS_FILL), LV_STATE_PRESSED);
+  lv_obj_set_style_border_width(b, active ? 2 : 1, 0);
+  lv_obj_set_style_border_color(b, lv_color_hex(active ? UI_COL_ACCENT : UI_COL_LINE_SOFT), 0);
+  lv_obj_set_user_data(b, (void *)(intptr_t)LANG_ROWS[i].lang);
+  lv_obj_add_event_cb(b, onLanguagePicked, LV_EVENT_CLICKED, NULL);
+
+  lv_obj_t *l = lv_label_create(b);
+  lv_label_set_text(l, LANG_ROWS[i].name);
+  lv_obj_set_style_text_font(l, UI_FONT_HEADLINE, 0);
+  lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_INK), 0);
+  lv_obj_align(l, LV_ALIGN_LEFT_MID, LANG_TEXT_INSET, 0);
+
+  lv_obj_t *a = lv_label_create(b);
+  lv_label_set_text(a, active ? LV_SYMBOL_OK : LV_SYMBOL_RIGHT);
+  lv_obj_set_style_text_font(a, UI_FONT_BODY, 0);
+  lv_obj_set_style_text_color(a, lv_color_hex(UI_COL_ACCENT), 0);
+  lv_obj_align(a, LV_ALIGN_RIGHT_MID, -LANG_TEXT_INSET, 0);
 }
 
 void showWelcomeScreen() {
@@ -64,220 +101,128 @@ void showWelcomeScreen() {
 void buildWelcomeScreen() {
   logSD("BUILD: WelcomeScreen");
   releaseScreen(&scr_welcome);
-  scr_welcome = lv_obj_create(lv_scr_act());
-  lv_obj_set_size(scr_welcome, 480, 320);
-  lv_obj_set_pos(scr_welcome, 0, 0);
-  lv_obj_add_flag(scr_welcome, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_set_style_radius(scr_welcome, 0, 0);
-  lv_obj_set_style_border_width(scr_welcome, 0, 0);
-  lv_obj_set_style_pad_all(scr_welcome, 0, 0);
-  lv_obj_clear_flag(scr_welcome, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_style_bg_color(scr_welcome, lv_color_hex(UI_COL_GROUND), 0);
+  scr_welcome = buildOverlayScreen();
 
-  // First time through: start from whatever the device already believes.
-  // The enum values are the stored values, so this needs no mapping and stays
-  // right whatever languages exist.
-  if (wel_lang_sel < 0) wel_lang_sel = (int)g_lang;
-  if (wel_tz_sel < 0) {
-    const int stored = timeZoneIndex();
-    wel_tz_sel = (stored >= 0) ? stored
-                               : timeZoneDefaultIndexForLang((uint8_t)wel_lang_sel);
-  }
-  // Coming back from the picker, which writes its choice straight to storage.
-  if (wel_tz_touched) {
-    const int stored = timeZoneIndex();
-    if (stored >= 0) wel_tz_sel = stored;
-  }
-
-  lv_obj_t *lbl_logo = lv_label_create(scr_welcome);
-  lv_label_set_text(lbl_logo, "SpoolmanScale");
-  lv_obj_set_style_text_color(lbl_logo, lv_color_hex(UI_COL_ACCENT), 0);
-  lv_obj_set_style_text_font(lbl_logo, &lv_font_montserrat_ext_24, 0);
-  lv_obj_align(lbl_logo, LV_ALIGN_TOP_MID, 0, 12);
-
-  lv_obj_t *lbl_sub = lv_label_create(scr_welcome);
-  lv_label_set_text(lbl_sub, T(STR_WELCOME_LANG_TITLE));
-  lv_obj_set_style_text_color(lbl_sub, lv_color_hex(UI_COL_CAPTION), 0);
-  lv_obj_set_style_text_font(lbl_sub, &lv_font_montserrat_ext_16, 0);
-  lv_obj_align(lbl_sub, LV_ALIGN_TOP_MID, 0, 46);
-
+  // Back to the welcome screen once a language is set: that is where going
+  // back from the WiFi step leads, one step further back lands here.
   if (cfg_lang_set) {
-    lv_obj_t *btn_x = lv_btn_create(scr_welcome);
-    lv_obj_set_size(btn_x, 44, 44);
-    lv_obj_align(btn_x, LV_ALIGN_TOP_RIGHT, -4, 2);
-    lv_obj_set_style_bg_color(btn_x, lv_color_hex(UI_COL_BAD_BG), 0);
-    lv_obj_set_style_bg_color(btn_x, lv_color_hex(UI_COL_BAD_BG_PRESSED), LV_STATE_PRESSED);
-    lv_obj_set_style_radius(btn_x, 8, 0);
-    lv_obj_set_style_shadow_width(btn_x, 0, 0);
-    lv_obj_set_style_border_width(btn_x, 0, 0);
-    lv_obj_t *lbl_x = lv_label_create(btn_x);
-    lv_label_set_text(lbl_x, LV_SYMBOL_CLOSE);
-    lv_obj_set_style_text_color(lbl_x, lv_color_hex(UI_COL_BAD_TEXT), 0);
-    lv_obj_set_style_text_font(lbl_x, &lv_font_montserrat_ext_18, 0);
-    lv_obj_center(lbl_x);
-    lv_obj_add_event_cb(btn_x, [](lv_event_t *e){ logSD("BTN: Close -> Main"); showMainScreen(); }, LV_EVENT_CLICKED, NULL);
+    addBackButton(scr_welcome, [](lv_event_t *e){
+      logSD("BTN: Language -> Welcome");
+      showFirstBootScreen();
+    });
   }
 
-  // ---- language, a choice now rather than an action ------------------
-  // Three buttons on one row: 8 px margins, two 10 px gaps, so
-  // (480 - 16 - 20) / 3 = 148. Nothing else on this screen moves. The labels
-  // drop their "EN " / "DE " prefix to make room - "Deutsch" is 76 px at this
-  // font and "Français" 76, well inside 148.
-  const int LB_W = 148, LB_H = 52, LB_Y = 76;
-  const int LB_X_EN = 8, LB_X_DE = 166, LB_X_FR = 324;
+  lv_obj_t *logo = lv_label_create(scr_welcome);
+  lv_label_set_text(logo, "SpoolmanScale");
+  lv_obj_set_style_text_color(logo, lv_color_hex(UI_COL_ACCENT), 0);
+  lv_obj_set_style_text_font(logo, UI_FONT_ICON, 0);
+  lv_obj_align(logo, LV_ALIGN_TOP_MID, 0, LANG_LOGO_Y);
 
-  wel_btn_en = lv_btn_create(scr_welcome);
-  lv_obj_set_size(wel_btn_en, LB_W, LB_H);
-  lv_obj_set_pos(wel_btn_en, LB_X_EN, LB_Y);
-  lv_obj_set_style_bg_color(wel_btn_en, lv_color_hex(UI_COL_CHOICE_BG_PRESSED), LV_STATE_PRESSED);
-  lv_obj_set_style_radius(wel_btn_en, 10, 0);
-  lv_obj_set_style_shadow_width(wel_btn_en, 0, 0);
-  lv_obj_set_style_border_width(wel_btn_en, 2, 0);
-  wel_lbl_en = lv_label_create(wel_btn_en);
-  lv_label_set_text(wel_lbl_en, "English");
-  lv_obj_set_style_text_font(wel_lbl_en, &lv_font_montserrat_ext_18, 0);
-  lv_obj_center(wel_lbl_en);
-  lv_obj_add_event_cb(wel_btn_en, [](lv_event_t *e){
-    wel_lang_sel = 1;
-    // Only until the owner says otherwise. After that the language stops
-    // moving the zone, or picking one would be undone by a second thought
-    // about the language.
-    if (!wel_tz_touched) wel_tz_sel = timeZoneDefaultIndexForLang(1);
-    welRefresh();
-  }, LV_EVENT_CLICKED, NULL);
+  lv_obj_t *greet = lv_label_create(scr_welcome);
+  lv_label_set_text(greet, T(STR_WELCOME_TRILINGUAL));
+  lv_obj_set_style_text_color(greet, lv_color_hex(UI_COL_INK_SOFT), 0);
+  lv_obj_set_style_text_font(greet, UI_FONT_BODY, 0);
+  lv_obj_align(greet, LV_ALIGN_TOP_MID, 0, LANG_GREETING_Y);
 
-  wel_btn_de = lv_btn_create(scr_welcome);
-  lv_obj_set_size(wel_btn_de, LB_W, LB_H);
-  lv_obj_set_pos(wel_btn_de, LB_X_DE, LB_Y);
-  lv_obj_set_style_bg_color(wel_btn_de, lv_color_hex(UI_COL_PRESS_FILL), LV_STATE_PRESSED);
-  lv_obj_set_style_radius(wel_btn_de, 10, 0);
-  lv_obj_set_style_shadow_width(wel_btn_de, 0, 0);
-  lv_obj_set_style_border_width(wel_btn_de, 2, 0);
-  wel_lbl_de = lv_label_create(wel_btn_de);
-  lv_label_set_text(wel_lbl_de, "Deutsch");
-  lv_obj_set_style_text_font(wel_lbl_de, &lv_font_montserrat_ext_18, 0);
-  lv_obj_center(wel_lbl_de);
-  lv_obj_add_event_cb(wel_btn_de, [](lv_event_t *e){
-    wel_lang_sel = 0;
-    if (!wel_tz_touched) wel_tz_sel = timeZoneDefaultIndexForLang(0);
-    welRefresh();
-  }, LV_EVENT_CLICKED, NULL);
+  for (size_t i = 0; i < LANG_COUNT; i++) addLanguageRow(scr_welcome, i);
+}
 
-  // The cedilla comes from the Latin-1 supplement reached through the font's
-  // fallback, so this label needs src/fonts/lv_font_fr_supp_18.c to be present.
-  // This is the first screen a French owner sees, so a missing glyph would show
-  // as a hollow rectangle before anything else could be trusted.
-  wel_btn_fr = lv_btn_create(scr_welcome);
-  lv_obj_set_size(wel_btn_fr, LB_W, LB_H);
-  lv_obj_set_pos(wel_btn_fr, LB_X_FR, LB_Y);
-  lv_obj_set_style_bg_color(wel_btn_fr, lv_color_hex(UI_COL_PRESS_FILL), LV_STATE_PRESSED);
-  lv_obj_set_style_radius(wel_btn_fr, 10, 0);
-  lv_obj_set_style_shadow_width(wel_btn_fr, 0, 0);
-  lv_obj_set_style_border_width(wel_btn_fr, 2, 0);
-  wel_lbl_fr = lv_label_create(wel_btn_fr);
-  lv_label_set_text(wel_lbl_fr, "Français");
-  lv_obj_set_style_text_font(wel_lbl_fr, &lv_font_montserrat_ext_18, 0);
-  lv_obj_center(wel_lbl_fr);
-  lv_obj_add_event_cb(wel_btn_fr, [](lv_event_t *e){
-    wel_lang_sel = 2;
-    if (!wel_tz_touched) wel_tz_sel = timeZoneDefaultIndexForLang(2);
-    welRefresh();
-  }, LV_EVENT_CLICKED, NULL);
+// ============================================================
+//  WELCOME - after the language restart
+// ============================================================
 
-  // ---- time zone, asked here so the clock is right from the first boot ----
-  lv_obj_t *lbl_tzc = lv_label_create(scr_welcome);
-  { char buf[32]; copyT(buf, sizeof(buf), STR_TZ_TITLE);
-    lv_label_set_text(lbl_tzc, buf); }
-  lv_obj_set_style_text_color(lbl_tzc, lv_color_hex(UI_COL_INK_2), 0);
-  lv_obj_set_style_text_font(lbl_tzc, &lv_font_montserrat_ext_14, 0);
-  lv_obj_set_pos(lbl_tzc, 12, 140);
+#define FB_STEPS_Y        56
+#define FB_TILE_X0        12
+#define FB_TILE_Y         78
+#define FB_TILE_W        109
+#define FB_TILE_H         56
+#define FB_TILE_GAP        6
+#define FB_TILE_DISC      22
+#define FB_TILE_PAD        8
+#define FB_TZ_CAPTION_X   14
+#define FB_TZ_CAPTION_Y  148
+#define FB_TZ_ROW_X       12
+#define FB_TZ_ROW_Y      166
+#define FB_TZ_ROW_W      456
+#define FB_TZ_ROW_H       50
+#define FB_TZ_INSET       14
+#define FB_TZ_LINE_INSET   7   // name and offset, from the row's top and bottom
 
-  lv_obj_t *btn_tz = lv_btn_create(scr_welcome);
-  lv_obj_set_size(btn_tz, 464, 44);
-  lv_obj_set_pos(btn_tz, 8, 160);
-  lv_obj_set_style_bg_color(btn_tz, lv_color_hex(UI_COL_ROW), 0);
-  lv_obj_set_style_bg_color(btn_tz, lv_color_hex(UI_COL_ROW_PRESS_FILL), LV_STATE_PRESSED);
-  lv_obj_set_style_radius(btn_tz, 10, 0);
-  lv_obj_set_style_shadow_width(btn_tz, 0, 0);
-  lv_obj_set_style_border_width(btn_tz, 1, 0);
-  lv_obj_set_style_border_color(btn_tz, lv_color_hex(UI_COL_ROW_PRESSED), 0);
+// One step of the setup as a tile: its number over its name. Shows what is
+// ahead; it is not a button.
+static void addStepTile(lv_obj_t *scr, int i, int str_id) {
+  lv_obj_t *tile = lv_obj_create(scr);
+  lv_obj_set_size(tile, FB_TILE_W, FB_TILE_H);
+  lv_obj_set_pos(tile, FB_TILE_X0 + i * (FB_TILE_W + FB_TILE_GAP), FB_TILE_Y);
+  lv_obj_set_style_pad_all(tile, 0, 0);
+  lv_obj_set_style_radius(tile, UI_RADIUS_ROW, 0);
+  lv_obj_set_style_bg_color(tile, lv_color_hex(UI_COL_SURFACE), 0);
+  lv_obj_set_style_border_width(tile, 1, 0);
+  lv_obj_set_style_border_color(tile, lv_color_hex(UI_COL_LINE_SOFT), 0);
+  lv_obj_clear_flag(tile, LV_OBJ_FLAG_SCROLLABLE);
 
-  wel_lbl_tz = lv_label_create(btn_tz);
-  lv_label_set_text(wel_lbl_tz, "");
-  lv_obj_set_style_text_color(wel_lbl_tz, lv_color_hex(UI_COL_INK), 0);
-  lv_obj_set_style_text_font(wel_lbl_tz, &lv_font_montserrat_ext_16, 0);
-  lv_obj_align(wel_lbl_tz, LV_ALIGN_LEFT_MID, 14, 0);
+  lv_obj_t *disc = lv_obj_create(tile);
+  lv_obj_remove_style_all(disc);
+  lv_obj_set_size(disc, FB_TILE_DISC, FB_TILE_DISC);
+  lv_obj_set_style_radius(disc, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_bg_opa(disc, LV_OPA_COVER, 0);
+  lv_obj_set_style_bg_color(disc, lv_color_hex(UI_COL_PICKED_BG), 0);
+  lv_obj_align(disc, LV_ALIGN_TOP_MID, 0, FB_TILE_PAD - 2);
+  char num[4];
+  snprintf(num, sizeof(num), "%d", i + 1);
+  lv_obj_t *n = lv_label_create(disc);
+  lv_label_set_text(n, num);
+  lv_obj_set_style_text_font(n, UI_FONT_CAPTION, 0);
+  lv_obj_set_style_text_color(n, lv_color_hex(UI_COL_ACCENT), 0);
+  lv_obj_center(n);
 
-  lv_obj_t *lbl_tz_arr = lv_label_create(btn_tz);
-  lv_label_set_text(lbl_tz_arr, LV_SYMBOL_RIGHT);
-  lv_obj_set_style_text_color(lbl_tz_arr, lv_color_hex(UI_COL_ACCENT), 0);
-  lv_obj_set_style_text_font(lbl_tz_arr, &lv_font_montserrat_ext_16, 0);
-  lv_obj_align(lbl_tz_arr, LV_ALIGN_RIGHT_MID, -14, 0);
+  lv_obj_t *l = setupCenteredLabel(tile, T(str_id), UI_FONT_SMALL, FB_TILE_W - 2 * FB_TILE_PAD);
+  lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_INK), 0);
+  lv_obj_align(l, LV_ALIGN_BOTTOM_MID, 0, -FB_TILE_PAD);
+}
 
-  lv_obj_add_event_cb(btn_tz, [](lv_event_t *e){
+static void addZoneRow(lv_obj_t *scr) {
+  lv_obj_t *cap = lv_label_create(scr);
+  lv_label_set_text(cap, T(STR_TZ_TITLE));
+  lv_obj_set_style_text_font(cap, UI_FONT_CAPTION, 0);
+  lv_obj_set_style_text_color(cap, lv_color_hex(UI_COL_INK_SOFT), 0);
+  lv_obj_set_pos(cap, FB_TZ_CAPTION_X, FB_TZ_CAPTION_Y);
+
+  lv_obj_t *b = lv_btn_create(scr);
+  lv_obj_set_size(b, FB_TZ_ROW_W, FB_TZ_ROW_H);
+  lv_obj_set_pos(b, FB_TZ_ROW_X, FB_TZ_ROW_Y);
+  lv_obj_set_style_radius(b, UI_RADIUS_ROW, 0);
+  lv_obj_set_style_shadow_width(b, 0, 0);
+  lv_obj_set_style_bg_color(b, lv_color_hex(UI_COL_SURFACE), 0);
+  lv_obj_set_style_bg_color(b, lv_color_hex(UI_COL_PRESS_FILL), LV_STATE_PRESSED);
+  lv_obj_set_style_border_width(b, 1, 0);
+  lv_obj_set_style_border_color(b, lv_color_hex(UI_COL_LINE_SOFT), 0);
+  lv_obj_set_style_pad_all(b, 0, 0);
+  lv_obj_add_event_cb(b, [](lv_event_t *e){
     logSD("BTN: Welcome -> Time zone");
-    // The picker reads and writes storage, and the language is not saved yet,
-    // so the pre-selection has to be put there first or the picker would show
-    // the zone of the language being replaced.
-    if (wel_tz_sel >= 0 && (size_t)wel_tz_sel < TZ_COUNT) {
-      timeZoneSet(TZ_LIST[wel_tz_sel].tz);
-    }
-    wel_tz_touched = true;
     setTimeZoneReturnToWelcome(true);
     show_timezone_pending = true;
   }, LV_EVENT_CLICKED, NULL);
 
-  lv_obj_t *lbl_hint = lv_label_create(scr_welcome);
-  lv_label_set_text(lbl_hint, T(STR_WELCOME_LANG_HINT));
-  lv_obj_set_style_text_color(lbl_hint, lv_color_hex(UI_COL_INK_FAINT), 0);
-  lv_obj_set_style_text_font(lbl_hint, &lv_font_montserrat_ext_12, 0);
-  lv_obj_set_style_text_align(lbl_hint, LV_TEXT_ALIGN_CENTER, 0);
-  lv_label_set_long_mode(lbl_hint, LV_LABEL_LONG_WRAP);
-  lv_obj_set_width(lbl_hint, 440);
-  lv_obj_align(lbl_hint, LV_ALIGN_TOP_MID, 0, 214);
+  const int idx = timeZoneIndex();
+  const bool known = idx >= 0 && (size_t)idx < TZ_COUNT;
+  lv_obj_t *name = lv_label_create(b);
+  lv_label_set_text(name, known ? TZ_LIST[idx].name : "");
+  lv_obj_set_style_text_font(name, UI_FONT_BODY, 0);
+  lv_obj_set_style_text_color(name, lv_color_hex(UI_COL_INK), 0);
+  lv_obj_align(name, LV_ALIGN_TOP_LEFT, FB_TZ_INSET, FB_TZ_LINE_INSET);
 
-  // ---- one commit point for both answers -----------------------------
-  lv_obj_t *btn_next = lv_btn_create(scr_welcome);
-  lv_obj_set_size(btn_next, 200, 50);
-  lv_obj_align(btn_next, LV_ALIGN_BOTTOM_MID, 0, -10);
-  lv_obj_set_style_bg_color(btn_next, lv_color_hex(UI_COL_CHOICE_BG), 0);
-  lv_obj_set_style_bg_color(btn_next, lv_color_hex(UI_COL_CHOICE_BG_PRESSED), LV_STATE_PRESSED);
-  lv_obj_set_style_radius(btn_next, 10, 0);
-  lv_obj_set_style_shadow_width(btn_next, 0, 0);
-  lv_obj_set_style_border_width(btn_next, 2, 0);
-  lv_obj_set_style_border_color(btn_next, lv_color_hex(UI_COL_ACCENT), 0);
-  lv_obj_t *lbl_next = lv_label_create(btn_next);
-  { char buf[24]; copyT(buf, sizeof(buf), STR_BTN_NEXT);
-    lv_label_set_text(lbl_next, buf); }
-  lv_obj_set_style_text_color(lbl_next, lv_color_hex(UI_COL_ACCENT), 0);
-  lv_obj_set_style_text_font(lbl_next, &lv_font_montserrat_ext_18, 0);
-  lv_obj_center(lbl_next);
-  lv_obj_add_event_cb(btn_next, [](lv_event_t *e){
-    // Both answers land together and the device restarts once. Picking German
-    // used to restart on the spot, which meant the zone could only ever be
-    // asked afterwards, on a device already running on the wrong clock.
-    // Clamped anyway, and sized by its initializer: a language added to the
-    // enum without a tag here stops the build instead of handing logSDf a null
-    // pointer.
-    static const char *const LANG_TAG[] = { "DE", "EN", "FR" };
-    static_assert(sizeof(LANG_TAG) / sizeof(LANG_TAG[0]) == LANG_COUNT,
-                  "LANG_TAG is out of step with enum Lang");
-    const uint8_t lang = (wel_lang_sel >= 0 && wel_lang_sel < LANG_COUNT)
-                           ? (uint8_t)wel_lang_sel : (uint8_t)LANG_EN;
-    if (wel_tz_sel >= 0 && (size_t)wel_tz_sel < TZ_COUNT) {
-      timeZoneSet(TZ_LIST[wel_tz_sel].tz);
-    }
-    prefsPutUChar("lang", lang);
-    prefsPutBool("lang_set", true);
-    prefsPutBool("first_boot", true);
-    prefsFlush();      // parked while LVGL dispatches; the restart comes next
-    logSDf("Setup: language=%s zone=%s -> restart",
-           LANG_TAG[lang],
-           (wel_tz_sel >= 0 && (size_t)wel_tz_sel < TZ_COUNT) ? TZ_LIST[wel_tz_sel].name : "?");
-    ESP.restart();
-  }, LV_EVENT_CLICKED, NULL);
+  lv_obj_t *off = lv_label_create(b);
+  lv_label_set_text(off, known ? TZ_LIST[idx].offset : "");
+  lv_obj_set_style_text_font(off, UI_FONT_CAPTION, 0);
+  lv_obj_set_style_text_color(off, lv_color_hex(UI_COL_INK_SOFT), 0);
+  lv_obj_align(off, LV_ALIGN_BOTTOM_LEFT, FB_TZ_INSET, -FB_TZ_LINE_INSET);
 
-  welRefresh();
+  lv_obj_t *arr = lv_label_create(b);
+  lv_label_set_text(arr, LV_SYMBOL_RIGHT);
+  lv_obj_set_style_text_font(arr, UI_FONT_BODY, 0);
+  lv_obj_set_style_text_color(arr, lv_color_hex(UI_COL_ACCENT), 0);
+  lv_obj_align(arr, LV_ALIGN_RIGHT_MID, -FB_TZ_INSET, 0);
 }
 
 void showFirstBootScreen() {
@@ -291,107 +236,50 @@ void showFirstBootScreen() {
 void buildFirstBootScreen() {
   logSD("BUILD: FirstBootScreen");
   releaseScreen(&scr_first_boot);
-  scr_first_boot = lv_obj_create(lv_scr_act());
-  lv_obj_set_size(scr_first_boot, 480, 320);
-  lv_obj_set_pos(scr_first_boot, 0, 0);
-  lv_obj_add_flag(scr_first_boot, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_set_style_radius(scr_first_boot, 0, 0);
-  lv_obj_set_style_border_width(scr_first_boot, 0, 0);
-  lv_obj_set_style_pad_all(scr_first_boot, 0, 0);
-  lv_obj_clear_flag(scr_first_boot, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_style_bg_color(scr_first_boot, lv_color_hex(UI_COL_GROUND), 0);
 
-  lv_obj_t *lbl_logo = lv_label_create(scr_first_boot);
-  lv_label_set_text(lbl_logo, "SpoolmanScale");
-  lv_obj_set_style_text_color(lbl_logo, lv_color_hex(UI_COL_ACCENT), 0);
-  lv_obj_set_style_text_font(lbl_logo, &lv_font_montserrat_ext_24, 0);
-  lv_obj_align(lbl_logo, LV_ALIGN_TOP_MID, 0, 32);
-
-  lv_obj_t *lbl_title = lv_label_create(scr_first_boot);
-  lv_label_set_text(lbl_title, T(STR_FIRSTBOOT_TITLE));
-  lv_obj_set_style_text_color(lbl_title, lv_color_hex(UI_COL_INK), 0);
-  lv_obj_set_style_text_font(lbl_title, &lv_font_montserrat_ext_20, 0);
-  lv_obj_align(lbl_title, LV_ALIGN_TOP_MID, 0, 72);
-
-  lv_obj_t *lbl_sub = lv_label_create(scr_first_boot);
-  lv_label_set_text(lbl_sub, T(STR_FIRSTBOOT_SUB));
-  lv_obj_set_style_text_color(lbl_sub, lv_color_hex(UI_COL_ACCENT), 0);
-  lv_obj_set_style_text_font(lbl_sub, &lv_font_montserrat_ext_16, 0);
-  lv_obj_set_style_text_align(lbl_sub, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(lbl_sub, LV_ALIGN_TOP_MID, 0, 104);
-
-  lv_obj_t *lbl_hint = lv_label_create(scr_first_boot);
-  // No backendText() here: at this point no backend has been chosen, and the
-  // text deliberately names both. Substituting would turn it into
-  // "FilaMan/FilaMan" once a mode is stored.
-  { char hb[128]; copyT(hb, sizeof(hb), STR_FIRSTBOOT_HINT);
-    lv_label_set_text(lbl_hint, hb); }
-  lv_obj_set_style_text_color(lbl_hint, lv_color_hex(UI_COL_CAPTION), 0);
-  lv_obj_set_style_text_font(lbl_hint, &lv_font_montserrat_ext_14, 0);
-  lv_obj_set_style_text_align(lbl_hint, LV_TEXT_ALIGN_CENTER, 0);
-  lv_label_set_long_mode(lbl_hint, LV_LABEL_LONG_WRAP);
-  lv_obj_set_width(lbl_hint, 420);
-  lv_obj_align(lbl_hint, LV_ALIGN_TOP_MID, 0, 138);
-
-  if (strlen(cfg_wifi_ssid) > 0) {
-    lv_obj_t *btn_cx = lv_btn_create(scr_first_boot);
-    lv_obj_set_size(btn_cx, 44, 44);
-    lv_obj_align(btn_cx, LV_ALIGN_TOP_RIGHT, -4, 2);
-    lv_obj_set_style_bg_color(btn_cx, lv_color_hex(UI_COL_BAD_BG), 0);
-    lv_obj_set_style_bg_color(btn_cx, lv_color_hex(UI_COL_BAD_BG_PRESSED), LV_STATE_PRESSED);
-    lv_obj_set_style_radius(btn_cx, 8, 0);
-    lv_obj_set_style_shadow_width(btn_cx, 0, 0);
-    lv_obj_set_style_border_width(btn_cx, 0, 0);
-    lv_obj_add_event_cb(btn_cx, [](lv_event_t *e){ logSD("BTN: Close -> Main"); showMainScreen(); }, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *lbl_cx = lv_label_create(btn_cx);
-    lv_label_set_text(lbl_cx, LV_SYMBOL_CLOSE);
-    lv_obj_set_style_text_color(lbl_cx, lv_color_hex(UI_COL_BAD_TEXT), 0);
-    lv_obj_set_style_text_font(lbl_cx, &lv_font_montserrat_ext_18, 0);
-    lv_obj_center(lbl_cx);
+  // The zone the language suggests, stored now: the row shows it, the picker
+  // marks it, and skipping the setup keeps it. A zone picked earlier stays.
+  if (timeZoneIndex() < 0) {
+    const int def = timeZoneDefaultIndexForLang((uint8_t)g_lang);
+    if (def >= 0 && (size_t)def < TZ_COUNT) {
+      timeZoneSet(TZ_LIST[def].tz);
+      logSDf("Setup: time zone %s from the language", TZ_LIST[def].name);
+    }
   }
 
-  lv_obj_t *btn_start = lv_btn_create(scr_first_boot);
-  lv_obj_set_size(btn_start, 226, 48);
-  lv_obj_set_pos(btn_start, 12, 252);
-  lv_obj_set_style_bg_color(btn_start, lv_color_hex(UI_COL_GO_BG), 0);
-  lv_obj_set_style_bg_color(btn_start, lv_color_hex(UI_COL_GO_BG_PRESSED), LV_STATE_PRESSED);
-  lv_obj_set_style_radius(btn_start, 10, 0);
-  lv_obj_set_style_shadow_width(btn_start, 0, 0);
-  lv_obj_set_style_border_width(btn_start, 1, 0);
-  lv_obj_set_style_border_color(btn_start, lv_color_hex(UI_COL_GO_BG_PRESSED), 0);
-  lv_obj_add_event_cb(btn_start, [](lv_event_t *e) {
-    prefsPutBool("first_boot", false);
-    cfg_first_boot = false;
-    // A link the web flasher already brought up is shown with the choice to
-    // keep or change it. A scan would drop it before the user decided.
-    if (wifiManagerIsConnected()) showWifiConnectedScreen();
-    else                          showWifiSetupScreen();
-  }, LV_EVENT_CLICKED, NULL);
-  lv_obj_t *lbl_start = lv_label_create(btn_start);
-  lv_label_set_text(lbl_start, T(STR_FIRSTBOOT_BTN));
-  lv_obj_set_style_text_color(lbl_start, lv_color_hex(UI_COL_OK_TEXT_2), 0);
-  lv_obj_set_style_text_font(lbl_start, &lv_font_montserrat_ext_16, 0);
-  lv_obj_set_style_text_align(lbl_start, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(lbl_start, LV_ALIGN_CENTER, 0, 0);
+  scr_first_boot = buildOverlayScreen();
+  setupHeader(scr_first_boot, T(STR_FIRSTBOOT_TITLE), SETUP_STEP_NONE, [](lv_event_t *e){
+    logSD("BTN: Welcome -> Language");
+    showWelcomeScreen();
+  });
 
-  lv_obj_t *btn_skip = lv_btn_create(scr_first_boot);
-  lv_obj_set_size(btn_skip, 226, 48);
-  lv_obj_set_pos(btn_skip, 242, 252);
-  lv_obj_set_style_bg_color(btn_skip, lv_color_hex(UI_COL_SURFACE), 0);
-  lv_obj_set_style_bg_color(btn_skip, lv_color_hex(UI_COL_LINE_SOFT), LV_STATE_PRESSED);
-  lv_obj_set_style_radius(btn_skip, 10, 0);
-  lv_obj_set_style_shadow_width(btn_skip, 0, 0);
-  lv_obj_set_style_border_width(btn_skip, 1, 0);
-  lv_obj_set_style_border_color(btn_skip, lv_color_hex(UI_COL_LINE_SOFT), 0);
-  lv_obj_add_event_cb(btn_skip, [](lv_event_t *e) {
-    skip_setup_pending = true;
-  }, LV_EVENT_CLICKED, NULL);
-  lv_obj_t *lbl_skip = lv_label_create(btn_skip);
-  char skip_buf[32];
-  copyT(skip_buf, sizeof(skip_buf), STR_BTN_SKIP_SETUP);
-  lv_label_set_text(lbl_skip, skip_buf);
-  lv_obj_set_style_text_color(lbl_skip, lv_color_hex(UI_COL_CAPTION), 0);
-  lv_obj_set_style_text_font(lbl_skip, &lv_font_montserrat_ext_14, 0);
-  lv_obj_set_style_text_align(lbl_skip, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(lbl_skip, LV_ALIGN_CENTER, 0, 0);
+  lv_obj_t *ahead = lv_label_create(scr_first_boot);
+  lv_label_set_text(ahead, T(STR_WELCOME_STEPS_AHEAD));
+  lv_obj_set_style_text_font(ahead, UI_FONT_SMALL, 0);
+  lv_obj_set_style_text_color(ahead, lv_color_hex(UI_COL_INK_SOFT), 0);
+  lv_obj_align(ahead, LV_ALIGN_TOP_MID, 0, FB_STEPS_Y);
+
+  static const int TILE_STR[] = {
+    STR_SETUP_TILE_WIFI, STR_SETUP_TILE_BACKEND, STR_SETUP_TILE_SERVER, STR_SETUP_TILE_SCALE
+  };
+  for (int i = 0; i < (int)(sizeof(TILE_STR) / sizeof(TILE_STR[0])); i++) {
+    addStepTile(scr_first_boot, i, TILE_STR[i]);
+  }
+
+  addZoneRow(scr_first_boot);
+
+  setupActionBar(scr_first_boot,
+    T(STR_SETUP_SKIP), [](lv_event_t *e){
+      logSD("BTN: Welcome -> Skip setup");
+      skip_setup_pending = true;
+    },
+    T(STR_SETUP_START), [](lv_event_t *e){
+      logSD("BTN: Welcome -> Start");
+      prefsPutBool("first_boot", false);
+      cfg_first_boot = false;
+      // A link the web flasher already brought up is shown with the choice to
+      // keep or change it. A scan would drop it before the user decided.
+      if (wifiManagerIsConnected()) showWifiConnectedScreen();
+      else                          showWifiSetupScreen();
+    });
 }

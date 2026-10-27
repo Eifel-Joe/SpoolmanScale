@@ -111,6 +111,7 @@ static void bottomButton(lv_obj_t* box, int col, int y, int answer, int caption)
     lv_obj_set_style_border_width(b, 0, 0);
   }
   lv_obj_center(text(b, T(caption), UI_FONT_BODY, cancel ? UI_COL_BAD_TEXT : UI_COL_INK));
+  if (cancel) styleLeaveButton(b);
 }
 
 static void build() {

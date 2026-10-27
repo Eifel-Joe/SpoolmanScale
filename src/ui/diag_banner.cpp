@@ -77,6 +77,13 @@ void updateDiagBanner() {
   }
 
   if (!banner) buildBanner();
+  // An unfinished calibration is a reminder, put off on purpose in the setup
+  // - amber. Missing or misbehaving hardware stays red.
+  const bool reminder = (c == DIAG_SCALE_UNCALIBRATED);
+  lv_obj_set_style_bg_color(banner, lv_color_hex(reminder ? UI_COL_AMBER_BG : UI_COL_BAD_BG), 0);
+  lv_obj_set_style_bg_color(banner, lv_color_hex(reminder ? UI_COL_AMBER_BG_PRESSED : UI_COL_ALERT_BG_PRESSED),
+                            LV_STATE_PRESSED);
+  lv_obj_set_style_text_color(banner_lbl, lv_color_hex(reminder ? UI_COL_WARN : UI_COL_ALERT_TEXT), 0);
 
   // T() hands back a pointer into flash, which LVGL cannot read - it has to be
   // copied into RAM first. Two of them are pasted together here, so the buffer

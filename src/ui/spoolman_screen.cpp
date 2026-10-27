@@ -9,7 +9,6 @@
 #include <cstring>
 
 #include "connection_screen.h"
-#include "extra_fields_screen.h"
 #include "ota_browser.h"
 #include "hardware/sd_logger.h"
 #include "services/app_settings.h"
@@ -24,6 +23,7 @@
 #include "confirm_popup.h"
 #include "lang.h"
 #include "ui_common.h"
+#include "setup_frame.h"
 #include "theme.h"
 
 
@@ -68,8 +68,18 @@ void spoolmanClearHost() {
   show_spoolman_pending = true;   // rebuilt one loop pass later, never here
 }
 static lv_obj_t *lbl_sp_ip_display = nullptr;
-static lv_obj_t *lbl_sp_test_result = nullptr;  // test result label on IP screen
-static lv_obj_t *btn_sp_extra_fields = nullptr;  // Extra Fields button on IP screen
+// The result of the address test: a card under the field, its two lines.
+static lv_obj_t *sp_card        = nullptr;
+static lv_obj_t *sp_card_title  = nullptr;
+static lv_obj_t *sp_card_detail = nullptr;
+static SetupBar  sp_bar         = { nullptr, nullptr, nullptr };
+// In the setup the main button turns from Connect into Next once the server
+// answered; typing again turns it back.
+static bool sp_can_continue = false;
+// In the setup, after a test that got no usable answer: the quiet button
+// offers Later instead of the browser, so a server that is not running yet
+// does not hold the whole setup up.
+static bool sp_offer_later = false;
 // The save button parks the address test here; appLoop() runs it.
 static bool sp_test_pending = false;
 static void runAddressTest();
@@ -82,11 +92,48 @@ void handleSpoolmanScreenDeferredActions() {
 }
 
 void closeSpoolmanScreen() {
-  sp_test_pending     = false;
-  lbl_sp_ip_display   = nullptr;
-  lbl_sp_test_result  = nullptr;
-  btn_sp_extra_fields = nullptr;
+  sp_test_pending   = false;
+  sp_can_continue   = false;
+  lbl_sp_ip_display = nullptr;
+  sp_card = sp_card_title = sp_card_detail = nullptr;
+  sp_bar  = { nullptr, nullptr, nullptr };
   if (scr_spoolman) { lv_obj_del(scr_spoolman); scr_spoolman = nullptr; }
+}
+
+enum SpTone : uint8_t { SP_TONE_BUSY, SP_TONE_OK, SP_TONE_WARN, SP_TONE_BAD };
+
+// One result at a time, in the card's colours: green when the server
+// answered, amber when it is there but wants a key, red when nothing came.
+static void showTestResult(SpTone tone, int title_id, const char *detail) {
+  if (!sp_card) return;
+  uint32_t bg = UI_COL_SURFACE, border = UI_COL_LINE_SOFT;
+  if (tone == SP_TONE_OK)   { bg = UI_COL_PICKED_BG; border = UI_COL_ACCENT; }
+  if (tone == SP_TONE_WARN) { bg = UI_COL_AMBER_BG;  border = UI_COL_WARN; }
+  if (tone == SP_TONE_BAD)  { bg = UI_COL_BAD_BG;    border = UI_COL_BAD_TEXT; }
+  lv_obj_set_style_bg_color(sp_card, lv_color_hex(bg), 0);
+  lv_obj_set_style_border_color(sp_card, lv_color_hex(border), 0);
+  lv_label_set_text(sp_card_title, T(title_id));
+  lv_label_set_text(sp_card_detail, detail ? detail : "");
+  lv_obj_clear_flag(sp_card, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void setQuietLater(bool later) {
+  sp_offer_later = later && setup_active;
+  if (!sp_bar.quiet) return;
+  lv_obj_t *lbl = lv_obj_get_child(sp_bar.quiet, 0);
+  if (lbl) lv_label_set_text(lbl, T(sp_offer_later ? STR_SETUP_LATER : STR_SP_IN_BROWSER));
+}
+
+static void setMainContinues(bool cont) {
+  sp_can_continue = cont && setup_active;
+  if (!sp_bar.main_label) return;
+  if (sp_can_continue) {
+    char nb[32];
+    snprintf(nb, sizeof(nb), "%s  " LV_SYMBOL_RIGHT, T(STR_BTN_NEXT));
+    lv_label_set_text(sp_bar.main_label, nb);
+  } else {
+    lv_label_set_text(sp_bar.main_label, T(STR_SP_CONNECT));
+  }
 }
 
 // The address test the save button asks for: health, version, spool count -
@@ -104,22 +151,19 @@ static void runAddressTest() {
   // leads on to that step instead of ending here.
   if (!sm_reachable && backendIsBamBuddy() && (hcode == 401 || hcode == 403)) {
     const bool has_key = bambuddyApiKey()[0] != '\0';
-    if (lbl_sp_test_result) {
-      char buf[64];
-      if (has_key) {
-        snprintf(buf, sizeof(buf), "%s (HTTP %d)", T(STR_BB_KEY_REJECTED), hcode);
-      } else {
-        // The version endpoint is public, so it still names the server.
-        char ver[32] = "?";
-        backendGetVersion(cfg_spoolman_base, ver, sizeof(ver), 3000);
-        snprintf(buf, sizeof(buf), "v%s | %s", ver, T(STR_BB_KEY_MISSING));
-      }
-      lv_label_set_text(lbl_sp_test_result, buf);
-      lv_obj_set_style_text_color(lbl_sp_test_result, lv_color_hex(has_key ? UI_COL_BAD_TEXT : UI_COL_WARN), 0);
+    char buf[64];
+    if (has_key) {
+      snprintf(buf, sizeof(buf), "%s (HTTP %d)", T(STR_BB_KEY_REJECTED), hcode);
+    } else {
+      // The version endpoint is public, so it still names the server.
+      char ver[32] = "?";
+      backendGetVersion(cfg_spoolman_base, ver, sizeof(ver), 3000);
+      snprintf(buf, sizeof(buf), "v%s | %s", ver, T(STR_BB_KEY_MISSING));
     }
-    if (btn_sp_extra_fields && setup_active) {
-      lv_obj_clear_flag(btn_sp_extra_fields, LV_OBJ_FLAG_HIDDEN);
-    }
+    showTestResult(has_key ? SP_TONE_BAD : SP_TONE_WARN, STR_SP_REACHED, buf);
+    setMainContinues(true);
+    setupNoteKeyRequired(true);
+    setupNoteServerLater(false);
     logSDf("Spoolman IP test: BamBuddy reachable, API key %s (HTTP %d)",
            has_key ? "rejected" : "missing", hcode);
     Serial.printf("Spoolman IP test: BamBuddy reachable, API key %s (HTTP %d)\n",
@@ -133,13 +177,11 @@ static void runAddressTest() {
   // Said as such rather than as an API error, which reads like a broken server.
   if (!sm_reachable && backendMode() == BACKEND_SPOOLMAN && (hcode == 401 || hcode == 403)) {
     const bool has_access = spoolmanAuthActive();
-    if (lbl_sp_test_result) {
-      char buf[64];
-      snprintf(buf, sizeof(buf), "%s (HTTP %d)",
-               T(has_access ? STR_SM_AUTH_REJECTED : STR_SM_AUTH_MISSING), hcode);
-      lv_label_set_text(lbl_sp_test_result, buf);
-      lv_obj_set_style_text_color(lbl_sp_test_result, lv_color_hex(UI_COL_BAD_TEXT), 0);
-    }
+    char buf[64];
+    snprintf(buf, sizeof(buf), "%s (HTTP %d)",
+             T(has_access ? STR_SM_AUTH_REJECTED : STR_SM_AUTH_MISSING), hcode);
+    showTestResult(SP_TONE_BAD, STR_SP_REACHED, buf);
+    setQuietLater(true);
     logSDf("Spoolman IP test: server wants access, %s (HTTP %d)",
            has_access ? "rejected" : "none set", hcode);
     updateHeaderStatus();
@@ -147,12 +189,10 @@ static void runAddressTest() {
   }
 
   if (!sm_reachable) {
-    if (lbl_sp_test_result) {
-      char buf[64];
-      snprintf(buf, sizeof(buf), "%s (HTTP %d)", T(STR_API_ERROR), hcode);
-      lv_label_set_text(lbl_sp_test_result, buf);
-      lv_obj_set_style_text_color(lbl_sp_test_result, lv_color_hex(UI_COL_BAD_TEXT), 0);
-    }
+    char buf[96];
+    snprintf(buf, sizeof(buf), "%s (HTTP %d)", T(STR_SP_NO_ANSWER_HINT), hcode);
+    showTestResult(SP_TONE_BAD, STR_SP_NO_ANSWER, buf);
+    setQuietLater(true);
     logSDf("Spoolman IP test FAIL: HTTP %d ip=%s", hcode, sp_ip_input);
     Serial.printf("Spoolman IP test FAIL: HTTP %d ip=%s\n", hcode, sp_ip_input);
     return;
@@ -161,6 +201,8 @@ static void runAddressTest() {
   // BamBuddy needs to be asked where its inventory lives before anything
   // else is read. Placed after the health check so a wrong address fails
   // on the check rather than here.
+  setupNoteServerLater(false);
+  setupNoteKeyRequired(false);
   backendAfterConnect();
 
   // Fetch version from /api/v1/info
@@ -177,36 +219,221 @@ static void runAddressTest() {
   // so it belongs on screen and not only in the log. The two names are the
   // ones BamBuddy uses itself under Settings > Filament Tracking. Empty for
   // the other backends, where there is nothing to choose between.
-  char inv_buf[32] = "";
-  if (backendIsBamBuddy()) {
+  char result_buf[96];
+  size_t n = (size_t)snprintf(result_buf, sizeof(result_buf), "v%s", sm_ver);
+  if (backendIsBamBuddy() && n < sizeof(result_buf)) {
     char inv_name[24];
     copyT(inv_name, sizeof(inv_name), bbInventoryMode() == BB_INV_SPOOLMAN ? STR_BB_INV_SPOOLMAN : STR_BB_INV_OWN);
-    snprintf(inv_buf, sizeof(inv_buf), "%s | ", inv_name);
+    n += (size_t)snprintf(result_buf + n, sizeof(result_buf) - n, " | %s", inv_name);
   }
-
-  char result_buf[96];
-  if (spool_count < 0) {
-    char conn_buf[24];
-    copyT(conn_buf, sizeof(conn_buf), STR_CONNECTED);
-    snprintf(result_buf, sizeof(result_buf), "v%s | %s%s", sm_ver, inv_buf, conn_buf);
-  } else {
+  if (spool_count >= 0 && n < sizeof(result_buf)) {
     char cnt[32];
     snprintf(cnt, sizeof(cnt), T(STR_SPOOLS_COUNT), spool_count);
-    snprintf(result_buf, sizeof(result_buf), "v%s | %s%s", sm_ver, inv_buf, cnt);
+    snprintf(result_buf + n, sizeof(result_buf) - n, " | %s", cnt);
   }
-  if (lbl_sp_test_result) {
-    lv_label_set_text(lbl_sp_test_result, result_buf);
-    lv_obj_set_style_text_color(lbl_sp_test_result, lv_color_hex(UI_COL_OK_TEXT_2), 0);
-  }
-  // Reveal the button again. In FilaMan and BamBuddy it only leads
-  // somewhere during the setup, where it is the step to the credentials.
-  if (btn_sp_extra_fields && (setup_active || backendMode() == BACKEND_SPOOLMAN)) {
-    lv_obj_clear_flag(btn_sp_extra_fields, LV_OBJ_FLAG_HIDDEN);
-  }
+  showTestResult(SP_TONE_OK, STR_SP_CONNECTED, result_buf);
+  setMainContinues(true);
 
   logSDf("Spoolman IP test OK: %s | %d spools", sm_ver, spool_count);
   Serial.printf("Spoolman IP test OK: %s | %d spools\n", sm_ver, spool_count);
   updateHeaderStatus();
+}
+
+// ---- layout ---------------------------------------------------
+// Left: the field, an example and the result card. Right: the pad.
+#define SP_COL_X         12
+#define SP_COL_W        200
+#define SP_CAPTION_Y     54
+#define SP_FIELD_Y       72
+#define SP_FIELD_H       44
+#define SP_EXAMPLE_Y    124
+#define SP_CARD_Y       148
+#define SP_CARD_H        96
+#define SP_CARD_PAD      10
+#define SP_PAD_X        224
+#define SP_PAD_Y         54
+#define SP_PAD_W        244
+#define SP_KEY_H         44
+#define SP_KEY_GAP        5
+#define SP_PAD_COLS       4
+
+static void refreshAddress() {
+  if (lbl_sp_ip_display) lv_label_set_text(lbl_sp_ip_display, sp_ip_input[0] ? sp_ip_input : "_");
+  // A changed address has not been tested: back to Connect.
+  if (sp_can_continue) setMainContinues(false);
+  if (sp_offer_later) setQuietLater(false);
+  if (sp_card) lv_obj_add_flag(sp_card, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void onPadKey(lv_event_t *e) {
+  const char* ch = lv_label_get_text(lv_obj_get_child(lv_event_get_target(e), 0));
+  const int len = strlen(sp_ip_input);
+  if (len < (int)sizeof(sp_ip_input) - 1) {
+    sp_ip_input[len] = ch[0];
+    sp_ip_input[len + 1] = '\0';
+  }
+  refreshAddress();
+}
+
+static void onPadDelete(lv_event_t *e) {
+  const int len = strlen(sp_ip_input);
+  if (len > 0) sp_ip_input[len - 1] = '\0';
+  refreshAddress();
+}
+
+// Connect, or in the setup after a good answer, on to the next step.
+static void onAddressMain(lv_event_t *e) {
+  if (sp_can_continue) {
+    if (backendInfo(backendMode()).auth_in_browser) {
+      // Next comes the credential step, and those are entered in a browser.
+      showOtaBrowserScreen(WEB_CTX_SETUP);
+    } else {
+      // Spoolman needs no step of its own any more: the tag source is picked
+      // on the first scan and a missing field is created on its first write
+      // (Nikolai, 25.09.2026). Deferred, never from the callback.
+      cal_reminder_pending = true;
+    }
+    return;
+  }
+  if (!sp_ip_input[0]) return;
+  backendApplyHost(sp_ip_input);
+  // Says "testing" now, tests on the next loop pass.
+  showTestResult(SP_TONE_BUSY, STR_SPOOLMAN_TESTING, "");
+  sp_test_pending = true;
+  updateHeaderStatus();
+}
+
+// Twelve keys and delete: 1 2 3 del / 4 5 6 . / 7 8 9 : / 0 across.
+static void buildAddressPad(lv_obj_t *scr) {
+  static const char *const KEYS[] = { "1","2","3","", "4","5","6",".", "7","8","9",":", "0" };
+  const int key_w = (SP_PAD_W - (SP_PAD_COLS - 1) * SP_KEY_GAP) / SP_PAD_COLS;
+  for (int i = 0; i < (int)(sizeof(KEYS) / sizeof(KEYS[0])); i++) {
+    const int col = i % SP_PAD_COLS, row = i / SP_PAD_COLS;
+    const bool del  = (i == 3);
+    const bool zero = (i == 12);
+    const bool sep  = KEYS[i][0] == '.' || KEYS[i][0] == ':';
+    lv_obj_t *b = padButton(scr, SP_PAD_X + col * (key_w + SP_KEY_GAP),
+                            SP_PAD_Y + row * (SP_KEY_H + SP_KEY_GAP),
+                            zero ? SP_PAD_W : key_w, SP_KEY_H,
+                            (del || sep) ? UI_COL_ROW : UI_COL_SURFACE, UI_COL_PRESS_FILL);
+    padLabel(b, del ? LV_SYMBOL_BACKSPACE : KEYS[i], del ? UI_COL_INK_2 : UI_COL_INK,
+             del ? UI_FONT_BODY : UI_FONT_TITLE);
+    lv_obj_add_event_cb(b, del ? onPadDelete : onPadKey, LV_EVENT_CLICKED, NULL);
+  }
+}
+
+// An address the pad cannot type - a name or https - is not edited here at
+// all rather than on a dead pad: what it is, where to change it, and a way
+// to clear it, because a typo made in the browser cannot be undone here.
+static void buildLockedColumn(lv_obj_t *scr) {
+  lv_obj_t *why = lv_label_create(scr);
+  lv_obj_set_width(why, SP_PAD_W);
+  lv_label_set_long_mode(why, LV_LABEL_LONG_WRAP);
+  char buf_why[128];
+  copyT(buf_why, sizeof(buf_why), STR_SP_LOCKED_INFO);
+  lv_label_set_text(why, buf_why);
+  lv_obj_set_style_text_color(why, lv_color_hex(UI_COL_INK_2), 0);
+  lv_obj_set_style_text_font(why, UI_FONT_SMALL, 0);
+  lv_obj_set_pos(why, SP_PAD_X, SP_PAD_Y);
+
+  char buf_addr[64];
+  browserAddress(buf_addr, sizeof(buf_addr));
+  lv_obj_t *addr = lv_label_create(scr);
+  lv_obj_set_width(addr, SP_PAD_W);
+  lv_label_set_long_mode(addr, LV_LABEL_LONG_WRAP);
+  lv_label_set_text(addr, buf_addr);
+  lv_obj_set_style_text_color(addr, lv_color_hex(UI_COL_ACCENT), 0);
+  lv_obj_set_style_text_font(addr, UI_FONT_SMALL, 0);
+  lv_obj_align_to(addr, why, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 8);
+
+  lv_obj_t *clr = padButton(scr, SP_PAD_X, SP_CARD_Y + SP_CARD_H - SP_KEY_H, SP_PAD_W, SP_KEY_H,
+                            UI_COL_BAD_BG, UI_COL_BAD_BG_PRESSED);
+  lv_obj_add_event_cb(clr, [](lv_event_t *e) {
+    // Asks, then acts one loop pass later. Nothing is deleted from inside
+    // this callback.
+    showConfirmPopup(T(STR_SP_CLEAR_ASK), 4);
+  }, LV_EVENT_CLICKED, NULL);
+  char buf_clear[32];
+  copyT(buf_clear, sizeof(buf_clear), STR_SP_CLEAR);
+  padLabel(clr, buf_clear, UI_COL_BAD_TEXT, UI_FONT_BODY);
+}
+
+static lv_obj_t *columnLabel(lv_obj_t *scr, const char *text, const lv_font_t *font,
+                             uint32_t col, int y) {
+  lv_obj_t *l = lv_label_create(scr);
+  lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+  lv_obj_set_size(l, SP_COL_W, lv_font_get_line_height(font));
+  lv_label_set_text(l, text);
+  lv_obj_set_style_text_font(l, font, 0);
+  lv_obj_set_style_text_color(l, lv_color_hex(col), 0);
+  lv_obj_set_pos(l, SP_COL_X + 2, y);
+  return l;
+}
+
+static void buildAddressColumn(lv_obj_t *scr) {
+  columnLabel(scr, T(STR_BACKEND_ADDRESS), UI_FONT_CAPTION, UI_COL_INK_SOFT, SP_CAPTION_Y);
+
+  lv_obj_t *field = lv_obj_create(scr);
+  lv_obj_set_size(field, SP_COL_W, SP_FIELD_H);
+  lv_obj_set_pos(field, SP_COL_X, SP_FIELD_Y);
+  lv_obj_set_style_bg_color(field, lv_color_hex(UI_COL_SURFACE), 0);
+  lv_obj_set_style_border_color(field, lv_color_hex(sp_locked ? UI_COL_WARN : UI_COL_ACCENT), 0);
+  lv_obj_set_style_border_width(field, 2, 0);
+  lv_obj_set_style_radius(field, UI_RADIUS_ROW, 0);
+  lv_obj_set_style_pad_all(field, 0, 0);
+  lv_obj_clear_flag(field, LV_OBJ_FLAG_SCROLLABLE);
+  lbl_sp_ip_display = lv_label_create(field);
+  lv_label_set_long_mode(lbl_sp_ip_display, LV_LABEL_LONG_DOT);
+  lv_obj_set_size(lbl_sp_ip_display, SP_COL_W - 2 * SP_CARD_PAD, lv_font_get_line_height(UI_FONT_BODY));
+  lv_label_set_text(lbl_sp_ip_display, sp_ip_input[0] ? sp_ip_input : "_");
+  lv_obj_set_style_text_color(lbl_sp_ip_display, lv_color_hex(UI_COL_INK), 0);
+  lv_obj_set_style_text_font(lbl_sp_ip_display, UI_FONT_BODY, 0);
+  lv_obj_align(lbl_sp_ip_display, LV_ALIGN_LEFT_MID, SP_CARD_PAD, 0);
+
+  // An https address is locked for the same reason as a name - the pad has
+  // no letters - but says what it is, so nobody takes it for a typo.
+  char buf_ex[64];
+  if (sp_locked) {
+    copyT(buf_ex, sizeof(buf_ex),
+          backendUrlIsHttps(backendHost()) ? STR_SP_HTTPS_TITLE : STR_SP_LOCKED_TITLE);
+  } else {
+    // Only an example: an address typed without a port goes to 80.
+    snprintf(buf_ex, sizeof(buf_ex), T(STR_SP_EXAMPLE), backendInfo(backendMode()).default_port);
+  }
+  columnLabel(scr, buf_ex, UI_FONT_CAPTION, sp_locked ? UI_COL_WARN : UI_COL_INK_SOFT, SP_EXAMPLE_Y);
+
+  sp_card = lv_obj_create(scr);
+  lv_obj_set_size(sp_card, SP_COL_W, SP_CARD_H);
+  lv_obj_set_pos(sp_card, SP_COL_X, SP_CARD_Y);
+  lv_obj_set_style_radius(sp_card, UI_RADIUS_ROW, 0);
+  lv_obj_set_style_border_width(sp_card, 1, 0);
+  lv_obj_set_style_pad_all(sp_card, SP_CARD_PAD, 0);
+  lv_obj_clear_flag(sp_card, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_flag(sp_card, LV_OBJ_FLAG_HIDDEN);
+  sp_card_title = lv_label_create(sp_card);
+  lv_label_set_long_mode(sp_card_title, LV_LABEL_LONG_DOT);
+  lv_obj_set_size(sp_card_title, SP_COL_W - 2 * SP_CARD_PAD, lv_font_get_line_height(UI_FONT_BODY));
+  lv_obj_set_style_text_font(sp_card_title, UI_FONT_BODY, 0);
+  lv_obj_set_style_text_color(sp_card_title, lv_color_hex(UI_COL_INK), 0);
+  sp_card_detail = lv_label_create(sp_card);
+  lv_label_set_long_mode(sp_card_detail, LV_LABEL_LONG_WRAP);
+  lv_obj_set_width(sp_card_detail, SP_COL_W - 2 * SP_CARD_PAD);
+  lv_obj_set_style_text_font(sp_card_detail, UI_FONT_CAPTION, 0);
+  lv_obj_set_style_text_color(sp_card_detail, lv_color_hex(UI_COL_INK_2), 0);
+  lv_obj_set_pos(sp_card_detail, 0, lv_font_get_line_height(UI_FONT_BODY) + 6);
+}
+
+static void onAddressBack(lv_event_t *e) {
+  logSD("BTN: Spoolman -> Back");
+  // Only on a real change. Writing whatever the field happens to hold
+  // turned a look into an edit, which is how one tap could append a
+  // digit to a host name and make it unresolvable.
+  if (sp_ip_input[0] && strcmp(sp_ip_input, sp_ip_original) != 0)
+    backendApplyHost(sp_ip_input);
+  // Return to wherever we came from. The Backend screen exists only
+  // when the user navigated through it, the setup flow does not.
+  if (scr_backend) show_backend_pending = true;
+  else             show_connection_from_spoolman_pending = true;
 }
 
 void buildSpoolmanScreen() {
@@ -216,408 +443,40 @@ void buildSpoolmanScreen() {
   // ends up in PSRAM is visible in the log.
   logLvMem("spoolman", 0);
   releaseScreen(&scr_spoolman);
-  scr_spoolman = lv_obj_create(lv_scr_act());
-  lv_obj_set_size(scr_spoolman, 480, 320);
-  lv_obj_set_pos(scr_spoolman, 0, 0);
-  lv_obj_add_flag(scr_spoolman, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_set_style_radius(scr_spoolman, 0, 0);
-  lv_obj_set_style_border_width(scr_spoolman, 0, 0);
-  lv_obj_set_style_pad_all(scr_spoolman, 0, 0);
-  lv_obj_clear_flag(scr_spoolman, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_style_bg_color(scr_spoolman, lv_color_hex(UI_COL_GROUND), 0);
-
+  scr_spoolman = buildOverlayScreen();
+  sp_can_continue = false;
+  sp_offer_later = false;
   sp_locked = !hostIsNumeric(backendHost());
 
-  // Header. The product name is not translated, so the table holds only the
-  // words around it, and the name is filled in here.
+  // The product name is not translated, so the table holds only the words
+  // around it, and the name is filled in here.
   char buf_title[32];
   snprintf(buf_title, sizeof(buf_title), T(STR_SERVER_TITLE), backendName());
-  buildSubHeader(scr_spoolman, buf_title,
-    [](lv_event_t *e){
-      logSD("BTN: Spoolman -> Back");
-      // Only on a real change. Writing whatever the field happens to hold
-      // turned a look into an edit, which is how one tap could append a
-      // digit to a host name and make it unresolvable.
-      if (sp_ip_input[0] && strcmp(sp_ip_input, sp_ip_original) != 0)
-        backendApplyHost(sp_ip_input);
-      // Return to wherever we came from. The Backend screen exists only
-      // when the user navigated through it, the setup flow does not.
-      if (scr_backend) show_backend_pending = true;
-      else             show_connection_from_spoolman_pending = true;
-    });
-
-  // Hint: default port of the active backend, font14, y=52. Only a hint,
-  // nothing is appended - an address typed without a port goes to 80.
-  const char* def_port = (backendMode() == BACKEND_FILAMAN)  ? "8083"
-                       : (backendMode() == BACKEND_BAMBUDDY) ? "8000"
-                                                             : "7912";
-  char buf_hint[80];
-  if (sp_locked) {
-    // An https address is locked for the same reason as a name - the pad has
-    // no letters - but says what it is, so nobody takes it for a typo.
-    copyT(buf_hint, sizeof(buf_hint),
-          backendUrlIsHttps(backendHost()) ? STR_SP_HTTPS_TITLE : STR_SP_LOCKED_TITLE);
-  } else {
-    // The pad takes an IP only; an https address is set up in the browser,
-    // and this is the one line that says so before anyone looks for it.
-    snprintf(buf_hint, sizeof(buf_hint), "192.168.x.x:%s  -  %s", def_port, T(STR_SP_HTTPS_HINT));
-  }
-  lv_obj_t *lbl_hint = lv_label_create(scr_spoolman);
-  lv_label_set_text(lbl_hint, buf_hint);
-  lv_obj_set_style_text_color(lbl_hint, lv_color_hex(sp_locked ? UI_COL_WARN : UI_COL_CAPTION), 0);
-  lv_obj_set_style_text_font(lbl_hint, &lv_font_montserrat_ext_14, 0);
-  lv_obj_set_style_text_align(lbl_hint, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(lbl_hint, LV_ALIGN_TOP_MID, 0, 52);
+  setupOrSettingsHeader(scr_spoolman, buf_title, SETUP_STEP_SERVER, onAddressBack);
 
   // Pre-fill with "192.168." if empty - user only needs to add last two octets + port
   const char* cur_host = backendHost();
-  if (!cur_host || cur_host[0] == '\0') {
-    strncpy(sp_ip_input, "192.168.", sizeof(sp_ip_input)-1);
-  } else {
-    strncpy(sp_ip_input, cur_host, sizeof(sp_ip_input)-1);
-  }
-  sp_ip_input[sizeof(sp_ip_input)-1] = '\0';
-  strncpy(sp_ip_original, sp_ip_input, sizeof(sp_ip_original) - 1);
-  sp_ip_original[sizeof(sp_ip_original)-1] = '\0';
+  snprintf(sp_ip_input, sizeof(sp_ip_input), "%s",
+           (cur_host && cur_host[0]) ? cur_host : "192.168.");
+  snprintf(sp_ip_original, sizeof(sp_ip_original), "%s", sp_ip_input);
 
-  lv_obj_t *input_box = lv_obj_create(scr_spoolman);
-  lv_obj_set_size(input_box, 420, 34);
-  lv_obj_align(input_box, LV_ALIGN_TOP_MID, 0, 68);
-  lv_obj_set_style_bg_color(input_box, lv_color_hex(UI_COL_SURFACE), 0);
-  lv_obj_set_style_border_color(input_box, lv_color_hex(sp_locked ? UI_COL_WARN : UI_COL_ACCENT), 0);
-  lv_obj_set_style_border_width(input_box, 1, 0);
-  lv_obj_set_style_radius(input_box, 6, 0);
-  lv_obj_set_style_pad_all(input_box, 0, 0);
-  lv_obj_clear_flag(input_box, LV_OBJ_FLAG_SCROLLABLE);
+  buildAddressColumn(scr_spoolman);
+  if (sp_locked) buildLockedColumn(scr_spoolman);
+  else           buildAddressPad(scr_spoolman);
 
-  lbl_sp_ip_display = lv_label_create(input_box);
-  lv_label_set_text(lbl_sp_ip_display, sp_ip_input[0] ? sp_ip_input : "_");
-  lv_obj_set_style_text_color(lbl_sp_ip_display, lv_color_hex(UI_COL_ACCENT), 0);
-  lv_obj_set_style_text_font(lbl_sp_ip_display, &lv_font_montserrat_ext_18, 0);
-  lv_obj_set_style_text_align(lbl_sp_ip_display, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_center(lbl_sp_ip_display);
-
-  // Numpad: NP_H=32, NP_GAP=3, start y=104 - larger than before
-  const int NP_W = 130, NP_H = 32, NP_GAP = 3;
-  const int NP_PAD_X = (480 - 3*NP_W - 2*NP_GAP) / 2;
-  const int NP_START_Y = 104;
-
-  if (sp_locked) {
-    // No pad at all rather than a disabled one. A pad that is visible but does
-    // nothing reads as a broken screen; this says what the address is, why it
-    // cannot be edited here, and where it can be.
-    lv_obj_t *lbl_why = lv_label_create(scr_spoolman);
-    lv_obj_set_width(lbl_why, 440);
-    lv_label_set_long_mode(lbl_why, LV_LABEL_LONG_WRAP);
-    char buf_why[128];
-    copyT(buf_why, sizeof(buf_why), STR_SP_LOCKED_INFO);
-    lv_label_set_text(lbl_why, buf_why);
-    lv_obj_set_style_text_color(lbl_why, lv_color_hex(UI_COL_INK_2), 0);
-    lv_obj_set_style_text_font(lbl_why, &lv_font_montserrat_ext_14, 0);
-    lv_obj_set_style_text_align(lbl_why, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(lbl_why, LV_ALIGN_TOP_MID, 0, 118);
-
-    char buf_addr[64];
-    browserAddress(buf_addr, sizeof(buf_addr));
-    lv_obj_t *lbl_addr = lv_label_create(scr_spoolman);
-    lv_obj_set_width(lbl_addr, 440);
-    lv_label_set_long_mode(lbl_addr, LV_LABEL_LONG_WRAP);
-    lv_label_set_text(lbl_addr, buf_addr);
-    lv_obj_set_style_text_color(lbl_addr, lv_color_hex(UI_COL_ACCENT), 0);
-    lv_obj_set_style_text_font(lbl_addr, &lv_font_montserrat_ext_16, 0);
-    lv_obj_set_style_text_align(lbl_addr, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(lbl_addr, LV_ALIGN_TOP_MID, 0, 172);
-
-    // The escape hatch. Without it a typo made in the browser cannot be
-    // undone from the device at all, because the pad has no letters.
-    lv_obj_t *btn_clear = lv_btn_create(scr_spoolman);
-    lv_obj_set_size(btn_clear, 200, 44);
-    lv_obj_align(btn_clear, LV_ALIGN_TOP_MID, 0, 222);
-    lv_obj_set_style_bg_color(btn_clear, lv_color_hex(UI_COL_BAD_BG), 0);
-    lv_obj_set_style_bg_color(btn_clear, lv_color_hex(UI_COL_BAD_BG_PRESSED), LV_STATE_PRESSED);
-    lv_obj_set_style_radius(btn_clear, 8, 0);
-    lv_obj_set_style_shadow_width(btn_clear, 0, 0);
-    lv_obj_set_style_border_width(btn_clear, 1, 0);
-    lv_obj_set_style_border_color(btn_clear, lv_color_hex(UI_COL_BAD_BG_PRESSED), 0);
-    lv_obj_add_event_cb(btn_clear, [](lv_event_t *e) {
-      // Asks, then acts one loop pass later. Nothing is deleted from inside
-      // this callback.
-      showConfirmPopup(T(STR_SP_CLEAR_ASK), 4);
-    }, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *lbl_clear = lv_label_create(btn_clear);
-    char buf_clear[32];
-    copyT(buf_clear, sizeof(buf_clear), STR_SP_CLEAR);
-    lv_label_set_text(lbl_clear, buf_clear);
-    lv_obj_set_style_text_color(lbl_clear, lv_color_hex(UI_COL_BAD_TEXT), 0);
-    lv_obj_set_style_text_font(lbl_clear, &lv_font_montserrat_ext_16, 0);
-    lv_obj_center(lbl_clear);
-  } else {
-
-  const char* np_labels[] = {
-    "1","2","3",
-    "4","5","6",
-    "7","8","9",
-    ".","0",":"
-  };
-
-  for (int i = 0; i < 12; i++) {
-    int col = i % 3;
-    int row = i / 3;
-    int bx = NP_PAD_X + col * (NP_W + NP_GAP);
-    int by = NP_START_Y + row * (NP_H + NP_GAP);
-
-    lv_obj_t *btn = lv_btn_create(scr_spoolman);
-    lv_obj_set_size(btn, NP_W, NP_H);
-    lv_obj_set_pos(btn, bx, by);
-    lv_obj_set_style_bg_color(btn, lv_color_hex(UI_COL_SURFACE), 0);
-    lv_obj_set_style_bg_color(btn, lv_color_hex(UI_COL_PRESS_FILL), LV_STATE_PRESSED);
-    lv_obj_set_style_radius(btn, 6, 0);
-    lv_obj_set_style_shadow_width(btn, 0, 0);
-    lv_obj_set_style_border_width(btn, 1, 0);
-    lv_obj_set_style_border_color(btn, lv_color_hex(UI_COL_LINE_SOFT), 0);
-
-    lv_obj_t *lbl = lv_label_create(btn);
-    lv_label_set_text(lbl, np_labels[i]);
-    lv_obj_set_style_text_color(lbl, lv_color_hex(UI_COL_INK), 0);
-    lv_obj_set_style_text_font(lbl, &lv_font_montserrat_ext_18, 0);
-    lv_obj_center(lbl);
-
-    lv_obj_add_event_cb(btn, [](lv_event_t *e) {
-      const char* ch = lv_label_get_text(lv_obj_get_child(lv_event_get_target(e), 0));
-      int len = strlen(sp_ip_input);
-      if (len < (int)sizeof(sp_ip_input)-1) {
-        sp_ip_input[len] = ch[0];
-        sp_ip_input[len+1] = '\0';
+  // The browser takes what the pad cannot: a name, https, a password.
+  sp_bar = setupActionBar(scr_spoolman,
+    T(STR_SP_IN_BROWSER), [](lv_event_t *e) {
+      if (sp_offer_later) {
+        // On without a server: the summary says so, Settings sets it later.
+        logSD("BTN: Spoolman -> Later (no answer)");
+        setupNoteServerLater(true);
+        cal_reminder_pending = true;
+        return;
       }
-      if (lbl_sp_ip_display) lv_label_set_text(lbl_sp_ip_display, sp_ip_input);
-    }, LV_EVENT_CLICKED, NULL);
-  }
-
-  // Row 5 left: delete
-  int by5 = NP_START_Y + 4 * (NP_H + NP_GAP);
-  int bw5 = (3*NP_W + 2*NP_GAP - NP_GAP) / 2;
-
-  lv_obj_t *btn_del = lv_btn_create(scr_spoolman);
-  lv_obj_set_size(btn_del, bw5, NP_H);
-  lv_obj_set_pos(btn_del, NP_PAD_X, by5);
-  lv_obj_set_style_bg_color(btn_del, lv_color_hex(UI_COL_ROW), 0);
-  lv_obj_set_style_bg_color(btn_del, lv_color_hex(UI_COL_QUIET_BG_PRESSED), LV_STATE_PRESSED);
-  lv_obj_set_style_radius(btn_del, 6, 0);
-  lv_obj_set_style_shadow_width(btn_del, 0, 0);
-  lv_obj_set_style_border_width(btn_del, 1, 0);
-  lv_obj_set_style_border_color(btn_del, lv_color_hex(UI_COL_LINE_SOFT), 0);
-  lv_obj_add_event_cb(btn_del, [](lv_event_t *e) {
-    int len = strlen(sp_ip_input);
-    if (len > 0) sp_ip_input[len-1] = '\0';
-    if (lbl_sp_ip_display) lv_label_set_text(lbl_sp_ip_display, sp_ip_input[0] ? sp_ip_input : "_");
-  }, LV_EVENT_CLICKED, NULL);
-  lv_obj_t *lbl_del = lv_label_create(btn_del);
-  lv_label_set_text(lbl_del, LV_SYMBOL_BACKSPACE);
-  lv_obj_set_style_text_color(lbl_del, lv_color_hex(UI_COL_INK_2), 0);
-  lv_obj_set_style_text_font(lbl_del, &lv_font_montserrat_ext_18, 0);
-  lv_obj_center(lbl_del);
-
-  // Row 5 right: save
-  lv_obj_t *btn_ok = lv_btn_create(scr_spoolman);
-  lv_obj_set_size(btn_ok, bw5, NP_H);
-  lv_obj_set_pos(btn_ok, NP_PAD_X + bw5 + NP_GAP, by5);
-  lv_obj_set_style_bg_color(btn_ok, lv_color_hex(UI_COL_GO_BG), 0);
-  lv_obj_set_style_bg_color(btn_ok, lv_color_hex(UI_COL_GO_BG_PRESSED), LV_STATE_PRESSED);
-  lv_obj_set_style_radius(btn_ok, 6, 0);
-  lv_obj_set_style_shadow_width(btn_ok, 0, 0);
-  lv_obj_set_style_border_width(btn_ok, 1, 0);
-  lv_obj_set_style_border_color(btn_ok, lv_color_hex(UI_COL_GO_BG_PRESSED), 0);
-  lv_obj_add_event_cb(btn_ok, [](lv_event_t *e) {
-    if (!sp_ip_input[0]) return;
-    backendApplyHost(sp_ip_input);
-
-    // Says "testing" now, tests on the next loop pass.
-    if (lbl_sp_test_result) {
-      char tb[48];
-      copyT(tb, sizeof(tb), STR_SPOOLMAN_TESTING);
-      lv_label_set_text(lbl_sp_test_result, tb);
-      lv_obj_set_style_text_color(lbl_sp_test_result, lv_color_hex(UI_COL_CAPTION), 0);
-    }
-    if (btn_sp_extra_fields) lv_obj_add_flag(btn_sp_extra_fields, LV_OBJ_FLAG_HIDDEN);
-    sp_test_pending = true;
-    updateHeaderStatus();
-  }, LV_EVENT_CLICKED, NULL);
-  lv_obj_t *lbl_ok = lv_label_create(btn_ok);
-  lv_label_set_text(lbl_ok, T(STR_BTN_SAVE));
-  lv_obj_set_style_text_color(lbl_ok, lv_color_hex(UI_COL_OK_TEXT_2), 0);
-  lv_obj_set_style_text_font(lbl_ok, &lv_font_montserrat_ext_16, 0);
-  lv_obj_center(lbl_ok);
-
-  }   // end of the numeric pad
-
-  // Bottom area: test result info (left) + Extra Fields button (right)
-  // numpad bottom = NP_START_Y + 4*(NP_H+NP_GAP) + NP_H = 104+4*35+32 = 276
-  // bottom row y=281, h=32, bottom=313 (7px margin)
-  const int BOT_Y = 281, BOT_H = 32;
-
-  // Test result label - left side, y=281
-  lbl_sp_test_result = lv_label_create(scr_spoolman);
-  lv_label_set_text(lbl_sp_test_result, "");
-  lv_obj_set_style_text_color(lbl_sp_test_result, lv_color_hex(UI_COL_CAPTION), 0);
-  lv_obj_set_style_text_font(lbl_sp_test_result, &lv_font_montserrat_ext_14, 0);
-  lv_obj_set_style_text_align(lbl_sp_test_result, LV_TEXT_ALIGN_LEFT, 0);
-  lv_obj_set_size(lbl_sp_test_result, 260, BOT_H);
-  lv_obj_set_pos(lbl_sp_test_result, NP_PAD_X, BOT_Y);
-
-  // Extra Fields button - right side, 170px wide
-  btn_sp_extra_fields = lv_btn_create(scr_spoolman);
-  lv_obj_set_size(btn_sp_extra_fields, 170, BOT_H);
-  lv_obj_set_pos(btn_sp_extra_fields, 480 - NP_PAD_X - 170, BOT_Y);
-  lv_obj_set_style_bg_color(btn_sp_extra_fields, lv_color_hex(UI_COL_ROW), 0);
-  lv_obj_set_style_bg_color(btn_sp_extra_fields, lv_color_hex(UI_COL_ROW_PRESS_FILL), LV_STATE_PRESSED);
-  lv_obj_set_style_radius(btn_sp_extra_fields, 8, 0);
-  lv_obj_set_style_shadow_width(btn_sp_extra_fields, 0, 0);
-  lv_obj_set_style_border_width(btn_sp_extra_fields, 1, 0);
-  lv_obj_set_style_border_color(btn_sp_extra_fields, lv_color_hex(UI_COL_LINE), 0);
-  // This button doubles as the step onward during setup, which is why it
-  // starts hidden there and only appears once the connection test passed.
-  // FilaMan needs no extra fields at all, it accepts custom_fields keys
-  // without a prior definition, and BamBuddy has a fixed schema, so outside
-  // the setup neither has anything to do here.
-  if (setup_active || backendMode() != BACKEND_SPOOLMAN) {
-    lv_obj_add_flag(btn_sp_extra_fields, LV_OBJ_FLAG_HIDDEN);
-  }
-  lv_obj_add_event_cb(btn_sp_extra_fields, [](lv_event_t *e) {
-    if (backendMode() != BACKEND_SPOOLMAN) {
-      // Next comes the credential step, and those are entered in a browser.
-      showOtaBrowserScreen(WEB_CTX_SETUP);
-    } else if (setup_active) {
-      // Spoolman needs no step of its own any more: the tag source is picked
-      // on the first scan and a missing field is created on its first write
-      // (Nikolai, 25.09.2026). Deferred, never from the callback.
-      cal_reminder_pending = true;
-    } else {
-      showExtraFieldsScreen(false);
-    }
-  }, LV_EVENT_CLICKED, NULL);
-  lv_obj_t *lbl_ef = lv_label_create(btn_sp_extra_fields);
-  { char ef_buf[32];
-    if (backendMode() != BACKEND_SPOOLMAN || setup_active)
-      snprintf(ef_buf, sizeof(ef_buf), "%s  " LV_SYMBOL_RIGHT, T(STR_BTN_NEXT));
-    else                                   snprintf(ef_buf, sizeof(ef_buf), "Extra Fields  " LV_SYMBOL_RIGHT);
-    lv_label_set_text(lbl_ef, ef_buf); }
-  lv_obj_set_style_text_color(lbl_ef, lv_color_hex(UI_COL_ACCENT), 0);
-  lv_obj_set_style_text_font(lbl_ef, &lv_font_montserrat_ext_14, 0);
-  lv_obj_align(lbl_ef, LV_ALIGN_CENTER, 0, 0);
+      logSD("BTN: Spoolman -> Browser");
+      showOtaBrowserScreen(WEB_CTX_ADDRESS);
+    },
+    T(STR_SP_CONNECT), onAddressMain);
 }
 
-// ============================================================
-//  SPOOLMAN CONNECTION FAILED SCREEN
-// ============================================================
-void showSpoolmanFailScreen(bool is_setup_flow) {
-  logSD("SHOW: SpoolmanFailScreen");
-  logSDf("UI: Screen -> SpoolmanFail (setup=%d)", is_setup_flow ? 1 : 0);
-  spoolman_fail_is_setup = is_setup_flow;
-  hideAllOverlays();
-  if (scr_spoolman_fail) { lv_obj_del(scr_spoolman_fail); scr_spoolman_fail = nullptr; }
-
-  // Copy all strings to RAM buffers - T() returns Flash pointers which LVGL can't read directly
-  char buf_title[32], buf_msg[96], buf_retry[48], buf_skip[48];
-  backendText(T(STR_SPOOLMAN_TITLE), buf_title, sizeof(buf_title));
-  backendText(T(STR_SPOOLMAN_FAIL), buf_msg, sizeof(buf_msg));
-  copyT(buf_retry, sizeof(buf_retry), STR_SPOOLMAN_RETRY); buf_retry[sizeof(buf_retry)-1]=0;
-  copyT(buf_skip, sizeof(buf_skip), STR_SPOOLMAN_SKIP);  buf_skip[sizeof(buf_skip)-1]=0;
-
-  scr_spoolman_fail = lv_obj_create(lv_scr_act());
-  lv_obj_set_size(scr_spoolman_fail, 480, 320);
-  lv_obj_set_pos(scr_spoolman_fail, 0, 0);
-  lv_obj_set_style_radius(scr_spoolman_fail, 0, 0);
-  lv_obj_set_style_border_width(scr_spoolman_fail, 0, 0);
-  lv_obj_set_style_pad_all(scr_spoolman_fail, 0, 0);
-  lv_obj_clear_flag(scr_spoolman_fail, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_style_bg_color(scr_spoolman_fail, lv_color_hex(UI_COL_GROUND), 0);
-
-  // Title
-  lv_obj_t *lbl_title = lv_label_create(scr_spoolman_fail);
-  lv_label_set_text(lbl_title, buf_title);
-  lv_obj_set_style_text_color(lbl_title, lv_color_hex(UI_COL_ACCENT), 0);
-  lv_obj_set_style_text_font(lbl_title, &lv_font_montserrat_ext_18, 0);
-  lv_obj_align(lbl_title, LV_ALIGN_TOP_MID, 0, 20);
-
-  // Back → Spoolman IP
-  addBackButton(scr_spoolman_fail, [](lv_event_t *e){
-    logSD("BTN: SpoolmanFail -> Back");
-    show_spoolman_pending = true;
-    // pending handler will delete scr_spoolman_fail via hideAllOverlays + recreate spoolman
-  });
-  addCloseButton(scr_spoolman_fail);
-
-  // Warning icon
-  lv_obj_t *lbl_icon = lv_label_create(scr_spoolman_fail);
-  lv_label_set_text(lbl_icon, LV_SYMBOL_WARNING);
-  lv_obj_set_style_text_color(lbl_icon, lv_color_hex(UI_COL_BAD_TEXT), 0);
-  lv_obj_set_style_text_font(lbl_icon, &lv_font_montserrat_ext_24, 0);
-  lv_obj_align(lbl_icon, LV_ALIGN_TOP_MID, 0, 60);
-
-  // IP entered
-  char ip_buf[80];
-  backendComposeBase(ip_buf, sizeof(ip_buf), cfg_spoolman_ip);
-  lv_obj_t *lbl_ip = lv_label_create(scr_spoolman_fail);
-  lv_label_set_text(lbl_ip, ip_buf);
-  lv_obj_set_style_text_color(lbl_ip, lv_color_hex(UI_COL_WARN), 0);
-  lv_obj_set_style_text_font(lbl_ip, &lv_font_montserrat_ext_16, 0);
-  lv_obj_set_style_text_align(lbl_ip, LV_TEXT_ALIGN_CENTER, 0);
-  lv_label_set_long_mode(lbl_ip, LV_LABEL_LONG_DOT);
-  lv_obj_set_width(lbl_ip, 440);
-  lv_obj_align(lbl_ip, LV_ALIGN_TOP_MID, 0, 96);
-
-  // Error message (from RAM buffer)
-  lv_obj_t *lbl_msg = lv_label_create(scr_spoolman_fail);
-  lv_label_set_text(lbl_msg, buf_msg);
-  lv_obj_set_style_text_color(lbl_msg, lv_color_hex(UI_COL_BAD_TEXT), 0);
-  lv_obj_set_style_text_font(lbl_msg, &lv_font_montserrat_ext_14, 0);
-  lv_obj_set_style_text_align(lbl_msg, LV_TEXT_ALIGN_CENTER, 0);
-  lv_label_set_long_mode(lbl_msg, LV_LABEL_LONG_WRAP);
-  lv_obj_set_width(lbl_msg, 440);
-  lv_obj_align(lbl_msg, LV_ALIGN_TOP_MID, 0, 128);
-
-  // Change IP button (left)
-  lv_obj_t *btn_retry = lv_btn_create(scr_spoolman_fail);
-  lv_obj_set_size(btn_retry, 210, 50);
-  lv_obj_set_pos(btn_retry, 16, 248);
-  lv_obj_set_style_bg_color(btn_retry, lv_color_hex(UI_COL_BAD_BG), 0);
-  lv_obj_set_style_bg_color(btn_retry, lv_color_hex(UI_COL_BAD_BG_PRESSED), LV_STATE_PRESSED);
-  lv_obj_set_style_radius(btn_retry, 8, 0);
-  lv_obj_set_style_shadow_width(btn_retry, 0, 0);
-  lv_obj_set_style_border_width(btn_retry, 0, 0);
-  lv_obj_add_event_cb(btn_retry, [](lv_event_t *e){
-    logSD("BTN: SpoolmanFail -> Retry");
-    show_spoolman_pending = true;
-  }, LV_EVENT_CLICKED, NULL);
-  lv_obj_t *lbl_r = lv_label_create(btn_retry);
-  lv_label_set_text(lbl_r, buf_retry);
-  lv_obj_set_style_text_color(lbl_r, lv_color_hex(UI_COL_BAD_TEXT), 0);
-  lv_obj_set_style_text_font(lbl_r, &lv_font_montserrat_ext_16, 0);
-  lv_obj_center(lbl_r);
-
-  // Continue anyway button (right)
-  lv_obj_t *btn_cont = lv_btn_create(scr_spoolman_fail);
-  lv_obj_set_size(btn_cont, 210, 50);
-  lv_obj_set_pos(btn_cont, 254, 248);
-  lv_obj_set_style_bg_color(btn_cont, lv_color_hex(UI_COL_ROW), 0);
-  lv_obj_set_style_bg_color(btn_cont, lv_color_hex(UI_COL_QUIET_BG_PRESSED), LV_STATE_PRESSED);
-  lv_obj_set_style_radius(btn_cont, 8, 0);
-  lv_obj_set_style_shadow_width(btn_cont, 0, 0);
-  lv_obj_set_style_border_width(btn_cont, 0, 0);
-  lv_obj_add_event_cb(btn_cont, [](lv_event_t *e){
-    // Delete this screen first to avoid it being accessed during navigation
-    if (scr_spoolman_fail) { lv_obj_del(scr_spoolman_fail); scr_spoolman_fail = nullptr; }
-    if (spoolman_fail_is_setup) {
-      cal_reminder_pending = true;
-    } else {
-      closeConnectionScreen();
-      buildConnectionScreen();
-      if (!scr_connection) buildConnectionScreen(); hideAllOverlays(); lv_obj_clear_flag(scr_connection, LV_OBJ_FLAG_HIDDEN);
-    }
-  }, LV_EVENT_CLICKED, NULL);
-  lv_obj_t *lbl_c = lv_label_create(btn_cont);
-  lv_label_set_text(lbl_c, buf_skip);
-  lv_obj_set_style_text_color(lbl_c, lv_color_hex(UI_COL_CAPTION), 0);
-  lv_obj_set_style_text_font(lbl_c, &lv_font_montserrat_ext_16, 0);
-  lv_obj_center(lbl_c);
-}

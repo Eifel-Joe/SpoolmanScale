@@ -88,6 +88,7 @@ static void showFactoryResetPopup() {
   lv_obj_set_style_text_color(lbl_c, lv_color_hex(UI_COL_CAPTION), 0);
   lv_obj_set_style_text_font(lbl_c, &lv_font_montserrat_ext_14, 0);
   lv_obj_align(lbl_c, LV_ALIGN_CENTER, 0, 0);
+  styleLeaveButton(btn_c);
 
   // Confirm, right, red
   lv_obj_t *btn_ok = lv_btn_create(box);
@@ -121,10 +122,6 @@ static void showFactoryResetPopup() {
   lv_obj_align(lbl_ok, LV_ALIGN_CENTER, 0, 0);
 }
 
-// How loudly a row warns. A restart costs the user twenty seconds and takes
-// nothing away; a factory reset erases every setting on the device. Painting
-// both red would say they are the same kind of mistake to make.
-enum RowTone { TONE_PLAIN, TONE_WARN, TONE_DANGER };
 
 // One row of the list. All six entries differ only in icon, text and what
 // they do, so the row is built once instead of six times by hand. The toned
@@ -132,28 +129,12 @@ enum RowTone { TONE_PLAIN, TONE_WARN, TONE_DANGER };
 // the bottom and made this screen end at y=313 of 320.
 static lv_obj_t* addRow(lv_obj_t *list, const char *ico, const char *title,
                         const char *sub, lv_event_cb_t cb,
-                        RowTone tone = TONE_PLAIN) {
+                        ListTone tone = TONE_PLAIN) {
   char buf_t[40]; strncpy(buf_t, title, sizeof(buf_t) - 1); buf_t[sizeof(buf_t)-1] = '\0';
   char buf_s[48]; strncpy(buf_s, sub,   sizeof(buf_s) - 1); buf_s[sizeof(buf_s)-1] = '\0';
 
   lv_obj_t *btn = makeListBtn(list, ico, buf_t, buf_s);
-  if (tone != TONE_PLAIN) {
-    // Amber is the same one the status bar and the web UI already warn in,
-    // red the same one the reset dialog uses, so neither introduces a colour.
-    const uint32_t border  = (tone == TONE_DANGER) ? UI_COL_BAD_BG_PRESSED : UI_COL_CAUTION_BG;
-    const uint32_t bg      = (tone == TONE_DANGER) ? UI_COL_DANGER_ROW : UI_COL_CAUTION_ROW;
-    const uint32_t pressed = (tone == TONE_DANGER) ? UI_COL_BAD_BG : UI_COL_AMBER_LINE;
-    const uint32_t text    = (tone == TONE_DANGER) ? UI_COL_DANGER_TEXT : UI_COL_WARN;
-    lv_obj_set_style_border_color(btn, lv_color_hex(border), 0);
-    lv_obj_set_style_bg_color(btn, lv_color_hex(bg), 0);
-    lv_obj_set_style_bg_color(btn, lv_color_hex(pressed), LV_STATE_PRESSED);
-    // Child 0 is the icon, child 1 the title. Both take the tone so the row
-    // reads as a warning before the text is read.
-    lv_obj_t *ico_lbl = lv_obj_get_child(btn, 0);
-    lv_obj_t *ttl_lbl = lv_obj_get_child(btn, 1);
-    if (ico_lbl) lv_obj_set_style_text_color(ico_lbl, lv_color_hex(text), 0);
-    if (ttl_lbl) lv_obj_set_style_text_color(ttl_lbl, lv_color_hex(text), 0);
-  }
+  listBtnTone(btn, tone);
   lv_obj_add_event_cb(btn, cb, LV_EVENT_CLICKED, NULL);
   return btn;
 }

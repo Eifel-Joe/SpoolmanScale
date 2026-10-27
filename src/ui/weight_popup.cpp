@@ -34,6 +34,7 @@
 #define WP_ROW_Y0       138
 #define WP_ROW_H         46
 #define WP_ROW_STEP      52
+#define WP_SWITCH_ROWS_MAX 2  // bag, automatic sending
 #define WP_BOTTOM_H      46
 #define WP_BOX_EXTRA     12    // the margin under the last row, and the border
 #define WP_ARCHIVE_W    120
@@ -292,7 +293,9 @@ static void wpBuildBottom(lv_obj_t *box, int y) {
     lv_obj_t *b = wpButton(box, x, y, WP_ARCHIVE_W, WP_BOTTOM_H);
     lv_obj_set_style_bg_color(b, lv_color_hex(UI_COL_SURFACE), 0);
     lv_obj_set_style_bg_color(b, lv_color_hex(UI_COL_ARCHIVE_BG_PRESSED), LV_STATE_PRESSED);
-    lv_obj_set_style_border_color(b, lv_color_hex(UI_COL_ARCHIVE_BG), 0);
+    // A 1 px outline in the faint tone read as no button at all on the panel.
+    lv_obj_set_style_border_width(b, UI_LEAVE_BORDER_W, 0);
+    lv_obj_set_style_border_color(b, lv_color_hex(UI_COL_ARCHIVE_BG_PRESSED), 0);
     char buf[40];
     snprintf(buf, sizeof(buf), LV_SYMBOL_TRASH "  %s", T(STR_WP_ARCHIVE));
     lv_obj_center(wpLabel(b, buf, UI_FONT_SMALL, UI_COL_ARCHIVE_TEXT));
@@ -309,9 +312,9 @@ static void wpBuildBottom(lv_obj_t *box, int y) {
   lv_obj_center(wpLabel(opt, buf, UI_FONT_SMALL, UI_COL_INK_2));
   lv_obj_add_event_cb(opt, [](lv_event_t *e) { wpShowOptions(); }, LV_EVENT_CLICKED, NULL);
 
-  // Neutral, not red: closing is the most harmless thing on the popup.
   lv_obj_t *close = wpButton(box, x + w + WP_GAP, y, w, WP_BOTTOM_H);
   lv_obj_center(wpLabel(close, T(STR_BT_CLOSE), UI_FONT_SMALL, UI_COL_INK_2));
+  styleLeaveButton(close);
   lv_obj_add_event_cb(close, [](lv_event_t *e) { closeWeightPopups(); }, LV_EVENT_CLICKED, NULL);
 }
 
@@ -323,8 +326,10 @@ static void wpOpenLevel1(bool fresh) {
     s_bag_on = false;
   }
   closeWeightPopups();
-  const int rows = (bagInUse() ? 1 : 0) + (idSpoolActive() ? 0 : 1);
-  const int bottom_y = WP_ROW_Y0 + rows * WP_ROW_STEP;
+  // Room for both switch rows even when one is missing: the popup keeps its
+  // height and the bottom row its place, and less of the screen behind it
+  // shows through.
+  const int bottom_y = WP_ROW_Y0 + WP_SWITCH_ROWS_MAX * WP_ROW_STEP;
   lv_obj_t *box = uiPopupBox(&s_popup, WP_BOX_W, bottom_y + WP_BOTTOM_H + WP_BOX_EXTRA);
   wpBuildHeaderAndPrimary(box);
   wpBuildSwitches(box);
@@ -399,7 +404,7 @@ static void wpShowOptions() {
   wpBuildOptionRows(box, tare);
 
   lv_obj_t *back = wpButton(box, WP_X, back_y, WP_INNER_W, WP_BOTTOM_H);
-  snprintf(buf, sizeof(buf), LV_SYMBOL_LEFT "  %s", T(STR_BACK));
-  lv_obj_center(wpLabel(back, buf, UI_FONT_SMALL, UI_COL_INK_2));
+  lv_obj_center(wpLabel(back, T(STR_BACK), UI_FONT_SMALL, UI_COL_INK_2));
+  styleLeaveButton(back, LV_SYMBOL_LEFT);
   lv_obj_add_event_cb(back, [](lv_event_t *e) { wpOpenLevel1(false); }, LV_EVENT_CLICKED, NULL);
 }

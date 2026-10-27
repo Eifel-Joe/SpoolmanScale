@@ -283,6 +283,7 @@ void showInfoPopup(int title_id, int text_id, uint8_t tone) {
   lv_obj_set_style_text_font(l, &lv_font_montserrat_ext_16, 0);
   lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(l, LV_ALIGN_CENTER, 0, 0);
+  styleLeaveButton(btn, LV_SYMBOL_LEFT);
 }
 
 void infoPopupEventCb(lv_event_t *e) {

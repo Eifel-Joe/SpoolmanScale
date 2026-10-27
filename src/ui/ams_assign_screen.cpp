@@ -12,6 +12,7 @@
 #include "services/ams_assign.h"
 #include "services/backend.h"
 #include "services/prefs_store.h"
+#include "num_pad.h"
 #include "ui_common.h"
 #include "theme.h"
 
@@ -73,87 +74,35 @@ static lv_obj_t* makeValueRow(lv_obj_t* parent, const char* label, const char* h
   return row;
 }
 
-// Numpad for the window length. OK only parks the value; the PUT happens
-// back in buildAmsAssignScreen().
-static void buildAmsWindowNumpad() {
-  logSD("BUILD: AmsWindowNumpad");
-  s_ams_numpad_value = g_ams_window_s;
-  if (s_ams_numpad_scr) { lv_obj_del(s_ams_numpad_scr); s_ams_numpad_scr = nullptr; }
-  s_ams_numpad_scr = buildOverlayScreen();
+// The window length, typed on the house keypad. Done only parks the value;
+// the PUT happens back in buildAmsAssignScreen().
+#define AMS_WINDOW_INPUT_MAX_CHARS 3   // up to AMS_WINDOW_MAX_S
 
-  char title_buf[32];
-  copyT(title_buf, sizeof(title_buf), STR_AMS_WINDOW_LBL);
-  buildSubHeader(s_ams_numpad_scr, title_buf, [](lv_event_t *e){
-    if (s_ams_numpad_scr) { lv_obj_del(s_ams_numpad_scr); s_ams_numpad_scr = nullptr; }
-    s_ams_numpad_lbl = nullptr;
-    show_ams_assign_pending = true;
-  });
+static bool onAmsWindowDone(const char *text) {
+  int s = atoi(text);
+  if (s < AMS_WINDOW_MIN_S) s = AMS_WINDOW_MIN_S;
+  if (s > AMS_WINDOW_MAX_S) s = AMS_WINDOW_MAX_S;
+  s_ams_numpad_value = s;
+  s_write_window_pending = true;
+  show_ams_assign_pending = true;
+  return true;
+}
 
-  lv_obj_t *val_box = lv_obj_create(s_ams_numpad_scr);
-  lv_obj_set_size(val_box, 380, 44);
-  lv_obj_set_pos(val_box, 50, 68);
-  lv_obj_set_style_bg_color(val_box, lv_color_hex(UI_COL_GROUND), 0);
-  lv_obj_set_style_border_color(val_box, lv_color_hex(UI_COL_ACCENT), 0);
-  lv_obj_set_style_border_width(val_box, 1, 0);
-  lv_obj_set_style_radius(val_box, 8, 0);
-  s_ams_numpad_lbl = lv_label_create(val_box);
-  { char vbuf[16];
-    snprintf(vbuf, sizeof(vbuf), "%d %s", s_ams_numpad_value, T(STR_AMS_SEC_UNIT));
-    lv_label_set_text(s_ams_numpad_lbl, vbuf); }
-  lv_obj_set_style_text_color(s_ams_numpad_lbl, lv_color_hex(UI_COL_ACCENT), 0);
-  lv_obj_set_style_text_font(s_ams_numpad_lbl, &lv_font_montserrat_ext_24, 0);
-  lv_obj_align(s_ams_numpad_lbl, LV_ALIGN_CENTER, 0, 0);
-
-  const int NP_W = 136, NP_H = 36, NP_GAP = 4;
-  const int NP_X0 = (480 - 3*NP_W - 2*NP_GAP) / 2;
-  const int NP_Y0 = 122;
-  static const char* keys[] = { "1","2","3","4","5","6","7","8","9","DEL","0","OK" };
-  for (int i = 0; i < 12; i++) {
-    int col = i % 3, row = i / 3;
-    bool is_del = (strcmp(keys[i], "DEL") == 0);
-    bool is_ok  = (strcmp(keys[i], "OK")  == 0);
-    lv_obj_t *kb = lv_btn_create(s_ams_numpad_scr);
-    lv_obj_set_size(kb, NP_W, NP_H);
-    lv_obj_set_pos(kb, NP_X0 + col * (NP_W + NP_GAP), NP_Y0 + row * (NP_H + NP_GAP));
-    lv_obj_set_style_bg_color(kb, is_del ? lv_color_hex(UI_COL_KEY_DEL) :
-                                  is_ok  ? lv_color_hex(UI_COL_PICKED_BG) :
-                                           lv_color_hex(UI_COL_SURFACE), 0);
-    lv_obj_set_style_bg_color(kb, lv_color_hex(UI_COL_ROW_PRESS_FILL), LV_STATE_PRESSED);
-    lv_obj_set_style_radius(kb, 6, 0);
-    lv_obj_set_style_shadow_width(kb, 0, 0);
-    lv_obj_set_style_border_width(kb, 1, 0);
-    lv_obj_set_style_border_color(kb, is_ok ? lv_color_hex(UI_COL_ACCENT) : lv_color_hex(UI_COL_ROW_PRESSED), 0);
-    lv_obj_t *kl = lv_label_create(kb);
-    lv_label_set_text(kl, is_ok ? LV_SYMBOL_OK : is_del ? T(STR_KEY_DEL) : keys[i]);
-    lv_obj_set_style_text_color(kl, is_del ? lv_color_hex(UI_COL_BAD) :
-                                     is_ok  ? lv_color_hex(UI_COL_ACCENT) :
-                                              lv_color_hex(UI_COL_INK), 0);
-    lv_obj_set_style_text_font(kl, &lv_font_montserrat_ext_18, 0);
-    lv_obj_align(kl, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_user_data(kb, (void*)keys[i]);
-    lv_obj_add_event_cb(kb, [](lv_event_t *e){
-      const char* k = (const char*)lv_obj_get_user_data(lv_event_get_target(e));
-      if (!k || !s_ams_numpad_lbl) return;
-      if (strcmp(k, "DEL") == 0) {
-        s_ams_numpad_value /= 10;
-      } else if (strcmp(k, "OK") == 0) {
-        if (s_ams_numpad_value < AMS_WINDOW_MIN_S) s_ams_numpad_value = AMS_WINDOW_MIN_S;
-        if (s_ams_numpad_value > AMS_WINDOW_MAX_S) s_ams_numpad_value = AMS_WINDOW_MAX_S;
-        // The PUT belongs in appLoop, so only the intent is recorded here.
-        s_write_window_pending = true;
-        if (s_ams_numpad_scr) { lv_obj_del(s_ams_numpad_scr); s_ams_numpad_scr = nullptr; }
-        show_ams_assign_pending = true;
-        return;
-      } else {
-        int digit = k[0] - '0';
-        if (s_ams_numpad_value < AMS_WINDOW_MAX_S)
-          s_ams_numpad_value = s_ams_numpad_value * 10 + digit;
-      }
-      char vb[16];
-      snprintf(vb, sizeof(vb), "%d %s", s_ams_numpad_value, T(STR_AMS_SEC_UNIT));
-      lv_label_set_text(s_ams_numpad_lbl, vb);
-    }, LV_EVENT_CLICKED, NULL);
-  }
+static void showAmsWindowPad() {
+  char initial[8];
+  snprintf(initial, sizeof(initial), "%d", g_ams_window_s);
+  NumPadSpec spec = {};
+  spec.title      = T(STR_AMS_WINDOW_LBL);
+  spec.hint       = T(STR_AMS_PAD_HINT);
+  spec.unit       = T(STR_AMS_SEC_UNIT);
+  spec.primary    = T(STR_BTN_SAVE);
+  spec.initial    = initial;
+  spec.max_chars  = AMS_WINDOW_INPUT_MAX_CHARS;
+  spec.help_title = -1;
+  spec.on_done    = onAmsWindowDone;
+  spec.on_leave   = [] { show_ams_assign_pending = true; };
+  hideAllOverlays();
+  showNumPad(spec);
 }
 
 void buildAmsAssignScreen() {
@@ -264,11 +213,9 @@ void buildAmsAssignScreen() {
   char win_lbl[24];  copyT(win_lbl, sizeof(win_lbl), STR_AMS_WINDOW_LBL);
   char win_hint[48]; copyT(win_hint, sizeof(win_hint), STR_AMS_WINDOW_HINT);
 
-  auto windowRowCb = [](lv_event_t *e){
-    if (scr_ams_assign) { lv_obj_del(scr_ams_assign); scr_ams_assign = nullptr; }
-    buildAmsWindowNumpad();
-    lv_obj_clear_flag(s_ams_numpad_scr, LV_OBJ_FLAG_HIDDEN);
-  };
+  // Hidden, not deleted: this is its own row's callback. Coming back
+  // rebuilds it through show_ams_assign_pending.
+  auto windowRowCb = [](lv_event_t *e){ showAmsWindowPad(); };
 
   int desc_y = 132;
 

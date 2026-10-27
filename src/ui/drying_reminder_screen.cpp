@@ -12,6 +12,8 @@
 #include "scale_menu.h"
 #include "services/drying_config.h"
 #include "services/prefs_store.h"
+#include "navigation.h"
+#include "num_pad.h"
 #include "ui_common.h"
 #include "theme.h"
 
@@ -22,97 +24,37 @@
 //  Manuell-Werte per Numpad editierbar; Material-Werte per Webserver
 // ============================================================
 
-// Numpad-Subscreen fuer Schwellwert-Eingabe
-// target: 0=Manuell-Gelb, 1=Manuell-Rot
-static void buildDryNumpadScreen(int target) {
-  logSDf("BUILD: DryNumpadScreen target=%d", target);
+// The manual thresholds, typed on the house keypad. target: 0 yellow, 1 red.
+#define DRY_INPUT_MAX_CHARS 3   // 999 days, as before
+
+static bool onDryDone(const char *text) {
+  int days = atoi(text);
+  if (days < 1) days = 1;
+  if (s_dry_numpad_target == 0) g_dry_man_yellow = days;
+  else                          g_dry_man_red    = days;
+  logSDf("Drying Reminder: manual yellow=%d red=%d", g_dry_man_yellow, g_dry_man_red);
+  prefsPutInt("dry_man_y", g_dry_man_yellow);
+  prefsPutInt("dry_man_r", g_dry_man_red);
+  show_drying_reminder_pending = true;
+  return true;
+}
+
+static void showDryPad(int target) {
   s_dry_numpad_target = target;
-  s_dry_numpad_value  = (target == 0) ? g_dry_man_yellow : g_dry_man_red;
-  if (s_dry_numpad_scr) { lv_obj_del(s_dry_numpad_scr); s_dry_numpad_scr = nullptr; }
-  s_dry_numpad_scr = buildOverlayScreen();
-  // Header
-  char title_buf[32];
-  strncpy(title_buf, (target == 0) ? T(STR_DRY_NUMPAD_YELLOW_TITLE) : T(STR_DRY_NUMPAD_RED_TITLE), sizeof(title_buf)-1);
-  title_buf[sizeof(title_buf)-1] = '\0';
-  const char* title_str = title_buf;
-  buildSubHeader(s_dry_numpad_scr, title_str, [](lv_event_t *e){
-    if (s_dry_numpad_scr) { lv_obj_del(s_dry_numpad_scr); s_dry_numpad_scr = nullptr; }
-    show_drying_reminder_pending = true;
-  });
-  // Wert-Anzeige
-  lv_obj_t *val_box = lv_obj_create(s_dry_numpad_scr);
-  lv_obj_set_size(val_box, 380, 44);
-  lv_obj_set_pos(val_box, 50, 68);
-  lv_obj_set_style_bg_color(val_box, lv_color_hex(UI_COL_GROUND), 0);
-  lv_obj_set_style_border_color(val_box, lv_color_hex(UI_COL_ACCENT), 0);
-  lv_obj_set_style_border_width(val_box, 1, 0);
-  lv_obj_set_style_radius(val_box, 8, 0);
-  s_dry_numpad_lbl = lv_label_create(val_box);
-  char vbuf[16]; snprintf(vbuf, sizeof(vbuf), "%d %s", s_dry_numpad_value, T(STR_DRY_DAYS_UNIT));
-  lv_label_set_text(s_dry_numpad_lbl, vbuf);
-  lv_obj_set_style_text_color(s_dry_numpad_lbl, lv_color_hex(UI_COL_ACCENT), 0);
-  lv_obj_set_style_text_font(s_dry_numpad_lbl, &lv_font_montserrat_ext_24, 0);
-  lv_obj_align(s_dry_numpad_lbl, LV_ALIGN_CENTER, 0, 0);
-
-  // Numpad 3x4 Grid: 1-9, DEL, 0, SAVE (standard pattern)
-  // Row4: [DEL][0][SAVE] - SAVE replaces separate button below
-  const int NP_W = 136, NP_H = 36, NP_GAP = 4;
-  const int NP_X0 = (480 - 3*NP_W - 2*NP_GAP) / 2;
-  const int NP_Y0 = 122;
-  static const char* keys[] = { "1","2","3","4","5","6","7","8","9","DEL","0","OK" };
-  int kx = 0, ky = 0, kw = NP_W, kh = NP_H, gap = NP_GAP;  // unused vars kept for compat
-  for (int i = 0; i < 12; i++) {
-    int col = i % 3, row = i / 3;
-    int bx = NP_X0 + col * (NP_W + NP_GAP);
-    int by = NP_Y0 + row * (NP_H + NP_GAP);
-    bool is_del = (strcmp(keys[i], "DEL") == 0);
-    bool is_ok  = (strcmp(keys[i], "OK")  == 0);
-    lv_obj_t *kb = lv_btn_create(s_dry_numpad_scr);
-    lv_obj_set_size(kb, NP_W, NP_H);
-    lv_obj_set_pos(kb, bx, by);
-    lv_obj_set_style_bg_color(kb, is_del ? lv_color_hex(UI_COL_KEY_DEL) :
-                                  is_ok  ? lv_color_hex(UI_COL_PICKED_BG) :
-                                           lv_color_hex(UI_COL_SURFACE), 0);
-    lv_obj_set_style_bg_color(kb, lv_color_hex(UI_COL_ROW_PRESS_FILL), LV_STATE_PRESSED);
-    lv_obj_set_style_radius(kb, 6, 0);
-    lv_obj_set_style_shadow_width(kb, 0, 0);
-    lv_obj_set_style_border_width(kb, 1, 0);
-    lv_obj_set_style_border_color(kb, is_ok ? lv_color_hex(UI_COL_ACCENT) : lv_color_hex(UI_COL_ROW_PRESSED), 0);
-    lv_obj_t *kl = lv_label_create(kb);
-    lv_label_set_text(kl, is_ok ? LV_SYMBOL_OK : is_del ? T(STR_KEY_DEL) : keys[i]);
-    lv_obj_set_style_text_color(kl, is_del ? lv_color_hex(UI_COL_BAD) :
-                                     is_ok  ? lv_color_hex(UI_COL_ACCENT) :
-                                              lv_color_hex(UI_COL_INK), 0);
-    lv_obj_set_style_text_font(kl, &lv_font_montserrat_ext_18, 0);
-    lv_obj_align(kl, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_user_data(kb, (void*)keys[i]);
-    lv_obj_add_event_cb(kb, [](lv_event_t *e){
-      const char* k = (const char*)lv_obj_get_user_data(lv_event_get_target(e));
-      if (!k || !s_dry_numpad_lbl) return;
-      if (strcmp(k, "DEL") == 0) {
-        s_dry_numpad_value /= 10;
-      } else if (strcmp(k, "OK") == 0) {
-        // Speichern (gleiche Logik wie Save-Button)
-        if (s_dry_numpad_value < 1) s_dry_numpad_value = 1;
-        if (s_dry_numpad_target == 0) g_dry_man_yellow = s_dry_numpad_value;
-        else                           g_dry_man_red    = s_dry_numpad_value;
-        logSDf("Drying Reminder: manual yellow=%d red=%d", g_dry_man_yellow, g_dry_man_red);
-        prefsPutInt("dry_man_y", g_dry_man_yellow);
-        prefsPutInt("dry_man_r", g_dry_man_red);
-        if (s_dry_numpad_scr) { lv_obj_del(s_dry_numpad_scr); s_dry_numpad_scr = nullptr; }
-        show_drying_reminder_pending = true;
-        return;
-      } else {
-        int digit = k[0] - '0';
-        if (s_dry_numpad_value < 999)
-          s_dry_numpad_value = s_dry_numpad_value * 10 + digit;
-      }
-      char vb[16]; snprintf(vb, sizeof(vb), "%d %s", s_dry_numpad_value, T(STR_DRY_DAYS_UNIT));
-      lv_label_set_text(s_dry_numpad_lbl, vb);
-    }, LV_EVENT_CLICKED, NULL);
-  }
-
-  // Save is now handled by OK key in numpad grid
+  char initial[8];
+  snprintf(initial, sizeof(initial), "%d", target == 0 ? g_dry_man_yellow : g_dry_man_red);
+  NumPadSpec spec = {};
+  spec.title      = T(target == 0 ? STR_DRY_NUMPAD_YELLOW_TITLE : STR_DRY_NUMPAD_RED_TITLE);
+  spec.hint       = T(target == 0 ? STR_DRY_PAD_HINT_YELLOW : STR_DRY_PAD_HINT_RED);
+  spec.unit       = T(STR_DRY_DAYS_UNIT);
+  spec.primary    = T(STR_BTN_SAVE);
+  spec.initial    = initial;
+  spec.max_chars  = DRY_INPUT_MAX_CHARS;
+  spec.help_title = -1;
+  spec.on_done    = onDryDone;
+  spec.on_leave   = [] { show_drying_reminder_pending = true; };
+  hideAllOverlays();
+  showNumPad(spec);
 }
 
 void showDryingReminderScreen() {
@@ -333,10 +275,9 @@ void showDryingReminderScreen() {
       lv_obj_align(vlbl, LV_ALIGN_RIGHT_MID, -16, 0);
       lv_obj_set_user_data(row_btn, (void*)(intptr_t)target);
       lv_obj_add_event_cb(row_btn, [](lv_event_t *e){
-        int tgt = (int)(intptr_t)lv_obj_get_user_data(lv_event_get_target(e));
-        if (scr_drying_reminder) { lv_obj_del(scr_drying_reminder); scr_drying_reminder = nullptr; }
-        buildDryNumpadScreen(tgt);
-        lv_obj_clear_flag(s_dry_numpad_scr, LV_OBJ_FLAG_HIDDEN);
+        // Hidden, not deleted: this is its own row's callback. Coming back
+        // rebuilds it through show_drying_reminder_pending.
+        showDryPad((int)(intptr_t)lv_obj_get_user_data(lv_event_get_target(e)));
       }, LV_EVENT_CLICKED, NULL);
     };
     { char ybuf[16]; copyT(ybuf, sizeof(ybuf), STR_DRY_MAN_YELLOW_LBL); makeThreshRow(ybuf, g_dry_man_yellow, UI_COL_WARN, content_y,      0); }

@@ -200,4 +200,5 @@ void showCopyConfirmPopup(int template_spool_id, int template_filament_id,
   lv_obj_set_style_text_color(lbl_no, lv_color_hex(UI_COL_BAD_TEXT), 0);
   lv_obj_set_style_text_font(lbl_no, UI_FONT_TITLE, 0);
   lv_obj_center(lbl_no);
+  styleLeaveButton(btn_no);
 }

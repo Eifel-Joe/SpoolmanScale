@@ -181,13 +181,17 @@ static void showTarePad() {
     }
   }
 
+  // Next starts level with the second row of keys, so the hint above it has
+  // room to breathe; Cancel keeps the bottom.
   const int KEYS_H = 4 * KEY_H + 3 * GAP;
   const int CANCEL_H = UI_TOUCH_MIN + 10;
-  const int NEXT_H = KEYS_H - CANCEL_H - GAP;
+  const int NEXT_Y = KEYS_Y + KEY_H + GAP;
+  const int CANCEL_Y = KEYS_Y + KEYS_H - CANCEL_H;
+  const int NEXT_H = CANCEL_Y - GAP - NEXT_Y;
 
   char next_buf[32];
   snprintf(next_buf, sizeof(next_buf), "%s  " LV_SYMBOL_RIGHT, T(STR_BTN_NEXT));
-  s_btn_next = padButton(scr, COL_X, KEYS_Y, COL_W, NEXT_H, UI_COL_OK_BG, UI_COL_OK_BG_PRESSED);
+  s_btn_next = padButton(scr, COL_X, NEXT_Y, COL_W, NEXT_H, UI_COL_OK_BG, UI_COL_OK_BG_PRESSED);
   padLabel(s_btn_next, next_buf, UI_COL_OK_TEXT, UI_FONT_BODY);
   lv_obj_add_event_cb(s_btn_next, [](lv_event_t *e) {
     float v = 0.0f;
@@ -205,9 +209,10 @@ static void showTarePad() {
     showSpoolWeightScope(v, false);
   }, LV_EVENT_CLICKED, NULL);
 
-  lv_obj_t *cancel = padButton(scr, COL_X, KEYS_Y + NEXT_H + GAP, COL_W, CANCEL_H,
+  lv_obj_t *cancel = padButton(scr, COL_X, CANCEL_Y, COL_W, CANCEL_H,
                                UI_COL_BAD_BG, UI_COL_BAD_BG_PRESSED);
   padLabel(cancel, T(STR_CANCEL), UI_COL_BAD_TEXT, UI_FONT_SMALL);
+  styleLeaveButton(cancel);
   lv_obj_add_event_cb(cancel, [](lv_event_t *e) { closeTareEntry(); }, LV_EVENT_CLICKED, NULL);
 
   refreshPad();

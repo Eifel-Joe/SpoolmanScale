@@ -19,6 +19,9 @@
 #include "tag_display.h"
 #include "app/backend_switch.h"
 #include "ui_common.h"
+#include "setup_frame.h"
+#include "info_screen.h"
+#include "wifi_setup_screen.h"
 #include "theme.h"
 
 // Switching the mode has to happen outside this screen's own event callback,
@@ -26,6 +29,8 @@
 // The flag is consumed in appLoop(), which rebuilds the screen.
 static BackendMode s_pending_mode = BACKEND_SPOOLMAN;
 static bool s_mode_change_pending = false;
+// A tile picked in the setup: once the mode is set, the address is next.
+static bool s_then_address = false;
 
 static void applyPendingModeChange() {
   if (!s_mode_change_pending) return;
@@ -158,9 +163,154 @@ static void addWebSetupButton(lv_obj_t *parent, int x) {
   lv_obj_center(lbl_web);
 }
 
+// ---- the setup step: one tile per backend --------------------
+#define BK_NOTE_X       14
+#define BK_NOTE_Y       54
+#define BK_LIST_X       12
+#define BK_LIST_Y       80
+#define BK_LIST_W      456
+#define BK_LIST_H      170
+#define BK_TILE_H       52
+#define BK_TILE_GAP      6
+#define BK_MONO         32
+#define BK_TEXT_X       58
+#define BK_TEXT_INSET    7
+#define BK_DESC_W      350
+#define BK_PILL_PAD_X    7
+
+static void onBackendTile(lv_event_t *e) {
+  const BackendMode m = (BackendMode)(intptr_t)lv_obj_get_user_data(lv_event_get_target(e));
+  logSDf("BTN: Backend setup -> %s", backendModeName(m));
+  s_pending_mode = m;
+  s_mode_change_pending = (m != backendMode());
+  s_then_address = true;
+  show_backend_pending = true;   // the switch runs on the loop, then the address
+}
+
+// Self-hosted or online, as a small outline beside the name.
+static void addHostingPill(lv_obj_t *tile, lv_obj_t *name, BackendHosting hosting) {
+  lv_obj_t *pill = lv_label_create(tile);
+  lv_label_set_text(pill, T(hosting == BACKEND_ONLINE ? STR_HOSTING_ONLINE : STR_HOSTING_SELF));
+  lv_obj_set_style_text_font(pill, UI_FONT_CAPTION, 0);
+  lv_obj_set_style_text_color(pill, lv_color_hex(UI_COL_INK_SOFT), 0);
+  lv_obj_set_style_border_width(pill, 1, 0);
+  lv_obj_set_style_border_color(pill, lv_color_hex(UI_COL_LINE), 0);
+  lv_obj_set_style_radius(pill, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_pad_hor(pill, BK_PILL_PAD_X, 0);
+  lv_obj_align_to(pill, name, LV_ALIGN_OUT_RIGHT_MID, 8, 0);
+}
+
+static void addBackendTile(lv_obj_t *list, const BackendInfo &b) {
+  const bool active = (b.mode == backendMode());
+  lv_obj_t *t = lv_btn_create(list);
+  lv_obj_set_size(t, LV_PCT(100), BK_TILE_H);
+  lv_obj_set_style_pad_all(t, 0, 0);
+  lv_obj_set_style_radius(t, UI_RADIUS_ROW, 0);
+  lv_obj_set_style_shadow_width(t, 0, 0);
+  lv_obj_set_style_bg_color(t, lv_color_hex(active ? UI_COL_PICKED_BG : UI_COL_SURFACE), 0);
+  lv_obj_set_style_bg_color(t, lv_color_hex(UI_COL_PRESS_FILL), LV_STATE_PRESSED);
+  lv_obj_set_style_border_width(t, active ? 2 : 1, 0);
+  lv_obj_set_style_border_color(t, lv_color_hex(active ? UI_COL_ACCENT : UI_COL_LINE_SOFT), 0);
+  lv_obj_set_user_data(t, (void *)(intptr_t)b.mode);
+  lv_obj_add_event_cb(t, onBackendTile, LV_EVENT_CLICKED, NULL);
+
+  // The first letter in a square, until the backends have icons of their own.
+  const char *name_txt = backendModeName(b.mode);
+  lv_obj_t *mono = lv_obj_create(t);
+  lv_obj_remove_style_all(mono);
+  lv_obj_set_size(mono, BK_MONO, BK_MONO);
+  lv_obj_set_style_radius(mono, UI_RADIUS_BTN, 0);
+  lv_obj_set_style_bg_opa(mono, LV_OPA_COVER, 0);
+  lv_obj_set_style_bg_color(mono, lv_color_hex(active ? UI_COL_GROUND : UI_COL_ROW), 0);
+  lv_obj_align(mono, LV_ALIGN_LEFT_MID, BK_TEXT_INSET + 5, 0);
+  char letter[2] = { name_txt[0], '\0' };
+  lv_obj_t *ml = lv_label_create(mono);
+  lv_label_set_text(ml, letter);
+  lv_obj_set_style_text_font(ml, UI_FONT_BODY, 0);
+  lv_obj_set_style_text_color(ml, lv_color_hex(active ? UI_COL_ACCENT : UI_COL_INK_SOFT), 0);
+  lv_obj_center(ml);
+
+  lv_obj_t *name = lv_label_create(t);
+  lv_label_set_text(name, name_txt);
+  lv_obj_set_style_text_font(name, UI_FONT_BODY, 0);
+  lv_obj_set_style_text_color(name, lv_color_hex(UI_COL_INK), 0);
+  lv_obj_align(name, LV_ALIGN_TOP_LEFT, BK_TEXT_X, BK_TEXT_INSET);
+  addHostingPill(t, name, b.hosting);
+
+  lv_obj_t *desc = lv_label_create(t);
+  lv_label_set_long_mode(desc, LV_LABEL_LONG_DOT);
+  lv_obj_set_size(desc, BK_DESC_W, lv_font_get_line_height(UI_FONT_CAPTION));
+  lv_label_set_text(desc, T(b.desc_str));
+  lv_obj_set_style_text_font(desc, UI_FONT_CAPTION, 0);
+  lv_obj_set_style_text_color(desc, lv_color_hex(UI_COL_INK_SOFT), 0);
+  lv_obj_align(desc, LV_ALIGN_BOTTOM_LEFT, BK_TEXT_X, -BK_TEXT_INSET);
+
+  if (active) {
+    lv_obj_t *tick = lv_label_create(t);
+    lv_label_set_text(tick, LV_SYMBOL_OK);
+    lv_obj_set_style_text_font(tick, UI_FONT_BODY, 0);
+    lv_obj_set_style_text_color(tick, lv_color_hex(UI_COL_ACCENT), 0);
+    lv_obj_align(tick, LV_ALIGN_RIGHT_MID, -14, 0);
+  }
+}
+
+// In the setup this is a step, not a settings page: one question, answered
+// by a tap on a tile, which leads straight on to the address - the same way
+// a tap on a network leads to its password.
+static void buildBackendSetupStep(lv_obj_t *scr, const char *title) {
+  setupHeader(scr, title, SETUP_STEP_BACKEND, [](lv_event_t *e) {
+    logSD("BTN: Backend setup -> Back (WiFi)");
+    // "Connected" only while it is; a link that dropped meanwhile goes back
+    // to the list to be chosen again.
+    if (wifi_ok) showWifiConnectedScreen();
+    else         showWifiSetupScreen();
+  });
+
+  // What every backend here needs, said before the choice rather than
+  // discovered at the address.
+  lv_obj_t *ico = lv_label_create(scr);
+  lv_label_set_text(ico, LV_SYMBOL_DRIVE);
+  lv_obj_set_style_text_font(ico, UI_FONT_SMALL, 0);
+  lv_obj_set_style_text_color(ico, lv_color_hex(UI_COL_WARN), 0);
+  lv_obj_set_pos(ico, BK_NOTE_X, BK_NOTE_Y);
+  lv_obj_t *note = lv_label_create(scr);
+  lv_label_set_text(note, T(STR_SETUP_SERVER_NEEDED));
+  lv_obj_set_style_text_font(note, UI_FONT_SMALL, 0);
+  lv_obj_set_style_text_color(note, lv_color_hex(UI_COL_INK_2), 0);
+  lv_obj_align_to(note, ico, LV_ALIGN_OUT_RIGHT_MID, 8, 0);
+
+  // A list, so a fourth backend or a hosted one scrolls in rather than
+  // squeezing the three that are there.
+  lv_obj_t *list = lv_obj_create(scr);
+  lv_obj_set_size(list, BK_LIST_W, BK_LIST_H);
+  lv_obj_set_pos(list, BK_LIST_X, BK_LIST_Y);
+  lv_obj_set_style_bg_opa(list, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_border_width(list, 0, 0);
+  lv_obj_set_style_pad_all(list, 0, 0);
+  lv_obj_set_style_pad_row(list, BK_TILE_GAP, 0);
+  lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_scroll_dir(list, LV_DIR_VER);
+  size_t n = 0;
+  const BackendInfo *rows = backendInfoList(&n);
+  for (size_t i = 0; i < n; i++) addBackendTile(list, rows[i]);
+
+  SetupBar bar = setupActionBar(scr, nullptr, nullptr, T(STR_SETUP_NO_SERVER), [](lv_event_t *e) {
+    logSD("BTN: Backend setup -> Docs");
+    showQRPopup(QR_DOCS);
+  });
+  setupBarMainOutline(bar);
+}
+
 void buildBackendScreen() {
   logSD("BUILD: BackendScreen");
   applyPendingModeChange();
+  // Nothing to rebuild for a tile picked in the setup: the address takes over
+  // in this same loop pass.
+  if (s_then_address) {
+    s_then_address = false;
+    show_spoolman_pending = true;
+    return;
+  }
   releaseScreen(&scr_backend);
 
   char buf_title[32];
@@ -168,38 +318,14 @@ void buildBackendScreen() {
 
   scr_backend = buildOverlayScreen();
 
-  // During the first time setup this is a step, not a settings page: there is
-  // no settings menu to go back to, and the way onward is the address screen.
   if (setup_active) {
-    lv_obj_t *lbl_title = lv_label_create(scr_backend);
-    lv_label_set_text(lbl_title, buf_title);
-    lv_obj_set_style_text_color(lbl_title, lv_color_hex(UI_COL_ACCENT), 0);
-    lv_obj_set_style_text_font(lbl_title, &lv_font_montserrat_ext_18, 0);
-    lv_obj_align(lbl_title, LV_ALIGN_TOP_MID, 0, 12);
-
-    lv_obj_t *btn_x = lv_btn_create(scr_backend);
-    lv_obj_set_size(btn_x, 44, 44);
-    lv_obj_align(btn_x, LV_ALIGN_TOP_RIGHT, -4, 2);
-    lv_obj_set_style_bg_color(btn_x, lv_color_hex(UI_COL_BAD_BG), 0);
-    lv_obj_set_style_bg_color(btn_x, lv_color_hex(UI_COL_BAD_BG_PRESSED), LV_STATE_PRESSED);
-    lv_obj_set_style_radius(btn_x, 8, 0);
-    lv_obj_set_style_shadow_width(btn_x, 0, 0);
-    lv_obj_set_style_border_width(btn_x, 0, 0);
-    lv_obj_add_event_cb(btn_x, [](lv_event_t *e){
-      logSD("BTN: Backend setup -> Close");
-      finish_setup_pending = true;
-    }, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *lbl_x = lv_label_create(btn_x);
-    lv_label_set_text(lbl_x, LV_SYMBOL_CLOSE);
-    lv_obj_set_style_text_color(lbl_x, lv_color_hex(UI_COL_BAD_TEXT), 0);
-    lv_obj_set_style_text_font(lbl_x, &lv_font_montserrat_ext_18, 0);
-    lv_obj_center(lbl_x);
-  } else {
-    buildSubHeader(scr_backend, buf_title, [](lv_event_t *e) {
-      logSD("BTN: Backend -> Back");
-      show_connection_from_spoolman_pending = true;
-    });
+    buildBackendSetupStep(scr_backend, buf_title);
+    return;
   }
+  buildSubHeader(scr_backend, buf_title, [](lv_event_t *e) {
+    logSD("BTN: Backend -> Back");
+    show_connection_from_spoolman_pending = true;
+  });
 
   // --- mode selector: three segments side by side ---------------
   // 480 px wide screen: 12 px margin, three 145 px segments, 10 px between.
@@ -242,43 +368,6 @@ void buildBackendScreen() {
       s_mode_change_pending = true;
       show_backend_pending = true;                  // rebuild from appLoop()
     }, LV_EVENT_CLICKED, NULL);
-  }
-
-  // In setup the address is the next step of its own, so this screen asks the
-  // one question it is here for and gets out of the way.
-  if (setup_active) {
-    char buf_hint[160];
-    copyT(buf_hint, sizeof(buf_hint), STR_SETUP_BACKEND_HINT);
-
-    lv_obj_t *hint = lv_label_create(scr_backend);
-    lv_label_set_text(hint, buf_hint);
-    lv_obj_set_style_text_color(hint, lv_color_hex(UI_COL_CAPTION), 0);
-    lv_obj_set_style_text_font(hint, &lv_font_montserrat_ext_14, 0);
-    lv_obj_set_style_text_align(hint, LV_TEXT_ALIGN_CENTER, 0);
-    lv_label_set_long_mode(hint, LV_LABEL_LONG_WRAP);
-    lv_obj_set_width(hint, 440);
-    lv_obj_align(hint, LV_ALIGN_TOP_MID, 0, 138);
-
-    lv_obj_t *btn_next = lv_btn_create(scr_backend);
-    lv_obj_set_size(btn_next, 200, 48);
-    lv_obj_align(btn_next, LV_ALIGN_BOTTOM_MID, 0, -20);
-    lv_obj_set_style_bg_color(btn_next, lv_color_hex(UI_COL_GO_BG), 0);
-    lv_obj_set_style_bg_color(btn_next, lv_color_hex(UI_COL_GO_BG_PRESSED), LV_STATE_PRESSED);
-    lv_obj_set_style_radius(btn_next, 8, 0);
-    lv_obj_set_style_shadow_width(btn_next, 0, 0);
-    lv_obj_set_style_border_width(btn_next, 0, 0);
-    lv_obj_add_event_cb(btn_next, [](lv_event_t *e) {
-      logSD("BTN: Backend setup -> Address");
-      show_spoolman_pending = true;
-    }, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *lbl_next = lv_label_create(btn_next);
-    char next_buf[32];
-    snprintf(next_buf, sizeof(next_buf), "%s  " LV_SYMBOL_RIGHT, T(STR_BTN_NEXT));
-    lv_label_set_text(lbl_next, next_buf);
-    lv_obj_set_style_text_color(lbl_next, lv_color_hex(UI_COL_OK_TEXT_2), 0);
-    lv_obj_set_style_text_font(lbl_next, &lv_font_montserrat_ext_16, 0);
-    lv_obj_center(lbl_next);
-    return;
   }
 
   // --- address row, opens the existing numpad screen -------------

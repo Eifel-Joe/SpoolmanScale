@@ -4,7 +4,14 @@
 
 extern bool skip_setup_pending;
 extern bool finish_setup_pending;
+// The setup's scale step: the calibration, led through.
 extern bool cal_reminder_pending;
+// The setup's closing screen, once the calibration is done or put off.
+extern bool setup_done_pending;
+// Back from the calibration's first step in the setup: the calibration is
+// freed first, then the step before it opens. From the loop, because the
+// back button sits on the screen that goes.
+extern bool cal_setup_back_pending;
 extern bool show_bag_pending;
 extern bool show_factor_pending;
 // The calibration reset was confirmed. Deferred like every other write reached
@@ -20,6 +27,9 @@ extern bool scale_sub_rebuild_pending;
 // hideAllOverlays() - a popup opened first would be taken down by it. Drained
 // after the rebuild, so the order is fixed rather than hoped for.
 extern bool show_reboot_pending;
+// The bag weight crossed 0 g: the main screen's weight zone swaps between
+// its layout with and without the bag lines.
+extern bool live_zone_rebuild_pending;
 extern bool show_lastused_pending;
 extern bool show_backend_pending;
 
@@ -120,10 +130,6 @@ extern float bb_cap_label_g;
 // way to confirm a repair is a restart, which is a poor answer to "I just
 // pushed the connector back in".
 extern bool i2c_rescan_pending;
-// "Calibrate now" on the reminder at the end of the setup. It has two steps in
-// a fixed order - leave the setup, then open the calibration - so it cannot be
-// expressed with show_factor_pending alone.
-extern bool cal_now_pending;
 
 // The WiFi menu behind the Connection tile, and the way back into it from
 // the WiFi setup and status screens: built on the loop, never from inside

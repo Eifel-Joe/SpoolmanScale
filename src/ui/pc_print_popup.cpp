@@ -155,7 +155,7 @@ static void buildQuestion() {
   styleKind(makeButton(box, UI_CARD_ROW_X + PCP_KIND_W + PCP_GAP, PCP_KIND_Y, PCP_KIND_W,
                        STR_PCP_FILAMENT, PCP_FILAMENT),
             s_filament_id > 0);
-  styleQuiet(makeButton(box, UI_CARD_ROW_X, UI_CARD_ROW_Y, PCP_ROW_W, STR_CANCEL, PCP_CLOSE));
+  styleLeaveButton(makeButton(box, UI_CARD_ROW_X, UI_CARD_ROW_Y, PCP_ROW_W, STR_CANCEL, PCP_CLOSE));
   logSDf("SHOW: PcPrint spool=%d filament=%d", s_spool_id, s_filament_id);
 }
 

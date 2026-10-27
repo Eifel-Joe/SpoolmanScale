@@ -286,7 +286,9 @@ static void answerOut(lv_obj_t* box, int x, int w) {
     answer(box, x, w, STR_UNK_BTN_WEIGH, UA_WEIGH, false);
     return;
   }
-  addHeldFill(answer(box, x, w, STR_CANCEL, UA_CANCEL, false), w);
+  lv_obj_t* cancel = answer(box, x, w, STR_CANCEL, UA_CANCEL, false);
+  styleLeaveButton(cancel);   // first: the fill sits inside its border
+  addHeldFill(cancel, w);
 }
 
 // The suggested step, "Other ways" and the way out, one width each.

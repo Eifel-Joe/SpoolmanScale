@@ -89,4 +89,5 @@ void showRebootPopup(RebootCommitFn commit) {
   lv_obj_set_style_text_color(c_lbl, lv_color_hex(UI_COL_BAD_TEXT), 0);
   lv_obj_set_style_text_font(c_lbl, &lv_font_montserrat_ext_14, 0);
   lv_obj_center(c_lbl);
+  styleLeaveButton(btn_cancel);
 }

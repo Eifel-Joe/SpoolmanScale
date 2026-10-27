@@ -150,6 +150,11 @@ UiThemeCustom uiThemeCustomActive();
 #define UI_RADIUS_BOX          12   // a popup's box, a settings tile
 #define UI_RADIUS_ROW          10   // a settings row
 #define UI_RADIUS_BTN          8
+#define UI_LEAVE_BORDER_W      2    // the red outline of Cancel, Close and Back
+// How much red the outline and the icon carry, the rest is the button's fill
+// and the caption's colour: a hint of the way out, not a warning.
+#define UI_LEAVE_BORDER_RED_PCT 45
+#define UI_LEAVE_ICON_RED_PCT   80
 #define UI_RADIUS_INPUT        6
 #define UI_RADIUS_OUTLINE      4    // a label outline drawn to scale
 #define UI_TOUCH_MIN           44   // the smallest thing a finger is asked to hit
@@ -171,3 +176,12 @@ UiThemeCustom uiThemeCustomActive();
 #define UI_CARD_TEXT_PAD        40   // what the text stays clear of, left and right together
 #define UI_CARD_ROW_X           12   // the answer row's inset, left and right
 #define UI_CARD_ROW_Y          186   // its top, UI_POPUP_BTN_H high
+
+// ---- the first setup's frame ---------------------------------
+// Every setup step ends in the same bar, so the way on is always in the same
+// place: a quiet answer on the left, the main one filling the rest.
+#define UI_SETUP_BAR_X          12   // the bar's inset, left and right
+#define UI_SETUP_BAR_Y         260
+#define UI_SETUP_BAR_H          48
+#define UI_SETUP_BAR_GAP        12
+#define UI_SETUP_QUIET_W       150   // the quiet button on the left

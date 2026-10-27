@@ -28,6 +28,7 @@
 #include "services/backend_job.h"
 #include "app/backend_switch.h"
 #include "ui/link_wait_card.h"
+#include "ui/num_pad.h"
 #include "ui/spool_flow_internal.h"
 #include "services/tag_write.h"
 #include "services/tag_family.h"
@@ -183,7 +184,6 @@ static lv_obj_t     *scr_link_list = nullptr; // Spool selection overlay (old, k
 
 // Neuer Link-Flow Overlays
 static lv_obj_t *scr_link_entry   = nullptr;  // Entry popup
-static lv_obj_t *scr_link_id      = nullptr;  // Numeric keypad
 static lv_obj_t *scr_link_warn_a  = nullptr;  // Warning popup A (already linked)
 static lv_obj_t *scr_link_warn_b  = nullptr;  // Warning popup B (material mismatch)
 static lv_obj_t *scr_link_vendor  = nullptr;  // Vendor-Auswahl (Flow B Pfad 2)
@@ -193,8 +193,6 @@ static lv_obj_t *scr_link_spools  = nullptr;  // Spool list (all path 2)
 
 // State for ID input
 char link_id_input[8] = "";            // Input buffer for numeric keypad
-static lv_obj_t *lbl_link_id_display = nullptr; // Label for digit display
-static lv_obj_t *lbl_link_id_status  = nullptr; // Error label in numeric keypad
 
 // State for path-2 navigation
 static char link_selected_vendor[32]   = "";   // selected vendor
@@ -240,6 +238,10 @@ lv_obj_t *btn_copy = nullptr;
 // Popup control: prevents immediate re-display after cancel
 static bool id_popup_is_bambu = false;  // shared between numpad lambdas
 static bool id_popup_is_copy   = false;  // true = copy flow, false = link flow
+static void idPadSay(const char *text, bool refusal);
+static void idPadRelease();
+// Six digits: more spools than any inventory holds.
+#define ID_PAD_MAX_DIGITS 6
 static int  copy_id_lookup_pending = 0;  // >0 = deferred copy ID fetch (avoids stack overflow in lambda)
 static int  link_id_lookup_pending = 0;  // >0 = deferred linkIdLookupAndPatch (avoids stack overflow in lambda)
 static bool link_id_lookup_is_bambu = false;
@@ -1715,6 +1717,7 @@ static void showTagMovePopup() {
   lv_obj_set_style_text_color(lbl_no, lv_color_hex(UI_COL_BAD_TEXT), 0);
   lv_obj_set_style_text_font(lbl_no, &lv_font_montserrat_ext_18, 0);
   lv_obj_center(lbl_no);
+  styleLeaveButton(btn_no);
 
   logSDf("SHOW: TagMovePopup tag '%s' from spool %d to %d", s_move_uid,
          s_move_from_id, s_move_spool_id);
@@ -1884,7 +1887,7 @@ void showWarnPopupA(int spool_id, const char* existing_tag, bool is_bambu,
   lv_obj_add_event_cb(btn_retry, [](lv_event_t *e) {
     logSD("BTN: WarnA -> retry IdInput (flag)");
     releaseScreen(&scr_link_warn_a);
-    releaseScreen(&scr_link_id);
+    idPadRelease();
     link_id_input[0] = '\0';
     link_id_lookup_pending = 0;
     show_id_input_rebuild = true;  // loop rebuilds IdInputPopup safely
@@ -1905,13 +1908,14 @@ void showWarnPopupA(int spool_id, const char* existing_tag, bool is_bambu,
   lv_obj_set_style_border_width(btn_cancel, 0, 0);
   lv_obj_add_event_cb(btn_cancel, [](lv_event_t *e) {
     releaseScreen(&scr_link_warn_a);
-    releaseScreen(&scr_link_id);
+    idPadRelease();
   }, LV_EVENT_CLICKED, NULL);
   lv_obj_t *lbl_cancel = lv_label_create(btn_cancel);
   lv_label_set_text(lbl_cancel, T(STR_CANCEL));
   lv_obj_set_style_text_color(lbl_cancel, lv_color_hex(UI_COL_BAD_TEXT), 0);
   lv_obj_set_style_text_font(lbl_cancel, &lv_font_montserrat_ext_14, 0);
   lv_obj_center(lbl_cancel);
+  styleLeaveButton(btn_cancel);
 }
 
 // ============================================================
@@ -2033,7 +2037,7 @@ void showWarnPopupB(int spool_id, bool is_bambu) {
     // Same route as the retry on popup A: the loop rebuilds the numpad once
     // this popup is gone.
     releaseScreen(&scr_link_warn_b);
-    releaseScreen(&scr_link_id);
+    idPadRelease();
     link_id_input[0] = '\0';
     link_id_lookup_pending = 0;
     show_id_input_rebuild = true;
@@ -2054,22 +2058,23 @@ void showWarnPopupB(int spool_id, bool is_bambu) {
   lv_obj_set_style_border_width(btn_cancel, 0, 0);
   lv_obj_add_event_cb(btn_cancel, [](lv_event_t *e) {
     releaseScreen(&scr_link_warn_b);
-    releaseScreen(&scr_link_id);
+    idPadRelease();
   }, LV_EVENT_CLICKED, NULL);
   lv_obj_t *lbl_cancel = lv_label_create(btn_cancel);
   lv_label_set_text(lbl_cancel, T(STR_CANCEL));
   lv_obj_set_style_text_color(lbl_cancel, lv_color_hex(UI_COL_CAPTION), 0);
   lv_obj_set_style_text_font(lbl_cancel, &lv_font_montserrat_ext_14, 0);
   lv_obj_center(lbl_cancel);
+  styleLeaveButton(btn_cancel);
 }
 
 // ============================================================
 //  LINK-FLOW: HTTP-LOOKUP + VERKNUEPFUNG (ausgelagert vom Lambda)
 // ============================================================
 void linkIdLookupAndPatch(int entered_id, bool is_bambu) {
-  if (lbl_link_id_status) lv_label_set_text(lbl_link_id_status, T(STR_LINK_CHECKING));
+  idPadSay(T(STR_LINK_CHECKING), false);
   lv_timer_handler();
-  if (!wifi_ok) { if (lbl_link_id_status) lv_label_set_text(lbl_link_id_status, T(STR_NO_WIFI)); return; }
+  if (!wifi_ok) { idPadSay(T(STR_NO_WIFI), true); return; }
 
   // The ID path skips the list fetch, so it has to settle this for itself.
   link_cu_ok = tagFieldIsList() && g_card_uids_write &&
@@ -2081,20 +2086,20 @@ void linkIdLookupAndPatch(int entered_id, bool is_bambu) {
   // Before the "not found" below, which takes every negative code: a server
   // that never answered said nothing about the id.
   if (serverReachIsNetworkFailure(code)) {
-    if (lbl_link_id_status) lv_label_set_text(lbl_link_id_status, T(STR_NO_CONNECTION));
+    idPadSay(T(STR_NO_CONNECTION), true);
     return;
   }
   if (code == 404 || code < 0) {
-    if (lbl_link_id_status) lv_label_set_text(lbl_link_id_status, T(STR_LINK_ID_NOT_FOUND));
+    idPadSay(T(STR_LINK_ID_NOT_FOUND), true);
     return;
   }
   if (code == -2) {
-    if (lbl_link_id_status) lv_label_set_text(lbl_link_id_status, T(STR_LINK_JSON_ERR));
+    idPadSay(T(STR_LINK_JSON_ERR), true);
     return;
   }
   if (code != 200) {
     char err[32]; snprintf(err, sizeof(err), T(STR_LINK_HTTP_ERR), code);
-    if (lbl_link_id_status) lv_label_set_text(lbl_link_id_status, err);
+    idPadSay(err, true);
     return;
   }
 
@@ -2220,223 +2225,85 @@ void linkIdLookupAndPatch(int entered_id, bool is_bambu) {
 // ============================================================
 //  LINK-FLOW: ZIFFERNBLOCK (Pfad 1 - ID eingeben)
 // ============================================================
+// The ID pad's answer line: a lookup under way, or why it did not work.
+// Nothing to say once the pad is gone.
+static void idPadSay(const char *text, bool refusal) {
+  if (id_input_open) numPadSetHint(text, refusal);
+}
+
+// The ID pad is the shared keypad; only this flow opens it while the flag
+// stands, so closing it here closes nobody else's.
+static void idPadRelease() {
+  if (id_input_open) numPadClose();
+}
+
+static bool onIdDone(const char *text) {
+  snprintf(link_id_input, sizeof(link_id_input), "%s", text);
+  if (!text[0]) {
+    idPadSay(T(STR_BTN_ENTER_ID), true);
+    return false;
+  }
+  const int id = atoi(text);
+  if (id <= 0) {
+    idPadSay(T(STR_LINK_ID_NOT_FOUND), true);
+    return false;
+  }
+  // HTTP and JSON do not belong in a callback: the loop asks the server.
+  if (id_popup_is_copy) {
+    if (!wifi_ok) {
+      idPadSay(T(STR_LINK_NO_WIFI), true);
+      return false;
+    }
+    copy_id_lookup_pending = id;
+  } else {
+    link_id_lookup_pending = id;
+    link_id_lookup_is_bambu = id_popup_is_bambu;
+  }
+  idPadSay(T(STR_LINK_CHECKING), false);
+  return false;   // open until the lookup answers
+}
+
+// Back and Cancel: the entry it was opened from shows again, the loop
+// clears the flags.
+static void onIdLeave() {
+  lv_obj_t *entry = id_popup_is_copy ? scr_copy_entry : scr_link_entry;
+  if (entry) lv_obj_clear_flag(entry, LV_OBJ_FLAG_HIDDEN);
+  show_id_input_pending = true;
+}
+
 void showIdInputPopup(bool is_bambu, bool is_copy) {
   logSDf("SHOW: IdInputPopup bambu=%d copy=%d", (int)is_bambu, (int)is_copy);
-  id_input_open = true;  // suppress NFC Spoolman query while numpad open
-  releaseScreen(&scr_link_id);
-  lbl_link_id_display = nullptr;
-  lbl_link_id_status  = nullptr;
-
-  scr_link_id = buildLinkOverlay();
-
-  // ── Header like settings menu ───────────────────────────
-  // Title zentriert
-  lv_obj_t *lbl_title = lv_label_create(scr_link_id);
-  { char tb[40]; backendText(T(STR_LINK_ID_TITLE), tb, sizeof(tb)); lv_label_set_text(lbl_title, tb); }
-  lv_obj_set_style_text_color(lbl_title, lv_color_hex(UI_COL_ACCENT), 0);
-  lv_obj_set_style_text_font(lbl_title, &lv_font_montserrat_ext_18, 0);
-  lv_obj_align(lbl_title, LV_ALIGN_TOP_MID, 0, 12);
-
-  // Zurueck-Button (←) oben links
-  lv_obj_t *btn_back = lv_btn_create(scr_link_id);
-  lv_obj_set_size(btn_back, 44, 44);
-  lv_obj_set_pos(btn_back, 4, 2);
-  lv_obj_set_style_bg_color(btn_back, lv_color_hex(UI_COL_SURFACE), 0);
-  lv_obj_set_style_bg_color(btn_back, lv_color_hex(UI_COL_PRESS_FILL), LV_STATE_PRESSED);
-  lv_obj_set_style_radius(btn_back, 8, 0);
-  lv_obj_set_style_shadow_width(btn_back, 0, 0);
-  lv_obj_set_style_border_width(btn_back, 0, 0);
-  lv_obj_add_event_cb(btn_back, [](lv_event_t *e) {
-    logSD("BTN: IdInput -> Back (flag)");
-    show_id_input_pending = false;  // cancel any pending re-open
-    // Use flag pattern - cannot delete own parent screen in callback
-    if (id_popup_is_copy) {
-      // Close and show copy entry - deferred via loop
-      if (scr_link_id) { lv_obj_add_flag(scr_link_id, LV_OBJ_FLAG_HIDDEN); }
-      if (scr_copy_entry) lv_obj_clear_flag(scr_copy_entry, LV_OBJ_FLAG_HIDDEN);
-      // Delete scr_link_id safely after callback via pending flag
-      show_id_input_pending = true;  // reuse flag to signal cleanup
-    } else {
-      if (scr_link_id) { lv_obj_add_flag(scr_link_id, LV_OBJ_FLAG_HIDDEN); }
-      if (scr_link_entry) lv_obj_clear_flag(scr_link_entry, LV_OBJ_FLAG_HIDDEN);
-      show_id_input_pending = true;
-    }
-  }, LV_EVENT_CLICKED, NULL);
-  lv_obj_t *lbl_bk = lv_label_create(btn_back);
-  lv_label_set_text(lbl_bk, LV_SYMBOL_LEFT);
-  lv_obj_set_style_text_color(lbl_bk, lv_color_hex(UI_COL_ACCENT), 0);
-  lv_obj_set_style_text_font(lbl_bk, &lv_font_montserrat_ext_18, 0);
-  lv_obj_center(lbl_bk);
-
-  // X-Button oben rechts → komplett schliessen
-  lv_obj_t *btn_x = lv_btn_create(scr_link_id);
-  lv_obj_set_size(btn_x, 44, 44);
-  lv_obj_align(btn_x, LV_ALIGN_TOP_RIGHT, -4, 2);
-  lv_obj_set_style_bg_color(btn_x, lv_color_hex(UI_COL_BAD_BG), 0);
-  lv_obj_set_style_bg_color(btn_x, lv_color_hex(UI_COL_BAD_BG_PRESSED), LV_STATE_PRESSED);
-  lv_obj_set_style_radius(btn_x, 8, 0);
-  lv_obj_set_style_shadow_width(btn_x, 0, 0);
-  lv_obj_set_style_border_width(btn_x, 0, 0);
-  lv_obj_add_event_cb(btn_x, [](lv_event_t *e) {
-    logSD("BTN: IdInput -> X Close");
-    // Flag pattern: cannot delete own parent screen from callback
-    id_input_open = false;
-    link_id_lookup_pending = 0;
-    copy_id_lookup_pending = 0;
-    show_id_input_pending = true;  // loop will delete scr_link_id safely
-    // Also mark entry popup for deletion
-    if (id_popup_is_copy) {
-      if (scr_copy_entry) lv_obj_add_flag(scr_copy_entry, LV_OBJ_FLAG_HIDDEN);
-    } else {
-      if (scr_link_entry) lv_obj_add_flag(scr_link_entry, LV_OBJ_FLAG_HIDDEN);
-    }
-  }, LV_EVENT_CLICKED, NULL);
-  lv_obj_t *lbl_x = lv_label_create(btn_x);
-  lv_label_set_text(lbl_x, LV_SYMBOL_CLOSE);
-  lv_obj_set_style_text_color(lbl_x, lv_color_hex(UI_COL_BAD_TEXT), 0);
-  lv_obj_set_style_text_font(lbl_x, &lv_font_montserrat_ext_18, 0);
-  lv_obj_center(lbl_x);
-
-  // Separator line
-  lv_obj_t *div = lv_obj_create(scr_link_id);
-  lv_obj_set_size(div, 472, 1); lv_obj_set_pos(div, 4, 48);
-  lv_obj_set_style_bg_color(div, lv_color_hex(UI_COL_LINE), 0);
-  lv_obj_set_style_border_width(div, 0, 0);
-  lv_obj_set_style_radius(div, 0, 0);
-  lv_obj_set_style_pad_all(div, 0, 0);
-
-  // Kontext-Info
-  lv_obj_t *lbl_ctx = lv_label_create(scr_link_id);
-  char ctx_buf[48];
-  if (is_bambu) {
-    snprintf(ctx_buf, sizeof(ctx_buf), "Bambu  %s", g_tag.material[0] ? g_tag.material : "Tag");
-  } else {
-    snprintf(ctx_buf, sizeof(ctx_buf), "UID: %.14s", link_tag_uid);
-  }
-  lv_label_set_text(lbl_ctx, ctx_buf);
-  lv_obj_set_style_text_color(lbl_ctx, lv_color_hex(UI_COL_CAPTION), 0);
-  lv_obj_set_style_text_font(lbl_ctx, &lv_font_montserrat_ext_14, 0);
-  lv_obj_set_style_text_align(lbl_ctx, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(lbl_ctx, LV_ALIGN_TOP_MID, 0, 56);
-
-  // Input field - kompakter, y=76
-  lv_obj_t *input_box = lv_obj_create(scr_link_id);
-  lv_obj_set_size(input_box, 260, 44);
-  lv_obj_align(input_box, LV_ALIGN_TOP_MID, 0, 76);
-  lv_obj_set_style_bg_color(input_box, lv_color_hex(UI_COL_SURFACE), 0);
-  lv_obj_set_style_border_color(input_box, lv_color_hex(UI_COL_ACCENT), 0);
-  lv_obj_set_style_border_width(input_box, 1, 0);
-  lv_obj_set_style_radius(input_box, 6, 0);
-  lv_obj_set_style_pad_all(input_box, 0, 0);
-  lv_obj_clear_flag(input_box, LV_OBJ_FLAG_SCROLLABLE);
-
-  lbl_link_id_display = lv_label_create(input_box);
-  lv_label_set_text(lbl_link_id_display, link_id_input[0] ? link_id_input : "_");
-  lv_obj_set_style_text_color(lbl_link_id_display, lv_color_hex(UI_COL_ACCENT), 0);
-  lv_obj_set_style_text_font(lbl_link_id_display, &lv_font_montserrat_ext_24, 0);
-  lv_obj_set_style_text_align(lbl_link_id_display, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_center(lbl_link_id_display);
-
-  // Status label inside input box (replaces digit display when error occurs)
-  lbl_link_id_status = lv_label_create(input_box);
-  lv_label_set_text(lbl_link_id_status, "");
-  lv_obj_set_style_text_color(lbl_link_id_status, lv_color_hex(UI_COL_BAD_TEXT), 0);
-  lv_obj_set_style_text_font(lbl_link_id_status, &lv_font_montserrat_ext_12, 0);
-  lv_obj_set_style_text_align(lbl_link_id_status, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(lbl_link_id_status, LV_ALIGN_BOTTOM_MID, 0, -2);
-
-  // ── Numeric keypad: 4x3, START_Y=132 ─────────────────────
-  // BTN 80x38, GAP 5 → 4 rows: 4*38+3*5=167px → ends at 132+167=299 ✓
-  // No separate cancel button needed (X top right)
-  const int BTN_W = 80, BTN_H = 38, GAP = 5;
-  const int PAD_X = (480 - 3*BTN_W - 2*GAP) / 2;
-  const int START_Y = 132;
-
-  // 12 buttons: 1-9, then 0 / ⌫ / ✓
-  const char* digits12[] = {"1","2","3","4","5","6","7","8","9","0",LV_SYMBOL_BACKSPACE,LV_SYMBOL_OK};
-  int pos_x12[] = {0,1,2, 0,1,2, 0,1,2, 0,1,2};
-  int pos_y12[] = {0,0,0, 1,1,1, 2,2,2, 3,3,3};
-
   id_popup_is_bambu = is_bambu;
   id_popup_is_copy  = is_copy;
+  // Which tag this is for, then where the id is found.
+  char ctx[48];
+  if (is_bambu) snprintf(ctx, sizeof(ctx), "Bambu  %s", g_tag.material[0] ? g_tag.material : "Tag");
+  else          snprintf(ctx, sizeof(ctx), "UID: %.14s", link_tag_uid);
+  char where[96];
+  backendText(T(STR_ID_PAD_WHERE), where, sizeof(where));
+  char hint[160];
+  snprintf(hint, sizeof(hint), "%s\n%s", ctx, where);
 
-  for (int d = 0; d < 12; d++) {
-    lv_obj_t *btn = lv_btn_create(scr_link_id);
-    int bx = PAD_X + pos_x12[d] * (BTN_W + GAP);
-    int by = START_Y + pos_y12[d] * (BTN_H + GAP);
-    lv_obj_set_size(btn, BTN_W, BTN_H);
-    lv_obj_set_pos(btn, bx, by);
-
-    bool is_ok        = (d == 11);
-    bool is_backspace = (d == 10);
-    uint32_t bg_col = is_ok ? UI_COL_GO_BG : UI_COL_ROW;
-    uint32_t bg_pr  = is_ok ? UI_COL_GO_BG_PRESSED : UI_COL_PRESS_FILL;
-    uint32_t bd_col = is_ok ? UI_COL_GO_BG_PRESSED : UI_COL_LINE;
-    uint32_t tx_col = is_ok ? UI_COL_OK_TEXT_2 : (is_backspace ? UI_COL_WARN : UI_COL_INK);
-
-    lv_obj_set_style_bg_color(btn, lv_color_hex(bg_col), 0);
-    lv_obj_set_style_bg_color(btn, lv_color_hex(bg_pr), LV_STATE_PRESSED);
-    lv_obj_set_style_radius(btn, 8, 0);
-    lv_obj_set_style_shadow_width(btn, 0, 0);
-    lv_obj_set_style_border_width(btn, 1, 0);
-    lv_obj_set_style_border_color(btn, lv_color_hex(bd_col), 0);
-
-    lv_obj_t *lbl = lv_label_create(btn);
-    lv_label_set_text(lbl, digits12[d]);
-    lv_obj_set_style_text_color(lbl, lv_color_hex(tx_col), 0);
-    lv_obj_set_style_text_font(lbl, is_ok ? &lv_font_montserrat_ext_20 : &lv_font_montserrat_ext_18, 0);
-    lv_obj_center(lbl);
-
-    lv_obj_add_event_cb(btn, [](lv_event_t *e) {
-      const char* digit_str = lv_label_get_text(lv_obj_get_child(lv_event_get_target(e), 0));
-      bool is_bs     = (strcmp(digit_str, LV_SYMBOL_BACKSPACE) == 0);
-      bool is_ok_btn = (strcmp(digit_str, LV_SYMBOL_OK) == 0);
-
-      if (is_ok_btn) {
-        if (strlen(link_id_input) == 0) {
-          if (lbl_link_id_status) { char tb[40]; backendText(T(STR_LINK_ID_TITLE), tb, sizeof(tb)); lv_label_set_text(lbl_link_id_status, tb); }
-          return;
-        }
-        int entered_id = atoi(link_id_input);
-        if (entered_id <= 0) {
-          if (lbl_link_id_status) lv_label_set_text(lbl_link_id_status, T(STR_LINK_ID_NOT_FOUND));
-          return;
-        }
-        if (id_popup_is_copy) {
-          // Defer to loop - HTTP + JSON in lambda causes stack overflow
-          if (!wifi_ok) { if (lbl_link_id_status) lv_label_set_text(lbl_link_id_status, T(STR_LINK_NO_WIFI)); return; }
-          copy_id_lookup_pending = entered_id;
-          if (lbl_link_id_status) lv_label_set_text(lbl_link_id_status, T(STR_LINK_CHECKING));
-        } else {
-          // Defer to loop - direct call causes stack overflow in LVGL lambda
-          link_id_lookup_pending = entered_id;
-          link_id_lookup_is_bambu = id_popup_is_bambu;
-          if (lbl_link_id_status) lv_label_set_text(lbl_link_id_status, T(STR_LINK_CHECKING));
-        }
-      } else if (is_bs) {
-        int len = strlen(link_id_input);
-        if (len > 0) link_id_input[len-1] = '\0';
-        if (lbl_link_id_display)
-          lv_label_set_text(lbl_link_id_display, link_id_input[0] ? link_id_input : "_");
-        if (lbl_link_id_status) lv_label_set_text(lbl_link_id_status, "");
-      } else {
-        int len = strlen(link_id_input);
-        if (len < 6) { link_id_input[len] = digit_str[0]; link_id_input[len+1] = '\0'; }
-        if (lbl_link_id_display)
-          lv_label_set_text(lbl_link_id_display, link_id_input[0] ? link_id_input : "_");
-        if (lbl_link_id_status) lv_label_set_text(lbl_link_id_status, "");
-      }
-    }, LV_EVENT_CLICKED, NULL);
-  }
+  NumPadSpec spec = {};
+  spec.title      = T(is_copy ? STR_ID_PAD_COPY_TITLE : STR_ID_PAD_LINK_TITLE);
+  spec.hint       = hint;
+  spec.unit       = "";
+  spec.primary    = T(STR_IDPAD_SEARCH);
+  spec.initial    = "";
+  spec.max_chars  = ID_PAD_MAX_DIGITS;
+  spec.help_title = -1;
+  spec.on_done    = onIdDone;
+  spec.on_leave   = onIdLeave;
+  idPadRelease();
+  showNumPad(spec);
+  id_input_open = true;  // suppress NFC Spoolman query while the pad is open
 }
 
 void closeIdInputPopup() {
+  idPadRelease();
   id_input_open = false;
-  link_id_lookup_pending = 0;  // cancel any pending lookup when popup closes
+  link_id_lookup_pending = 0;  // cancel any pending lookup when the pad closes
   copy_id_lookup_pending = 0;
-  releaseScreen(&scr_link_id);
-  lbl_link_id_display = nullptr;
-  lbl_link_id_status  = nullptr;
 }
 
 // ============================================================
@@ -2737,6 +2604,7 @@ static void showLinkConfirmPopup(int idx) {
   lv_obj_set_style_text_color(lbl_no, lv_color_hex(UI_COL_BAD_TEXT), 0);
   lv_obj_set_style_text_font(lbl_no, &lv_font_montserrat_ext_14, 0);
   lv_obj_center(lbl_no);
+  styleLeaveButton(btn_no);
 }
 
 // What is on the scale as the list opens, or -1 when nothing may be compared
@@ -3728,7 +3596,7 @@ void showLinkEntryPopup(bool is_bambu) {
 void closeLinkList() {
   releaseScreen(&scr_link_list);
   releaseScreen(&scr_link_entry);
-  releaseScreen(&scr_link_id);
+  idPadRelease();
   releaseScreen(&scr_link_vendor);
   releaseScreen(&scr_link_mat);
   releaseScreen(&scr_link_mat_sub);
@@ -3761,7 +3629,7 @@ void hideSpoolFlowOverlays() {
   // stayed drawn on top of whatever was built next, with rows pointing into
   // the freed list.
   lv_obj_t *const link_scr[] = {
-    scr_link_entry, scr_link_id, scr_link_warn_a, scr_link_warn_b,
+    scr_link_entry, scr_link_warn_a, scr_link_warn_b,
     scr_link_vendor, scr_link_mat, scr_link_mat_sub, scr_link_spools,
     scr_link_list, scr_link_confirm, scr_tag_move,
     scr_copy_entry, scr_copy_list, scr_copy_confirm, tagCreatePopupScreen(), dbPickScreen(),
@@ -3772,6 +3640,9 @@ void hideSpoolFlowOverlays() {
       lv_obj_add_flag(link_scr[i], LV_OBJ_FLAG_HIDDEN);
       link_overlays_close_pending = true;
     }
+  // The ID pad is the shared keypad (num_pad.h), hidden by navigation; its
+  // flags still have to be cleared with the rest of the flow.
+  if (id_input_open) link_overlays_close_pending = true;
 
   linkSpoolsFree();
 }
@@ -4002,12 +3873,10 @@ void handleSpoolFlowDeferredActions() {
   }
   if (show_id_input_pending) {
     show_id_input_pending = false;
+    idPadRelease();
     id_input_open = false;
     link_id_lookup_pending = 0;
     copy_id_lookup_pending = 0;
-    releaseScreen(&scr_link_id);
-    lbl_link_id_display = nullptr;
-    lbl_link_id_status  = nullptr;
     // Clean up entry popups if they were hidden by X button
     if (scr_copy_entry && (lv_obj_has_flag(scr_copy_entry, LV_OBJ_FLAG_HIDDEN))) {
       lv_obj_del(scr_copy_entry); scr_copy_entry = nullptr;
@@ -4021,12 +3890,10 @@ void handleSpoolFlowDeferredActions() {
     link_id_lookup_pending = 0;
     copy_id_lookup_pending = 0;
     link_id_input[0] = '\0';
-    lbl_link_id_display = nullptr;
-    lbl_link_id_status  = nullptr;
     // The old numpad goes first. From the loop this may be synchronous, and
     // it should be: the new one is built a few lines down, and two numpads
     // in the pool at once is room the spool list would have used.
-    if (scr_link_id) { lv_obj_del(scr_link_id); scr_link_id = nullptr; }
+    idPadRelease();
     // Free the link_spools buffer grown during the failed lookup so the next
     // lookup starts with a clean slate and no out-of-bounds risk.
     linkSpoolsFree();
@@ -4065,8 +3932,7 @@ void handleSpoolFlowDeferredActions() {
     bool pbambu = link_id_lookup_is_bambu;
     link_id_lookup_pending = 0;
     // Close numpad before HTTP call
-    releaseScreen(&scr_link_id);
-    lbl_link_id_display = nullptr; lbl_link_id_status = nullptr;
+    idPadRelease();
     id_input_open = false;
     linkIdLookupAndPatch(pid, pbambu);
   }
@@ -4078,9 +3944,8 @@ void handleSpoolFlowDeferredActions() {
     DeserializationError derr2 = DeserializationError::Ok;
     int hcode = serverReachNote(backendGetSpoolJson(cfg_spoolman_base, cid, cdoc, 5000, &derr2), true);
     if (hcode != 200) {
-      if (lbl_link_id_status)
-        lv_label_set_text(lbl_link_id_status, T(serverReachIsNetworkFailure(hcode)
-                                                ? STR_NO_CONNECTION : STR_LINK_ID_NOT_FOUND));
+      idPadSay(T(serverReachIsNetworkFailure(hcode) ? STR_NO_CONNECTION : STR_LINK_ID_NOT_FOUND),
+               true);
     } else {
       if (!derr2) {
         int cfid   = cdoc["filament"]["id"] | 0;
@@ -4094,9 +3959,8 @@ void handleSpoolFlowDeferredActions() {
         char cjoined[64];
         joinMaterialName(cfmat, cfname, cjoined, sizeof(cjoined));
         snprintf(ctmpl, sizeof(ctmpl), "%s (%s)", cjoined, cfvnd);
-        lbl_link_id_display = nullptr;
-        lbl_link_id_status  = nullptr;
-        releaseScreen(&scr_link_id);
+        idPadRelease();
+        id_input_open = false;   // the pad is gone; NFC lookups may run again
         CopyLook look = {};
         snprintf(look.material, sizeof(look.material), "%s", cfmat);
         snprintf(look.name,     sizeof(look.name),     "%s", cfname);
@@ -4106,7 +3970,7 @@ void handleSpoolFlowDeferredActions() {
         if (ccol[0]) snprintf(look.color_hex, sizeof(look.color_hex), "#%s", ccol);
         showCopyConfirmPopup(cid, cfid, ctmpl, crem, cini, cspw, &look);
       } else {
-        if (lbl_link_id_status) lv_label_set_text(lbl_link_id_status, T(STR_LINK_JSON_ERR));
+        idPadSay(T(STR_LINK_JSON_ERR), true);
       }
     }
   }

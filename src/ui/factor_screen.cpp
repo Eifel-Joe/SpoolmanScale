@@ -1,6 +1,7 @@
 #include "factor_screen.h"
 #include "navigation.h"
 #include "app/app_state.h"
+#include "app/deferred_actions.h"
 
 #include <Arduino.h>
 #include <lvgl.h>
@@ -11,38 +12,401 @@
 #include "app_config.h"
 #include "hardware/scale.h"
 #include "hardware/scale_state.h"
-#include "confirm_popup.h"
-#include "info_popup.h"
 #include "hardware/sd_logger.h"
 #include "lang.h"
+#include "ota_browser.h"
 #include "scale_menu.h"
-#include "services/prefs_store.h"
-#include "services/user_options.h"
+#include "services/backend.h"
+#include "setup_frame.h"
 #include "ui_common.h"
 #include "theme.h"
+#include "weight_format.h"
 
+// The calibration, led through in three steps on one screen: empty the
+// scale and zero it, put a known weight on and enter it, then check what the
+// scale reads. The same screen for the setup and for the settings; only the
+// header and the quiet answers differ. The arithmetic is the old screen's,
+// unchanged.
 
 void resetActivityTimer();
 
-static char factor_input[16] = "";
-static lv_obj_t *lbl_factor_display = nullptr;
+#define CAL_CHIPS_Y       54
+#define CAL_CHIP_DISC     20
+#define CAL_CHIP_GAP      18
+#define CAL_BODY_Y        88
+#define CAL_TEXT_X        12
+#define CAL_TEXT_W       270
+#define CAL_CARD_X       298
+#define CAL_CARD_W       170
+#define CAL_CARD_H       120
+#define CAL_WIDE_CARD_H  128
+#define CAL_LINE_Y       226
+#define CAL_LINE_W       456
+#define CAL_FIELD_Y      156
+#define CAL_FIELD_W      200
+#define CAL_FIELD_H       48
+#define CAL_LIVE_Y       210   // step 2: the reading under the field
+#define CAL_LIVE_H        18
+#define CAL_PAD_X        226
+#define CAL_PAD_W        242
+#define CAL_KEY_H         38
+#define CAL_KEY_GAP        5
+#define CAL_PAD_COLS       3
+#define CAL_WEIGHT_FONT  (&lv_font_montserrat_ext_28)
 
+enum CalStep : uint8_t { CAL_STEP_EMPTY = 1, CAL_STEP_PLACE, CAL_STEP_CHECK };
+
+static CalStep   cal_step = CAL_STEP_EMPTY;
+static char      factor_input[16] = "";
+static lv_obj_t *lbl_factor_display = nullptr;
+// Everything below the header, rebuilt per step: released asynchronously, so
+// a button may change the step from its own callback.
+static lv_obj_t *cal_body = nullptr;
+
+static void buildCalStep();
+
+static void dropStepPointers() {
+  lbl_factor_display    = nullptr;
+  lbl_factor_result     = nullptr;
+  lbl_factor_cal_weight = nullptr;
+}
+
+static void goToStep(CalStep s) {
+  logSDf("Calibration: step %d", (int)s);
+  // Starting over starts with an empty weight, not one the next digit
+  // would be appended to.
+  if (s == CAL_STEP_EMPTY) factor_input[0] = '\0';
+  cal_step = s;
+  dropStepPointers();
+  releaseScreen(&cal_body);
+  buildCalStep();
+}
+
+// ---- leaving ----------------------------------------------------
+static void backToScaleMenu() {
+  hideAllOverlays();
+  if (!scr_scale_sub) buildScaleSubScreen();
+  lv_obj_clear_flag(scr_scale_sub, LV_OBJ_FLAG_HIDDEN);
+  // The factor is stored at Calculate already, and the menu row shows it.
+  scale_sub_rebuild_pending = true;
+}
+
+void factorBackToSetupStep() {
+  closeFactorScreen();
+  if (backendInfo(backendMode()).auth_in_browser) showOtaBrowserScreen(WEB_CTX_SETUP);
+  else                                            show_spoolman_pending = true;
+}
+
+static void onCalBack(lv_event_t *e) {
+  logSD("BTN: Calibration -> Back");
+  if (cal_step > CAL_STEP_EMPTY) { goToStep((CalStep)(cal_step - 1)); return; }
+  if (setup_active) cal_setup_back_pending = true;
+  else              backToScaleMenu();
+}
+
+// Done, or skipped in the setup: the setup goes on, the settings go back to
+// the scale menu, which shows the new factor in its row.
+static void finishCalibration(bool skipped) {
+  logSDf("Calibration: %s", skipped ? "later" : "done");
+  if (setup_active) {
+    setup_done_pending = true;   // the closing screen, built on the loop
+    return;
+  }
+  backToScaleMenu();
+  scale_sub_rebuild_pending = true;
+}
+
+// ---- pieces -----------------------------------------------------
+static lv_obj_t *calLabel(lv_obj_t *parent, const char *text, const lv_font_t *font,
+                          uint32_t col) {
+  lv_obj_t *l = lv_label_create(parent);
+  lv_label_set_text(l, text);
+  lv_obj_set_style_text_font(l, font, 0);
+  lv_obj_set_style_text_color(l, lv_color_hex(col), 0);
+  return l;
+}
+
+// The status line over the bar: a result, an error, or the factor. Across
+// the screen, or in the left column where the pad takes the right.
+static void addStatusLine(lv_obj_t *body, const char *text, bool left_column) {
+  lbl_factor_result = calLabel(body, text, UI_FONT_CAPTION, UI_COL_INK_SOFT);
+  lv_label_set_long_mode(lbl_factor_result, LV_LABEL_LONG_WRAP);
+  lv_obj_set_width(lbl_factor_result, left_column ? CAL_FIELD_W : CAL_LINE_W);
+  lv_obj_set_style_text_align(lbl_factor_result,
+                              left_column ? LV_TEXT_ALIGN_LEFT : LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_set_pos(lbl_factor_result, CAL_TEXT_X,
+                 left_column ? CAL_LIVE_Y + CAL_LIVE_H : CAL_LINE_Y);
+}
+
+static void addChip(lv_obj_t *row, int n, int str_id) {
+  const bool done = n < (int)cal_step, now = n == (int)cal_step;
+  lv_obj_t *chip = lv_obj_create(row);
+  lv_obj_remove_style_all(chip);
+  lv_obj_set_size(chip, LV_SIZE_CONTENT, CAL_CHIP_DISC);
+  lv_obj_set_flex_flow(chip, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(chip, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_pad_column(chip, 6, 0);
+
+  lv_obj_t *disc = lv_obj_create(chip);
+  lv_obj_remove_style_all(disc);
+  lv_obj_set_size(disc, CAL_CHIP_DISC, CAL_CHIP_DISC);
+  lv_obj_set_style_radius(disc, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_bg_opa(disc, (done || now) ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
+  lv_obj_set_style_bg_color(disc, lv_color_hex(now ? UI_COL_ACCENT : UI_COL_PICKED_BG), 0);
+  lv_obj_set_style_border_width(disc, (done || now) ? 0 : 1, 0);
+  lv_obj_set_style_border_color(disc, lv_color_hex(UI_COL_LINE), 0);
+  char num[4];
+  snprintf(num, sizeof(num), "%d", n);
+  lv_obj_t *d = calLabel(disc, done ? LV_SYMBOL_OK : num, UI_FONT_CAPTION,
+                         now ? UI_COL_ON_ACCENT : (done ? UI_COL_ACCENT : UI_COL_INK_SOFT));
+  lv_obj_center(d);
+  calLabel(chip, T(str_id), UI_FONT_SMALL, now ? UI_COL_INK : UI_COL_INK_SOFT);
+}
+
+static void addChips(lv_obj_t *body) {
+  lv_obj_t *row = lv_obj_create(body);
+  lv_obj_remove_style_all(row);
+  lv_obj_set_size(row, LV_SIZE_CONTENT, CAL_CHIP_DISC);
+  lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+  lv_obj_set_style_pad_column(row, CAL_CHIP_GAP, 0);
+  lv_obj_align(row, LV_ALIGN_TOP_MID, 0, CAL_CHIPS_Y);
+  addChip(row, CAL_STEP_EMPTY, STR_CAL_STEP_EMPTY);
+  addChip(row, CAL_STEP_PLACE, STR_CAL_STEP_PLACE);
+  addChip(row, CAL_STEP_CHECK, STR_CAL_STEP_CHECK);
+}
+
+// A box with a caption over the live weight; the loop writes the weight
+// into lbl_factor_cal_weight while this screen is up.
+static lv_obj_t *addWeightCard(lv_obj_t *body, int x, int w, int h, int caption_id) {
+  lv_obj_t *card = lv_obj_create(body);
+  lv_obj_set_size(card, w, h);
+  lv_obj_set_pos(card, x, CAL_BODY_Y);
+  lv_obj_set_style_pad_all(card, 0, 0);
+  lv_obj_set_style_radius(card, UI_RADIUS_ROW, 0);
+  lv_obj_set_style_bg_color(card, lv_color_hex(UI_COL_SURFACE), 0);
+  lv_obj_set_style_border_width(card, 1, 0);
+  lv_obj_set_style_border_color(card, lv_color_hex(UI_COL_LINE_SOFT), 0);
+  lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_clear_flag(card, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_align(calLabel(card, T(caption_id), UI_FONT_CAPTION, UI_COL_INK_SOFT), LV_ALIGN_TOP_MID, 0, 14);
+  lbl_factor_cal_weight = calLabel(card, "-- g", CAL_WEIGHT_FONT, UI_COL_INK);
+  lv_obj_align(lbl_factor_cal_weight, LV_ALIGN_CENTER, 0, 4);
+  return card;
+}
+
+// ---- step 1: empty and zero ------------------------------------
+static void onZero(lv_event_t *e) {
+  // Presence asked as well as scale_ready: an ADC that left the bus reads
+  // back as all ones, and tare would store -1 as the zero point.
+  if (!scale_ready || !scaleHardwarePresent()) {
+    if (lbl_factor_result) lv_label_set_text(lbl_factor_result, T(STR_TARE_NOT_READY));
+    return;
+  }
+  int32_t raw = scaleHardwareReadRaw();
+  saveTareOffset(raw);
+  scale_weight_g = 0.0f;
+  resetScaleFilter();
+  if (lbl_scale_weight) lv_label_set_text(lbl_scale_weight, "0 g");
+  Serial.println("Tare (calibration screen) executed");
+  goToStep(CAL_STEP_PLACE);
+}
+
+static void buildStepEmpty(lv_obj_t *body) {
+  lv_obj_t *t = calLabel(body, T(STR_CAL_EMPTY_PAN), UI_FONT_BODY, UI_COL_INK);
+  lv_label_set_long_mode(t, LV_LABEL_LONG_WRAP);
+  lv_obj_set_width(t, CAL_TEXT_W);
+  lv_obj_set_pos(t, CAL_TEXT_X, CAL_BODY_Y + CAL_CARD_H / 2 - 10);
+  addWeightCard(body, CAL_CARD_X, CAL_CARD_W, CAL_CARD_H, STR_CAL_SCALE_NOW);
+
+  // In the setup: where to find this later. In the settings: the factor
+  // that stands until the new one is calculated.
+  char line[160];
+  if (setup_active) {
+    snprintf(line, sizeof(line), T(STR_CAL_LATER_WHERE),
+             T(STR_SETTINGS_TITLE), T(STR_SCALE_TITLE), T(STR_BTN_CALIBRATE));
+  } else {
+    snprintf(line, sizeof(line), T(STR_CAL_CUR_FACTOR), cal_factor);
+  }
+  addStatusLine(body, line, false);
+
+  setupActionBar(body,
+    setup_active ? T(STR_SETUP_LATER) : nullptr,
+    [](lv_event_t *e) { finishCalibration(true); },
+    T(STR_CAL_ZERO_BTN), onZero);
+}
+
+// ---- step 2: a known weight ------------------------------------
+static void showFactorInput() {
+  if (lbl_factor_display) lv_label_set_text(lbl_factor_display, factor_input[0] ? factor_input : "_");
+}
+
+static void onCalKey(lv_event_t *e) {
+  const char *ch = lv_label_get_text(lv_obj_get_child(lv_event_get_target(e), 0));
+  if (ch[0] == '.' && strchr(factor_input, '.')) return;
+  const int len = strlen(factor_input);
+  if (len < (int)sizeof(factor_input) - 1) { factor_input[len] = ch[0]; factor_input[len + 1] = '\0'; }
+  showFactorInput();
+}
+
+static void onCalDelete(lv_event_t *e) {
+  const int len = strlen(factor_input);
+  if (len > 0) factor_input[len - 1] = '\0';
+  showFactorInput();
+}
+
+static void onCalculate(lv_event_t *e) {
+  if (!lbl_factor_result) return;
+  float known_g = atof(factor_input);
+  if (!scale_ready || !scaleHardwarePresent()) {
+    lv_label_set_text(lbl_factor_result, T(STR_TARE_NOT_READY));
+  } else if (known_g <= 0) {
+    lv_label_set_text(lbl_factor_result, T(STR_CAL_ZERO_ERR));
+  } else if (known_g < CAL_KNOWN_MIN_G || known_g > CAL_KNOWN_MAX_G) {
+    lv_label_set_text(lbl_factor_result, T(STR_CAL_RANGE_ERR));
+  } else {
+    int32_t raw = scaleHardwareReadRaw();
+    float factor = (float)(raw - zero_offset) / known_g;
+    // The last line of defence. A reading the bus never delivered is -1, and
+    // if tare stored -1 too the difference is zero: the factor collapses and
+    // every later weight explodes. Refusing here costs a retry; storing it
+    // costs a device that has to be re-flashed to be usable again.
+    if (!isfinite(factor) ||
+        fabsf(factor) < CAL_FACTOR_MIN || fabsf(factor) > CAL_FACTOR_MAX) {
+      Serial.printf("Calibration refused: raw=%d zero=%d known=%.1f factor=%.6f\n",
+                    raw, zero_offset, known_g, factor);
+      lv_label_set_text(lbl_factor_result, T(STR_CAL_IMPLAUSIBLE));
+    } else {
+      saveCalFactor(factor);
+      // The filter still holds readings in the old factor's units; step 3
+      // would show them settling for a second and a half, on the one screen
+      // whose job is to check the reading.
+      resetScaleFilter();
+      scale_weight_g = 0.0f;
+      goToStep(CAL_STEP_CHECK);
+    }
+  }
+}
+
+// 1 2 3 / 4 5 6 / 7 8 9 / . 0 delete
+static void buildCalPad(lv_obj_t *body) {
+  static const char *const KEYS[] = { "1","2","3","4","5","6","7","8","9",".","0","" };
+  const int key_w = (CAL_PAD_W - (CAL_PAD_COLS - 1) * CAL_KEY_GAP) / CAL_PAD_COLS;
+  for (int i = 0; i < 12; i++) {
+    const int col = i % CAL_PAD_COLS, row = i / CAL_PAD_COLS;
+    const bool del = (i == 11);
+    lv_obj_t *b = padButton(body, CAL_PAD_X + col * (key_w + CAL_KEY_GAP),
+                            CAL_CHIPS_Y + 30 + row * (CAL_KEY_H + CAL_KEY_GAP), key_w, CAL_KEY_H,
+                            del ? UI_COL_ROW : UI_COL_SURFACE, UI_COL_PRESS_FILL);
+    padLabel(b, del ? LV_SYMBOL_BACKSPACE : KEYS[i], del ? UI_COL_INK_2 : UI_COL_INK,
+             del ? UI_FONT_BODY : UI_FONT_TITLE);
+    lv_obj_add_event_cb(b, del ? onCalDelete : onCalKey, LV_EVENT_CLICKED, NULL);
+  }
+}
+
+static void buildStepPlace(lv_obj_t *body) {
+  lv_obj_t *t = calLabel(body, T(STR_CAL_PLACE_KNOWN), UI_FONT_BODY, UI_COL_INK);
+  lv_label_set_long_mode(t, LV_LABEL_LONG_WRAP);
+  lv_obj_set_width(t, CAL_FIELD_W);
+  lv_obj_set_pos(t, CAL_TEXT_X, CAL_BODY_Y - 2);
+  lv_obj_t *hint = calLabel(body, T(STR_CAL_ABOUT_1KG), UI_FONT_SMALL, UI_COL_INK_SOFT);
+  lv_obj_set_pos(hint, CAL_TEXT_X, CAL_BODY_Y + 42);
+
+  lv_obj_t *field = lv_obj_create(body);
+  lv_obj_set_size(field, CAL_FIELD_W, CAL_FIELD_H);
+  lv_obj_set_pos(field, CAL_TEXT_X, CAL_FIELD_Y);
+  lv_obj_set_style_bg_color(field, lv_color_hex(UI_COL_SURFACE), 0);
+  lv_obj_set_style_border_color(field, lv_color_hex(UI_COL_ACCENT), 0);
+  lv_obj_set_style_border_width(field, 2, 0);
+  lv_obj_set_style_radius(field, UI_RADIUS_ROW, 0);
+  lv_obj_set_style_pad_hor(field, 12, 0);
+  lv_obj_clear_flag(field, LV_OBJ_FLAG_SCROLLABLE);
+  lbl_factor_display = calLabel(field, "_", UI_FONT_HEADLINE, UI_COL_INK);
+  lv_obj_align(lbl_factor_display, LV_ALIGN_RIGHT_MID, -28, 0);
+  lv_obj_align(calLabel(field, "g", UI_FONT_HEADLINE, UI_COL_INK_SOFT), LV_ALIGN_RIGHT_MID, 0, 0);
+  showFactorInput();
+
+  // The reading while the weight settles, so the factor is not computed from
+  // a number still on its way up. The loop writes it (factorLiveText).
+  lbl_factor_cal_weight = calLabel(body, "", UI_FONT_CAPTION, UI_COL_INK_SOFT);
+  lv_obj_set_pos(lbl_factor_cal_weight, CAL_TEXT_X, CAL_LIVE_Y);
+
+  buildCalPad(body);
+  addStatusLine(body, "", true);
+
+  setupActionBar(body,
+    setup_active ? T(STR_SETUP_LATER) : nullptr,
+    [](lv_event_t *e) { finishCalibration(true); },
+    T(STR_BTN_CALCULATE), onCalculate);
+}
+
+// ---- step 3: check ---------------------------------------------
+static void buildStepCheck(lv_obj_t *body) {
+  lv_obj_t *card = addWeightCard(body, CAL_TEXT_X, CAL_LINE_W, CAL_WIDE_CARD_H, STR_CAL_SHOWS_NOW);
+  lv_obj_set_style_text_color(lbl_factor_cal_weight, lv_color_hex(UI_COL_ACCENT), 0);
+  char entered[48];
+  snprintf(entered, sizeof(entered), T(STR_CAL_ENTERED), factor_input);
+  lv_obj_align(calLabel(card, entered, UI_FONT_SMALL, UI_COL_INK_2), LV_ALIGN_BOTTOM_MID, 0, -12);
+
+  char line[48];
+  snprintf(line, sizeof(line), T(STR_CAL_NEW_FACTOR), cal_factor);
+  addStatusLine(body, line, false);
+
+  char ok_buf[40];
+  if (setup_active) snprintf(ok_buf, sizeof(ok_buf), "%s  " LV_SYMBOL_RIGHT, T(STR_CAL_LOOKS_RIGHT));
+  else              copyT(ok_buf, sizeof(ok_buf), STR_CAL_LOOKS_RIGHT);
+  setupActionBar(body,
+    T(STR_CAL_AGAIN), [](lv_event_t *e) { goToStep(CAL_STEP_EMPTY); },
+    ok_buf, [](lv_event_t *e) { finishCalibration(false); });
+}
+
+// ---- the screen ------------------------------------------------
+static void buildCalStep() {
+  // The whole screen, behind the header: its own buttons stay on top and
+  // keep their taps, the body's buttons get theirs.
+  cal_body = lv_obj_create(scr_factor);
+  lv_obj_remove_style_all(cal_body);
+  lv_obj_set_size(cal_body, 480, 320);
+  lv_obj_clear_flag(cal_body, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_clear_flag(cal_body, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_move_background(cal_body);
+
+  addChips(cal_body);
+  switch (cal_step) {
+    case CAL_STEP_PLACE: buildStepPlace(cal_body); break;
+    case CAL_STEP_CHECK: buildStepCheck(cal_body); break;
+    default:             buildStepEmpty(cal_body); break;
+  }
+}
+
+void factorLiveText(char *buf, size_t len, float grams) {
+  if (cal_step != CAL_STEP_PLACE) { fmtG(buf, len, grams); return; }
+  // Before the first calibration the factor is 1, so the "grams" are raw
+  // counts: shown as a bare number, still good enough to watch settle.
+  if (cal_factor == CAL_FACTOR_DEFAULT) {
+    snprintf(buf, len, T(STR_CAL_LIVE_RAW), grams);
+    return;
+  }
+  char g[16];
+  fmtG(g, sizeof(g), grams);
+  snprintf(buf, len, T(STR_CAL_LIVE_G), g);
+}
+
+void closeFactorScreen() {
+  dropStepPointers();
+  cal_body = nullptr;
+  if (scr_factor) { lv_obj_del(scr_factor); scr_factor = nullptr; }
+}
 
 void showFactorScreen() {
   logSD("SHOW: FactorScreen");
   logSD("UI: Screen -> Calibration");
   // Null all loop-update pointers BEFORE deleting scr_factor
   // Loop checks these pointers - must be null before del to avoid dangling access
-  lbl_factor_display    = nullptr;
-  lbl_factor_result     = nullptr;
-  lbl_factor_cal_weight = nullptr;
-  // Now safe to delete
+  dropStepPointers();
+  cal_body = nullptr;
   if (scr_factor) { lv_obj_del(scr_factor); scr_factor = nullptr; }
   buildFactorScreen();
-  // hideAllOverlays() is the authoritative list. A hand maintained copy used to
-  // live here and had drifted: scr_backend, scr_drying_reminder, scr_lastused,
-  // scr_more_info, scr_ota_github and scr_spoolman_fail were missing, so coming
-  // here from any of them left the old screen standing. Order matters - it also
+  // hideAllOverlays() is the authoritative list. Order matters - it also
   // hides scr_factor, which buildFactorScreen() created hidden anyway, so the
   // screen is shown right afterwards.
   hideAllOverlays();
@@ -53,301 +417,19 @@ void showFactorScreen() {
 void buildFactorScreen() {
   logSD("BUILD: FactorScreen");
   releaseScreen(&scr_factor);
-  scr_factor = lv_obj_create(lv_scr_act());
-  lv_obj_set_size(scr_factor, 480, 320);
-  lv_obj_set_pos(scr_factor, 0, 0);
-  lv_obj_add_flag(scr_factor, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_set_style_radius(scr_factor, 0, 0);
-  lv_obj_set_style_border_width(scr_factor, 0, 0);
-  lv_obj_set_style_pad_all(scr_factor, 0, 0);
-  lv_obj_clear_flag(scr_factor, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_style_bg_color(scr_factor, lv_color_hex(UI_COL_GROUND), 0);
+  dropStepPointers();
+  cal_body = nullptr;
+  factor_input[0] = '\0';
+  cal_step = CAL_STEP_EMPTY;
+  scr_factor = buildOverlayScreen();
 
-  // Crash protection: null label pointers (screen is rebuilt)
-  lbl_factor_display = nullptr;
-  lbl_factor_result  = nullptr;
-  lbl_factor_cal_weight = nullptr;
-  factor_input[0]    = '\0';
-
-  buildSubHeader(scr_factor, T(STR_CAL_TITLE),
-    [](lv_event_t *e){
-      hideAllOverlays();
-      if (!scr_scale_sub) buildScaleSubScreen();
-      lv_obj_clear_flag(scr_scale_sub, LV_OBJ_FLAG_HIDDEN);
-    });
-
-  // Description / hint - single line, compact
-  lv_obj_t *lbl_desc = lv_label_create(scr_factor);
-  lv_label_set_text(lbl_desc, T(STR_CAL_TARE_HINT));
-  lv_obj_set_style_text_color(lbl_desc, lv_color_hex(UI_COL_CAPTION), 0);
-  lv_obj_set_style_text_font(lbl_desc, &lv_font_montserrat_ext_12, 0);
-  lv_obj_set_style_text_align(lbl_desc, LV_TEXT_ALIGN_CENTER, 0);
-  lv_label_set_long_mode(lbl_desc, LV_LABEL_LONG_WRAP);
-  lv_obj_set_width(lbl_desc, 440);
-  lv_obj_align(lbl_desc, LV_ALIGN_TOP_MID, 0, 54);
-
-  // The whole instruction, one tap away. This screen has room for the one line
-  // above and a numpad, not for the four steps someone needs the first time -
-  // and the first time is exactly when they are here. Styled like the help
-  // circles on the settings rows so it reads as the same affordance.
-  //
-  // In the header row rather than beside the hint: everything from y=50 down
-  // is spoken for - the factor readout sits at the right edge at y=78 - and
-  // the 16 px between the centred title and the close button is the one gap on
-  // this screen that nothing else wants.
-  addHeaderHelp(scr_factor, STR_CAL_HELP_TITLE, STR_CAL_HELP_TEXT);
-
-  // Single status row: "Scale: <value>" left | "Factor: --" right
-  lv_obj_t *lbl_cal_w_title = lv_label_create(scr_factor);
-  lv_label_set_text(lbl_cal_w_title, T(STR_LBL_SCALE));
-  lv_obj_set_style_text_color(lbl_cal_w_title, lv_color_hex(UI_COL_CAPTION), 0);
-  lv_obj_set_style_text_font(lbl_cal_w_title, &lv_font_montserrat_ext_12, 0);
-  lv_obj_set_pos(lbl_cal_w_title, 12, 78);
-
-  lbl_factor_cal_weight = lv_label_create(scr_factor);
-  lv_label_set_text(lbl_factor_cal_weight, "-- g");
-  lv_obj_set_style_text_color(lbl_factor_cal_weight, lv_color_hex(UI_COL_ACCENT), 0);
-  lv_obj_set_style_text_font(lbl_factor_cal_weight, &lv_font_montserrat_ext_12, 0);
-  // Hung off the caption instead of a fixed 56. The caption is a translated
-  // string and its width follows the language: "Scale:" is 38 px and left a
-  // gap, "Waage:" is 45 and ended one pixel into the value, so the German
-  // screen read "Waage:0 g". Aligning to the real width fixes both and any
-  // translation after them.
-  lv_obj_update_layout(scr_factor);
-  lv_obj_align_to(lbl_factor_cal_weight, lbl_cal_w_title,
-                  LV_ALIGN_OUT_RIGHT_MID, 6, 0);
-
-  lbl_factor_result = lv_label_create(scr_factor);
-  lv_label_set_text(lbl_factor_result, T(STR_CAL_FACTOR));
-  lv_obj_set_style_text_color(lbl_factor_result, lv_color_hex(UI_COL_WARN), 0);
-  lv_obj_set_style_text_font(lbl_factor_result, &lv_font_montserrat_ext_12, 0);
-  lv_obj_set_style_text_align(lbl_factor_result, LV_TEXT_ALIGN_RIGHT, 0);
-  lv_obj_set_width(lbl_factor_result, 220);
-  lv_obj_set_pos(lbl_factor_result, 248, 78);
-
-  // Input field - y=94 (below status row)
-  lv_obj_t *input_box_f = lv_obj_create(scr_factor);
-  lv_obj_set_size(input_box_f, 260, 34);
-  lv_obj_align(input_box_f, LV_ALIGN_TOP_MID, 0, 94);
-  lv_obj_set_style_bg_color(input_box_f, lv_color_hex(UI_COL_SURFACE), 0);
-  lv_obj_set_style_border_color(input_box_f, lv_color_hex(UI_COL_ACCENT), 0);
-  lv_obj_set_style_border_width(input_box_f, 1, 0);
-  lv_obj_set_style_radius(input_box_f, 6, 0);
-  lv_obj_set_style_pad_all(input_box_f, 0, 0);
-  lv_obj_clear_flag(input_box_f, LV_OBJ_FLAG_SCROLLABLE);
-
-  lbl_factor_display = lv_label_create(input_box_f);
-  lv_label_set_text(lbl_factor_display, "_");
-  lv_obj_set_style_text_color(lbl_factor_display, lv_color_hex(UI_COL_ACCENT), 0);
-  lv_obj_set_style_text_font(lbl_factor_display, &lv_font_montserrat_ext_20, 0);
-  lv_obj_set_style_text_align(lbl_factor_display, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_center(lbl_factor_display);
-
-  // ── Numpad (104x30, start y=132) ──
-  const int NP_W = 104, NP_H = 30, NP_GAP = 4;
-  const int NP_PAD_X = (480 - 3*NP_W - 2*NP_GAP) / 2;
-  const int NP_START_Y = 132;
-
-  const char* np_labels_f[] = { "1","2","3","4","5","6","7","8","9",".","0","T" };
-
-  // ── Whole-gram toggle (left of numpad, 68x68px) ──
-  // NP_PAD_X = 80px - 68px toggle fits with 6px margin
-  {
-    lv_obj_t *btn_wg = lv_btn_create(scr_factor);
-    lv_obj_set_size(btn_wg, 68, 68);
-    int wg_y = NP_START_Y + (4*(NP_H+NP_GAP) - 68) / 2;  // vertically centred in numpad area
-    lv_obj_set_pos(btn_wg, 6, wg_y);
-    lv_obj_set_style_radius(btn_wg, 8, 0);
-    lv_obj_set_style_shadow_width(btn_wg, 0, 0);
-    lv_obj_set_style_border_width(btn_wg, 1, 0);
-    lv_obj_set_style_bg_color(btn_wg, g_whole_gram ? lv_color_hex(UI_COL_GO_BG) : lv_color_hex(UI_COL_SURFACE), 0);
-    lv_obj_set_style_border_color(btn_wg, g_whole_gram ? lv_color_hex(UI_COL_ACCENT) : lv_color_hex(UI_COL_LINE_SOFT), 0);
-    lv_obj_set_style_bg_color(btn_wg, lv_color_hex(UI_COL_GO_BG_PRESSED), LV_STATE_PRESSED);
-
-    lv_obj_t *lbl_wg = lv_label_create(btn_wg);
-    lv_label_set_text(lbl_wg, T(STR_WHOLE_GRAM));
-    lv_obj_set_style_text_color(lbl_wg, g_whole_gram ? lv_color_hex(UI_COL_ACCENT) : lv_color_hex(UI_COL_CAPTION), 0);
-    lv_obj_set_style_text_font(lbl_wg, &lv_font_montserrat_ext_12, 0);
-    lv_obj_set_style_text_align(lbl_wg, LV_TEXT_ALIGN_CENTER, 0);
-    lv_label_set_long_mode(lbl_wg, LV_LABEL_LONG_WRAP);
-    lv_obj_set_width(lbl_wg, 60);
-    lv_obj_center(lbl_wg);
-
-    lv_obj_add_event_cb(btn_wg, [](lv_event_t *e) {
-      g_whole_gram = !g_whole_gram;
-      prefsPutBool("whole_gram", g_whole_gram);
-      lv_obj_t *b = lv_event_get_target(e);
-      lv_obj_t *l = lv_obj_get_child(b, 0);
-      lv_obj_set_style_bg_color(b, g_whole_gram ? lv_color_hex(UI_COL_GO_BG) : lv_color_hex(UI_COL_SURFACE), 0);
-      lv_obj_set_style_border_color(b, g_whole_gram ? lv_color_hex(UI_COL_ACCENT) : lv_color_hex(UI_COL_LINE_SOFT), 0);
-      lv_obj_set_style_text_color(l, g_whole_gram ? lv_color_hex(UI_COL_ACCENT) : lv_color_hex(UI_COL_CAPTION), 0);
-    }, LV_EVENT_CLICKED, NULL);
+  // In the settings the help keeps its place beside the title: the steps
+  // say what to do, the help says why.
+  if (setup_active) {
+    setupHeader(scr_factor, T(STR_CAL_REMINDER_TITLE), SETUP_STEP_SCALE, onCalBack);
+  } else {
+    buildSubHeader(scr_factor, T(STR_CAL_TITLE), onCalBack);
+    addHeaderHelp(scr_factor, STR_CAL_HELP_TITLE, STR_CAL_HELP_TEXT);
   }
-
-  // ── Reset calibration (right of numpad, mirror of the toggle) ──
-  // The way back from a calibration taken while the ADC was off the bus: every
-  // reading was -1 then, the stored factor is arithmetic on nonsense, and no
-  // amount of re-tareing fixes it. This is the only place it can be asked for,
-  // and the screen someone is on when they find out they need it.
-  //
-  // The column right of the numpad (x 400..480) is otherwise empty, so the
-  // button sits where the whole-gram toggle sits on the other side.
-  {
-    lv_obj_t *btn_rst = lv_btn_create(scr_factor);
-    lv_obj_set_size(btn_rst, 68, 68);
-    int rst_y = NP_START_Y + (4*(NP_H+NP_GAP) - 68) / 2;
-    lv_obj_set_pos(btn_rst, 480 - 68 - 6, rst_y);
-    lv_obj_set_style_radius(btn_rst, 8, 0);
-    lv_obj_set_style_shadow_width(btn_rst, 0, 0);
-    lv_obj_set_style_border_width(btn_rst, 1, 0);
-    // Quiet surface, amber words: a red block at the screen's edge read as
-    // Cancel, and this is not a way out of the screen but a setting to undo.
-    // The confirmation it opens carries the red.
-    lv_obj_set_style_bg_color(btn_rst, lv_color_hex(UI_COL_SURFACE), 0);
-    lv_obj_set_style_bg_color(btn_rst, lv_color_hex(UI_COL_PRESS_FILL), LV_STATE_PRESSED);
-    lv_obj_set_style_border_color(btn_rst, lv_color_hex(UI_COL_LINE_SOFT), 0);
-
-    lv_obj_t *lbl_rst = lv_label_create(btn_rst);
-    { char rb[24]; copyT(rb, sizeof(rb), STR_BTN_CAL_RESET_SHORT); lv_label_set_text(lbl_rst, rb); }
-    lv_obj_set_style_text_color(lbl_rst, lv_color_hex(UI_COL_WARN), 0);
-    lv_obj_set_style_text_font(lbl_rst, &lv_font_montserrat_ext_12, 0);
-    lv_obj_set_style_text_align(lbl_rst, LV_TEXT_ALIGN_CENTER, 0);
-    lv_label_set_long_mode(lbl_rst, LV_LABEL_LONG_WRAP);
-    lv_obj_set_width(lbl_rst, 60);
-    lv_obj_center(lbl_rst);
-
-    lv_obj_add_event_cb(btn_rst, [](lv_event_t *e) {
-      // The write itself is deferred like every other NVS write reached from a
-      // callback, and it rebuilds nothing - see cal_reset_pending in app_loop.
-      logSD("BTN: Calibration -> Reset calibration");
-      char ask[64]; copyT(ask, sizeof(ask), STR_CAL_RESET_CONFIRM);
-      showConfirmPopup(ask, 6);
-    }, LV_EVENT_CLICKED, NULL);
-  }
-
-  for (int i = 0; i < 12; i++) {
-    int col = i % 3, row = i / 3;
-    lv_obj_t *btn = lv_btn_create(scr_factor);
-    lv_obj_set_size(btn, NP_W, NP_H);
-    lv_obj_set_pos(btn, NP_PAD_X + col*(NP_W+NP_GAP), NP_START_Y + row*(NP_H+NP_GAP));
-
-    if (i == 11) {
-      // TARE button in the free slot (bottom right of numpad)
-      lv_obj_set_style_bg_color(btn, lv_color_hex(UI_COL_AMBER_BG), 0);
-      lv_obj_set_style_bg_color(btn, lv_color_hex(UI_COL_AMBER_BG_PRESSED), LV_STATE_PRESSED);
-      lv_obj_set_style_radius(btn, 6, 0);
-      lv_obj_set_style_shadow_width(btn, 0, 0);
-      lv_obj_set_style_border_width(btn, 1, 0);
-      lv_obj_set_style_border_color(btn, lv_color_hex(UI_COL_AMBER_LINE), 0);
-      lv_obj_add_event_cb(btn, [](lv_event_t *e) {
-        if (!lbl_factor_result) return;
-        // Presence asked as well as scale_ready: an ADC that left the bus
-        // reads back as all ones, and tare would store -1 as the zero point.
-        if (scale_ready && scaleHardwarePresent()) {
-          int32_t raw = scaleHardwareReadRaw();
-          saveTareOffset(raw);
-          scale_weight_g = 0.0f;
-          resetScaleFilter();
-          lv_label_set_text(lbl_factor_result, T(STR_TARE_OK));
-          if (lbl_scale_weight) lv_label_set_text(lbl_scale_weight, "0 g");
-          Serial.println("Tare (calibration screen) executed");
-        } else {
-          lv_label_set_text(lbl_factor_result, T(STR_TARE_NOT_READY));
-        }
-      }, LV_EVENT_CLICKED, NULL);
-      lv_obj_t *lbl = lv_label_create(btn);
-      lv_label_set_text(lbl, LV_SYMBOL_REFRESH " TARE");
-      lv_obj_set_style_text_color(lbl, lv_color_hex(UI_COL_WARN), 0);
-      lv_obj_set_style_text_font(lbl, &lv_font_montserrat_ext_14, 0);
-      lv_obj_center(lbl);
-    } else {
-      lv_obj_set_style_bg_color(btn, lv_color_hex(UI_COL_SURFACE), 0);
-      lv_obj_set_style_bg_color(btn, lv_color_hex(UI_COL_PRESS_FILL), LV_STATE_PRESSED);
-      lv_obj_set_style_radius(btn, 6, 0);
-      lv_obj_set_style_shadow_width(btn, 0, 0);
-      lv_obj_set_style_border_width(btn, 1, 0);
-      lv_obj_set_style_border_color(btn, lv_color_hex(UI_COL_LINE_SOFT), 0);
-      lv_obj_t *lbl = lv_label_create(btn);
-      lv_label_set_text(lbl, np_labels_f[i]);
-      lv_obj_set_style_text_color(lbl, lv_color_hex(UI_COL_INK), 0);
-      lv_obj_set_style_text_font(lbl, &lv_font_montserrat_ext_16, 0);
-      lv_obj_center(lbl);
-      lv_obj_add_event_cb(btn, [](lv_event_t *e) {
-        if (!lbl_factor_display) return;
-        const char* ch = lv_label_get_text(lv_obj_get_child(lv_event_get_target(e), 0));
-        if (ch[0] == '.' && strchr(factor_input, '.')) return;
-        int len = strlen(factor_input);
-        if (len < (int)sizeof(factor_input)-1) { factor_input[len]=ch[0]; factor_input[len+1]='\0'; }
-        lv_label_set_text(lbl_factor_display, factor_input[0] ? factor_input : "_");
-      }, LV_EVENT_CLICKED, NULL);
-    }
-  }
-
-  int by5_f = NP_START_Y + 4*(NP_H+NP_GAP);
-  int bw5_f = (3*NP_W + 2*NP_GAP - NP_GAP) / 2;
-
-  lv_obj_t *btn_del_f = lv_btn_create(scr_factor);
-  lv_obj_set_size(btn_del_f, bw5_f, NP_H);
-  lv_obj_set_pos(btn_del_f, NP_PAD_X, by5_f);
-  lv_obj_set_style_bg_color(btn_del_f, lv_color_hex(UI_COL_ROW), 0);
-  lv_obj_set_style_bg_color(btn_del_f, lv_color_hex(UI_COL_QUIET_BG_PRESSED), LV_STATE_PRESSED);
-  lv_obj_set_style_radius(btn_del_f, 6, 0);
-  lv_obj_set_style_shadow_width(btn_del_f, 0, 0);
-  lv_obj_set_style_border_width(btn_del_f, 1, 0);
-  lv_obj_set_style_border_color(btn_del_f, lv_color_hex(UI_COL_LINE_SOFT), 0);
-  lv_obj_add_event_cb(btn_del_f, [](lv_event_t *e) {
-    if (!lbl_factor_display) return;
-    int len = strlen(factor_input);
-    if (len > 0) factor_input[len-1] = '\0';
-    lv_label_set_text(lbl_factor_display, factor_input[0] ? factor_input : "_");
-  }, LV_EVENT_CLICKED, NULL);
-  lv_obj_t *lbl_del_f = lv_label_create(btn_del_f);
-  lv_label_set_text(lbl_del_f, LV_SYMBOL_BACKSPACE);
-  lv_obj_set_style_text_color(lbl_del_f, lv_color_hex(UI_COL_INK_2), 0);
-  lv_obj_set_style_text_font(lbl_del_f, &lv_font_montserrat_ext_16, 0);
-  lv_obj_center(lbl_del_f);
-
-  lv_obj_t *btn_ok_f = lv_btn_create(scr_factor);
-  lv_obj_set_size(btn_ok_f, bw5_f, NP_H);
-  lv_obj_set_pos(btn_ok_f, NP_PAD_X + bw5_f + NP_GAP, by5_f);
-  lv_obj_set_style_bg_color(btn_ok_f, lv_color_hex(UI_COL_GO_BG), 0);
-  lv_obj_set_style_bg_color(btn_ok_f, lv_color_hex(UI_COL_GO_BG_PRESSED), LV_STATE_PRESSED);
-  lv_obj_set_style_radius(btn_ok_f, 6, 0);
-  lv_obj_set_style_shadow_width(btn_ok_f, 0, 0);
-  lv_obj_set_style_border_width(btn_ok_f, 1, 0);
-  lv_obj_set_style_border_color(btn_ok_f, lv_color_hex(UI_COL_GO_BG_PRESSED), 0);
-  lv_obj_add_event_cb(btn_ok_f, [](lv_event_t *e) {
-    if (!lbl_factor_result) return;
-    float known_g = atof(factor_input);
-    if (!scale_ready || !scaleHardwarePresent()) {
-      lv_label_set_text(lbl_factor_result, T(STR_TARE_NOT_READY));
-    } else if (known_g <= 0) {
-      lv_label_set_text(lbl_factor_result, T(STR_CAL_ZERO_ERR));
-    } else if (known_g < CAL_KNOWN_MIN_G || known_g > CAL_KNOWN_MAX_G) {
-      lv_label_set_text(lbl_factor_result, T(STR_CAL_RANGE_ERR));
-    } else {
-      int32_t raw = scaleHardwareReadRaw();
-      float factor = (float)(raw - zero_offset) / known_g;
-      // The last line of defence. A reading the bus never delivered is -1, and
-      // if tare stored -1 too the difference is zero: the factor collapses and
-      // every later weight explodes. Refusing here costs a retry; storing it
-      // costs a device that has to be re-flashed to be usable again.
-      if (!isfinite(factor) ||
-          fabsf(factor) < CAL_FACTOR_MIN || fabsf(factor) > CAL_FACTOR_MAX) {
-        Serial.printf("Calibration refused: raw=%d zero=%d known=%.1f factor=%.6f\n",
-                      raw, zero_offset, known_g, factor);
-        lv_label_set_text(lbl_factor_result, T(STR_CAL_IMPLAUSIBLE));
-      } else {
-        saveCalFactor(factor);
-        char buf[64];
-        snprintf(buf, sizeof(buf), T(STR_CAL_OK), factor);
-        lv_label_set_text(lbl_factor_result, buf);
-      }
-    }
-  }, LV_EVENT_CLICKED, NULL);
-  lv_obj_t *lbl_ok2_f = lv_label_create(btn_ok_f);
-  lv_label_set_text(lbl_ok2_f, T(STR_BTN_CALCULATE));
-  lv_obj_set_style_text_color(lbl_ok2_f, lv_color_hex(UI_COL_OK_TEXT_2), 0);
-  lv_obj_set_style_text_font(lbl_ok2_f, &lv_font_montserrat_ext_14, 0);
-  lv_obj_center(lbl_ok2_f);
+  buildCalStep();
 }

@@ -11,6 +11,7 @@ enum WebScreenContext : uint8_t {
   WEB_CTX_BACKEND  = 1,   // opened from the backend menu, back to that menu
   WEB_CTX_SETUP    = 2,   // credential step of the first time setup
   WEB_CTX_DRYING   = 3,   // drying thresholds, back to the reminder screen
+  WEB_CTX_ADDRESS  = 4,   // the server address screen, for what its pad cannot type
 };
 
 void showOtaBrowserScreen(WebScreenContext ctx = WEB_CTX_FIRMWARE);

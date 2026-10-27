@@ -90,7 +90,6 @@
 #include "ui/backend_screen.h"
 #include "ui/filaman_options_screen.h"
 #include "ui/bag_screen.h"
-#include "ui/cal_reminder_screen.h"
 #include "ui/bambuddy_options_screen.h"
 #include "ui/spoolman_options_screen.h"
 #include "ui/tag_companion_screen.h"
@@ -108,6 +107,8 @@
 #include "ui/timezone_screen.h"
 #include "ui/language_screen.h"
 #include "ui/factor_screen.h"
+#include "ui/live_zone.h"
+#include "ui/setup_done_screen.h"
 #include "ui/header_status.h"
 #include "ui/info_screen.h"
 #include "ui/last_used_screen.h"
@@ -271,8 +272,8 @@ static bool weightSaysSpoolGone() {
 // A gross weight that has demonstrably settled, tracked whether or not auto
 // weighing is switched on. The AMS question reports this when nothing was
 // weighed on purpose, and that value gets written to FilaMan - so it must not
-// be a number the average was still chasing. Same criterion the auto weight
-// path uses: within AUTO_WEIGHT_THRESH_G for AUTO_WEIGHT_STABLE_MS.
+// be a number the average was still chasing: within AUTO_WEIGHT_THRESH_G for
+// AUTO_WEIGHT_STABLE_MS, stricter than the automatic weighing's own band.
 static float         ams_settle_last  = -9999.0f;
 static unsigned long ams_settle_since = 0;
 static float         ams_settled_g    = 0.0f;
@@ -786,33 +787,28 @@ void appLoop() {
 
   if (cal_reminder_pending) {
     cal_reminder_pending = false;
-    // The last step of the setup asks whether to calibrate now. With no load
-    // cell there is nothing to calibrate, so the chain ends one screen early.
-    // showMainScreen() frees every setup screen itself - the same ones
-    // showCalReminderScreen() would have freed - so nothing is left standing.
-    if (g_scale_fitted) showCalReminderScreen();
-    else                showMainScreen();
+    // The setup's scale step, after its other screens have been freed. With
+    // no load cell there is nothing to calibrate, so the chain ends here.
+    if (g_scale_fitted) { releaseSetupScreens(); showFactorScreen(); }
+    else                showSetupDoneScreen();
+  }
+  if (setup_done_pending) {
+    setup_done_pending = false;
+    showSetupDoneScreen();
+  }
+  if (cal_setup_back_pending) {
+    cal_setup_back_pending = false;
+    factorBackToSetupStep();
   }
   handleSpoolFlowDeferredActions();
   // After the flow's own actions, so a way the card opens is taken this pass.
   unknownSpoolTick();
   if (show_bag_pending) {
     show_bag_pending = false;
-    if (!scr_bag) buildBagScreen();
-    hideAllOverlays();
-    lv_obj_clear_flag(scr_bag, LV_OBJ_FLAG_HIDDEN);
+    showBagPad();
   }
   if (show_factor_pending) {
     show_factor_pending = false;
-    showFactorScreen();
-  }
-  // "Calibrate now" on the reminder at the end of the setup. Two steps in a
-  // fixed order: showMainScreen() first, because it is what tears down the
-  // setup overlays and clears setup_active, and only then the calibration on
-  // top of a main screen that is actually there.
-  if (cal_now_pending) {
-    cal_now_pending = false;
-    showMainScreen();
     showFactorScreen();
   }
   // "Check again" in the diagnosis popup. The bus probe belongs to the loop
@@ -849,11 +845,8 @@ void appLoop() {
     resetScaleFilter();
     scale_weight_g = 0.0f;
     logSD("Calibration reset to defaults");
-    // Asked for on the calibration screen and answered there: the factor line
-    // says so and the screen stays put. The scale menu picks the new factor up
-    // from its subtitle when the user goes back, which rebuilds it anyway.
-    if (lbl_factor_result) lv_label_set_text(lbl_factor_result, T(STR_CAL_RESET_DONE));
-    if (lbl_factor_cal_weight) lv_label_set_text(lbl_factor_cal_weight, "-- g");
+    // Asked for on the scale menu, which shows the factor in its row.
+    scale_sub_rebuild_pending = true;
   }
   // A scale menu row changed a setting and wants the screen to say so. The
   // rebuild deletes the row that asked for it, so it cannot happen in that
@@ -867,6 +860,10 @@ void appLoop() {
       buildScaleSubScreen();
       lv_obj_clear_flag(scr_scale_sub, LV_OBJ_FLAG_HIDDEN);
     }
+  }
+  if (live_zone_rebuild_pending) {
+    live_zone_rebuild_pending = false;
+    rebuildLiveZone();
   }
   // After the rebuild above, never before it: that one hides every overlay.
   if (show_reboot_pending) {
@@ -991,10 +988,10 @@ void appLoop() {
   }
   if (show_welcome_pending) {
     show_welcome_pending = false;
-    // Rebuilt for the same reason as the language screen above.
-    buildWelcomeScreen();
+    // Back from the zone picker to the setup's welcome, rebuilt to show the pick.
+    buildFirstBootScreen();
     hideAllOverlays();
-    lv_obj_clear_flag(scr_welcome, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(scr_first_boot, LV_OBJ_FLAG_HIDDEN);
   }
   if (ams_main_assign_pending) {
     ams_main_assign_pending = false;
@@ -1016,7 +1013,6 @@ void appLoop() {
     show_spoolman_pending = false;
     // Always rebuild - sp_ip_input is reset on entry
     closeSpoolmanScreen();
-    if (scr_spoolman_fail) { lv_obj_del(scr_spoolman_fail); scr_spoolman_fail = nullptr; }
     buildSpoolmanScreen();
     hideAllOverlays();
     lv_obj_clear_flag(scr_spoolman, LV_OBJ_FLAG_HIDDEN);
@@ -1259,7 +1255,7 @@ void appLoop() {
       // that had already been sitting still for three seconds when the
       // trigger arrived would otherwise be written on the very first pass,
       // with no countdown on the button and no moment to put a tag on after
-      // all. Now the same three seconds run visibly from the adoption.
+      // all. Now the quiet second and the countdown run from the adoption.
       auto_weight_stable_ms = millis();
       auto_weight_last_val  = scale_weight_g;
       if (lbl_status) {
@@ -1495,8 +1491,8 @@ void appLoop() {
     lv_label_set_text(lbl_scale_weight, w_str);
     // Also update live weight in calibration screen if open
     if (lbl_factor_cal_weight && scr_factor && !lv_obj_has_flag(scr_factor, LV_OBJ_FLAG_HIDDEN)) {
-      char cal_str[16];
-      fmtG(cal_str, sizeof(cal_str), scale_weight_g);  // Fix 6: raw weight
+      char cal_str[48];
+      factorLiveText(cal_str, sizeof(cal_str), scale_weight_g);
       lv_label_set_text(lbl_factor_cal_weight, cal_str);
     }
 
@@ -1605,22 +1601,34 @@ void appLoop() {
         sm_found && !sm_archived && sm_id > 0 && scale_ready &&
         (tag_present || aw_adopted)) {
       const float cur = scale_weight_g;
-      if (fabsf(cur - auto_weight_last_val) > AUTO_WEIGHT_THRESH_G) {
-        // Still moving: the window starts again, and the fill with it.
+      const unsigned long now = millis();
+      if (auto_weight_stable_ms == 0 || fabsf(cur - auto_weight_last_val) > AUTO_WEIGHT_BAND_G) {
+        // First look, or still moving: the window starts again, and a
+        // countdown already on the button goes back to the waiting look.
         auto_weight_last_val = cur;
-        auto_weight_stable_ms = millis();
-      } else if (auto_weight_stable_ms > 0 &&
-                 millis() - auto_weight_stable_ms >= AUTO_WEIGHT_STABLE_MS) {
-        auto_weight_done = true;
-        auto_weight_stable_ms = 0;
-        autoWeightSettled(cur);
-      } else if (auto_weight_stable_ms == 0) {
-        auto_weight_last_val = cur;
-        auto_weight_stable_ms = millis();
+        auto_weight_stable_ms = now;
+        if (weightButtonLook() == WL_COUNTING) weightButtonIdle();
       } else {
-        const float netto = cur - (float)sm_spool_weight;
-        weightButtonShow(WL_COUNTING, netto < 0.0f ? 0.0f : netto);
-        weightButtonFill(AUTO_WEIGHT_STABLE_MS - (millis() - auto_weight_stable_ms));
+        const unsigned long still_ms = now - auto_weight_stable_ms;
+        if (still_ms >= AUTO_WEIGHT_QUIET_MS + AUTO_WEIGHT_STABLE_MS) {
+          auto_weight_done = true;
+          auto_weight_stable_ms = 0;
+          autoWeightSettled(cur);
+        } else if (still_ms >= AUTO_WEIGHT_QUIET_MS) {
+          const float netto = cur - (float)sm_spool_weight;
+          weightButtonShow(WL_COUNTING, netto < 0.0f ? 0.0f : netto);
+          weightButtonFill(AUTO_WEIGHT_QUIET_MS + AUTO_WEIGHT_STABLE_MS - still_ms);
+        }
+      }
+    } else if (!auto_weight_done && (tag_present || aw_adopted)) {
+      // A spool is there but weighing is held off: a popup that uses the
+      // weight, a scale that is not ready, a spool not looked up yet. The
+      // window starts again afterwards; left running it would send the
+      // moment the popup closed, without the quiet second or the countdown.
+      if (auto_weight_stable_ms > 0) {
+        auto_weight_stable_ms = 0;
+        auto_weight_last_val = -9999.0f;
+        if (weightButtonLook() == WL_COUNTING) weightButtonIdle();
       }
     } else if (!auto_weight_done && !tag_present && !idSpoolActive()) {
       // No spool, no countdown: the idle look.

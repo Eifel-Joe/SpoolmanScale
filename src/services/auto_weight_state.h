@@ -10,7 +10,20 @@ extern unsigned long auto_weight_stable_ms;
 extern bool auto_weight_done;
 
 #define AUTO_WEIGHT_STABLE_MS 3000
+// The strict test for a settled weight (AMS report, BamBuddy's "stable").
 #define AUTO_WEIGHT_THRESH_G 0.5f
+// The automatic weighing's own window: the weight has to stay within
+// AUTO_WEIGHT_BAND_G of where it started. For AUTO_WEIGHT_QUIET_MS nothing
+// shows, then the button counts AUTO_WEIGHT_STABLE_MS down. With 0.5 g and
+// no quiet phase the countdown started the moment a spool touched the pad
+// and broke off again and again while the average was still climbing; 2 g
+// ignores a reading that wobbles by a gram, and still restarts for a spool
+// that is really moving.
+#define AUTO_WEIGHT_BAND_G    2.0f
+#define AUTO_WEIGHT_QUIET_MS  1000
+// Auto-tare until it is switched off in the scale menu: an empty pad that
+// drifts a few grams is fixed without anyone noticing.
+#define AUTO_TARE_DEFAULT     true
 // Below this much change against the backend nothing is written: the value
 // is the same, and a write would only cost a request.
 #define AUTO_WEIGHT_MIN_CHANGE_G 1.0f

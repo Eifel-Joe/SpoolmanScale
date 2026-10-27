@@ -17,6 +17,7 @@
 #include "web/web_access.h"
 #include "services/wifi_manager.h"
 #include "ui_common.h"
+#include "setup_frame.h"
 #include "theme.h"
 #include "icons.h"
 #include "extra/libs/qrcode/lv_qrcode.h"
@@ -36,6 +37,10 @@
 // The row of status and action under the card, in halves or across.
 #define WEB_ROW_Y       246
 #define WEB_ROW_H        54
+// In the setup the row moves up and gets lower, so the setup's action bar
+// fits under it in its usual place.
+#define WEB_SETUP_ROW_Y 212
+#define WEB_SETUP_ROW_H  40
 #define WEB_HALF_W      222
 #define WEB_HALF_X2     246
 // The firmware row: status on the left, the installed version on the right.
@@ -74,7 +79,8 @@ static bool showsCredentials() {
   // Spoolman has nothing to enter, so the rows are a FilaMan and BamBuddy
   // affair even in the contexts that would otherwise show them.
   if (backendMode() == BACKEND_SPOOLMAN) return false;
-  return s_web_ctx == WEB_CTX_BACKEND || s_web_ctx == WEB_CTX_SETUP;
+  return s_web_ctx == WEB_CTX_BACKEND || s_web_ctx == WEB_CTX_SETUP ||
+         s_web_ctx == WEB_CTX_ADDRESS;
 }
 
 // Everything except the firmware upload uses the neutral title and skips the
@@ -94,6 +100,7 @@ struct WebTarget { const char *path; WebGate gate; };
 static WebTarget webTargetFor(WebScreenContext ctx) {
   switch (ctx) {
     case WEB_CTX_BACKEND:
+    case WEB_CTX_ADDRESS:
     case WEB_CTX_SETUP:   return { "/backend", GATE_CONFIG };
     case WEB_CTX_DRYING:  return { "/drying",  GATE_CONFIG };
     default:              return { "/ota",     GATE_MAINT  };
@@ -153,9 +160,10 @@ static lv_obj_t* webLabel(lv_obj_t *parent, const char *text, const lv_font_t *f
 
 // A quiet box in the row under the card: what is on, what is waiting.
 static lv_obj_t* webRowBox(lv_obj_t *parent, int x, int w) {
+  const bool setup = s_web_ctx == WEB_CTX_SETUP;
   lv_obj_t *box = lv_obj_create(parent);
-  lv_obj_set_size(box, w, WEB_ROW_H);
-  lv_obj_set_pos(box, x, WEB_ROW_Y);
+  lv_obj_set_size(box, w, setup ? WEB_SETUP_ROW_H : WEB_ROW_H);
+  lv_obj_set_pos(box, x, setup ? WEB_SETUP_ROW_Y : WEB_ROW_Y);
   lv_obj_set_style_bg_color(box, lv_color_hex(UI_COL_ROW), 0);
   lv_obj_set_style_border_width(box, 1, 0);
   lv_obj_set_style_border_color(box, lv_color_hex(UI_COL_ROW_PRESSED), 0);
@@ -165,20 +173,6 @@ static lv_obj_t* webRowBox(lv_obj_t *parent, int x, int w) {
   lv_obj_clear_flag(box, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_clear_flag(box, LV_OBJ_FLAG_CLICKABLE);
   return box;
-}
-
-// The button beside a row box: stop the server, or finish the setup.
-static lv_obj_t* webRowButton(lv_obj_t *parent, uint32_t bg, uint32_t bg_pressed, uint32_t line) {
-  lv_obj_t *b = lv_btn_create(parent);
-  lv_obj_set_size(b, WEB_HALF_W, WEB_ROW_H);
-  lv_obj_set_pos(b, WEB_HALF_X2, WEB_ROW_Y);
-  lv_obj_set_style_bg_color(b, lv_color_hex(bg), 0);
-  lv_obj_set_style_bg_color(b, lv_color_hex(bg_pressed), LV_STATE_PRESSED);
-  lv_obj_set_style_border_width(b, 1, 0);
-  lv_obj_set_style_border_color(b, lv_color_hex(line), 0);
-  lv_obj_set_style_radius(b, UI_RADIUS_ROW, 0);
-  lv_obj_set_style_shadow_width(b, 0, 0);
-  return b;
 }
 
 static void setCredentialRow(lv_obj_t *label, bool present) {
@@ -374,35 +368,36 @@ static void webBuildGatePill(lv_obj_t *scr) {
   lv_obj_align(pill, LV_ALIGN_TOP_MID, 0, WEB_PILL_Y);
 }
 
-// FilaMan's two credentials in halves, BamBuddy's one across; during the
-// setup they share the left half and Done takes the right.
+// FilaMan's two credentials in halves, BamBuddy's one across. During the
+// setup the step's bar follows under them: later, or on - both lead to the
+// scale, the rows only say what is still missing.
 static void webBuildCredentials(lv_obj_t *scr) {
   const bool bb = backendIsBamBuddy();
-  const bool setup = s_web_ctx == WEB_CTX_SETUP;
   s_key_shown   = bb ? (bambuddyApiKey()[0] != '\0') : (filamanApiKey()[0] != '\0');
   s_token_shown = !bb && (filamanDeviceToken()[0] != '\0');
   s_lbl_token_val = nullptr;
 
-  const int key_w = (bb && !setup) ? WEB_CARD_W : WEB_HALF_W;
-  lv_obj_t *box = webRowBox(scr, WEB_CARD_X, key_w);
-  const int key_ofs = (setup && !bb) ? -10 : 0;
-  s_lbl_key_val = addCredentialLine(box, key_ofs, STR_BACKEND_APIKEY, s_key_shown);
+  lv_obj_t *box = webRowBox(scr, WEB_CARD_X, bb ? WEB_CARD_W : WEB_HALF_W);
+  s_lbl_key_val = addCredentialLine(box, 0, STR_BACKEND_APIKEY, s_key_shown);
   if (!bb) {
-    lv_obj_t *token_box = setup ? box : webRowBox(scr, WEB_HALF_X2, WEB_HALF_W);
-    s_lbl_token_val = addCredentialLine(token_box, setup ? 10 : 0, STR_BACKEND_DEVICE_TOKEN, s_token_shown);
+    lv_obj_t *token_box = webRowBox(scr, WEB_HALF_X2, WEB_HALF_W);
+    s_lbl_token_val = addCredentialLine(token_box, 0, STR_BACKEND_DEVICE_TOKEN, s_token_shown);
   }
-  if (!setup) return;
+  if (s_web_ctx != WEB_CTX_SETUP) return;
 
-  lv_obj_t *done = webRowButton(scr, UI_COL_ACCENT, UI_COL_GO_BG_PRESSED, UI_COL_ACCENT);
-  lv_obj_add_event_cb(done, [](lv_event_t *e){
-    logSD("BTN: Web interface -> Setup done");
-    // Deferred: showMainScreen() deletes this very screen, which must not
-    // happen while its own button callback is still running.
-    finish_setup_pending = true;
-  }, LV_EVENT_CLICKED, NULL);
-  char done_buf[32];
-  snprintf(done_buf, sizeof(done_buf), LV_SYMBOL_OK "  %s", T(STR_BTN_FINISH));
-  lv_obj_center(webLabel(done, done_buf, UI_FONT_BODY, UI_COL_ON_ACCENT));
+  // Deferred: the next step deletes this very screen, which must not happen
+  // while its own button callback is still running.
+  char next_buf[32];
+  snprintf(next_buf, sizeof(next_buf), "%s  " LV_SYMBOL_RIGHT, T(STR_BTN_NEXT));
+  setupActionBar(scr,
+    T(STR_SETUP_LATER), [](lv_event_t *e){
+      logSD("BTN: Web interface -> Setup: credentials later");
+      cal_reminder_pending = true;
+    },
+    next_buf, [](lv_event_t *e){
+      logSD("BTN: Web interface -> Setup: next");
+      cal_reminder_pending = true;
+    });
 }
 
 // The upload's status on the left, written by the web upload from the loop,
@@ -441,12 +436,14 @@ static void webBuildDryingRow(lv_obj_t *scr) {
 
 static void webBuildHeader(lv_obj_t *scr, const char *title) {
   if (s_web_ctx == WEB_CTX_SETUP) {
-    // No way back during setup, the previous step is already behind us.
-    // A plain title keeps the screen consistent with the other setup steps.
-    lv_obj_align(webLabel(scr, title, UI_FONT_TITLE, UI_COL_ACCENT), LV_ALIGN_TOP_MID, 0, 12);
+    // A step of the setup: back to the address it follows on from.
+    setupHeader(scr, T(STR_SETUP_CREDS_TITLE), SETUP_STEP_CREDENTIALS, [](lv_event_t *e){
+      logSD("BTN: Web interface -> Setup: back to the address");
+      show_spoolman_pending = true;
+    });
     return;
   }
-  buildSubHeader(scr, title, [](lv_event_t *e){
+  lv_event_cb_t back = [](lv_event_t *e){
     logSD("BTN: Web interface -> Back");
     // Back does not close the server itself. The screen that comes next hides
     // this one, which ends the visit, and the loop's once-a-second
@@ -454,10 +451,14 @@ static void webBuildHeader(lv_obj_t *scr, const char *title) {
     // Back goes where the user came from, not always to the update menu.
     switch (s_web_ctx) {
       case WEB_CTX_BACKEND: show_backend_pending         = true; break;
+      case WEB_CTX_ADDRESS: show_spoolman_pending        = true; break;
       case WEB_CTX_DRYING:  show_drying_reminder_pending  = true; break;
       default:              show_ota_pending              = true; break;
     }
-  });
+  };
+  // From the address screen during the setup: still the server step.
+  if (s_web_ctx == WEB_CTX_ADDRESS) setupOrSettingsHeader(scr, title, SETUP_STEP_SERVER, back);
+  else                              buildSubHeader(scr, title, back);
 }
 
 // Only right after connecting. No lv_timer_handler() in here: this screen is
@@ -494,7 +495,9 @@ void buildOtaBrowserScreen() {
   // "/" is the status page, so each flow goes to the page that carries its
   // form, see webTargetFor().
   webBuildCard(scr_ota_browser, webTargetFor(s_web_ctx).path);
-  if (s_gate_opened) webBuildGatePill(scr_ota_browser);
+  // Not in the setup: its row and bar take the room the pill would need, and
+  // the step line above already says where to go.
+  if (s_gate_opened && s_web_ctx != WEB_CTX_SETUP) webBuildGatePill(scr_ota_browser);
 
   if (showsCredentials())      webBuildCredentials(scr_ota_browser);
   else if (isFirmwareContext()) webBuildFirmwareRow(scr_ota_browser);

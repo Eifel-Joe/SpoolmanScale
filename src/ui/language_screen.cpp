@@ -10,6 +10,7 @@
 #include "reboot_popup.h"
 #include "app/deferred_actions.h"
 #include "services/time_service.h"
+#include "timezone_screen.h"
 #include "theme.h"
 
 
@@ -265,6 +266,9 @@ void showLanguageScreen() {
   // takes effect on the next localtime_r().
   lv_obj_add_event_cb(btn_tz, [](lv_event_t *e){
     logSD("BTN: Language -> Time zone");
+    // The setup's welcome screen leaves the picker set to return there, and
+    // it no longer restarts behind it: from the menu it goes back here.
+    setTimeZoneReturnToWelcome(false);
     show_timezone_pending = true;
   }, LV_EVENT_CLICKED, NULL);
 }

@@ -10,6 +10,7 @@
 #include "hardware/sd_logger.h"
 #include "services/app_settings.h"
 #include "services/bambuddy_api.h"
+#include "lang.h"
 #include "services/prefs_store.h"
 
 // NVS keys. Kept short, NVS limits key length to 15 characters.
@@ -321,6 +322,24 @@ const char* backendModeName(BackendMode mode) {
 }
 
 const char* backendName() { return backendModeName(s_mode); }
+
+static const BackendInfo BACKEND_INFO[] = {
+  { BACKEND_SPOOLMAN, STR_BACKEND_DESC_SPOOLMAN, BACKEND_SELF_HOSTED, false, "7912" },
+  { BACKEND_FILAMAN,  STR_BACKEND_DESC_FILAMAN,  BACKEND_SELF_HOSTED, true,  "8083" },
+  { BACKEND_BAMBUDDY, STR_BACKEND_DESC_BAMBUDDY, BACKEND_SELF_HOSTED, true,  "8000" },
+};
+
+const BackendInfo* backendInfoList(size_t* count) {
+  if (count) *count = sizeof(BACKEND_INFO) / sizeof(BACKEND_INFO[0]);
+  return BACKEND_INFO;
+}
+
+const BackendInfo& backendInfo(BackendMode mode) {
+  for (const BackendInfo& b : BACKEND_INFO) {
+    if (b.mode == mode) return b;
+  }
+  return BACKEND_INFO[0];
+}
 
 const char* backendBadge() {
   switch (s_mode) {
