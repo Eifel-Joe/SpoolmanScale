@@ -169,6 +169,16 @@ int spoolTypeOwnCore(int tare_g, bool inherited) {
   return tare_g > 0 ? tare_g : 0;
 }
 
+bool spoolTypeTagAsk(bool bambu_tag, bool bambuddy, float bare, int type_g) {
+  // Wurzel: a NaN reading compares false both ways, so it must not count as a
+  // spool on the pad. Fix: the negated comparison, as in spoolTypeFirstAsk(),
+  // sends NaN to "nothing on the pad". NOT-TO-DO: an early return on
+  // "bare <= NEW_SPOOL_TARE_MIN_G" lets NaN through to the card.
+  if (!bambu_tag || !bambuddy) return false;
+  if (!(bare > NEW_SPOOL_TARE_MIN_G)) return false;
+  return type_g <= 0;
+}
+
 void spoolTypeTrimName(char* dst, size_t n, const char* src) {
   if (!dst || n == 0) return;
   if (!src) src = "";

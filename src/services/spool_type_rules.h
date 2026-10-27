@@ -164,6 +164,18 @@ int spoolTypeCreateTare(int chosen_g, int chain_g, bool chain_trusted, bool* tru
 // inherited value onto the new spool, which L21 forbids.
 int spoolTypeOwnCore(int tare_g, bool inherited);
 
+// Whether the card for a new spool from a Bambu tag asks the spool type first
+// (V33, "docs/entwurf/2026-10-27-m-typ-aus-aufkleber.md"). Wurzel: the card
+// made the spool on Bambu's fixed 250 g core and never asked for the type, so
+// a refill on another spool was weighed against 250 g. Fix: the question comes
+// first when all four hold: a Bambu tag; Bambuddy, with or without Spoolman
+// behind it (its catalog of spool types is Bambuddy's own in both); a spool on
+// the pad, a reading above NEW_SPOOL_TARE_MIN_G (a reading that is not a number
+// counts as nothing on the pad); and no type chosen yet (type_g 0 or less).
+// NOT-TO-DO: asking for any tag, or without Bambuddy: Spoolman direct and
+// FilaMan have no such catalog, so the list would be the wrong one.
+bool spoolTypeTagAsk(bool bambu_tag, bool bambuddy, float bare, int type_g);
+
 // src without the blanks on both sides, cut to n - 1 bytes and never in the
 // middle of a UTF-8 character (a cut that would leave half of one drops the
 // whole character). Writes the terminator even for an empty or null src; src
