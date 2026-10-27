@@ -57,7 +57,7 @@ The [release notes](https://github.com/Eifel-Joe/SpoolmanScale/releases) of this
 Everything else is in the [release notes](https://github.com/Niko11111/SpoolmanScale/releases/tag/v0.8.3).
 
 > [!NOTE]
-> **Skipped the USB update from 0.8.0?** 0.8.3 no longer fits the old memory layout, so your scale will not install it over the air. Open the original's [Web Flasher](https://niko11111.github.io/SpoolmanScale) in Chrome or Edge, connect the scale and choose **Update**: about 2 minutes, all settings are kept. After that, updates arrive over the air as usual.
+> **Skipped the USB update from 0.8.0?** 0.8.3 no longer fits the old memory layout, so your scale will not install it over the air. Open the original's [Web Flasher](https://niko11111.github.io/SpoolmanScale) in Chrome or Edge, connect the scale and choose **Update**: about 2 minutes, all settings are kept. The scale then runs the original's firmware and looks for its updates there. To move to this fork, download your board's firmware file from this fork's [Releases](https://github.com/Eifel-Joe/SpoolmanScale/releases) and upload it on the scale's web page; the settings are kept again. From then on, updates arrive over the air from this fork.
 
 ---
 
