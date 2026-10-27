@@ -14,7 +14,8 @@
 //  One pad at a time, built on demand. Its buttons call the owner's
 //  callbacks from inside LVGL's event: no HTTP there, and nothing that
 //  deletes screens - set a pending flag. The pad deletes itself
-//  asynchronously when it closes.
+//  asynchronously when it closes, unless its owner replaces it from the loop
+//  (NumPadSpec.replaced_from_loop).
 // ============================================================
 
 struct NumPadSpec {
@@ -33,13 +34,23 @@ struct NumPadSpec {
   bool (*on_done)(const char *text);
   // Back arrow and Cancel. The close button goes to the main screen.
   void (*on_leave)();
+  // For an owner whose screen is rebuilt on the loop after the pad: leaving
+  // or saving then only stops the pad from taking input, and the loop calls
+  // numPadDropParked() right before it builds the next screen. Deleted from
+  // its own button, the pad was gone a frame before that screen existed, and
+  // the home screen flashed in between.
+  bool replaced_from_loop;
 };
 
 void showNumPad(const NumPadSpec &spec);
 bool numPadOpen();
-// Replaces the hint, in red when it refuses what was typed.
+// Replaces the hint, in amber when it refuses what was typed.
 void numPadSetHint(const char *text, bool refusal);
 
 // For navigation: hidden with the other overlays, deleted with them.
 void numPadHide();
 void numPadClose();
+// Deletes a pad that was left or saved with replaced_from_loop set, at once.
+// From the loop only, right before the owner builds its screen; a pad still
+// taking input is left alone.
+void numPadDropParked();

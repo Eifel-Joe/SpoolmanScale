@@ -34,6 +34,8 @@ static char       s_input[NP_INPUT_MAX + 1] = "";
 // The value it opened with is shown, and the first digit replaces it rather
 // than being appended: nobody wants 30 to become 305.
 static bool       s_fresh = false;
+// Left or saved, waiting for its owner's loop to replace it: takes no input.
+static bool       s_parked = false;
 
 bool numPadOpen() { return s_scr != nullptr; }
 
@@ -45,11 +47,25 @@ void numPadClose() {
   releaseScreen(&s_scr);
   s_value = nullptr;
   s_hint = nullptr;
+  s_parked = false;
+}
+
+void numPadDropParked() {
+  if (!s_scr || !s_parked) return;
+  lv_obj_del(s_scr);
+  s_scr = nullptr;
+  s_value = nullptr;
+  s_hint = nullptr;
+  s_parked = false;
 }
 
 // From one of the pad's own buttons: the screen goes on the next pass.
 static void closeFromHandler() {
   if (!s_scr) return;
+  if (s_spec.replaced_from_loop) {
+    s_parked = true;
+    return;
+  }
   lv_obj_del_async(s_scr);
   s_scr = nullptr;
   s_value = nullptr;
@@ -71,6 +87,7 @@ void numPadSetHint(const char *text, bool refusal) {
 }
 
 static void onKey(lv_event_t *e) {
+  if (s_parked) return;
   const char *ch = lv_label_get_text(lv_obj_get_child(lv_event_get_target(e), 0));
   if (s_fresh) { s_input[0] = '\0'; s_fresh = false; }
   const size_t len = strlen(s_input);
@@ -83,6 +100,7 @@ static void onKey(lv_event_t *e) {
 }
 
 static void onBackspace(lv_event_t *) {
+  if (s_parked) return;
   s_fresh = false;
   const size_t len = strlen(s_input);
   if (len) s_input[len - 1] = '\0';
@@ -90,6 +108,7 @@ static void onBackspace(lv_event_t *) {
 }
 
 static void onLeave(lv_event_t *) {
+  if (s_parked) return;
   logSDf("BTN: NumPad '%s' -> back", s_spec.title);
   void (*leave)() = s_spec.on_leave;
   closeFromHandler();
@@ -97,7 +116,7 @@ static void onLeave(lv_event_t *) {
 }
 
 static void onDone(lv_event_t *) {
-  if (!s_spec.on_done) return;
+  if (s_parked || !s_spec.on_done) return;
   if (s_spec.secret) logSDf("BTN: NumPad '%s' -> %u digits", s_spec.title, (unsigned)strlen(s_input));
   else               logSDf("BTN: NumPad '%s' -> %s", s_spec.title, s_input);
   if (s_spec.on_done(s_input)) closeFromHandler();

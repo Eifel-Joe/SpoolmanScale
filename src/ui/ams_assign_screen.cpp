@@ -101,7 +101,11 @@ void showAmsWindowPad() {
   spec.help_title = -1;
   spec.on_done    = onAmsWindowDone;
   spec.on_leave   = [] { show_ams_assign_pending = true; };
+  spec.replaced_from_loop = true;
   hideAllOverlays();
+  // Deleted on the loop in the same pass as the pad is built, like the drying
+  // screen under its pad: back and Save rebuild it.
+  if (scr_ams_assign) { lv_obj_del(scr_ams_assign); scr_ams_assign = nullptr; }
   showNumPad(spec);
 }
 
@@ -213,13 +217,8 @@ void buildAmsAssignScreen() {
   char win_lbl[24];  copyT(win_lbl, sizeof(win_lbl), STR_AMS_WINDOW_LBL);
   char win_hint[48]; copyT(win_hint, sizeof(win_hint), STR_AMS_WINDOW_HINT);
 
-  // Released, not kept under the pad: back and Save rebuild it through
-  // show_ams_assign_pending. The pad follows from the loop, once this screen
-  // is gone (ams_window_pad_pending).
-  auto windowRowCb = [](lv_event_t *e){
-    ams_window_pad_pending = true;
-    releaseScreen(&scr_ams_assign);
-  };
+  // The loop replaces this screen with the pad (ams_window_pad_pending).
+  auto windowRowCb = [](lv_event_t *e){ ams_window_pad_pending = true; };
 
   int desc_y = 132;
 
