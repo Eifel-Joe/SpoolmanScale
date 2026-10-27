@@ -79,8 +79,9 @@ struct TagCreateInput {
   // Our list of spool types was answered for this spool on the way (a type
   // or "without type", db_pick_core_popup.cpp, or tag_create_popup.cpp for
   // a Bambu tag): the first weighing does not ask it again
-  // (tareEntryFirstWeighDone()). False where no list came: any other tag's
-  // input, or a Bambu tag with nothing on the pad.
+  // (tareEntryFirstWeighDone()). False wherever the list was not shown: any
+  // other tag's input, another backend than Bambuddy, a scale that is not
+  // fitted or not ready, or a Bambu tag with nothing on the pad.
   bool  spool_type_asked;
   float diameter_mm;         // 0 when unknown
   int   temp_min;

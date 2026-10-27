@@ -430,22 +430,25 @@ static void buildCard() {
 // sits on another spool and was weighed against 250 g, so the card for a Bambu
 // tag asks the type of the spool first, when one is on the pad (the rule is
 // spoolTypeTagAsk()). The list comes from Bambuddy's own catalog, with or
-// without Spoolman behind it (any_inventory). Only the vendor's types, "without
-// type" as the way out; no measured weight, so no "take measured" and no new
-// type. The input waits in s_in while the list is up.
+// without Spoolman behind it (any_inventory). The vendor's types come first
+// ("show all" is offered; all types are shown when the vendor has none, the
+// list's own behaviour), "without type" is the way out; no measured weight, so
+// no "take measured" and no new type. The input waits in s_in while the list
+// is up.
 // NOT-TO-DO: dbPickTypeAsk() (db_pick_core_popup.cpp). It goes on into
 // showTagCreatePopupFor(), which makes the card a database pick (title, colour
 // source, status line), and that is not what a tag's card is.
 
-// Both answers travel with the input to the card, whose create marks the new
-// spool for the first weighing (tareEntryFirstWeighDone()). Called from the
-// loop (spoolTypeListTick()), where the card may be built. A card still
-// standing is closed first, as showTagCreatePopup() does.
+// Called from the loop (spoolTypeListTick()), where the card may be built. A
+// card still standing is closed first, as showTagCreatePopup() does.
 static void tagTypeGoOn() {
   closeTagCreatePopup();
   buildCard();
 }
 
+// Both answers (a type, or "without type") travel with the input to the card,
+// whose create marks the new spool for the first weighing
+// (tareEntryFirstWeighDone()).
 static void tagTypePicked(float grams, const char* name) {
   s_in.spool_type_g     = spoolTypeGrams(grams);
   s_in.spool_type_asked = true;

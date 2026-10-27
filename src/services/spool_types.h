@@ -31,7 +31,8 @@
 #define SPOOL_TYPES_MAX  160   // places in the list; more entries on the server are left out
 
 // True for Bambuddy in Spoolman mode, and only then. Every entry into the spool
-// type screens asks this first.
+// type screens asks this first, except one: the card for a new spool from a
+// Bambu tag asks spoolTypesCatalogActive() below (V33).
 bool spoolTypesActive();
 
 // True for Bambuddy in either inventory mode: the catalog is Bambuddy's own

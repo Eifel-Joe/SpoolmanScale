@@ -60,8 +60,9 @@ struct SpoolTypeListReq {
   float measured_g;     // > 0: "take measured" (NEAR) and "new" with this weight
   int   skip_text;      // STR_SPT_LATER, STR_SPT_WITHOUT or STR_CANCEL
   // True: Bambuddy in either inventory mode opens the list. False (every
-  // request built with = {}): Bambuddy in Spoolman mode only. Last, so that
-  // the callers that do not know it stay on Spoolman mode.
+  // request built with = {}): Bambuddy in Spoolman mode only. Every caller
+  // initialises its request with = {}, so the callers that do not know this
+  // field stay on Spoolman mode.
   bool  any_inventory;
 };
 typedef void (*SpoolTypePicked)(float grams, const char* name);  // "" for the measured value

@@ -60,6 +60,11 @@ assert "any_inventory" in body, \
     "src/ui/spool_type_list.cpp: showSpoolTypeList() does not read req.any_inventory"
 assert "spoolTypesCatalogActive()" in body, \
     "src/ui/spool_type_list.cpp: showSpoolTypeList() does not ask spoolTypesCatalogActive()"
+# The two checks above would also pass for a swapped ternary (the wide check
+# for the other callers, the narrow one for the tag's card), so the pairing is
+# pinned as one expression.
+assert squeeze("req.any_inventory ? spoolTypesCatalogActive() : spoolTypesActive()") in body, \
+    "src/ui/spool_type_list.cpp: showSpoolTypeList() does not pair any_inventory with spoolTypesCatalogActive() and the rest with spoolTypesActive(), the ternary is swapped or changed"
 
 # 3. Reading the catalog follows Bambuddy in both modes; adding to it stays
 # with Spoolman mode, the one place where the scale writes a type.
@@ -81,6 +86,11 @@ ask, build = body.find("tagTypeAsk()"), body.find("buildCard()")
 assert ask >= 0, f"src/{POPUP}: showTagCreatePopup() does not call tagTypeAsk()"
 assert build >= 0, f"src/{POPUP}: showTagCreatePopup() does not call buildCard()"
 assert ask < build, f"src/{POPUP}: showTagCreatePopup() calls tagTypeAsk() after buildCard()"
+# Asking first is not enough: the card must not be built a second time when the
+# list was opened (the list builds it on the answer), so the answer of
+# tagTypeAsk() ends the function. A bare tagTypeAsk(); buildCard(); fails here.
+assert squeeze("if (tagTypeAsk()) return;") in body, \
+    f"src/{POPUP}: showTagCreatePopup() does not return when tagTypeAsk() opened the list, the card would be built twice"
 body = body_of(POPUP, "showTagCreatePopupFor")
 assert "tagTypeAsk" not in body, \
     f"src/{POPUP}: showTagCreatePopupFor() calls tagTypeAsk(), a database entry asks for itself"

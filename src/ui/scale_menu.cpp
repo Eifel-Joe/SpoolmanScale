@@ -173,8 +173,9 @@ void buildScaleSubScreen() {
 
   // An empty spool without a database entry, weighed bare and added to
   // Bambuddy's catalog of spool types (design B). Only behind Bambuddy in
-  // Spoolman mode, like every spool type screen (design note L16). The button
-  // builds the screen and nothing else; the server is asked from the loop.
+  // Spoolman mode, like every spool type screen but the Bambu tag's card
+  // (design note L16, V33). The button builds the screen and nothing else; the
+  // server is asked from the loop.
   if (g_scale_fitted && spoolTypesActive())
   { lv_obj_t *btn = makeListBtn(list, LV_SYMBOL_PLUS, T(STR_SPT_EMPTY_BTN), T(STR_SPT_EMPTY_SUB));
     lv_obj_add_event_cb(btn, [](lv_event_t *e){

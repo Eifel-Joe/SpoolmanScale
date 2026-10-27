@@ -173,7 +173,8 @@ int spoolTypeOwnCore(int tare_g, bool inherited);
 // the pad, a reading above NEW_SPOOL_TARE_MIN_G (a reading that is not a number
 // counts as nothing on the pad); and no type chosen yet (type_g 0 or less).
 // NOT-TO-DO: asking for any tag, or without Bambuddy: Spoolman direct and
-// FilaMan have no such catalog, so the list would be the wrong one.
+// FilaMan have no such catalog, so there is nothing to show (the list refuses
+// to open, and the caller goes on as "without type").
 bool spoolTypeTagAsk(bool bambu_tag, bool bambuddy, float bare, int type_g);
 
 // src without the blanks on both sides, cut to n - 1 bytes and never in the

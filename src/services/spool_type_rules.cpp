@@ -173,7 +173,7 @@ bool spoolTypeTagAsk(bool bambu_tag, bool bambuddy, float bare, int type_g) {
   // Wurzel: a NaN reading compares false both ways, so it must not count as a
   // spool on the pad. Fix: the negated comparison, as in spoolTypeFirstAsk(),
   // sends NaN to "nothing on the pad". NOT-TO-DO: an early return on
-  // "bare <= NEW_SPOOL_TARE_MIN_G" lets NaN through to the card.
+  // "bare <= NEW_SPOOL_TARE_MIN_G" lets NaN through, and the list would open.
   if (!bambu_tag || !bambuddy) return false;
   if (!(bare > NEW_SPOOL_TARE_MIN_G)) return false;
   return type_g <= 0;
