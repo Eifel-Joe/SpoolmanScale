@@ -96,6 +96,7 @@ struct TagCreateInput {
   char  db_name[96];         // a FilamentDB designation runs to 84 bytes
   char  db_color_hex[9];     // a single colour, spelled as the database does
   float db_density;
+  float density_typed;       // entered at the scale when none was known (V34), 0: none
   int   db_bed_temp;
   // The FilamentDB's own spellings, which a filament created from the entry
   // takes: the colour's name ("Cyan (12601)"), the product line

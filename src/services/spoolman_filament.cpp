@@ -8,6 +8,7 @@
 
 #include "../hardware/sd_logger.h"
 #include "bambuddy_name.h"
+#include "density_rules.h"
 #include "sort_entry_rules.h"
 #include "spoolman_api.h"
 #include "spoolman_filament_db.h"
@@ -369,6 +370,59 @@ static float materialDensity(const char* base_url, const char* material) {
   return 0.0f;
 }
 
+// The density of the database entry that carries the tag's product name, 0 if
+// there is none (V34, STATUS 56). Wurzel: a Bambu "Support for ABS" tag names
+// its material ABS-S, a base type the database does not have; the database
+// lists that product as material ABS under the name "Support for ABS", so the
+// search by material and Spoolman's material list both come back empty and the
+// card could not create the filament. Fix: ask for the entry of the same
+// vendor by the product name (densityEntryIsProduct(): the name, the net
+// weight) and take its density only; the filament is still created from the
+// tag, as before. NOT-TO-DO: taking the whole entry (name, material and
+// temperatures would turn the tag's filament into the database's), or
+// matching on the words alone ("Support for ABS-GF" is another product). Only
+// the Spoolman form has a word search: the light form lists by vendor and
+// material, which is what found nothing here, so it skips this step.
+static float productDensity(const char* base_url, const TagCreateInput& in) {
+  if (!in.product[0] || spoolmanFdbForm(base_url) != SM_FDB_SPOOLMAN) return 0.0f;
+  JsonDocument filter;
+  JsonObject f = filter.to<JsonArray>().add<JsonObject>();
+  f["manufacturer"] = true;
+  f["name"]         = true;
+  f["weight"]       = true;
+  f["density"]      = true;
+  const String words = String(in.vendor) + " " + in.product;
+  const String path = String("/api/v1/external/filament/search?limit=") + SM_FIL_DB_LIMIT +
+                      "&query=" + spoolmanUrlEncode(words.c_str());
+  JsonDocument doc;
+  const int code = spoolmanGetJson(base_url, path.c_str(), doc, SM_FIL_DB_TIMEOUT_MS, &filter);
+  if (code != 200) {
+    logSDf("Spoolman: filament database search by product -> HTTP %d", code);
+    return 0.0f;
+  }
+  const DensityProduct want = { in.vendor, in.product, in.net_weight_g };
+  for (JsonObjectConst e : doc.as<JsonArrayConst>()) {
+    const float d = e["density"] | 0.0f;
+    const char* name = e["name"] | "";
+    if (!densityPlausible(d)) continue;
+    if (!densityEntryIsProduct(e["manufacturer"] | "", name, (int)lroundf(e["weight"] | 0.0f), want))
+      continue;
+    logSDf("Spoolman: density %.2f for %s from the database entry \"%s\"", d, in.material, name);
+    return d;
+  }
+  return 0.0f;
+}
+
+// The last source of a density: the one typed at the scale, only if it is a
+// plausible number (V34). Taken after the database, Spoolman's materials and
+// the product name found none, never ahead of them: a density the database
+// knows is not overruled by a typed one.
+static void takeTypedDensity(const TagCreateInput& in, TagFilamentPlan* plan) {
+  if (plan->density > 0.0f || !densityPlausible(in.density_typed)) return;
+  plan->density = in.density_typed;
+  logSDf("Spoolman: density %.2f for %s typed at the scale", plan->density, in.material);
+}
+
 // The vendor's id, 0 when the inventory has none yet; -1 when the server
 // could not be asked, its code in the plan.
 static int findVendor(const char* base_url, const char* vendor, TagFilamentPlan* plan) {
@@ -484,6 +538,8 @@ static void planFromTag(const char* base_url, const TagCreateInput& in, TagFilam
   if (!in.names_known || (!in.color_count && !in.clear)) { plan->state = TFS_NEEDS_CATALOG; return; }
   plan->density = databaseDensity(base_url, in.vendor, in.material);
   if (plan->density <= 0.0f) plan->density = materialDensity(base_url, in.material);
+  if (plan->density <= 0.0f) plan->density = productDensity(base_url, in);
+  takeTypedDensity(in, plan);
   if (plan->density <= 0.0f) {
     logSDf("Spoolman: no density known for %s, filament not created", in.material);
     plan->state = TFS_FAILED;
@@ -516,6 +572,8 @@ void spoolmanPlanTagFilament(const char* base_url, const TagCreateInput& in, Tag
   // way a filament from a tag does.
   if (picked && plan->density <= 0.0f) plan->density = databaseDensity(base_url, in.vendor, in.material);
   if (picked && plan->density <= 0.0f) plan->density = materialDensity(base_url, in.material);
+  // Not the product name here: a picked entry is the product already.
+  if (picked) takeTypedDensity(in, plan);
   if (picked && plan->density <= 0.0f) {
     logSDf("Spoolman: no density known for %s, filament not created", in.material);
     plan->state = TFS_FAILED;
