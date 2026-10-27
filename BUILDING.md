@@ -50,7 +50,7 @@ All parts fit on 3 print plates (currently distributed across 4). If you can pri
 
 ### Step 1 – Flash the board first
 
-Before assembling anything, flash the firmware to the bare board via the [Web Flasher](https://niko11111.github.io/SpoolmanScale). This confirms the board is working before you start wiring.
+Before assembling anything, flash the firmware to the bare board via the [Web Flasher](https://eifel-joe.github.io/SpoolmanScale/), choosing your board. This confirms the board is working before you start wiring.
 
 ### Step 2 – Wire components one at a time
 
@@ -153,9 +153,9 @@ The firmware is built for one board at a time. Everything above describes the WT
 
 | Board | Environment | Display | Status |
 |---|---|---|---|
-| WT32-SC01 Plus | `wt32-sc01-plus` | 480×320, native | the reference board |
-| Waveshare ESP32-S3-Touch-LCD-7 | `waveshare-s3-lcd7` | 800×480, the 480×320 UI enlarged to fill it | new, see the notes below |
-| Waveshare ESP32-S3-Touch-LCD-7B | `waveshare-s3-lcd7b` | 1024×600, the 480×320 UI enlarged to fill it | new, see the notes below |
+| WT32-SC01 Plus | `wt32-sc01-plus` | 480×320, native | the original's reference board; built here, not tested on hardware by this fork |
+| Waveshare ESP32-S3-Touch-LCD-7 | `waveshare-s3-lcd7` | 800×480, the 480×320 UI enlarged to fill it | built, not tested on hardware by this fork; see the notes below |
+| Waveshare ESP32-S3-Touch-LCD-7B | `waveshare-s3-lcd7b` | 1024×600, the 480×320 UI enlarged to fill it | tested on hardware by this fork; see the notes below |
 
 There is no printable enclosure for the other boards yet.
 

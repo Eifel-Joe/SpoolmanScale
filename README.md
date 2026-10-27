@@ -10,6 +10,9 @@
 
 ### *One Scale to rule them all.*
 
+> [!NOTE]
+> **This is a fork** of [Niko11111/SpoolmanScale](https://github.com/Niko11111/SpoolmanScale). Version 0.8.5 builds on the original's 0.8.3 and adds what is listed under [What this fork adds](#what-this-fork-adds). Releases, the web flasher and the scale's update check come from this fork; the manual, Discord, Ko-fi, MakerWorld and the FilaMan plugin are the original's. Problems with this fork: [open an issue here](https://github.com/Eifel-Joe/SpoolmanScale/issues).
+
 [![Discord](https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/K3KmKnrWhP)
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/formfollowsfunction)
 
@@ -24,7 +27,25 @@ Yes, another filament scale – but hear me out, this one might actually earn a 
 
 ---
 
-## New in 0.8.3
+## What this fork adds
+
+On top of the original's 0.8.3, in version 0.8.5:
+
+- 🖥️ **Two more boards** – the Waveshare ESP32-S3-Touch-LCD-7 (800×480) and -7B (1024×600) next to the WT32-SC01 Plus, each with an image of its own. The scale refuses an image built for another board, from GitHub and from the browser upload alike. Tested on hardware: the 7B; see [Other Boards](BUILDING.md#other-boards)
+- 🔄 **Updates from this fork** – the daily check, "Check for updates" and the download at the scale or in the browser, with the choice of the latest stable release or the latest pre-release, every image checked against its published checksum, and a [web flasher](https://eifel-joe.github.io/SpoolmanScale/) with a choice of board
+- 🧺 **Empty spools** (BamBuddy with Spoolman) – a spool's own empty weight, spool types from BamBuddy's empty spool catalog, suggested on the first weighing of an unused spool, new types named at the scale, and "weigh the full spool"
+- 📎 **Accessories on a spool** – parts such as an NFC holder that moves from spool to spool are subtracted from every filament weight
+- 💾 **Settings backup and a scale test page** – all settings as one file, loaded back exactly; raw value, weight and noise of the load cell live in the web interface
+- 📋 **Copy with all fields** (BamBuddy with Spoolman) – a copy hangs on its template's Spoolman filament and takes over the profile, the profiles per printer model, the K profiles, the price per kg, the storage location and the suppliers
+- 🏷️ **Brother QL over WiFi** – the QL-810W/820NWB with DK-11209 (62×29 mm), printed by the scale itself, no PC or app needed; "Label printer" chooses Off, Bluetooth or WiFi
+- 🧵 **Enter filament** – a spool whose filament is in neither the inventory nor the filament database is created step by step, picked from the database and the inventory first and typed only where it is missing
+- ⚖️ **Raise the label** (Spoolman) – a weighing above the label weight asks to raise the label instead of losing the difference
+
+The [release notes](https://github.com/Eifel-Joe/SpoolmanScale/releases) of this fork have the details.
+
+---
+
+## New in the original's 0.8.3
 
 - 🧵 **Create spools on the scale** – a spool that is not in your inventory yet is created right at the scale, from a Bambu tag or with a blank NTAG, with its starting weight. Put an unknown spool on and a card suggests the next step
 - 🔢 **Spool by its ID** – no tag on the spool? Weigh it by its ID. And when you archive a spool, its tag is freed for the next one
@@ -36,15 +57,15 @@ Yes, another filament scale – but hear me out, this one might actually earn a 
 Everything else is in the [release notes](https://github.com/Niko11111/SpoolmanScale/releases/tag/v0.8.3).
 
 > [!NOTE]
-> **Skipped the USB update from 0.8.0?** 0.8.3 no longer fits the old memory layout, so your scale will not install it over the air. Open the [Web Flasher](https://niko11111.github.io/SpoolmanScale) in Chrome or Edge, connect the scale and choose **Update**: about 2 minutes, all settings are kept. After that, updates arrive over the air as usual.
+> **Skipped the USB update from 0.8.0?** 0.8.3 no longer fits the old memory layout, so your scale will not install it over the air. Open the original's [Web Flasher](https://niko11111.github.io/SpoolmanScale) in Chrome or Edge, connect the scale and choose **Update**: about 2 minutes, all settings are kept. After that, updates arrive over the air as usual.
 
 ---
 
 ## Download
 
-Firmware is available via the [Web Flasher](https://niko11111.github.io/SpoolmanScale) or as a direct download from [Releases](https://github.com/Niko11111/SpoolmanScale/releases). Already have a scale? Update it right on the device: **Settings → System → Firmware Update → Update via GitHub**.
+Firmware of this fork is available via its [Web Flasher](https://eifel-joe.github.io/SpoolmanScale/) or as a direct download from its [Releases](https://github.com/Eifel-Joe/SpoolmanScale/releases). Already running this fork? Update it right on the device: **Settings → System → Firmware Update → Update via GitHub**. A scale that still asks the original (or another fork) for updates takes this fork once by hand: web interface → Firmware → upload `SpoolmanScale_<version>.bin` (WT32-SC01 Plus) or `SpoolmanScale-<board>_<version>.bin` (Waveshare); the settings are kept.
 
-[![Latest Release](https://img.shields.io/github/v/release/Niko11111/SpoolmanScale?style=for-the-badge&color=28d49a)](https://github.com/Niko11111/SpoolmanScale/releases/latest)
+[![Latest Release](https://img.shields.io/github/v/release/Eifel-Joe/SpoolmanScale?style=for-the-badge&color=28d49a)](https://github.com/Eifel-Joe/SpoolmanScale/releases/latest)
 
 <a href="https://niko11111.github.io/SpoolmanScale-Docs/">
   <img src="https://img.shields.io/badge/📖%20Documentation-Full%20Build%20Guide%2C%20Wiring%20%26%20Setup-28d49a?style=for-the-badge&logoColor=white" alt="Documentation"/>
@@ -83,7 +104,7 @@ Questions or trouble? Join the [Discord](https://discord.gg/K3KmKnrWhP), happy t
 - ⚙️ **On-device setup** – language, Wi-Fi and server address step by step on the touchscreen. Wi-Fi can also come straight from the Web Flasher or from your phone, so there is no long password to type on a small screen
 - 🎨 **Themes** – dark and light, in the look of Spoolman, FilaMan or BamBuddy, with your own accent colour
 - 🌍 **DE / EN / FR language support** – chosen on first boot, switchable in settings, and it applies to the web interface as well
-- ⚡ **Web Flasher** – unpack the ESP with its touchscreen, connect it to your PC by USB, open the [Web Flasher](https://niko11111.github.io/SpoolmanScale) in your browser, flash, done
+- ⚡ **Web Flasher** – unpack the ESP with its touchscreen, connect it to your PC by USB, open the [Web Flasher](https://eifel-joe.github.io/SpoolmanScale/) in your browser, choose your board, flash, done
 - 🔄 **Firmware updates (OTA)** – the scale checks for a new version once a day, and you install it right on the device or from the browser. No PC, no cables. Or upload a firmware file yourself
 - 🌙 **Power management** – display dimming and deep sleep, and the scale wakes when you touch it or put a spool on
 - 🧾 **Works without a load cell, too** – switch off *Scale fitted* and the device becomes a pure tag terminal: read, link and write tags and set locations, without weights on the screen
@@ -104,7 +125,7 @@ Questions or trouble? Join the [Discord](https://discord.gg/K3KmKnrWhP), happy t
 | Connector Cables | STEMMA QT / JST cables | [AliExpress](https://de.aliexpress.com/item/1005011904682215.html) |
 | Connector Cables (easier assembly) | Micro JST 1.0 SH 5-pin | [Amazon](https://amzn.eu/d/0aKJ4Va9) |
 
-The firmware also runs on the **Waveshare ESP32-S3-Touch-LCD-7** (7", 800×480), with the same UI enlarged to fit. See [Other Boards](BUILDING.md#other-boards) for wiring and flashing.
+The firmware also runs on the **Waveshare ESP32-S3-Touch-LCD-7** (7", 800×480) and **-7B** (7", 1024×600), with the same UI enlarged to fit. See [Other Boards](BUILDING.md#other-boards) for wiring and flashing.
 
 Prefer everything in one cart? A community member put together an AliExpress list with parts that work well too: 👉 [SpoolmanScale parts list on AliExpress](https://www.aliexpress.com/p/wish-manage/share.html?spm=a2g0o.cart.headerAcount.6.321738dayZTIa0&wishGroupId=800000022363334&smbPageCode=wishlist-amp&spreadId=E95BDFF0E1B4367408F1423D8C0ABF206981C084C10F93E3EE124B0AFA678D69)
 
@@ -124,7 +145,7 @@ The 3D printable enclosure is available on MakerWorld, under MakerWorld's own li
 Order from the hardware list and print the enclosure while you wait for shipping.
 
 **2. Flash the board first**
-Before assembling, flash via the [Web Flasher](https://niko11111.github.io/SpoolmanScale). Verify it works before wiring.
+Before assembling, flash via the [Web Flasher](https://eifel-joe.github.io/SpoolmanScale/). Verify it works before wiring.
 
 **3. Wire & assemble**
 Full wiring tables and assembly tips: **[SpoolmanScale Documentation](https://niko11111.github.io/SpoolmanScale-Docs/)**
@@ -209,6 +230,8 @@ A lot of my free time has gone into building SpoolmanScale. If you enjoy using i
 
 Have a feature request? Post it in the [Discord](https://discord.gg/K3KmKnrWhP) or [open an issue](https://github.com/Niko11111/SpoolmanScale/issues) – I read every one of them and do my best to make it happen.
 
+A problem with this fork, or a request for what it adds? [Open an issue at the fork](https://github.com/Eifel-Joe/SpoolmanScale/issues).
+
 **Thank you for your support. It means a lot. 🙏**
 
 ---
@@ -222,6 +245,14 @@ The license covers the firmware and everything else in this repository. The encl
 ---
 
 ## Credits
+
+**This fork** is built on the work of others, taken over with their commits or as marked parts of them:
+
+- **[@Niko11111](https://github.com/Niko11111)** – SpoolmanScale itself, the original this fork follows, up to its 0.8.3.
+- **[@wolfrage76](https://github.com/wolfrage76)** – the Waveshare support from [Waveshare-Spoolman-Scale](https://github.com/wolfrage76/Waveshare-Spoolman-Scale): one firmware for several boards with the Waveshare 7 as the second, a touch that wakes the panel, and screenshots at the panel's size.
+- **[@AreYouThereAndi2](https://github.com/AreYouThereAndi2)** – from the fork [AreYouThereAndi2/SpoolmanScale](https://github.com/AreYouThereAndi2/SpoolmanScale): the subtraction of accessories on a spool, and the settings backup and the scale test page, taken over in parts and adapted.
+
+For SpoolmanScale itself:
 
 **[@Simon-CR](https://github.com/Simon-CR)** contributed large parts of SpoolmanScale: the web interface rebuilt as separate pages with access gates, writing NFC tags from the browser, both halves of FilaMan's device tag protocol, the firmware page that checks GitHub for updates, and in 0.8.0 the live tag page with raw data and the Snapmaker tag decoding. Plenty of ideas for what comes next, too - thank you.
 
