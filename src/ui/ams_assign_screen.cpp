@@ -88,7 +88,7 @@ static bool onAmsWindowDone(const char *text) {
   return true;
 }
 
-static void showAmsWindowPad() {
+void showAmsWindowPad() {
   char initial[8];
   snprintf(initial, sizeof(initial), "%d", g_ams_window_s);
   NumPadSpec spec = {};
@@ -213,9 +213,13 @@ void buildAmsAssignScreen() {
   char win_lbl[24];  copyT(win_lbl, sizeof(win_lbl), STR_AMS_WINDOW_LBL);
   char win_hint[48]; copyT(win_hint, sizeof(win_hint), STR_AMS_WINDOW_HINT);
 
-  // Hidden, not deleted: this is its own row's callback. Coming back
-  // rebuilds it through show_ams_assign_pending.
-  auto windowRowCb = [](lv_event_t *e){ showAmsWindowPad(); };
+  // Released, not kept under the pad: back and Save rebuild it through
+  // show_ams_assign_pending. The pad follows from the loop, once this screen
+  // is gone (ams_window_pad_pending).
+  auto windowRowCb = [](lv_event_t *e){
+    ams_window_pad_pending = true;
+    releaseScreen(&scr_ams_assign);
+  };
 
   int desc_y = 132;
 

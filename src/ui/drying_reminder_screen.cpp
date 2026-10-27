@@ -39,7 +39,7 @@ static bool onDryDone(const char *text) {
   return true;
 }
 
-static void showDryPad(int target) {
+void showDryingPad(int target) {
   s_dry_numpad_target = target;
   char initial[8];
   snprintf(initial, sizeof(initial), "%d", target == 0 ? g_dry_man_yellow : g_dry_man_red);
@@ -275,9 +275,11 @@ void showDryingReminderScreen() {
       lv_obj_align(vlbl, LV_ALIGN_RIGHT_MID, -16, 0);
       lv_obj_set_user_data(row_btn, (void*)(intptr_t)target);
       lv_obj_add_event_cb(row_btn, [](lv_event_t *e){
-        // Hidden, not deleted: this is its own row's callback. Coming back
-        // rebuilds it through show_drying_reminder_pending.
-        showDryPad((int)(intptr_t)lv_obj_get_user_data(lv_event_get_target(e)));
+        // Released, not kept under the pad: back and Save rebuild it through
+        // show_drying_reminder_pending. The pad follows from the loop, once
+        // this screen is gone (dry_pad_pending).
+        dry_pad_pending = (int8_t)(intptr_t)lv_obj_get_user_data(lv_event_get_target(e));
+        releaseScreen(&scr_drying_reminder);
       }, LV_EVENT_CLICKED, NULL);
     };
     { char ybuf[16]; copyT(ybuf, sizeof(ybuf), STR_DRY_MAN_YELLOW_LBL); makeThreshRow(ybuf, g_dry_man_yellow, UI_COL_WARN, content_y,      0); }

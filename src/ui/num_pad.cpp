@@ -66,7 +66,8 @@ static void refreshValue() {
 void numPadSetHint(const char *text, bool refusal) {
   if (!s_hint) return;
   lv_label_set_text(s_hint, text);
-  lv_obj_set_style_text_color(s_hint, lv_color_hex(refusal ? UI_COL_BAD_TEXT : UI_COL_CAPTION), 0);
+  // Amber, not red: a refused entry asks for another try, nothing broke.
+  lv_obj_set_style_text_color(s_hint, lv_color_hex(refusal ? UI_COL_WARN : UI_COL_CAPTION), 0);
 }
 
 static void onKey(lv_event_t *e) {
@@ -185,4 +186,7 @@ void showNumPad(const NumPadSpec &spec) {
   buildKeys();
   buildAnswers();
   lv_obj_clear_flag(s_scr, LV_OBJ_FLAG_HIDDEN);
+  // The pad is built over a screen that stays, hidden: this line shows what
+  // the two cost together at their peak (verbose log only).
+  logLvMem("numpad/post", 0);
 }

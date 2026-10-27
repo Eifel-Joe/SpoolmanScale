@@ -239,8 +239,9 @@ void printCardResult(LabelPrintResult result, const char* detail, bool offer_own
   lv_obj_add_event_cb(btn, [](lv_event_t*) { s_close_req = true; }, LV_EVENT_CLICKED, NULL);
 
   if (ok) {
-    // The house countdown (ui/info_popup.cpp): a lighter fill that drains
-    // from the right behind the label; empty, it closes the card as OK does.
+    // The house countdown (ui/info_popup.cpp): a lighter fill behind the
+    // label that hangs from the right edge, its left edge travelling with the
+    // reading direction; empty, it closes the card as OK does.
     // Closing itself stays with printCardLoop().
     const lv_coord_t btn_w = UI_POPUP_W - 2 * UI_CARD_ROW_X;
     lv_obj_t* fill = lv_obj_create(btn);
@@ -257,7 +258,9 @@ void printCardResult(LabelPrintResult result, const char* detail, bool offer_own
     lv_anim_set_values(&a, btn_w, 0);
     lv_anim_set_time(&a, PC_AUTOCLOSE_MS);
     lv_anim_set_exec_cb(&a, [](void* obj, int32_t v) {
-      lv_obj_set_width((lv_obj_t*)obj, (lv_coord_t)v);
+      lv_obj_t* fill = (lv_obj_t*)obj;
+      lv_obj_set_width(fill, (lv_coord_t)v);
+      lv_obj_set_x(fill, lv_obj_get_content_width(lv_obj_get_parent(fill)) - (lv_coord_t)v);
     });
     lv_anim_set_ready_cb(&a, [](lv_anim_t*) { s_close_req = true; });
     lv_anim_start(&a);
