@@ -133,4 +133,44 @@ assert squeeze("if (picked) takeTypedDensity(") in body, \
 assert body.find("materialDensity(") < body.find("takeTypedDensity("), \
     f"src/{PLANNER}: the picked branch takes the typed density before the materials were asked"
 
+# 5. The range text in two rows of lang.cpp is written by hand, so it is held to
+# the defines: the status line (STR_DENSITY_RANGE) and the pad's grey line
+# (STR_DENSITY_PAD_INFO) write the range with a comma in German and French
+# (0,50 and 4,00) and with a point in English (0.50 and 4.00). A changed define,
+# or a row that was not changed with it, fails here.
+RULES = "services/density_rules.h"
+rules_text = (src / RULES).read_text(encoding="utf-8")
+
+
+def define_of(name):
+    """The value of the one #define name in density_rules.h, without its f suffix."""
+    found = re.findall(rf"^#define[ \t]+{name}[ \t]+([0-9]+(?:\.[0-9]+)?)f\b", rules_text, re.M)
+    assert len(found) == 1, f"src/{RULES}: #define {name} is not defined exactly once"
+    return float(found[0])
+
+
+low, high = define_of("DENSITY_MIN_G_CM3"), define_of("DENSITY_MAX_G_CM3")
+assert (low, high) == (0.50, 4.00), \
+    f"src/{RULES}: the range is {low} to {high}, but the range text in lang.cpp is written for 0.50 to 4.00"
+lang_text = (src / "lang.cpp").read_text(encoding="utf-8")
+
+
+def row_cells_of(tag):
+    """The string cells (German, English, French) of the one lang.cpp row that ends with the comment tag."""
+    assert lang_text.count(f"// {tag}") == 1, f"src/lang.cpp: {tag} is not on exactly one row"
+    at = lang_text.index(f"// {tag}")
+    close = lang_text.rfind("}", 0, at)
+    opening = lang_text.rfind("{", 0, close)
+    return re.findall(r'"((?:[^"\\]|\\.)*)"', lang_text[opening + 1:close])
+
+
+for tag in ("STR_DENSITY_RANGE", "STR_DENSITY_PAD_INFO"):
+    cells = row_cells_of(tag)
+    assert len(cells) == 3, f"src/lang.cpp: {tag} has {len(cells)} cells, expected German, English and French"
+    for lang_name, text, sep in (("German", cells[0], ","), ("English", cells[1], "."), ("French", cells[2], ",")):
+        for value in (low, high):
+            want = f"{value:.2f}".replace(".", sep)
+            assert want in text, \
+                f"src/lang.cpp: {tag} ({lang_name}) does not write {want}, but density_rules.h says {low:.2f} to {high:.2f}"
+
 print("density card: ok")

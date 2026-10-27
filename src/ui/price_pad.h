@@ -8,7 +8,10 @@
 //  the one the server keeps, so none is shown. What the price is, the title
 //  says: what a spool cost for a new spool from the database (showPricePad),
 //  a price per kg for a copy (showPricePadTitled, design note J, Festlegung
-//  5). Built on demand and freed again; its own buttons only park their
+//  5). The same pad also takes a density on the create card
+//  (showPricePadInfo, V34), with its own title and grey line: there, empty
+//  means no density. What empty means and what the grey line says are per
+//  use. Built on demand and freed again; its own buttons only park their
 //  answer, pricePadTick() hands it on and deletes the pad from the loop.
 // ============================================================
 
