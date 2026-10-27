@@ -53,7 +53,15 @@ void showDryingPad(int target) {
   spec.help_title = -1;
   spec.on_done    = onDryDone;
   spec.on_leave   = [] { show_drying_reminder_pending = true; };
+  spec.replaced_from_loop = true;
   hideAllOverlays();
+  // Deleted, not kept under the pad: back and Save rebuild it through
+  // show_drying_reminder_pending, and kept it pushed LVGL into PSRAM
+  // (27.10.2026: 61 KB internal plus 11 KB PSRAM). Here on the loop, in the
+  // same pass as the pad is built: released from the row's callback it was
+  // still in the pool when the pad was built, and the home screen flashed for
+  // the one frame in between.
+  if (scr_drying_reminder) { lv_obj_del(scr_drying_reminder); scr_drying_reminder = nullptr; }
   showNumPad(spec);
 }
 
@@ -275,11 +283,8 @@ void showDryingReminderScreen() {
       lv_obj_align(vlbl, LV_ALIGN_RIGHT_MID, -16, 0);
       lv_obj_set_user_data(row_btn, (void*)(intptr_t)target);
       lv_obj_add_event_cb(row_btn, [](lv_event_t *e){
-        // Released, not kept under the pad: back and Save rebuild it through
-        // show_drying_reminder_pending. The pad follows from the loop, once
-        // this screen is gone (dry_pad_pending).
+        // The loop replaces this screen with the pad (dry_pad_pending).
         dry_pad_pending = (int8_t)(intptr_t)lv_obj_get_user_data(lv_event_get_target(e));
-        releaseScreen(&scr_drying_reminder);
       }, LV_EVENT_CLICKED, NULL);
     };
     { char ybuf[16]; copyT(ybuf, sizeof(ybuf), STR_DRY_MAN_YELLOW_LBL); makeThreshRow(ybuf, g_dry_man_yellow, UI_COL_WARN, content_y,      0); }

@@ -102,6 +102,7 @@
 #include "ui/connection_screen.h"
 #include "ui/dried_action.h"
 #include "ui/drying_reminder_screen.h"
+#include "ui/num_pad.h"
 #include "ui/extra_fields_screen.h"
 #include "ui/tag_field_screen.h"
 #include "ui/timezone_screen.h"
@@ -878,6 +879,7 @@ void appLoop() {
   }
   if (show_drying_reminder_pending) {
     show_drying_reminder_pending = false;
+    numPadDropParked();   // the threshold pad, if it led back here
     showDryingReminderScreen();
     lv_obj_clear_flag(scr_drying_reminder, LV_OBJ_FLAG_HIDDEN);
   }
@@ -1004,6 +1006,7 @@ void appLoop() {
   }
   if (show_ams_assign_pending) {
     show_ams_assign_pending = false;
+    numPadDropParked();            // the window pad, if it led back here
     buildAmsAssignScreen();        // releases the previous instance itself
     hideAllOverlays();
     lv_obj_clear_flag(scr_ams_assign, LV_OBJ_FLAG_HIDDEN);
