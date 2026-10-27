@@ -282,6 +282,23 @@ int main() {
   assert(spoolTypeOwnCore(167, false) == 167);
   assert(spoolTypeOwnCore(0, false) == 0);
   assert(spoolTypeOwnCore(-3, false) == 0);
+  // V33: the card for a new spool from a Bambu tag asks the spool type
+  // first, behind Bambuddy with or without Spoolman (its catalog is
+  // Bambuddy's own in both), with a spool on the pad and no type yet.
+  assert(spoolTypeTagAsk(true, true, 1180.0f, 0));
+  assert(spoolTypeTagAsk(true, true, 30.1f, 0));
+  assert(!spoolTypeTagAsk(true, true, 30.0f, 0));      // 30 g is an empty pad
+  assert(!spoolTypeTagAsk(true, true, 0.0f, 0));
+  assert(!spoolTypeTagAsk(true, true, NAN, 0));        // no reading
+  assert(!spoolTypeTagAsk(true, true, 1180.0f, 180));  // a type already chosen
+  assert(!spoolTypeTagAsk(false, true, 1180.0f, 0));   // another kind of tag
+  assert(!spoolTypeTagAsk(true, false, 1180.0f, 0));   // Spoolman direct, FilaMan
+  // The type picked for a Bambu tag's spool goes before the tag's fixed
+  // 250 g core and is trusted: it is the core_weight Bambuddy's own
+  // inventory gets (bambuddyCreateFromTag() sends tagCreateTare()), and
+  // behind Spoolman the spool's own spool_weight (not inherited).
+  assert(spoolTypeCreateTare(180, 250, false, &t) == 180 && t);
+  assert(spoolTypeOwnCore(spoolTypeCreateTare(180, 250, false, nullptr), false) == 180);
   return 0;
 }
 '''
