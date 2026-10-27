@@ -53,5 +53,7 @@ bool densityPlausible(float d);
 // name is the product name or the product name, a blank and more text, and the
 // net weight is the same where both name one (0 names none). Vendor and name
 // are compared without case (ASCII only) and with the blanks at both ends
-// ignored. A null vendor or name, and an empty product name, never match.
+// ignored. A null vendor or name, an empty product name, and an empty vendor
+// (after the blanks are ignored) on either side never match: two missing
+// makers are not the same maker.
 bool densityEntryIsProduct(const char* entry_vendor, const char* entry_name, int entry_weight_g, const DensityProduct& want);

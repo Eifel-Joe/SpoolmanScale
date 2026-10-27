@@ -4219,6 +4219,9 @@ const char* const STRINGS[][3] = {
   { "Dichte nur von 0,50 bis 4,00 g/cm3",
     "Density only from 0.50 to 4.00 g/cm3",
     "Densité de 0,50 à 4,00 g/cm3 seulement" },  // STR_DENSITY_RANGE
+  { "Leer = keine Dichte. Bereich 0,50 bis 4,00 g/cm3.",
+    "Empty = no density. Range 0.50 to 4.00 g/cm3.",
+    "Vide = sans densité. Plage 0,50 à 4,00 g/cm3." },  // STR_DENSITY_PAD_INFO
 };
 
 StringID tagWriteResultString(uint8_t code) {

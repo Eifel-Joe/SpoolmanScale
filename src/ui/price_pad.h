@@ -22,6 +22,13 @@ void showPricePad(float current, void (*done)(float price));
 // and what `done` gets are the same.
 void showPricePadTitled(float current, int title_id, void (*done)(float price));
 
+// The same pad for another quantity than a price (the density on the card for
+// a new filament, V34): the title and the grey line beside the keys are
+// StringIDs too, since the line for a price talks about the currency and the
+// server. What the keys take (digits, one point, two decimals) and what `done`
+// gets are the same; the titled pad above shows the price's line.
+void showPricePadInfo(float current, int title_id, int info_id, void (*done)(float value));
+
 bool pricePadOpen();
 void closePricePad();
 

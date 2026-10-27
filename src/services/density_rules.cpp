@@ -36,10 +36,14 @@ bool densityEntryIsProduct(const char* entry_vendor, const char* entry_name, int
   if (!entry_vendor || !entry_name || !want.vendor || !want.product) return false;
 
   // The vendor is the same, with the blanks at both ends and the case aside.
+  // A vendor that is empty (or only blanks) names nobody: two of them are not
+  // "the same vendor", so a database entry without a maker never answers for a
+  // tag without one.
   const char* vendor;
   const size_t vlen = trimmedSpan(entry_vendor, &vendor);
   const char* want_vendor;
   const size_t wvlen = trimmedSpan(want.vendor, &want_vendor);
+  if (vlen == 0 || wvlen == 0) return false;
   if (vlen != wvlen || !sameFolded(vendor, want_vendor, vlen)) return false;
 
   // An empty product name names no product, so it matches nothing.

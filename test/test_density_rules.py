@@ -32,6 +32,8 @@ int main() {
   const DensityProduct none = { "Bambu Lab", "", 500 };
   assert(!densityEntryIsProduct("Bambu Lab", "", 500, none));
   assert(!densityEntryIsProduct(nullptr, nullptr, 500, abs_s));
+  const DensityProduct novendor = { "", "Support for ABS", 500 };
+  assert(!densityEntryIsProduct("", "Support for ABS", 500, novendor));   // two missing makers are no maker
   return 0;
 }
 '''

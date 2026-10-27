@@ -1938,6 +1938,7 @@ enum StringID {
   STR_DENSITY_BTN,            // the card's left button while a density is missing, in place of "Create"
   STR_DENSITY_PAD_TITLE,      // the price pad's title when it asks for the density (g/cm3)
   STR_DENSITY_RANGE,          // the card's status line after a density outside the plausible range
+  STR_DENSITY_PAD_INFO,       // the grey line beside the price pad's keys when it asks for the density
 
   STR_COUNT
 };

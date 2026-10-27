@@ -51,7 +51,9 @@ def click_handler_of(rel, marker):
 # click (the price button does the same) and no work runs in the handler: the
 # create is parked in s_job as before.
 click = click_handler_of(POPUP, "s_job = TCP_CREATE")
-ask = squeeze("showPricePadTitled(s_in.density_typed, STR_DENSITY_PAD_TITLE, onDensity)")
+# The pad's grey line is the density's own: the price's one talks about the
+# currency (price_pad.cpp, below).
+ask = squeeze("showPricePadInfo(s_in.density_typed, STR_DENSITY_PAD_TITLE, STR_DENSITY_PAD_INFO, onDensity)")
 assert "s_plan.no_density" in click, \
     f"src/{POPUP}: the left button does not look at s_plan.no_density"
 assert ask in click, \
@@ -79,6 +81,27 @@ assert re.search(r"\w+<=0(?:\.0f)?\)return;", body), \
 # able to reset the typed value on the way: the input is set once, by the pad.
 assert len(re.findall(r"s_in\.density_typed=", squeeze(source_of(POPUP).code))) == 1, \
     f"src/{POPUP}: s_in.density_typed is set in more than one place"
+
+# The plan asked again after a lost Wi-Fi is a failure, not a density question:
+# the old no_density flag must not survive into the failed plan.
+body = body_of(POPUP, "runPlan")
+assert "if(!wifi_ok){" in body and "s_plan.no_density=false;" in body, \
+    f"src/{POPUP}: runPlan() does not clear s_plan.no_density when Wi-Fi is lost"
+assert body.find("s_plan.no_density=false;") < body.find("s_plan.state=TFS_FAILED;") < body.find("showPlan()"), \
+    f"src/{POPUP}: runPlan() must clear s_plan.no_density before it shows the failed plan"
+
+# 2b. The pad: the density's grey line reaches the label, and the price's own
+# line stays what it was for everything that is not a density (the price on the
+# card for a tag, the copy card's price per kg, both through showPricePadTitled()).
+PAD = "ui/price_pad.cpp"
+assert "T(info_id)" in body_of(PAD, "buildHead") and "STR_PRICE_PAD_INFO" not in body_of(PAD, "buildHead"), \
+    f"src/{PAD}: buildHead() must take the grey line from its info_id"
+assert squeeze("showPricePadInfo(current, title_id, STR_PRICE_PAD_INFO, done)") in body_of(PAD, "showPricePadTitled"), \
+    f"src/{PAD}: showPricePadTitled() does not show the price's grey line (STR_PRICE_PAD_INFO)"
+assert squeeze("showPricePadTitled(current, STR_PRICE_PAD_TITLE, done)") in body_of(PAD, "showPricePad"), \
+    f"src/{PAD}: showPricePad() no longer goes through showPricePadTitled()"
+assert "buildHead(title_id,info_id)" in body_of(PAD, "showPricePadInfo"), \
+    f"src/{PAD}: showPricePadInfo() does not hand its info_id on to buildHead()"
 
 # 3. The left button reads "Density" only while the card asks, and "Create"
 # in every other state: showPlan() names the density for the one state that

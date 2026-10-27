@@ -442,7 +442,9 @@ static void buildAnswers(lv_obj_t* box) {
     // creating, and the answer comes back through onDensity().
     if (s_plan.no_density) {
       logSD("BTN: TagCreate -> Density");
-      showPricePadTitled(s_in.density_typed, STR_DENSITY_PAD_TITLE, onDensity);
+      // The pad's grey line says what empty means and the range: the one for a
+      // price talks about the currency.
+      showPricePadInfo(s_in.density_typed, STR_DENSITY_PAD_TITLE, STR_DENSITY_PAD_INFO, onDensity);
       return;
     }
     logSD("BTN: TagCreate -> Create");
@@ -642,7 +644,14 @@ static void settleTwin() {
 static void runPlan() {
   s_plan_stale = false;
   s_plan_gen   = backendGeneration();
-  if (!wifi_ok) { s_plan.state = TFS_FAILED; showPlan(); return; }
+  if (!wifi_ok) {
+    // The plan is not asked, so it still holds the last answer's flags: a
+    // no_density from before would show the density ask instead of the failure.
+    s_plan.no_density = false;
+    s_plan.state = TFS_FAILED;
+    showPlan();
+    return;
+  }
   backendPlanTagFilament(s_in, &s_plan);
   serverReachNote(s_plan.state == TFS_FAILED ? s_plan.http_code : 200, true);
   showPlan();
