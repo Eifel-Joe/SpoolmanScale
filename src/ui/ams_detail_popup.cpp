@@ -413,6 +413,7 @@ static void showSpoolAsk(AmsdAsk kind) {
         lv_color_hex(b[i].primary ? UI_COL_OK_TEXT : UI_COL_BAD_TEXT), 0);
       lv_obj_set_style_text_font(l, UI_FONT_TITLE, 0);
       lv_obj_center(l);
+      if (!b[i].primary) styleLeaveButton(btn);
     }
   }
 }

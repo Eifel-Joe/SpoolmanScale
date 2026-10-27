@@ -769,6 +769,7 @@ static void sizeButton(lv_obj_t* box, const char* text, int y, DbpNav nav, int a
   lv_obj_set_style_text_color(l, lv_color_hex(nav == NAV_SIZE ? UI_COL_INK : UI_COL_BAD_TEXT), 0);
   lv_obj_set_style_text_font(l, UI_FONT_TITLE, 0);
   lv_obj_center(l);
+  if (nav != NAV_SIZE) styleLeaveButton(b);
 }
 
 static void askSize(int first, int n) {

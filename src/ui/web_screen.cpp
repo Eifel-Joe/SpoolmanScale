@@ -12,6 +12,7 @@
 #include "services/device_name.h"
 #include "services/wifi_manager.h"
 #include "system_screen.h"
+#include "num_pad.h"
 #include "ui_common.h"
 #include "web/web_access.h"
 #include "web/web_server.h"
@@ -19,109 +20,33 @@
 
 lv_obj_t *scr_web = nullptr;
 
-// The password numpad and what has been typed into it so far.
-static lv_obj_t *s_pin_scr = nullptr;
-static lv_obj_t *s_pin_lbl = nullptr;
-static char      s_pin[WEB_PASS_MAX + 1] = "";
-
-void webPinScreenHide()  { if (s_pin_scr) lv_obj_add_flag(s_pin_scr, LV_OBJ_FLAG_HIDDEN); }
-void webPinScreenClose() { releaseScreen(&s_pin_scr); s_pin_lbl = nullptr; }
-
 static void rebuild();
 
-static void pinRefresh() {
-  if (!s_pin_lbl) return;
-  lv_label_set_text(s_pin_lbl, s_pin[0] ? s_pin : "-");
+// The password, typed on the house keypad. Digits only: it is what the
+// device can type, and it is enough - this is a lock on a LAN interface, not
+// an account. Opens empty; empty removes the password, too short counts as
+// empty, and webSetPassword() says so in the log. An NVS write from a
+// callback is the pattern every settings row here follows - one small key.
+static bool onPinDone(const char *text) {
+  webSetPassword(text);
+  rebuild();
+  return true;
 }
 
-// The same 3x4 pad the drying thresholds use. Digits only: it is what the
-// device can type, and it is enough - this is a lock on a LAN interface, not
-// an account.
-static void buildWebPinScreen() {
-  webPinScreenClose();
-  s_pin[0] = '\0';
-  s_pin_scr = buildOverlayScreen();
-
-  char title[40];
-  copyT(title, sizeof(title), STR_WEB_PASS_TITLE);
-  buildSubHeader(s_pin_scr, title, [](lv_event_t *e){
-    logSD("BTN: Back -> Web (password untouched)");
-    webPinScreenClose();
-    rebuild();
-  });
-
-  lv_obj_t *hint = lv_label_create(s_pin_scr);
-  { char hb[96];
-    copyT(hb, sizeof(hb), STR_WEB_PASS_HINT);
-    lv_label_set_text(hint, hb); }
-  lv_obj_set_style_text_color(hint, lv_color_hex(UI_COL_CAPTION), 0);
-  lv_obj_set_style_text_font(hint, &lv_font_montserrat_ext_12, 0);
-  lv_obj_set_style_text_align(hint, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_set_width(hint, 464);
-  lv_obj_set_pos(hint, 8, 58);
-
-  lv_obj_t *val_box = lv_obj_create(s_pin_scr);
-  lv_obj_set_size(val_box, 380, 40);
-  lv_obj_set_pos(val_box, 50, 80);
-  lv_obj_set_style_bg_color(val_box, lv_color_hex(UI_COL_GROUND), 0);
-  lv_obj_set_style_border_color(val_box, lv_color_hex(UI_COL_ACCENT), 0);
-  lv_obj_set_style_border_width(val_box, 1, 0);
-  lv_obj_set_style_radius(val_box, 8, 0);
-  lv_obj_clear_flag(val_box, LV_OBJ_FLAG_SCROLLABLE);
-  s_pin_lbl = lv_label_create(val_box);
-  lv_obj_set_style_text_color(s_pin_lbl, lv_color_hex(UI_COL_ACCENT), 0);
-  lv_obj_set_style_text_font(s_pin_lbl, &lv_font_montserrat_ext_24, 0);
-  lv_obj_align(s_pin_lbl, LV_ALIGN_CENTER, 0, 0);
-  pinRefresh();
-
-  const int NP_W = 136, NP_H = 36, NP_GAP = 4;
-  const int NP_X0 = (480 - 3 * NP_W - 2 * NP_GAP) / 2;
-  const int NP_Y0 = 128;
-  static const char *keys[] = { "1","2","3","4","5","6","7","8","9","DEL","0","OK" };
-  for (int i = 0; i < 12; i++) {
-    const int col = i % 3, row = i / 3;
-    const bool is_del = (strcmp(keys[i], "DEL") == 0);
-    const bool is_ok  = (strcmp(keys[i], "OK")  == 0);
-    lv_obj_t *kb = lv_btn_create(s_pin_scr);
-    lv_obj_set_size(kb, NP_W, NP_H);
-    lv_obj_set_pos(kb, NP_X0 + col * (NP_W + NP_GAP), NP_Y0 + row * (NP_H + NP_GAP));
-    lv_obj_set_style_bg_color(kb, is_del ? lv_color_hex(UI_COL_KEY_DEL) :
-                                  is_ok  ? lv_color_hex(UI_COL_PICKED_BG) :
-                                           lv_color_hex(UI_COL_SURFACE), 0);
-    lv_obj_set_style_bg_color(kb, lv_color_hex(UI_COL_ROW_PRESS_FILL), LV_STATE_PRESSED);
-    lv_obj_set_style_radius(kb, 6, 0);
-    lv_obj_set_style_shadow_width(kb, 0, 0);
-    lv_obj_set_style_border_width(kb, 1, 0);
-    lv_obj_set_style_border_color(kb, is_ok ? lv_color_hex(UI_COL_ACCENT) : lv_color_hex(UI_COL_ROW_PRESSED), 0);
-    lv_obj_t *kl = lv_label_create(kb);
-    lv_label_set_text(kl, is_ok ? LV_SYMBOL_OK : is_del ? T(STR_KEY_DEL) : keys[i]);
-    lv_obj_set_style_text_color(kl, is_del ? lv_color_hex(UI_COL_BAD) :
-                                     is_ok  ? lv_color_hex(UI_COL_ACCENT) :
-                                              lv_color_hex(UI_COL_INK), 0);
-    lv_obj_set_style_text_font(kl, &lv_font_montserrat_ext_18, 0);
-    lv_obj_align(kl, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_user_data(kb, (void*)keys[i]);
-    lv_obj_add_event_cb(kb, [](lv_event_t *e){
-      const char *k = (const char*)lv_obj_get_user_data(lv_event_get_target(e));
-      if (!k || !s_pin_lbl) return;
-      const size_t len = strlen(s_pin);
-      if (strcmp(k, "DEL") == 0) {
-        if (len) s_pin[len - 1] = '\0';
-      } else if (strcmp(k, "OK") == 0) {
-        // Empty removes the password; too short counts as empty, and
-        // webSetPassword() says so in the log. NVS write from a callback is
-        // the pattern every settings row here follows - one small key.
-        webSetPassword(s_pin);
-        webPinScreenClose();
-        rebuild();
-        return;
-      } else if (len < WEB_PASS_MAX) {
-        s_pin[len] = k[0];
-        s_pin[len + 1] = '\0';
-      }
-      pinRefresh();
-    }, LV_EVENT_CLICKED, NULL);
-  }
+static void showWebPinPad() {
+  NumPadSpec spec = {};
+  spec.title      = T(STR_WEB_PASS_TITLE);
+  spec.hint       = T(STR_WEB_PASS_HINT);
+  spec.unit       = "";
+  spec.primary    = T(STR_BTN_SAVE);
+  spec.initial    = "";
+  spec.max_chars  = WEB_PASS_MAX;
+  spec.secret     = true;
+  spec.help_title = -1;
+  spec.on_done    = onPinDone;
+  spec.on_leave   = [] { logSD("Web: password untouched"); rebuild(); };
+  hideAllOverlays();
+  showNumPad(spec);
 }
 
 // One helper for all three rows. They differ only in which switch they read
@@ -245,9 +170,7 @@ void buildWebScreen() {
                                   INFO_POPUP_ARG(STR_WEB_PASS, STR_WEB_PASS_INFO));
     lv_obj_add_event_cb(btn, [](lv_event_t *e) {
       logSD("BTN: Web -> password numpad");
-      buildWebPinScreen();
-      hideAllOverlays();
-      if (s_pin_scr) lv_obj_clear_flag(s_pin_scr, LV_OBJ_FLAG_HIDDEN);
+      showWebPinPad();
     }, LV_EVENT_CLICKED, NULL);
   }
 }

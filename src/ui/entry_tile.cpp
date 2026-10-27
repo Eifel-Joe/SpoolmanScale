@@ -2,6 +2,7 @@
 
 #include "lang.h"
 #include "ui/theme.h"
+#include "ui/ui_common.h"
 
 // The screen's own coordinates: tiles from under the context line at y 60
 // down to the low row, which ends 16 px above the bottom edge.
@@ -99,5 +100,5 @@ void entryBottomRow(lv_obj_t* parent, const char* id_caption, lv_event_cb_t id_c
   const EntryRect cancel_r = { (lv_coord_t)(ENTRY_X + half_w + ENTRY_GAP), ENTRY_LOW_Y,
                                half_w, ENTRY_LOW_H };
   entryLowButton(parent, id_r, id_caption, false, id_cb);
-  entryLowButton(parent, cancel_r, T(STR_CANCEL), true, cancel_cb);
+  styleLeaveButton(entryLowButton(parent, cancel_r, T(STR_CANCEL), true, cancel_cb));
 }

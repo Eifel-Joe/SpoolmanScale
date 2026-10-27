@@ -181,6 +181,7 @@ static void showSpoolWeightPopup(float grams, bool then_new_spool, bool measured
   lv_obj_t *cancel = padButton(box, SW_X, cancel_y, SW_INNER_W, SW_BTN_H, UI_COL_ROW, UI_COL_ROW_PRESS_FILL);
   lv_obj_set_style_radius(cancel, UI_RADIUS_BTN, 0);
   padLabel(cancel, T(STR_CANCEL), UI_COL_INK_2, UI_FONT_SMALL);
+  styleLeaveButton(cancel);
   lv_obj_add_event_cb(cancel, [](lv_event_t *e) {
     releaseScreen(&s_scope_popup);
   }, LV_EVENT_CLICKED, NULL);

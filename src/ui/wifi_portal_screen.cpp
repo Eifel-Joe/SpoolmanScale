@@ -11,6 +11,7 @@
 #include "navigation.h"
 #include "services/setup_portal.h"
 #include "ui_common.h"
+#include "setup_frame.h"
 #include "web/web_server.h"
 #include "wifi_setup_screen.h"
 #include "theme.h"
@@ -132,11 +133,17 @@ static void buildWifiPortalScreen() {
   lv_obj_clear_flag(scr_wifi_portal, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_style_bg_color(scr_wifi_portal, lv_color_hex(UI_COL_GROUND), 0);
 
-  portalLabel(scr_wifi_portal, T(STR_PORTAL_TITLE), &lv_font_montserrat_ext_18, UI_COL_ACCENT, 14);
   // Parked for the loop: going back takes the access point down, and the
   // screen this button sits on is deleted on the way.
-  addBackButton(scr_wifi_portal, [](lv_event_t *e) { portal_close_pending = true; });
-  addCloseButton(scr_wifi_portal);
+  if (setup_active) {
+    // In the setup the step count stands where the close button would.
+    setupHeader(scr_wifi_portal, T(STR_PORTAL_TITLE), SETUP_STEP_WIFI,
+                [](lv_event_t *e) { portal_close_pending = true; });
+  } else {
+    portalLabel(scr_wifi_portal, T(STR_PORTAL_TITLE), &lv_font_montserrat_ext_18, UI_COL_ACCENT, 14);
+    addBackButton(scr_wifi_portal, [](lv_event_t *e) { portal_close_pending = true; });
+    addCloseButton(scr_wifi_portal);
+  }
 
   // In the middle while the scan runs; moves under the codes once they exist.
   lbl_portal_status = lv_label_create(scr_wifi_portal);

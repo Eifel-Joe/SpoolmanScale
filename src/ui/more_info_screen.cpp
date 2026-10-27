@@ -214,8 +214,8 @@ static lv_obj_t *loc_status_obj = nullptr;
 #define LOC_CANCEL_H    44
 #define LOC_CANCEL_GAP  8
 #define LOC_CANCEL_W    380
-#define LOC_FILL_W      (LOC_CANCEL_W - 2)   // inside the button's 1 px border
-#define LOC_FILL_H      (LOC_CANCEL_H - 2)
+#define LOC_FILL_W      (LOC_CANCEL_W - 2 * UI_LEAVE_BORDER_W)   // inside the leave outline
+#define LOC_FILL_H      (LOC_CANCEL_H - 2 * UI_LEAVE_BORDER_W)
 static lv_obj_t     *loc_cancel_fill   = nullptr;
 static lv_coord_t    loc_cancel_fill_w = -1;
 static unsigned long loc_count_ms      = 0;
@@ -546,6 +546,7 @@ void showLocationPicker() {
     lv_obj_set_style_text_color(lbl_c, lv_color_hex(UI_COL_INK_2), 0);
     lv_obj_set_style_text_font(lbl_c, UI_FONT_BODY, 0);
     lv_obj_center(lbl_c);
+    styleLeaveButton(btn_c);
     locCountRestart();
   }
 
@@ -1343,6 +1344,7 @@ void buildMoreInfoScreen() {
       lv_obj_set_style_text_color(lbl_no, lv_color_hex(UI_COL_CAPTION), 0);
       lv_obj_set_style_text_font(lbl_no, &lv_font_montserrat_ext_14, 0);
       lv_obj_align(lbl_no, LV_ALIGN_CENTER, 0, 0);
+      styleLeaveButton(btn_no);
 
       // Confirm unlink (rechts, rot)
       lv_obj_t *btn_yes = lv_btn_create(box2);

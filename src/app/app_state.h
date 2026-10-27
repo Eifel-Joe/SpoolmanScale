@@ -27,7 +27,6 @@ extern bool cfg_first_boot;
 // step restarts the device, and without this the restart would find an SSID
 // and boot past the rest of the setup. Cleared when the setup ends.
 extern bool cfg_setup_resume;
-extern bool spoolman_fail_is_setup;
 
 // True while the user is walking through the first time setup chain
 // (language, WiFi, backend, address, credentials). Screens that appear in
@@ -62,15 +61,13 @@ extern lv_obj_t *scr_timezone;
 extern lv_obj_t *scr_spoolman_options;
 extern lv_obj_t *scr_tag_comp;   // companion field beside the native tags
 extern lv_obj_t *scr_spoolman;
-extern lv_obj_t *scr_spoolman_fail;
 extern lv_obj_t *scr_welcome;
 extern lv_obj_t *scr_first_boot;
 extern lv_obj_t *scr_extra_fields;
 extern lv_obj_t *scr_tag_field;
-extern lv_obj_t *scr_cal_reminder;
+extern lv_obj_t *scr_setup_done;
 extern lv_obj_t *scr_wifi_setup;
 extern lv_obj_t *scr_factor;
-extern lv_obj_t *scr_bag;
 extern lv_obj_t *scr_lastused;
 extern lv_obj_t *scr_connection;
 extern lv_obj_t *scr_wifi_menu;
@@ -262,16 +259,11 @@ extern lv_obj_t *lbl_spoolman_dried;
 extern lv_obj_t *lbl_spoolman_dried_val;
 extern lv_obj_t *lbl_dried_sym;
 extern int s_dry_numpad_target;
-extern int s_dry_numpad_value;
-extern lv_obj_t *s_dry_numpad_scr;
-extern lv_obj_t *s_dry_numpad_lbl;
 
 // Numpad for the AMS assignment window, in seconds. Held here for the
 // same reason as the drying one: showMainScreen() has to be able to tear
 // it down from outside the screen that built it.
 extern int s_ams_numpad_value;
-extern lv_obj_t *s_ams_numpad_scr;
-extern lv_obj_t *s_ams_numpad_lbl;
 extern lv_obj_t *lbl_nfc_dot;
 extern lv_obj_t *lbl_hdr_wifi;
 extern lv_obj_t *lbl_hdr_bt;

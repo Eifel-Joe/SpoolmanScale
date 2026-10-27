@@ -608,3 +608,60 @@ void spoolStartText(const SpoolStart& s, bool tare_inherited, char* out, size_t 
     snprintf(out, out_size, T(STR_TAGNEW_W_OF), s.remaining_g, s.label_g);
   }
 }
+
+void listBtnTone(lv_obj_t* btn, ListTone tone) {
+  if (tone == TONE_PLAIN) return;
+  // Amber is the same one the status bar and the web UI already warn in,
+  // red the same one the reset dialog uses, so neither introduces a colour.
+  const uint32_t border  = (tone == TONE_DANGER) ? UI_COL_BAD_BG_PRESSED : UI_COL_CAUTION_BG;
+  const uint32_t bg      = (tone == TONE_DANGER) ? UI_COL_DANGER_ROW : UI_COL_CAUTION_ROW;
+  const uint32_t pressed = (tone == TONE_DANGER) ? UI_COL_BAD_BG : UI_COL_AMBER_LINE;
+  const uint32_t text    = (tone == TONE_DANGER) ? UI_COL_DANGER_TEXT : UI_COL_WARN;
+  lv_obj_set_style_border_color(btn, lv_color_hex(border), 0);
+  lv_obj_set_style_bg_color(btn, lv_color_hex(bg), 0);
+  lv_obj_set_style_bg_color(btn, lv_color_hex(pressed), LV_STATE_PRESSED);
+  // Child 0 is the icon, child 1 the title. Both take the tone so the row
+  // reads as a warning before the text is read.
+  lv_obj_t *ico_lbl = lv_obj_get_child(btn, 0);
+  lv_obj_t *ttl_lbl = lv_obj_get_child(btn, 1);
+  if (ico_lbl) lv_obj_set_style_text_color(ico_lbl, lv_color_hex(text), 0);
+  if (ttl_lbl) lv_obj_set_style_text_color(ttl_lbl, lv_color_hex(text), 0);
+}
+
+// red_pct of `red`, the rest of `base`.
+static lv_color_t leaveMix(uint32_t red, uint32_t base, int red_pct) {
+  return lv_color_mix(lv_color_hex(red), lv_color_hex(base), (uint8_t)(red_pct * 255 / 100));
+}
+
+void styleLeaveButton(lv_obj_t* btn, const char* icon) {
+  if (!btn) return;
+  lv_obj_set_style_bg_color(btn, lv_color_hex(UI_COL_ROW), 0);
+  lv_obj_set_style_bg_color(btn, lv_color_hex(UI_COL_ROW_PRESS_FILL), LV_STATE_PRESSED);
+  lv_obj_set_style_border_width(btn, UI_LEAVE_BORDER_W, 0);
+  lv_obj_set_style_border_color(btn, leaveMix(UI_COL_BAD_TEXT, UI_COL_ROW, UI_LEAVE_BORDER_RED_PCT), 0);
+  lv_obj_set_style_border_opa(btn, LV_OPA_COVER, 0);
+  lv_obj_t* lbl = nullptr;
+  for (uint32_t i = 0; i < lv_obj_get_child_cnt(btn) && !lbl; i++) {
+    lv_obj_t* c = lv_obj_get_child(btn, i);
+    if (lv_obj_check_type(c, &lv_label_class)) lbl = c;
+  }
+  if (!lbl) return;
+  // LVGL 8.3 counts the recolour markup below when it shortens a line, so a
+  // caption with room to spare came out as "x ..." (the entry tiles). Sized
+  // to its text instead; the button clips one that really is too long.
+  const lv_label_long_mode_t mode = lv_label_get_long_mode(lbl);
+  if (mode == LV_LABEL_LONG_DOT || mode == LV_LABEL_LONG_SCROLL ||
+      mode == LV_LABEL_LONG_SCROLL_CIRCULAR) {
+    lv_label_set_long_mode(lbl, LV_LABEL_LONG_CLIP);
+    lv_obj_set_width(lbl, LV_SIZE_CONTENT);
+  }
+  // The icon in red through LVGL's recolour markup, the caption in the
+  // label's own colour; one label, so the pair stays centred as before.
+  char text[64];
+  const lv_color_t ic = leaveMix(UI_COL_BAD_TEXT, UI_COL_INK_2, UI_LEAVE_ICON_RED_PCT);
+  snprintf(text, sizeof(text), "#%06x %s#  %s", (unsigned)(lv_color_to32(ic) & 0xFFFFFFu), icon,
+           lv_label_get_text(lbl));
+  lv_label_set_recolor(lbl, true);
+  lv_label_set_text(lbl, text);
+  lv_obj_set_style_text_color(lbl, lv_color_hex(UI_COL_INK_2), 0);
+}

@@ -14,11 +14,10 @@ uint8_t g_date_fmt = DATE_FMT_DMY;
 const char* const STRINGS[][3] = {
 
   // Navigation
-  { "Abbrechen",        "Cancel",       "Annuler" },  // STR_CANCEL
-  { "Zurück",           "Back",         "Retour" },  // STR_BACK
-  { "Bestätigen",       "Confirm",      "Confirmer" },  // STR_CONFIRM
-  { "Erneut versuchen", "Try again",    "Réessayer" },  // STR_RETRY
-  { "ID neu eingeben",  "Enter new ID", "Ressaisir l'ID" },  // STR_ENTER_NEW_ID
+  { "Abbrechen",       "Cancel",       "Annuler" },  // STR_CANCEL
+  { "Zurück",          "Back",         "Retour" },  // STR_BACK
+  { "Bestätigen",      "Confirm",      "Confirmer" },  // STR_CONFIRM
+  { "ID neu eingeben", "Enter new ID", "Ressaisir l'ID" },  // STR_ENTER_NEW_ID
 
   // Mainscreen Labels
   { "Spoolman",         "Spoolman",    "Spoolman" },  // STR_LBL_SPOOLMAN
@@ -59,11 +58,9 @@ const char* const STRINGS[][3] = {
   { "WLAN einrichten",          "WiFi setup",           "Réglage du WiFi" },  // STR_WIFI_TITLE
   { "Netzwerke suchen...",      "Scanning networks...", "Recherche des réseaux..." },  // STR_WIFI_SCAN
   { "Keine Netzwerke gefunden", "No networks found",    "Aucun réseau trouvé" },  // STR_WIFI_NO_NET
-  { "WLAN-Passwort",            "WiFi password",        "Mot de passe WiFi" },  // STR_WIFI_PASS_TITLE
   { "Passwort für: %s",         "Password for: %s",     "Pour le réseau %s" },  // STR_WIFI_PASS_HINT
   { "Passwort...",              "Password...",          "Mot de passe..." },  // STR_WIFI_PASS_PLACEHOLDER
   { "Verbinde mit %s...",       "Connecting to %s...",  "Connexion à %s..." },  // STR_WIFI_CONNECTING
-  { "Verbunden!",               "Connected!",           "Connecté !" },  // STR_WIFI_SUCCESS
 
   // Spoolman IP
   { "Spoolman Server", "Spoolman Server", "Serveur Spoolman" },  // STR_SPOOLMAN_TITLE
@@ -118,8 +115,6 @@ const char* const STRINGS[][3] = {
 
   // Calibration
   { "Kalibrierung",             "Calibration",              "Étalonnage" },  // STR_CAL_TITLE
-  { "Faktor: --",               "Factor: --",               "Facteur : --" },  // STR_CAL_FACTOR
-  { "Faktor: %.4f",             "Factor: %.4f",             "Facteur : %.4f" },  // STR_CAL_OK
   { "Fehler: Gewicht = 0",      "Error: weight = 0",        "Erreur : poids = 0" },  // STR_CAL_ZERO_ERR
   { LV_SYMBOL_OK "  Berechnen", LV_SYMBOL_OK "  Calculate", LV_SYMBOL_OK "  Calculer" },  // STR_BTN_CALCULATE
 
@@ -253,7 +248,6 @@ const char* const STRINGS[][3] = {
     LV_SYMBOL_OK "  Lier" },  // STR_LINK_OK
 
   // Tare
-  { LV_SYMBOL_OK "  Tare gesetzt!", LV_SYMBOL_OK "  Tare set!", LV_SYMBOL_OK "  Tare faite !" },  // STR_TARE_OK
   { LV_SYMBOL_WARNING "  Waage nicht bereit",
     LV_SYMBOL_WARNING "  Scale not ready",
     LV_SYMBOL_WARNING "  Balance non prête" },  // STR_TARE_NOT_READY
@@ -267,11 +261,6 @@ const char* const STRINGS[][3] = {
   { LV_SYMBOL_REFRESH "  Jetzt neu starten",
     LV_SYMBOL_REFRESH "  Restart now",
     LV_SYMBOL_REFRESH "  Redémarrer" },  // STR_REBOOT_BTN
-
-  // WiFi connecting result
-  { LV_SYMBOL_WARNING "  Verbindung fehlgeschlagen.\nSSID: %s",
-    LV_SYMBOL_WARNING "  Connection failed.\nSSID: %s",
-    LV_SYMBOL_WARNING "  Échec de la connexion.\nSSID : %s" },  // STR_WIFI_CONN_FAILED
 
   // WiFi quality
   { "Ausgezeichnet", "Excellent",    "Excellent" },  // STR_WIFI_QUAL_EXCELLENT
@@ -295,15 +284,6 @@ const char* const STRINGS[][3] = {
     "Voulez-vous vraiment\narchiver cette bobine ?" },  // STR_ARCHIVE_CONFIRM
 
 
-  // Welcome language select screen
-  { "Sprache und Zeitzone", "Language and time zone", "Langue et fuseau horaire" },  // STR_WELCOME_LANG_TITLE
-  { "Beides lässt sich später in den Einstellungen ändern.\nWeiter startet das Gerät einmal neu.",
-    "Both can be changed later in Settings.\nNext restarts the device once.",
-    "Langue et fuseau horaire restent modifiables dans les réglages.\nSuivant enregistre les deux choix et redémarre l'appareil une fois." },  // STR_WELCOME_LANG_HINT
-
-  // WiFi scan count
-  { "%d Netzwerke gefunden", "%d networks found", "%d réseaux trouvés" },  // STR_WIFI_NETWORKS_FOUND
-
   // Bag weight current label
   { "Aktuell: %.0f g", "Current: %.0f g", "Actuel : %.0f g" },  // STR_BAG_CURRENT
 
@@ -323,17 +303,6 @@ const char* const STRINGS[][3] = {
   { "Willkommen!",
     "Welcome!",
     "Bienvenue !" },  // STR_FIRSTBOOT_TITLE
-  { "Deine SpoolmanScale ist fast bereit.",
-    "Your SpoolmanScale is almost ready.",
-    "Votre SpoolmanScale est presque prête." },  // STR_FIRSTBOOT_SUB
-  // Both backends are named here because this screen appears before the user
-  // has chosen one. It must therefore not go through backendText().
-  { "In wenigen Schritten richten wir\nWLAN, Server und die Waage ein.",
-    "In a few steps we will set up\nWiFi, the server and the scale.",
-    "En quelques étapes, nous allons configurer\nle WiFi, le serveur et la balance." },  // STR_FIRSTBOOT_HINT
-  { LV_SYMBOL_RIGHT "  Los geht's",
-    LV_SYMBOL_RIGHT "  Get started",
-    LV_SYMBOL_RIGHT "  C'est parti" },  // STR_FIRSTBOOT_BTN
 
   // Extra fields screen
   { "Spoolman Extra-Felder",
@@ -365,20 +334,11 @@ const char* const STRINGS[][3] = {
   { "Waage kalibrieren",
     "Calibrate scale",
     "Étalonner la balance" },  // STR_CAL_REMINDER_TITLE
-  { "Für genaue Messungen muss die Waage\nkalibriert werden.\n\nLege ein bekanntes Gewicht auf\nund gehe zu Einstellungen > Waage\n> Kalibrierung.\n\nDies kann auch später gemacht werden.",
-    "For accurate measurements the scale\nneeds to be calibrated.\n\nPlace a known weight on the scale\nand go to Settings > Scale > Calibration.\n\nYou can also do this later.",
-    "Pour des mesures précises, la balance\ndoit être étalonnée.\n\nPrévoyez un objet de poids connu\npuis allez dans Réglages > Balance\n> Étalonnage.\n\nVous pouvez aussi le faire plus tard." },  // STR_CAL_REMINDER_MSG
-  { "Verstanden",
-    "Got it!",
-    "Compris" },  // STR_CAL_REMINDER_LATER
   { LV_SYMBOL_EDIT "  Jetzt kalibrieren",
     LV_SYMBOL_EDIT "  Calibrate now",
     LV_SYMBOL_EDIT "  Étalonner" },  // STR_CAL_REMINDER_NOW
 
   // Calibration TARE hint
-  { "Erst TARE ohne Gewicht, dann Gewicht auflegen und berechnen.",
-    "First TARE with nothing on the pad, then place the weight and calculate.",
-    "Plateau vide, appuyez sur TARE, puis posez le poids et calculez." },  // STR_CAL_TARE_HINT
 
   // Extra fields test button
 
@@ -690,7 +650,6 @@ const char* const STRINGS[][3] = {
   { "Spule erstellt!",       "Spool created!",        "Bobine créée !" },  // STR_COPY_OK
   { "Fehler beim Erstellen", "Error creating spool",  "Échec de la création" },  // STR_COPY_FAIL
   { "Keine Spulen gefunden", "No spools found",       "Aucune bobine trouvée" },  // STR_COPY_NO_SPOOLS
-  { "Setup überspringen",    "Skip setup",            "Passer la config." },  // STR_BTN_SKIP_SETUP
   { "Unlink",                "Unlink",                "Dissocier" },  // STR_UNLINK_BTN
   { "Spule unlinken?",       "Unlink spool?",         "Dissocier la bobine ?" },  // STR_UNLINK_TITLE
   { "Löscht den Eintrag im Tag-Feld in Spoolman.\nDie Spule bleibt erhalten.",
@@ -716,9 +675,9 @@ const char* const STRINGS[][3] = {
     "Liste incomplète - matériau absent ? Liez par l'ID de bobine" },  // STR_LIST_MORE_MATS
 
   // Auto-Weight: the help text behind the switch in the scale menu
-  { "Liegt eine erkannte Spule 3 Sekunden still, wird ihr Gewicht ohne Beutel gesendet. Unter 1 g Änderung wird nichts gesendet. Ist sie mehr als 5 g schwerer als gespeichert, sendet die Waage nicht und fragt nach.",
-    "When a recognised spool lies still for 3 seconds, its weight is sent, without the bag. Under 1 g of change nothing is sent. If it is more than 5 g heavier than stored, the scale sends nothing and asks.",
-    "Quand une bobine reconnue reste immobile 3 secondes, son poids est envoyé, sans le sachet. En dessous de 1 g de différence, rien n'est envoyé. Si elle pèse plus de 5 g de plus que la valeur enregistrée, la balance n'envoie rien et demande." },  // STR_AUTO_WEIGHT_INFO
+  { "Liegt eine erkannte Spule 4 Sekunden still, wird ihr Gewicht ohne Beutel gesendet. Unter 1 g Änderung wird nichts gesendet. Ist sie mehr als 5 g schwerer als gespeichert, sendet die Waage nicht und fragt nach.",
+    "When a recognised spool lies still for 4 seconds, its weight is sent, without the bag. Under 1 g of change nothing is sent. If it is more than 5 g heavier than stored, the scale sends nothing and asks.",
+    "Quand une bobine reconnue reste immobile 4 secondes, son poids est envoyé, sans le sachet. En dessous de 1 g de différence, rien n'est envoyé. Si elle pèse plus de 5 g de plus que la valeur enregistrée, la balance n'envoie rien et demande." },  // STR_AUTO_WEIGHT_INFO
   { "Lagerort",
     "Location",
     "Emplacement" },  // STR_BTN_LOCATION
@@ -799,14 +758,9 @@ const char* const STRINGS[][3] = {
   // FilaMan credentials, so the screen title stays neutral.
   { "Weboberfläche",         "Web interface",     "Interface web" },  // STR_WEB_TITLE
   { "Im Browser einrichten", "Set up in browser", "Config. navigateur" },  // STR_BTN_WEB_SETUP
-  { "Fertig",                "Done",              "Terminer" },  // STR_BTN_FINISH
   { "Weiter",                "Next",              "Suivant" },  // STR_BTN_NEXT
-  { "Welche Filamentverwaltung benutzt du? Das lässt sich später jederzeit im Menü ändern.",
-    "Which filament manager do you use? This can be changed in the menu at any time.",
-    "Quel gestionnaire de filament utilisez-vous ? Vous pourrez le changer à tout moment dans le menu." },  // STR_SETUP_BACKEND_HINT
   // Shown instead of a spool count when the server answered but the number
   // could not be asked for yet, which is the normal FilaMan setup case.
-  { "verbunden",         "connected",       "connecté" },  // STR_CONNECTED
   { "AN",                "ON",              "ON" },  // STR_ON
   { "AUS",               "OFF",             "OFF" },  // STR_OFF
   { "Im Browser öffnen", "Open in browser", "Navigateur" },  // STR_BTN_OPEN_BROWSER
@@ -1867,9 +1821,6 @@ const char* const STRINGS[][3] = {
   { "Kalibrierung und Tara zurücksetzen?",
     "Reset calibration and tare?",
     "Réinitialiser l'étalonnage et la tare ?" },  // STR_CAL_RESET_CONFIRM
-  { LV_SYMBOL_OK "  Kalibrierung zurückgesetzt",
-    LV_SYMBOL_OK "  Calibration reset",
-    LV_SYMBOL_OK "  Étalonnage réinitialisé" },  // STR_CAL_RESET_DONE
   { "Referenz: 10 - 20000 g", "Reference: 10 - 20000 g", "Référence : 10 - 20000 g" },  // STR_CAL_RANGE_ERR
   { LV_SYMBOL_WARNING "  Messwert unplausibel, nicht gespeichert",
     LV_SYMBOL_WARNING "  Reading implausible, not saved",
@@ -1933,8 +1884,7 @@ const char* const STRINGS[][3] = {
     "Applies to what the scale does on its own after a link. Writing from this "
     "page has its own format selector.",
     "Ces réglages concernent ce que la balance fait d'elle-même après avoir lié un tag à une bobine. L'écriture lancée depuis cette page a son propre choix de format, plus haut." },  // STR_W_TAGOPT_NOTE
-  { "Speichern",    "Download",   "Enregistrer" },  // STR_W_LOG_DOWNLOAD
-  { "Kal. löschen", "Reset cal.", "RAZ étal." },  // STR_BTN_CAL_RESET_SHORT
+  { "Speichern", "Download", "Enregistrer" },  // STR_W_LOG_DOWNLOAD
   { "Kein Material passte - Filter aufgehoben",
     "No material matched - filter dropped",
     "Aucun matériau ne correspondait - filtre levé" },  // STR_LIST_MAT_IGNORED
@@ -2112,18 +2062,18 @@ const char* const STRINGS[][3] = {
     "La mesure varie en permanence de plus de %d g alors que rien ne bouge sur le plateau.\n\nC'est typique d'un fil mal fixé sur le NAU7802. Vérifiez E+ (rouge), E- (noir), A+ (blanc) et A- (vert), à la recherche d'une soudure froide.\n\nVérifiez aussi qu'aucun câble n'appuie contre le plateau de pesée." },  // STR_DIAG_NOISY_TEXT
 
   { "So kalibrierst du", "How to calibrate", "Comment étalonner" },  // STR_CAL_HELP_TITLE
-  { "1. Plattform leer räumen und TARE drücken. Die Anzeige muss auf 0 gehen.\n\n"
+  { "1. Plattform leer räumen und auf Nullen drücken. Die Anzeige muss auf 0 gehen.\n\n"
     "2. Ein Gewicht auflegen, das du genau kennst. Ideal sind etwa 1000 g - "
     "eine volle Spule, auf einer Küchenwaage nachgewogen, reicht völlig.\n\n"
     "3. Dieses Gewicht in Gramm eintippen und auf Berechnen drücken.\n\n"
     "Je genauer das Referenzgewicht, desto genauer misst die Waage danach.",
-    "1. Clear the platform and press TARE. The reading has to go to 0.\n\n"
+    "1. Clear the platform and press Zero. The reading has to go to 0.\n\n"
     "2. Place a weight you know exactly. Around 1000 g is ideal - a full spool "
     "checked on a kitchen scale is plenty.\n\n"
     "3. Type that weight in grams and press Calculate.\n\n"
     "The more precise the reference weight, the more accurate the scale is "
     "afterwards.",
-    "1. Videz le plateau et appuyez sur TARE. L'affichage doit passer à 0.\n\n2. Posez un poids que vous connaissez exactement. L'idéal est un poids d'environ 1000 g - une bobine pleine, pesée sur une balance de cuisine, suffit amplement.\n\n3. Saisissez ce poids en grammes et appuyez sur Calculer.\n\nPlus le poids de référence est précis, plus les mesures de la balance seront précises ensuite." },  // STR_CAL_HELP_TEXT
+    "1. Videz le plateau et appuyez sur Mettre à zéro. L'affichage doit passer à 0.\n\n2. Posez un poids que vous connaissez exactement. L'idéal est un poids d'environ 1000 g - une bobine pleine, pesée sur une balance de cuisine, suffit amplement.\n\n3. Saisissez ce poids en grammes et appuyez sur Calculer.\n\nPlus le poids de référence est précis, plus les mesures de la balance seront précises ensuite." },  // STR_CAL_HELP_TEXT
 
   { "Diagnose",    "Diagnosis",     "Diagnostic" },  // STR_W_R_DIAG
   { "ohne Befund", "nothing found", "rien à signaler" },  // STR_W_S_DIAG_OK
@@ -2351,10 +2301,7 @@ const char* const STRINGS[][3] = {
   { "Gespeichert - Test übersprungen, das Gerät ist beschäftigt",
     "Saved - test skipped, the device is busy",
     "Enregistré - test ignoré, l'appareil est occupé" },  // STR_W_HOST_SAVED_ONLY
-  { "Bereits mit einem WLAN verbunden.",
-    "Already connected to WiFi.",
-    "Déjà connectée à un réseau WiFi." },  // STR_WIFI_ALREADY_CONNECTED
-  { "WLAN ändern",                  "Change WiFi",             "Changer de WiFi" },  // STR_BTN_WIFI_CHANGE
+  { "WLAN ändern",                  "Change WiFi",             "Autre réseau" },  // STR_BTN_WIFI_CHANGE
   { "Per Handy einrichten",         "Set up by phone",         "Configurer par mobile" },  // STR_BTN_WIFI_PORTAL
   { "WLAN per Handy einrichten",    "Set up WiFi by phone",    "Configurer le WiFi par mobile" },  // STR_PORTAL_TITLE
   { "WLAN beitreten",               "Join the WiFi",           "Rejoignez le WiFi" },  // STR_PORTAL_STEP_JOIN
@@ -2991,8 +2938,7 @@ const char* const STRINGS[][3] = {
     "Opening an https connection takes the scale about 0.6 s, an open connection answers in about 30 ms. The scale opens it as soon as a spool is put on, and closes it after the chosen time without a request. 30 minutes only pay off if your server keeps the connection open that long.",
     "Ouvrir une connexion https prend environ 0,6 s à la balance, une connexion ouverte répond en 30 ms environ. La balance l'ouvre dès qu'une bobine est posée et la ferme si aucune requête n'arrive pendant le délai choisi. 30 minutes ne servent que si votre serveur garde la connexion ouverte aussi longtemps." },  // STR_W_TLS_KEEP_HINT
   // The address screen on the device
-  { "https: im Browser", "https: in the browser", "https : navigateur" },  // STR_SP_HTTPS_HINT
-  { "https-Adresse",     "https address",         "Adresse https" },  // STR_SP_HTTPS_TITLE
+  { "https-Adresse", "https address", "Adresse https" },  // STR_SP_HTTPS_TITLE
   // The printer page's print position card, and the calibration page
   { "Druckposition",          "Print position",         "Position d'impression" },  // STR_W_P_CAL_TITLE
   { "Lage der Rolle",         "Roll position",          "Position du rouleau" },  // STR_W_P_CAL_ROLL
@@ -3549,9 +3495,9 @@ const char* const STRINGS[][3] = {
   { "Spule", "Spool", "Bobine" },  // STR_LBL_SPOOL_TARE_CAP
   // Behind the help circle on the bag screen: what the value does to the
   // main screen and the weight popup, and that crossing 0 needs a restart
-  { "Für Spulen, die im Vakuumbeutel auf der Waage liegen. Der Wert ist das Gewicht des leeren Beutels samt Silikagelpack und wird von jeder Messung abgezogen.\n\nMit Beutel (Wert über 0 g): Der Hauptschirm zeigt vier Zeilen: Waage minus Spule, Diff, Gesamt und das Gewicht ohne Beutel mit eigener Diff. Beim Übertragen fragt die Waage, ob die Spule mit oder ohne Beutel aufliegt.\n\nOhne Beutel (0 g): Der Hauptschirm zeigt Waage minus Spule, Diff, Gesamt und das Spulengewicht, größer und mit mehr Platz. Übertragen geht mit einem Knopf, ohne Rückfrage.\n\nAb Werk steht hier 0 g. Ein neuer Wert wirkt sofort. Nur der Wechsel zwischen 0 g und einem Wert braucht einen Neustart, weil der Hauptschirm dafür neu aufgebaut wird.",
-    "For spools that sit on the scale in a vacuum bag. The value is the weight of the empty bag with its silica gel pack, and it is subtracted from every reading.\n\nWith a bag (value above 0 g): the main screen shows four lines: scale minus spool, diff, total and the weight without the bag with a diff of its own. When sending the weight, the scale asks whether the spool is on the pad with or without its bag.\n\nWithout a bag (0 g): the main screen shows scale minus spool, diff, total and the spool weight, larger and with more room. Sending takes one button, no question asked.\n\nThe factory setting is 0 g. A new value takes effect at once. Only the change between 0 g and a value needs a restart, because the main screen is rebuilt for it.",
-    "Pour les bobines pesées dans un sachet sous vide. La valeur est le poids du sachet vide avec son gel de silice, soustrait de chaque mesure.\n\nAvec sachet (plus de 0 g) : l'écran principal affiche quatre lignes : balance moins bobine, écart, total et le poids sans sachet avec son propre écart. À l'envoi du poids, la balance demande si la bobine est posée avec ou sans sachet.\n\nSans sachet (0 g) : l'écran principal affiche balance moins bobine, écart, total et le poids de la bobine, en plus grand. L'envoi se fait d'un seul bouton, sans question.\n\nRéglage d'usine : 0 g. Une nouvelle valeur agit aussitôt. Seul le passage entre 0 g et une valeur demande un redémarrage, car l'écran principal est reconstruit." },  // STR_BAG_HELP_TEXT
+  { "Für Spulen, die im Vakuumbeutel auf der Waage liegen. Der Wert ist das Gewicht des leeren Beutels samt Silikagelpack und wird von jeder Messung abgezogen.\n\nMit Beutel (Wert über 0 g): Der Hauptschirm zeigt vier Zeilen: Waage minus Spule, Diff, Gesamt und das Gewicht ohne Beutel mit eigener Diff. Beim Übertragen fragt die Waage, ob die Spule mit oder ohne Beutel aufliegt.\n\nOhne Beutel (0 g): Der Hauptschirm zeigt Waage minus Spule, Diff, Gesamt und das Spulengewicht, größer und mit mehr Platz. Übertragen geht mit einem Knopf, ohne Rückfrage.\n\nAb Werk steht hier 0 g. Ein neuer Wert wirkt sofort, auch der Wechsel zwischen 0 g und einem Wert: Der Hauptschirm stellt dann seine Zeilen um.",
+    "For spools that sit on the scale in a vacuum bag. The value is the weight of the empty bag with its silica gel pack, and it is subtracted from every reading.\n\nWith a bag (value above 0 g): the main screen shows four lines: scale minus spool, diff, total and the weight without the bag with a diff of its own. When sending the weight, the scale asks whether the spool is on the pad with or without its bag.\n\nWithout a bag (0 g): the main screen shows scale minus spool, diff, total and the spool weight, larger and with more room. Sending takes one button, no question asked.\n\nThe factory setting is 0 g. A new value takes effect at once, the change between 0 g and a value too: the main screen then rearranges its lines.",
+    "Pour les bobines pesées dans un sachet sous vide. La valeur est le poids du sachet vide avec son gel de silice, soustrait de chaque mesure.\n\nAvec sachet (plus de 0 g) : l'écran principal affiche quatre lignes : balance moins bobine, écart, total et le poids sans sachet avec son propre écart. À l'envoi du poids, la balance demande si la bobine est posée avec ou sans sachet.\n\nSans sachet (0 g) : l'écran principal affiche balance moins bobine, écart, total et le poids de la bobine, en plus grand. L'envoi se fait d'un seul bouton, sans question.\n\nRéglage d'usine : 0 g. Une nouvelle valeur agit aussitôt, le passage entre 0 g et une valeur aussi : l'écran principal réorganise alors ses lignes." },  // STR_BAG_HELP_TEXT
   { "In %s anzeigen",
     "Show in %s",
     "Afficher dans %s" },  // STR_W_C_EMBED
@@ -4194,8 +4140,8 @@ const char* const STRINGS[][3] = {
   { "zieht %.0f g ab",            "takes off %.0f g",                "retire %.0f g" },  // STR_WP_BAG_SUB
   { "mit Beutel wären es %.0f g", "with the bag it would be %.0f g", "avec le sachet : %.0f g" },  // STR_WP_BAG_HINT
   { "Automatisch senden",         "Send automatically",              "Envoi automatique" },  // STR_WP_AUTO_ROW
-  { "nach 3 s Ruhe, ohne Beutel", "after 3 s at rest, without bag",
-    "après 3 s immobile, sans sachet" },  // STR_WP_AUTO_SUB
+  { "nach 4 s Ruhe, ohne Beutel", "after 4 s at rest, without bag",
+    "après 4 s immobile, sans sachet" },  // STR_WP_AUTO_SUB
   // The bottom row: 120 px for Archive, 150 px each for the other two, f14.
   { "Archivieren", "Archive", "Archiver" },  // STR_WP_ARCHIVE
   { "Optionen",    "Options", "Options" },  // STR_WP_OPTIONS
@@ -4401,6 +4347,133 @@ const char* const STRINGS[][3] = {
     "Poids de la bobine vide" },  // STR_WP_TARE_ROW
   { "wiegen, eintippen, Spulentyp, volle Spule", "weigh, type in, spool type, full spool",
     "peser, saisir, type de bobine, bobine pleine" },  // STR_WP_TARE_ROW_SUB
+  // The first setup frame: n of N right in the header, f14.
+  { "%d von %d", "%d of %d", "%d sur %d" },  // STR_SETUP_STEP_OF
+  // Under the logo on the language screen, before any language is chosen,
+  // so it reads the same in every column. f16 on 456 px.
+  { "Welcome / Willkommen / Bienvenue", "Welcome / Willkommen / Bienvenue",
+    "Welcome / Willkommen / Bienvenue" },  // STR_WELCOME_TRILINGUAL
+  // Above the four step tiles of the welcome screen, f14.
+  { "Diese Schritte folgen:", "The steps ahead:", "Les étapes à venir :" },  // STR_WELCOME_STEPS_AHEAD
+  // The step tiles, f14 under a number disc, 100 px.
+  { "WLAN",       "WiFi",    "Wi-Fi" },  // STR_SETUP_TILE_WIFI
+  { "Verwaltung", "Backend", "Gestion" },  // STR_SETUP_TILE_BACKEND
+  { "Server",     "Server",  "Serveur" },  // STR_SETUP_TILE_SERVER
+  { "Waage",      "Scale",   "Balance" },  // STR_SETUP_TILE_SCALE
+  // The welcome screen's two answers, f16: quiet 150 px, main 306 px.
+  { "Überspringen", "Skip",     "Passer" },  // STR_SETUP_SKIP
+  { "Los geht's",   "Let's go", "C'est parti" },  // STR_SETUP_START
+  // WiFi step. The rescan button, quiet, f16 in 150 px.
+  { LV_SYMBOL_REFRESH "  Neu suchen", LV_SYMBOL_REFRESH "  Rescan",
+    LV_SYMBOL_REFRESH "  Actualiser" },  // STR_WIFI_RESCAN
+  // The connect card: its title f16 and the line under it f12, 420 px each.
+  { "Verbunden mit %s", "Connected to %s",
+    "Connecté à %s" },  // STR_WIFI_CONNECTED_TO
+  { "IP %s  |  Signal: %s", "IP %s  |  Signal: %s",
+    "IP %s  |  Signal : %s" },  // STR_WIFI_CONN_DETAIL
+  { "Keine Verbindung zu %s", "Could not connect to %s",
+    "Pas de connexion à %s" },  // STR_WIFI_NO_LINK
+  { "Passwort falsch oder Router zu weit weg.", "Wrong password, or the router is too far away.",
+    "Mot de passe erroné ou routeur trop loin." },  // STR_WIFI_FAIL_HINT
+  // After a failed connect, the main button, f16.
+  { "Passwort ändern", "Change password", "Modifier le mot de passe" },  // STR_WIFI_PASS_AGAIN
+  // Backend step. The note above the tiles f14 on 430 px, the docs button
+  // across the bar f16.
+  { "Dafür brauchst du einen laufenden Server.", "This needs a server that is running.",
+    "Il faut un serveur en marche." },  // STR_SETUP_SERVER_NEEDED
+  { "Noch keinen Server? Zur Anleitung", "No server yet? See the guide",
+    "Pas encore de serveur ? Le guide" },  // STR_SETUP_NO_SERVER
+  // The outline beside a backend's name, f12.
+  { "Selbst gehostet", "Self-hosted", "Auto-hébergé" },  // STR_HOSTING_SELF
+  { "Online",          "Online",      "En ligne" },  // STR_HOSTING_ONLINE
+  // One line under a backend's name, f12 in 350 px.
+  { "Weit verbreitet, für Klipper und OctoPrint", "Widely used, works with Klipper and OctoPrint",
+    "Très répandu, pour Klipper et OctoPrint" },  // STR_BACKEND_DESC_SPOOLMAN
+  { "Filamentverwaltung mit Plugins", "Filament manager with plugins",
+    "Gestion de filament avec plugins" },  // STR_BACKEND_DESC_FILAMAN
+  { "Bambu-Lab-Druckerverwaltung mit Inventar", "Bambu Lab printer manager with inventory",
+    "Gestion Bambu Lab avec inventaire" },  // STR_BACKEND_DESC_BAMBUDDY
+  // Address step: the example under the field, f12 in 200 px, %s the port.
+  { "z. B. 192.168.1.20:%s", "e.g. 192.168.1.20:%s", "ex. 192.168.1.20:%s" },  // STR_SP_EXAMPLE
+  // The bar: main f16, quiet f16 in 150 px.
+  { "Verbinden",  "Connect",    "Connecter" },  // STR_SP_CONNECT
+  { "Im Browser", "In browser", "Navigateur" },  // STR_SP_IN_BROWSER
+  // The result card: title f16 in 180 px, the line under it f12, wraps.
+  { "Verbunden", "Connected",
+    "Connecté" },  // STR_SP_CONNECTED
+  { "Server gefunden", "Server found",
+    "Serveur trouvé" },  // STR_SP_REACHED
+  { "Keine Antwort", "No answer",
+    "Pas de réponse" },  // STR_SP_NO_ANSWER
+  { "Läuft der Server? Stimmt der Port?", "Is the server running? Is the port right?",
+    "Serveur lancé ? Port correct ?" },  // STR_SP_NO_ANSWER_HINT
+  // WiFi list, above the networks, f12: the ESP32-S3 has no 5 GHz radio.
+  { "Nur 2,4-GHz-WLAN", "2.4 GHz WiFi only", "Wi-Fi 2,4 GHz uniquement" },  // STR_WIFI_24_ONLY
+  // The quiet answer of a step that can wait, f16 in 150 px.
+  { "Später", "Later", "Plus tard" },  // STR_SETUP_LATER
+  // The credentials step's title, f18 in 300 px.
+  { "Zugangsdaten", "Credentials", "Identifiants" },  // STR_SETUP_CREDS_TITLE
+  // Guided calibration. The three step chips, f14.
+  { "Leeren",   "Empty", "Vider" },  // STR_CAL_STEP_EMPTY
+  { "Auflegen", "Place", "Poser" },  // STR_CAL_STEP_PLACE
+  { "Prüfen",   "Check", "Vérifier" },  // STR_CAL_STEP_CHECK
+  // Step 1: the instruction f16 in 270 px, the caption over the live weight f12.
+  { "Bitte Auflagefläche leeren.", "Please clear the scale.", "Videz le plateau." },  // STR_CAL_EMPTY_PAN
+  { "Waage jetzt",                 "Scale now",               "Balance" },  // STR_CAL_SCALE_NOW
+  // Step 1, the line over the bar, f12 in 456 px: in the setup where to find
+  // the calibration later (settings, scale menu, row), in the settings the
+  // factor that stands.
+  { "Kein Gewicht zur Hand? Später unter %s > %s > %s.",
+    "No weight at hand? Later under %s > %s > %s.",
+    "Pas de poids ? Plus tard : %s > %s > %s." },  // STR_CAL_LATER_WHERE
+  { "Aktueller Faktor: %.2f", "Current factor: %.2f", "Facteur actuel : %.2f" },  // STR_CAL_CUR_FACTOR
+  { "Nullen",                 "Zero",                 "Mettre à zéro" },  // STR_CAL_ZERO_BTN
+  // Step 2: f16 in 200 px, wraps to two lines; the hint under it f14.
+  { "Bekanntes Gewicht auflegen.", "Place a known weight.", "Posez un poids connu." },  // STR_CAL_PLACE_KNOWN
+  { "Optimal ca. 1 kg.",           "Ideally about 1 kg.",   "Idéalement 1 kg." },  // STR_CAL_ABOUT_1KG
+  // Step 3: the caption over the live weight f12, the entered weight f14,
+  // the new factor f12.
+  { "Die Waage zeigt jetzt", "The scale now reads", "La balance affiche" },  // STR_CAL_SHOWS_NOW
+  { "Eingegeben: %s g",      "Entered: %s g",       "Saisi : %s g" },  // STR_CAL_ENTERED
+  { "Neuer Faktor: %.2f",    "New factor: %.2f",    "Nouveau facteur : %.2f" },  // STR_CAL_NEW_FACTOR
+  // Step 3's answers, f16: quiet 150 px, main 290 px.
+  { "Nochmal", "Again",       "Refaire" },  // STR_CAL_AGAIN
+  { "Passt",   "Looks right", "C'est juste" },  // STR_CAL_LOOKS_RIGHT
+  // Scale menu rows, the line under the title f12.
+  { "552 g statt 551,8 g", "552 g instead of 551.8 g",
+    "552 g au lieu de 551,8 g" },  // STR_WHOLE_GRAM_SUB
+  { "Kalibrierung zurücksetzen", "Reset calibration",
+    "Réinitialiser l'étalonnage" },  // STR_CAL_RESET_ROW
+  { "Faktor und Tara auf Anfang, mit Rückfrage", "Factor and tare back to the start, asks first",
+    "Facteur et tare remis à zéro, après confirmation" },  // STR_CAL_RESET_ROW_SUB
+  // The setup's closing screen. Title f18 in 300 px.
+  { "Fertig eingerichtet", "All set", "Configuration terminée" },  // STR_SETUP_DONE_TITLE
+  // Where something left open is found: settings > menu > row, f12.
+  { "%s > %s > %s", "%s > %s > %s", "%s > %s > %s" },  // STR_SETUP_DONE_PATH
+  // Under a summary row, f12 in 220 px; a row title f16 in 220 px.
+  { "Zugangsdaten fehlen noch", "Credentials still missing", "Identifiants manquants" },  // STR_SETUP_DONE_CREDS
+  { "Waage nicht kalibriert",   "Scale not calibrated",      "Balance non étalonnée" },  // STR_SETUP_DONE_UNCAL
+  // Over the bar, f14 in 456 px.
+  { "Spule auflegen und NFC-Tag zum Leser ausrichten.", "Place a spool and turn its NFC tag to the reader.",
+    "Posez une bobine, tag NFC face au lecteur." },  // STR_SETUP_DONE_HINT
+  { "Los", "Start",
+    "C'est parti" },  // STR_SETUP_GO
+  { "Waage jetzt: %s", "Scale now: %s",
+    "Balance : %s" },  // STR_CAL_LIVE_G
+  { "Messwert: %.0f", "Reading: %.0f",
+    "Mesure : %.0f" },  // STR_CAL_LIVE_RAW
+  { "Ab so vielen Tagen seit der letzten Trocknung wird die Spule gelb.", "After this many days since the last drying the spool turns yellow.",
+    "Jaune après ce nombre de jours sans séchage." },  // STR_DRY_PAD_HINT_YELLOW
+  { "Ab so vielen Tagen seit der letzten Trocknung wird die Spule rot.", "After this many days since the last drying the spool turns red.",
+    "Rouge après ce nombre de jours sans séchage." },  // STR_DRY_PAD_HINT_RED
+  { "So lange bleibt eine abgenommene Spule vorgemerkt, 5 bis 600 s.", "How long a lifted spool stays noted, 5 to 600 s.",
+    "Durée pendant laquelle une bobine retirée reste notée, 5 à 600 s." },  // STR_AMS_PAD_HINT
+  { "Spule per ID verlinken", "Link spool by ID",
+    "Lier une bobine par ID" },  // STR_ID_PAD_LINK_TITLE
+  { "Spule per ID kopieren", "Copy spool by ID",
+    "Copier une bobine par ID" },  // STR_ID_PAD_COPY_TITLE
+  { "Die ID steht in Spoolman und auf dem Etikett.", "The ID is shown in Spoolman and on the label.",
+    "L'ID figure dans Spoolman et sur l'étiquette." },  // STR_ID_PAD_WHERE
 };
 
 StringID tagWriteResultString(uint8_t code) {

@@ -117,7 +117,6 @@ STR_BTN_CONFIRMED	18	162	NEVER	src/ui/confirm_popup.cpp:762 170 px button, -8 ai
 STR_CANCEL	18	162	NEVER	src/ui/confirm_popup.cpp:788 170 px button, -8 air
 STR_CONFIRM	16	172	NEVER	src/ui/extra_fields_screen.cpp:363 180 px button, -8 air
 STR_CONFIRM	14	185	NEVER	src/ui/extra_fields_screen.cpp:589 210 px button, -8 air, -17 for "  ->"
-STR_RETRY	16	192	NEVER	src/ui/wifi_setup_screen.cpp:686 200 px button, -8 air
 STR_BACK	16	192	NEVER	src/ui/info_popup.cpp:133 200 px button, -8 air
 STR_ARCHIVED	16	134	NEVER	src/ui/status_picker.cpp:90 status chip (More info, AMS bay card)
 
@@ -134,7 +133,6 @@ STR_ARCHIVED	16	134	NEVER	src/ui/status_picker.cpp:90 status chip (More info, AM
 # the envelope rule did warn, but it was one warning among hundreds.
 STR_BTN_WEB_SETUP	16	190	NEVER	src/ui/backend_screen.cpp:143 216 px button, -8 air, -18 for "  ->"
 STR_CAL_REMINDER_NOW	16	202	NEVER	src/ui/cal_reminder_screen.cpp:136 210 px button, -8 air
-STR_CAL_REMINDER_LATER	16	202	NEVER	src/ui/cal_reminder_screen.cpp:115 210 px button, -8 air
 STR_REBOOT_BTN	14	172	NEVER	src/ui/reboot_popup.cpp:55 180 px button, -8 air
 STR_BTN_OPEN_BROWSER	12	128	NEVER	src/ui/drying_reminder_screen.cpp:196 150 px button, -8 air, -14 for "  ->"
 STR_BTN_MORE_OPTIONS	16	190	NEVER	src/ui/backend_screen.cpp:361 216 px button, -8 air, -18 for "  ->" (symmetry with STR_BTN_WEB_SETUP)
@@ -610,3 +608,62 @@ STR_SW_ONLY_SPOOL	16	300	NEVER	src/ui/confirm_popup.cpp store-as row title
 STR_SW_ALL_FILAMENT	16	300	NEVER	src/ui/confirm_popup.cpp store-as row title
 STR_SW_ALL_VENDOR	16	300	NEVER	src/ui/confirm_popup.cpp store-as row title
 STR_SW_CURRENT	14	110	NEVER	src/ui/confirm_popup.cpp store-as row, right
+STR_SETUP_STEP_OF	14	80	NEVER	src/ui/setup_frame.cpp step count, header right
+STR_WELCOME_TRILINGUAL	16	456	NEVER	src/ui/setup_welcome_screen.cpp language screen subtitle
+STR_WELCOME_STEPS_AHEAD	14	456	NEVER	src/ui/setup_welcome_screen.cpp above the step tiles
+STR_SETUP_TILE_WIFI	14	100	NEVER	src/ui/setup_welcome_screen.cpp step tile
+STR_SETUP_TILE_BACKEND	14	100	NEVER	src/ui/setup_welcome_screen.cpp step tile
+STR_SETUP_TILE_SERVER	14	100	NEVER	src/ui/setup_welcome_screen.cpp step tile
+STR_SETUP_TILE_SCALE	14	100	NEVER	src/ui/setup_welcome_screen.cpp step tile
+STR_SETUP_SKIP	16	134	NEVER	src/ui/setup_frame.cpp quiet bar button
+STR_SETUP_START	16	290	NEVER	src/ui/setup_frame.cpp main bar button
+STR_WIFI_RESCAN	16	134	NEVER	src/ui/wifi_setup_screen.cpp quiet bar button
+STR_WIFI_CONNECTED_TO	16	420	DOT	src/ui/wifi_connect_view.cpp card title with the SSID
+STR_WIFI_CONN_DETAIL	12	420	NEVER	src/ui/wifi_connect_view.cpp card line with the IP
+STR_WIFI_NO_LINK	16	420	DOT	src/ui/wifi_connect_view.cpp card title with the SSID
+STR_WIFI_FAIL_HINT	12	420	NEVER	src/ui/wifi_connect_view.cpp card line
+STR_WIFI_PASS_AGAIN	16	290	NEVER	src/ui/wifi_connect_view.cpp main bar button
+STR_SETUP_SERVER_NEEDED	14	430	NEVER	src/ui/backend_screen.cpp note above the tiles
+STR_SETUP_NO_SERVER	16	440	NEVER	src/ui/backend_screen.cpp bar button
+STR_HOSTING_SELF	12	120	NEVER	src/ui/backend_screen.cpp pill beside the name
+STR_HOSTING_ONLINE	12	120	NEVER	src/ui/backend_screen.cpp pill beside the name
+STR_BACKEND_DESC_SPOOLMAN	12	350	NEVER	src/ui/backend_screen.cpp tile line
+STR_BACKEND_DESC_FILAMAN	12	350	NEVER	src/ui/backend_screen.cpp tile line
+STR_BACKEND_DESC_BAMBUDDY	12	350	NEVER	src/ui/backend_screen.cpp tile line
+STR_SP_EXAMPLE	12	196	NEVER	src/ui/spoolman_screen.cpp example under the field
+STR_SP_CONNECT	16	290	NEVER	src/ui/setup_frame.cpp main bar button
+STR_SP_IN_BROWSER	16	134	NEVER	src/ui/setup_frame.cpp quiet bar button
+STR_SP_CONNECTED	16	180	NEVER	src/ui/spoolman_screen.cpp result card title
+STR_SP_REACHED	16	180	NEVER	src/ui/spoolman_screen.cpp result card title
+STR_SP_NO_ANSWER	16	180	NEVER	src/ui/spoolman_screen.cpp result card title
+STR_SP_NO_ANSWER_HINT	12	180	WRAP:3	src/ui/spoolman_screen.cpp result card line
+STR_WIFI_24_ONLY	12	440	NEVER	src/ui/wifi_setup_screen.cpp above the list
+STR_SETUP_LATER	16	134	NEVER	src/ui/setup_frame.cpp quiet bar button
+STR_SETUP_CREDS_TITLE	18	300	NEVER	src/ui/setup_frame.cpp step title
+STR_CAL_STEP_EMPTY	14	110	NEVER	src/ui/factor_screen.cpp step chip
+STR_CAL_STEP_PLACE	14	110	NEVER	src/ui/factor_screen.cpp step chip
+STR_CAL_STEP_CHECK	14	110	NEVER	src/ui/factor_screen.cpp step chip
+STR_CAL_EMPTY_PAN	16	270	WRAP:2	src/ui/factor_screen.cpp step 1 instruction
+STR_CAL_SCALE_NOW	12	160	NEVER	src/ui/factor_screen.cpp weight card caption
+STR_CAL_LATER_WHERE	12	456	WRAP:2	src/ui/factor_screen.cpp line over the bar
+STR_CAL_CUR_FACTOR	12	456	NEVER	src/ui/factor_screen.cpp line over the bar
+STR_CAL_ZERO_BTN	16	290	NEVER	src/ui/setup_frame.cpp main bar button
+STR_CAL_PLACE_KNOWN	16	200	WRAP:2	src/ui/factor_screen.cpp step 2 instruction
+STR_CAL_ABOUT_1KG	14	200	NEVER	src/ui/factor_screen.cpp step 2 hint
+STR_CAL_SHOWS_NOW	12	440	NEVER	src/ui/factor_screen.cpp weight card caption
+STR_CAL_ENTERED	14	440	NEVER	src/ui/factor_screen.cpp step 3 entered weight
+STR_CAL_NEW_FACTOR	12	456	NEVER	src/ui/factor_screen.cpp line over the bar
+STR_CAL_AGAIN	16	134	NEVER	src/ui/setup_frame.cpp quiet bar button
+STR_CAL_LOOKS_RIGHT	16	260	NEVER	src/ui/setup_frame.cpp main bar button
+STR_WHOLE_GRAM_SUB	12	300	NEVER	src/ui/scale_menu.cpp row subtitle
+STR_CAL_RESET_ROW	16	300	NEVER	src/ui/scale_menu.cpp row title
+STR_CAL_RESET_ROW_SUB	12	300	NEVER	src/ui/scale_menu.cpp row subtitle
+STR_SETUP_DONE_TITLE	18	300	NEVER	src/ui/setup_frame.cpp step title
+STR_SETUP_DONE_PATH	12	220	DOT	src/ui/setup_done_screen.cpp row subtitle
+STR_SETUP_DONE_CREDS	12	220	NEVER	src/ui/setup_done_screen.cpp row subtitle
+STR_SETUP_DONE_UNCAL	16	220	NEVER	src/ui/setup_done_screen.cpp row title
+STR_SETUP_DONE_HINT	14	456	NEVER	src/ui/setup_done_screen.cpp line over the bar
+STR_SETUP_GO	16	440	NEVER	src/ui/setup_frame.cpp main bar button
+STR_BTN_WIFI_CHANGE	16	134	NEVER	src/ui/wifi_connect_view.cpp quiet bar button
+STR_ID_PAD_LINK_TITLE	18	330	NEVER	src/ui/num_pad.cpp header title between back and close
+STR_ID_PAD_COPY_TITLE	18	330	NEVER	src/ui/num_pad.cpp header title between back and close

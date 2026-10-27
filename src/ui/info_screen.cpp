@@ -19,8 +19,8 @@
 // The manual is last in the arrays and first on the screen: most questions
 // people ask are answered there (Nikolai, 25.09.2026).
 #define QR_COUNT 6
-#define QR_DOCS  4
 // Not a tile here: the Bluetooth screen opens it (QR_PRINTERS in info_screen.h).
+static_assert(QR_DOCS == 4, "QR_DOCS is the manual's entry of the arrays below");
 static_assert(QR_PRINTERS == 5, "QR_PRINTERS is the last entry of the arrays below");
 static const char* QR_TITLES[QR_COUNT] = { "Ko-fi", "GitHub", "Discord", "MakerWorld", nullptr, nullptr };
 static const char* QR_URLS[QR_COUNT]   = {
@@ -240,7 +240,9 @@ void showQRPopup(int idx) {
   addBackButton(qr_page, [](lv_event_t* e) { closeQrPage(); });
   lv_obj_t* title = label(qr_page, qrTitle(idx), UI_FONT_TITLE, UI_COL_ACCENT);
   lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 12);
-  lv_obj_add_event_cb(addCloseButton(qr_page), onInfoClose, LV_EVENT_CLICKED, NULL);
+  // Opened from the setup as well ("no server yet?"): there the close button
+  // would end the setup behind the user's back, so back is the only way out.
+  if (!setup_active) lv_obj_add_event_cb(addCloseButton(qr_page), onInfoClose, LV_EVENT_CLICKED, NULL);
 
   qrPageCode(qr_page, idx);
   qrPageText(qr_page, idx);

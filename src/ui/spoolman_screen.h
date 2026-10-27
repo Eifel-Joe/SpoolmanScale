@@ -5,7 +5,6 @@ void buildSpoolmanScreen();
 void closeSpoolmanScreen();
 // Runs the address test the save button parked. Called from appLoop().
 void handleSpoolmanScreenDeferredActions();
-void showSpoolmanFailScreen(bool is_setup_flow);
 
 // Throws the stored backend address away and rebuilds the address screen, so
 // the numeric pad comes back. The escape hatch for a host name that was typed

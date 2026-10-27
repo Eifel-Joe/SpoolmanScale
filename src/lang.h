@@ -22,7 +22,6 @@ enum StringID {
   STR_CANCEL,
   STR_BACK,
   STR_CONFIRM,
-  STR_RETRY,
   STR_ENTER_NEW_ID,
 
   // Mainscreen Labels
@@ -65,11 +64,9 @@ enum StringID {
   STR_WIFI_TITLE,
   STR_WIFI_SCAN,
   STR_WIFI_NO_NET,
-  STR_WIFI_PASS_TITLE,
   STR_WIFI_PASS_HINT,
   STR_WIFI_PASS_PLACEHOLDER,
   STR_WIFI_CONNECTING,
-  STR_WIFI_SUCCESS,
 
   // Spoolman IP
   STR_SPOOLMAN_TITLE,
@@ -108,8 +105,6 @@ enum StringID {
 
   // Calibration
   STR_CAL_TITLE,
-  STR_CAL_FACTOR,
-  STR_CAL_OK,
   STR_CAL_ZERO_ERR,
   STR_BTN_CALCULATE,
 
@@ -187,7 +182,6 @@ enum StringID {
   STR_LINK_OK,
 
   // Tare
-  STR_TARE_OK,
   STR_TARE_NOT_READY,
 
   STR_API_ERROR,
@@ -196,9 +190,6 @@ enum StringID {
   STR_REBOOT_TITLE,
   STR_REBOOT_MSG,
   STR_REBOOT_BTN,
-
-  // WiFi connecting result
-  STR_WIFI_CONN_FAILED,
 
   // WiFi quality
   STR_WIFI_QUAL_EXCELLENT,
@@ -221,13 +212,6 @@ enum StringID {
   STR_ARCHIVE_CONFIRM,
 
   // Weight popup archive button
-  // Welcome language select
-  STR_WELCOME_LANG_TITLE,
-  STR_WELCOME_LANG_HINT,
-
-  // WiFi scan count
-  STR_WIFI_NETWORKS_FOUND,
-
   // Bag weight current label
   STR_BAG_CURRENT,
 
@@ -241,9 +225,6 @@ enum StringID {
   // Weight popup buttons (with snprintf)
   // First boot welcome screen
   STR_FIRSTBOOT_TITLE,
-  STR_FIRSTBOOT_SUB,
-  STR_FIRSTBOOT_HINT,
-  STR_FIRSTBOOT_BTN,
 
   // Extra fields screen
   STR_EXTRA_FIELDS_TITLE,
@@ -257,12 +238,9 @@ enum StringID {
 
   // Calibration reminder screen (end of first setup)
   STR_CAL_REMINDER_TITLE,
-  STR_CAL_REMINDER_MSG,
-  STR_CAL_REMINDER_LATER,
   STR_CAL_REMINDER_NOW,
 
   // Calibration TARE hint
-  STR_CAL_TARE_HINT,
 
   // Extra fields test button
 
@@ -381,7 +359,6 @@ enum StringID {
   STR_COPY_NO_SPOOLS,
 
   // First boot skip button
-  STR_BTN_SKIP_SETUP,
 
   // Unlink spool
   STR_UNLINK_BTN,
@@ -456,10 +433,7 @@ enum StringID {
   // Web interface, shared by the firmware upload and the credential entry
   STR_WEB_TITLE,
   STR_BTN_WEB_SETUP,
-  STR_BTN_FINISH,
   STR_BTN_NEXT,
-  STR_SETUP_BACKEND_HINT,
-  STR_CONNECTED,
   STR_ON,
   STR_OFF,
   STR_BTN_OPEN_BROWSER,
@@ -883,7 +857,6 @@ enum StringID {
   // was off the bus stores a factor built from -1 samples, and until now the
   // only way back was erasing NVS.
   STR_CAL_RESET_CONFIRM,
-  STR_CAL_RESET_DONE,
   STR_CAL_RANGE_ERR,
   STR_CAL_IMPLAUSIBLE,
   STR_W_R_I2C,
@@ -905,7 +878,6 @@ enum StringID {
   STR_W_LOG_DOWNLOAD,
   // Same in both languages: it labels a 68px button and "Kalibrierung
   // zuruecksetzen" does not fit on one.
-  STR_BTN_CAL_RESET_SHORT,
   // Shown at the top of the link list when nothing matched the tag's material
   // and the filter was dropped to keep the list from being empty.
   STR_LIST_MAT_IGNORED,
@@ -1068,7 +1040,6 @@ enum StringID {
   STR_AMSV_WINDOW_HEAD,
   STR_AMSV_BTN_WINDOW,
   STR_W_HOST_SAVED_ONLY,      // the address took, the test could not run
-  STR_WIFI_ALREADY_CONNECTED, // setup, a link that was up before the WiFi step
   STR_BTN_WIFI_CHANGE,
   STR_BTN_WIFI_PORTAL,        // WiFi setup by phone: button, screen, page
   STR_PORTAL_TITLE,
@@ -1400,7 +1371,6 @@ enum StringID {
   STR_W_TLS_KEEP,
   STR_W_TLS_KEEP_HINT,
   // The address screen on the device
-  STR_SP_HTTPS_HINT,
   STR_SP_HTTPS_TITLE,
   // The printer page's print position card, and the calibration page
   STR_W_P_CAL_TITLE,
@@ -2012,6 +1982,71 @@ enum StringID {
   // the empty weight, which opens the choice of four (tare_entry.cpp)
   STR_WP_TARE_ROW,
   STR_WP_TARE_ROW_SUB,
+  // First setup frame and welcome (setup redesign)
+  STR_SETUP_STEP_OF,
+  STR_WELCOME_TRILINGUAL,
+  STR_WELCOME_STEPS_AHEAD,
+  STR_SETUP_TILE_WIFI,
+  STR_SETUP_TILE_BACKEND,
+  STR_SETUP_TILE_SERVER,
+  STR_SETUP_TILE_SCALE,
+  STR_SETUP_SKIP,
+  STR_SETUP_START,
+  STR_WIFI_RESCAN,
+  STR_WIFI_CONNECTED_TO,
+  STR_WIFI_CONN_DETAIL,
+  STR_WIFI_NO_LINK,
+  STR_WIFI_FAIL_HINT,
+  STR_WIFI_PASS_AGAIN,
+  STR_SETUP_SERVER_NEEDED,
+  STR_SETUP_NO_SERVER,
+  STR_HOSTING_SELF,
+  STR_HOSTING_ONLINE,
+  STR_BACKEND_DESC_SPOOLMAN,
+  STR_BACKEND_DESC_FILAMAN,
+  STR_BACKEND_DESC_BAMBUDDY,
+  STR_SP_EXAMPLE,
+  STR_SP_CONNECT,
+  STR_SP_IN_BROWSER,
+  STR_SP_CONNECTED,
+  STR_SP_REACHED,
+  STR_SP_NO_ANSWER,
+  STR_SP_NO_ANSWER_HINT,
+  STR_WIFI_24_ONLY,
+  STR_SETUP_LATER,
+  STR_SETUP_CREDS_TITLE,
+  STR_CAL_STEP_EMPTY,
+  STR_CAL_STEP_PLACE,
+  STR_CAL_STEP_CHECK,
+  STR_CAL_EMPTY_PAN,
+  STR_CAL_SCALE_NOW,
+  STR_CAL_LATER_WHERE,
+  STR_CAL_CUR_FACTOR,
+  STR_CAL_ZERO_BTN,
+  STR_CAL_PLACE_KNOWN,
+  STR_CAL_ABOUT_1KG,
+  STR_CAL_SHOWS_NOW,
+  STR_CAL_ENTERED,
+  STR_CAL_NEW_FACTOR,
+  STR_CAL_AGAIN,
+  STR_CAL_LOOKS_RIGHT,
+  STR_WHOLE_GRAM_SUB,
+  STR_CAL_RESET_ROW,
+  STR_CAL_RESET_ROW_SUB,
+  STR_SETUP_DONE_TITLE,
+  STR_SETUP_DONE_PATH,
+  STR_SETUP_DONE_CREDS,
+  STR_SETUP_DONE_UNCAL,
+  STR_SETUP_DONE_HINT,
+  STR_SETUP_GO,
+  STR_CAL_LIVE_G,
+  STR_CAL_LIVE_RAW,
+  STR_DRY_PAD_HINT_YELLOW,
+  STR_DRY_PAD_HINT_RED,
+  STR_AMS_PAD_HINT,
+  STR_ID_PAD_LINK_TITLE,
+  STR_ID_PAD_COPY_TITLE,
+  STR_ID_PAD_WHERE,
 
   STR_COUNT
 };

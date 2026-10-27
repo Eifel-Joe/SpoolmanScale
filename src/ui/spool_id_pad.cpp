@@ -271,6 +271,7 @@ static void buildCancel() {
   lv_obj_t* no = padButton(s_pad, SIP_COL_X, SIP_BOTTOM_Y - SIP_CANCEL_H, SIP_COL_W, SIP_CANCEL_H,
                            UI_COL_BAD_BG, UI_COL_BAD_BG_PRESSED);
   padLabel(no, T(STR_CANCEL), UI_COL_BAD_TEXT, UI_FONT_SMALL);
+  styleLeaveButton(no);
   lv_obj_add_event_cb(no, [](lv_event_t*) { s_answer = SIP_CANCEL; }, LV_EVENT_CLICKED, NULL);
 }
 

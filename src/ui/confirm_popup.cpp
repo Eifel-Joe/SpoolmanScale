@@ -458,6 +458,7 @@ void showConfirmPopup(const char* msg, int action) {
   lv_obj_set_style_text_font(lbl_nein, &lv_font_montserrat_ext_18, 0);
   lv_obj_set_style_text_color(lbl_nein, lv_color_hex(UI_COL_BAD_TEXT), 0);
   lv_obj_center(lbl_nein);
+  if (action != 7) styleLeaveButton(btn_nein);
 }
 
 // ============================================================

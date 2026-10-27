@@ -423,6 +423,7 @@ void showRemoteLinkPopup(int spool_id) {
   lv_obj_set_style_text_color(lbl_cancel, lv_color_hex(UI_COL_INK_2), 0);
   lv_obj_set_style_text_font(lbl_cancel, &lv_font_montserrat_ext_16, 0);
   lv_obj_center(lbl_cancel);
+  styleLeaveButton(btn_cancel);
 }
 
 // Puts the spool the tag now points at on the screen. Runs whether or not the

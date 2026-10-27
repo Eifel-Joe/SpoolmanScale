@@ -6,7 +6,9 @@
 #include "app_config.h"
 #include "app/app_state.h"
 #include "hardware/sd_logger.h"
+#include "services/backend.h"
 #include "services/prefs_store.h"
+#include "services/user_options.h"
 
 void setSetupActive(bool active, const char *reason) {
   if (setup_active == active) return;
@@ -39,3 +41,35 @@ void logSetupBootState(const char *branch) {
          cfg_setup_resume ? 1 : 0,
          setup_active ? 1 : 0);
 }
+
+// A backend whose credentials are entered in the browser has that step on
+// top of WiFi, backend, server and scale.
+static bool setupHasCredentialStep() {
+  return backendInfo(backendMode()).auth_in_browser;
+}
+
+#define SETUP_FIXED_STEPS 3   // WiFi, backend, server
+
+// Without a load cell the scale step is never shown, so it is not counted.
+int setupStepCount() {
+  return SETUP_FIXED_STEPS + (setupHasCredentialStep() ? 1 : 0) + (g_scale_fitted ? 1 : 0);
+}
+
+int setupStepNumber(SetupStep step) {
+  switch (step) {
+    case SETUP_STEP_WIFI:        return 1;
+    case SETUP_STEP_BACKEND:     return 2;
+    case SETUP_STEP_SERVER:      return 3;
+    case SETUP_STEP_CREDENTIALS: return setupHasCredentialStep() ? 4 : 0;
+    case SETUP_STEP_SCALE:       return setupStepCount();
+    default:                     return 0;
+  }
+}
+
+static bool s_server_later = false;
+static bool s_key_required = false;
+
+void setupNoteServerLater(bool later)    { s_server_later = later; }
+bool setupServerLater()                   { return s_server_later; }
+void setupNoteKeyRequired(bool required) { s_key_required = required; }
+bool setupKeyRequired()                   { return s_key_required; }

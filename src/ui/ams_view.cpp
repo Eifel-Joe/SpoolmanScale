@@ -697,23 +697,19 @@ static unsigned long pickRemainingMs() {
   return PICK_COUNTDOWN_MS - elapsed;
 }
 
-// Inside the button's 1 px border, behind its label, not clickable.
-#define AMSV_FILL_W  (AMSV_FOOT_BTN_W - 2)
-#define AMSV_FILL_H  (AMSV_FOOT_BTN_H - 2)
+// Inside the leave outline, behind the label, not clickable.
+#define AMSV_FILL_W  (AMSV_FOOT_BTN_W - 2 * UI_LEAVE_BORDER_W)
+#define AMSV_FILL_H  (AMSV_FOOT_BTN_H - 2 * UI_LEAVE_BORDER_W)
 
-// Red like every other cancel button (ui/entry_tile.cpp). The 1 px border
-// stays, in the same red: the countdown fill is sized to sit inside it.
-static lv_obj_t* redCancel(lv_obj_t* btn) {
-  if (!btn) return nullptr;
-  lv_obj_set_style_bg_color(btn, lv_color_hex(UI_COL_BAD_BG), 0);
-  lv_obj_set_style_bg_color(btn, lv_color_hex(UI_COL_BAD_BG_PRESSED), LV_STATE_PRESSED);
-  lv_obj_set_style_border_color(btn, lv_color_hex(UI_COL_BAD_BG), 0);
-  lv_obj_t* l = lv_obj_get_child(btn, 0);
-  if (l) lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_BAD_TEXT), 0);
+// Cancel looks like every other way out (styleLeaveButton); the countdown
+// fill is sized to sit inside its outline.
+static lv_obj_t* leaveCancel(lv_obj_t* btn) {
+  styleLeaveButton(btn);
   return btn;
 }
 
-// The countdown drains in the stronger red over the cancel button.
+// The countdown drains over the cancel button in the neutral countdown tone:
+// a red fill would say danger, and cancelling is the harmless answer.
 static void addCancelFill(lv_obj_t* btn) {
   if (!btn) return;
   lv_obj_set_style_pad_all(btn, 0, 0);
@@ -722,7 +718,7 @@ static void addCancelFill(lv_obj_t* btn) {
   lv_obj_remove_style_all(s_cancel_fill);
   lv_obj_set_size(s_cancel_fill, AMSV_FILL_W, AMSV_FILL_H);
   lv_obj_set_pos(s_cancel_fill, 0, 0);
-  lv_obj_set_style_bg_color(s_cancel_fill, lv_color_hex(UI_COL_BAD_BG_PRESSED), 0);
+  lv_obj_set_style_bg_color(s_cancel_fill, lv_color_hex(UI_COL_COUNTDOWN_FILL), 0);
   lv_obj_set_style_bg_opa(s_cancel_fill, LV_OPA_COVER, 0);
   lv_obj_set_style_radius(s_cancel_fill, UI_RADIUS_BTN, 0);
   lv_obj_clear_flag(s_cancel_fill, LV_OBJ_FLAG_CLICKABLE);
@@ -897,11 +893,11 @@ static void buildScreen() {
   if (s_mode == AMS_VIEW_PICK) {
     s_info_btn = footButton(240 - AMSV_FOOT_GAP / 2 - AMSV_FOOT_BTN_W,
                             STR_AMSV_INFO, false, footInfoCb);
-    addCancelFill(redCancel(footButton(240 + AMSV_FOOT_GAP / 2, STR_CANCEL, false, footCancelCb)));
+    addCancelFill(leaveCancel(footButton(240 + AMSV_FOOT_GAP / 2, STR_CANCEL, false, footCancelCb)));
     applyInfoMode();
   } else if (s_mode == AMS_VIEW_WINDOW) {
     footButton(240 - AMSV_FOOT_GAP / 2 - AMSV_FOOT_BTN_W, STR_AMSV_BTN_WINDOW, true, footOpenCb);
-    redCancel(footButton(240 + AMSV_FOOT_GAP / 2, STR_CANCEL, false, footCancelCb));
+    leaveCancel(footButton(240 + AMSV_FOOT_GAP / 2, STR_CANCEL, false, footCancelCb));
   }
 }
 

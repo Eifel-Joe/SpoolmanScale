@@ -225,3 +225,17 @@ void addSettingRows(lv_obj_t* list);
 // search still runs, and spoolmanRecheckTick() keeps retrying it while an
 // unknown tag lies on the pad, which is what makes standing aside free.
 bool uiModalWaiting();
+
+// How loudly a list row warns. A restart costs the user twenty seconds and
+// takes nothing away; a factory reset erases every setting on the device.
+// Painting both red would say they are the same kind of mistake to make.
+enum ListTone { TONE_PLAIN, TONE_WARN, TONE_DANGER };
+// Paints a makeListBtn() row amber or red: border, fill, icon and title.
+void listBtnTone(lv_obj_t* btn, ListTone tone);
+
+// Cancel, Close and Back: a reddish outline and icon in front of a neutral
+// caption, so the way out is found without reading it. Quieter than the red
+// fill of a real danger (unlink, factory reset), which has to warn more.
+// Called on a finished button: takes its first label and its fill, so a
+// countdown fill added afterwards keeps working.
+void styleLeaveButton(lv_obj_t* btn, const char* icon = LV_SYMBOL_CLOSE);

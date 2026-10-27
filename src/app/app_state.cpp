@@ -18,7 +18,6 @@ char cfg_spoolman_base[80] = "";
 bool cfg_lang_set          = false;
 bool cfg_first_boot        = true;
 bool cfg_setup_resume      = false;
-bool spoolman_fail_is_setup  = false;
 bool setup_active            = false;
 
 bool nfc_ok = false;
@@ -47,15 +46,13 @@ lv_obj_t *scr_timezone = nullptr;
 lv_obj_t *scr_spoolman_options = nullptr;
 lv_obj_t *scr_tag_comp = nullptr;
 lv_obj_t *scr_spoolman   = nullptr;
-lv_obj_t *scr_spoolman_fail = nullptr;
 lv_obj_t *scr_welcome    = nullptr;
 lv_obj_t *scr_first_boot = nullptr;
 lv_obj_t *scr_extra_fields = nullptr;
 lv_obj_t *scr_tag_field    = nullptr;
-lv_obj_t *scr_cal_reminder = nullptr;
+lv_obj_t *scr_setup_done = nullptr;
 lv_obj_t *scr_wifi_setup = nullptr;
 lv_obj_t *scr_factor     = nullptr;
-lv_obj_t *scr_bag        = nullptr;
 lv_obj_t *scr_lastused   = nullptr;
 
 lv_obj_t *scr_connection = nullptr;
@@ -212,13 +209,8 @@ lv_obj_t *lbl_spoolman_dried;
 lv_obj_t *lbl_spoolman_dried_val;
 lv_obj_t *lbl_dried_sym = nullptr;
 int  s_dry_numpad_target = 0;
-int  s_dry_numpad_value  = 0;
-lv_obj_t* s_dry_numpad_scr = nullptr;
-lv_obj_t* s_dry_numpad_lbl = nullptr;
 
 int  s_ams_numpad_value = 0;
-lv_obj_t* s_ams_numpad_scr = nullptr;
-lv_obj_t* s_ams_numpad_lbl = nullptr;
 lv_obj_t *lbl_nfc_dot;
 lv_obj_t *lbl_hdr_wifi;
 lv_obj_t *lbl_hdr_bt = nullptr;

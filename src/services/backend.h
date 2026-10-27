@@ -125,6 +125,22 @@ const char* backendName();
 // to label and log a button before the switch has happened.
 const char* backendModeName(BackendMode mode);
 
+// What the setup knows about each backend, in the order it lists them. A new
+// backend, or later a hosted one, is a row here: the setup's tiles and its
+// step count are read from it. The field names follow the backend profile
+// plan, which is to grow this into its profile table.
+enum BackendHosting : uint8_t { BACKEND_SELF_HOSTED, BACKEND_ONLINE };
+struct BackendInfo {
+  BackendMode    mode;
+  int            desc_str;          // the line under the name, a StringID
+  BackendHosting hosting;
+  bool           auth_in_browser;   // credentials typed in the browser: a setup step of their own
+  const char*    default_port;      // for the address example; "" for a hosted service
+};
+const BackendInfo* backendInfoList(size_t* count);
+// The row of a mode; the first row for one the table does not know.
+const BackendInfo& backendInfo(BackendMode mode);
+
 // Three letter code for the status bar: "SPM", "FLM", "BBY", and "BBS" for
 // BamBuddy with a Spoolman server behind it. Three characters exactly: the
 // header leaves 32 px before the scale reading, which is about four at font

@@ -5,11 +5,14 @@
 bool skip_setup_pending = false;
 bool finish_setup_pending = false;
 bool cal_reminder_pending = false;
+bool setup_done_pending   = false;
+bool cal_setup_back_pending = false;
 bool show_bag_pending = false;
 bool show_factor_pending = false;
 bool cal_reset_pending = false;
 bool scale_sub_rebuild_pending = false;
 bool show_reboot_pending = false;
+bool live_zone_rebuild_pending = false;
 bool show_lastused_pending = false;
 bool show_backend_pending = false;
 bool backend_mode_change_pending = false;
@@ -53,7 +56,6 @@ float bb_cap_measured_g   = 0.0f;
 float bb_cap_label_g      = 0.0f;
 
 bool i2c_rescan_pending = false;
-bool cal_now_pending    = false;
 
 bool show_wifi_menu_pending     = false;
 bool show_bluetooth_pending     = false;

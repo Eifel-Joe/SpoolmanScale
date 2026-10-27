@@ -525,6 +525,7 @@ static void buildAnswers(lv_obj_t* box) {
 
   lv_obj_t* no = answerButton(box, UI_POPUP_W - TCP_ANSWER_W - UI_CARD_ROW_X, TCP_ANSWER_W,
                               false, STR_CANCEL);
+  styleLeaveButton(no);
   lv_obj_add_event_cb(no, [](lv_event_t*) {
     logSD("BTN: TagCreate -> Cancel");
     // Hidden here, deleted by the loop: this is the button's own callback.

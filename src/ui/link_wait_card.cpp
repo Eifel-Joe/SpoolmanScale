@@ -119,6 +119,7 @@ void linkWaitCardShow() {
   lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_INK_2), 0);
   lv_obj_set_style_text_font(l, UI_FONT_TITLE, 0);
   lv_obj_center(l);
+  styleLeaveButton(btn);
 }
 
 void linkWaitCardHide() {

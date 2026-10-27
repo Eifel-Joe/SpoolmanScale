@@ -466,6 +466,7 @@ static void buildCopyCard() {
     logSD("BTN: CopyConfirm -> Cancel (back to list)");
     copyBackToList();
   }, LV_EVENT_CLICKED, NULL);
+  styleLeaveButton(btn_no);
 }
 
 // The pad's answer for the fill weight (X), from the loop (pricePadTick()). As on

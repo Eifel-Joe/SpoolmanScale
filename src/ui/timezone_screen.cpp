@@ -11,6 +11,7 @@
 #include "lang.h"
 #include "services/time_service.h"
 #include "ui_common.h"
+#include "setup_frame.h"
 #include "theme.h"
 
 static bool tz_return_welcome = false;
@@ -53,9 +54,15 @@ static void addZoneRow(lv_obj_t *list, size_t idx, int active_idx) {
   lv_obj_add_event_cb(btn, [](lv_event_t *e) {
     const size_t i = (size_t)(intptr_t)lv_obj_get_user_data(lv_event_get_target(e));
     if (i >= TZ_COUNT) return;
-    if ((int)i == timeZoneIndex()) return;
+    if ((int)i == timeZoneIndex() && !tz_return_welcome) return;
     timeZoneSet(TZ_LIST[i].tz);
     logSDf("Time zone set to %s (%s)", TZ_LIST[i].name, TZ_LIST[i].tz);
+    // In the setup the pick is the whole errand: straight back to the welcome
+    // screen, which shows the zone just chosen.
+    if (tz_return_welcome) {
+      show_welcome_pending = true;
+      return;
+    }
     // Rebuild rather than patch the ticks, same as the other option screens.
     // releaseScreen() deletes asynchronously, so doing this from the row's own
     // callback is safe.
@@ -83,15 +90,10 @@ void buildTimeZoneScreen() {
     // Header built by hand rather than through buildSubHeader(): that one
     // always adds a close button, and during first setup it would drop the
     // owner on a main screen with no network configured.
-    addBackButton(scr_timezone, [](lv_event_t *e){
+    setupHeader(scr_timezone, title, SETUP_STEP_NONE, [](lv_event_t *e){
       logSD("BTN: Back -> Welcome");
       show_welcome_pending = true;
     });
-    lv_obj_t *lbl_title = lv_label_create(scr_timezone);
-    lv_label_set_text(lbl_title, title);
-    lv_obj_set_style_text_color(lbl_title, lv_color_hex(UI_COL_ACCENT), 0);
-    lv_obj_set_style_text_font(lbl_title, &lv_font_montserrat_ext_18, 0);
-    lv_obj_align(lbl_title, LV_ALIGN_TOP_MID, 0, 12);
   } else {
     buildSubHeader(scr_timezone, title, [](lv_event_t *e){
       logSD("BTN: Back -> Language");
