@@ -16,6 +16,7 @@
 #include "app_config.h"
 #include "hardware/sd_logger.h"
 #include "lang.h"
+#include "services/density_rules.h"
 #include "services/server_reach.h"
 #include "services/spool_cache.h"
 #include "services/spool_extras.h"
@@ -154,15 +155,39 @@ static int labelWeight() {
 //  The status line and the create button
 // ------------------------------------------------------------
 
-static void showStatus(const char* text, uint32_t color, bool can_create) {
+// The text on the left answer button: "Create", or "Density" while the card
+// asks for a density. The label is the button's first child (answerButton()).
+static void setOkText(int text_id) {
+  if (!s_btn_ok) return;
+  lv_obj_t* lbl = lv_obj_get_child(s_btn_ok, 0);
+  if (lbl) lv_label_set_text(lbl, T(text_id));
+}
+
+// button_free: the left button can be pressed, to create or to ask for the
+// density.
+static void showStatus(const char* text, uint32_t color, bool button_free) {
   if (!s_status) return;
   lv_label_set_text(s_status, text);
   lv_obj_set_style_text_color(s_status, lv_color_hex(color), 0);
-  // Every line is one body line; the no-density hint sets its own after this.
+  // Every line is one body line; the density hint sets its own after this.
   lv_obj_set_style_text_font(s_status, UI_FONT_BODY, 0);
   if (!s_btn_ok) return;
-  if (can_create) lv_obj_clear_state(s_btn_ok, LV_STATE_DISABLED);
-  else            lv_obj_add_state(s_btn_ok, LV_STATE_DISABLED);
+  // Every line but the density hint is about creating, so the button goes back
+  // to "Create" whenever the status changes; showDensityAsk() puts its text on
+  // after this.
+  setOkText(STR_COPY_CARD_CREATE);
+  if (button_free) lv_obj_clear_state(s_btn_ok, LV_STATE_DISABLED);
+  else             lv_obj_add_state(s_btn_ok, LV_STATE_DISABLED);
+}
+
+// No source knows a density (or the one typed was out of range): the hint is
+// the line's text, and the left button asks for the density instead of
+// creating, free to be pressed. One line of the small font (the hint names the
+// button, so it must not wrap away from it); the line ends above the answer row.
+static void showDensityAsk(int hint_id) {
+  showStatus(T(hint_id), UI_COL_WARN, true);
+  if (s_status) lv_obj_set_style_text_font(s_status, UI_FONT_SMALL, 0);
+  setOkText(STR_DENSITY_BTN);
 }
 
 static void showPlan() {
@@ -187,9 +212,8 @@ static void showPlan() {
     case TFS_NEEDS_CATALOG: showStatus(T(STR_TAGNEW_NEEDS_CATALOG), UI_COL_WARN, false);    break;
     default:
       if (s_plan.no_density) {
-        // Two lines of the small font end where the answer row starts.
-        showStatus(T(STR_SORT_NO_DENSITY), UI_COL_WARN, false);
-        if (s_status) lv_obj_set_style_text_font(s_status, UI_FONT_SMALL, 0);
+        // A filament cannot be made without a density: the card asks for one.
+        showDensityAsk(STR_SORT_NO_DENSITY);
         break;
       }
       snprintf(buf, sizeof(buf), T(STR_TAGNEW_FAILED), s_plan.http_code);
@@ -386,11 +410,41 @@ static void buildPriceButton(lv_obj_t* box) {
   refreshPrice();
 }
 
+// The answer of the price pad when it asked for a density (V34), handed on from
+// the loop (pricePadTick()), where the plan may be asked. An emptied field
+// types nothing and Cancel never gets here, so the card stays as it was. A
+// value outside the plausible range (a point in the wrong place, 11.6 for 1.16)
+// is not taken: the line says the range and the button keeps asking.
+static void onDensity(float density) {
+  if (density <= 0.0f) return;
+  if (!densityPlausible(density)) {
+    logSDf("TagCreate: density %.2f is out of range, not taken", density);
+    showDensityAsk(STR_DENSITY_RANGE);
+    return;
+  }
+  // The density stays in the input, not in the plan: the plan is made again
+  // from the input (here, and before a create that finds it stale), and the
+  // typed density counts last there (spoolman_filament.cpp), so one that a
+  // source knows by now still wins.
+  s_in.density_typed = density;
+  logSDf("TagCreate: density %.2f typed at the scale, plan asked again", density);
+  showStatus(T(STR_TAGNEW_SEARCHING), UI_COL_INK_SOFT, false);
+  s_plan_stale = true;
+  s_job = TCP_PLAN;
+}
+
 static void buildAnswers(lv_obj_t* box) {
   s_btn_ok = answerButton(box, UI_CARD_ROW_X, TCP_ANSWER_W, true, STR_COPY_CARD_CREATE);
   lv_obj_add_state(s_btn_ok, LV_STATE_DISABLED);   // until the lookup has answered
   lv_obj_add_event_cb(s_btn_ok, [](lv_event_t*) {
     if (s_job != TCP_IDLE) return;
+    // No density known: the button asks for it on the price pad instead of
+    // creating, and the answer comes back through onDensity().
+    if (s_plan.no_density) {
+      logSD("BTN: TagCreate -> Density");
+      showPricePadTitled(s_in.density_typed, STR_DENSITY_PAD_TITLE, onDensity);
+      return;
+    }
     logSD("BTN: TagCreate -> Create");
     showStatus(T(STR_TAGNEW_CREATING), UI_COL_INK_SOFT, false);
     s_job = TCP_CREATE;

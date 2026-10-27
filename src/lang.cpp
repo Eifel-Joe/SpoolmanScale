@@ -4120,9 +4120,9 @@ const char* const STRINGS[][3] = {
   { "Neues Filament - Farbton merken",
     "New filament - note its colour",
     "Nouveau filament - notez la teinte" },  // STR_SORT_NEW_FILAMENT
-  { "Dichte unbekannt: Material in Spoolman anlegen oder ein vorhandenes wählen",
-    "Density unknown: add the material in Spoolman or pick one it has",
-    "Densité inconnue : ajoutez le matériau à Spoolman ou prenez-en un existant" },  // STR_SORT_NO_DENSITY
+  { "Dichte unbekannt: mit \"Dichte\" eingeben",
+    "Density unknown: enter it with \"Density\"",
+    "Densité inconnue : saisissez-la avec \"Densité\"" },  // STR_SORT_NO_DENSITY
   { "Gleicher Farbton",
     "Same colour",
     "Même teinte" },  // STR_SORT_TWIN_TITLE
@@ -4210,6 +4210,15 @@ const char* const STRINGS[][3] = {
   { "50 bis 10000 g",
     "50 to 10000 g",
     "50 à 10000 g" },  // STR_SORT_GRAMS_BAD
+  { "Dichte",
+    "Density",
+    "Densité" },  // STR_DENSITY_BTN
+  { "Dichte (g/cm3)",
+    "Density (g/cm3)",
+    "Densité (g/cm3)" },  // STR_DENSITY_PAD_TITLE
+  { "Dichte nur von 0,50 bis 4,00 g/cm3",
+    "Density only from 0.50 to 4.00 g/cm3",
+    "Densité de 0,50 à 4,00 g/cm3 seulement" },  // STR_DENSITY_RANGE
 };
 
 StringID tagWriteResultString(uint8_t code) {

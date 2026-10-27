@@ -483,7 +483,12 @@ STR_COPY_PART_FILAMENT	14	155	NEVER	src/ui/copy_flow.cpp lbl_status, HDR_STATUS_
 # The card's title is centred in the card's text width; the hint replaces the status line.
 STR_SORT_CARD_TITLE	20	360	NEVER	src/ui/tag_create_popup.cpp buildHead title, UI_POPUP_W - UI_CARD_TEXT_PAD
 STR_SORT_NEW_FILAMENT	16	360	NEVER	src/ui/tag_create_popup.cpp status line of the card, UI_POPUP_W - UI_CARD_TEXT_PAD
-STR_SORT_NO_DENSITY	14	360	WRAP:2	src/ui/tag_create_popup.cpp status line in the small font, two lines (2 x 16 px) end at UI_CARD_ROW_Y
+STR_SORT_NO_DENSITY	14	360	NEVER	src/ui/tag_create_popup.cpp status line in the small font, one line: the hint names the button, so it must not wrap away from it (French 329 px)
+# The density asked on the card: the left answer button (TCP_ANSWER_W 140 px, -8 air, the title font), the
+# price pad's title as for a price, and the same status line after a value out of range.
+STR_DENSITY_BTN	18	132	NEVER	src/ui/tag_create_popup.cpp left answer button, TCP_ANSWER_W 140 px beside the price button, -8 air
+STR_DENSITY_PAD_TITLE	14	460	NEVER	src/ui/price_pad.cpp title above the keypad, the density
+STR_DENSITY_RANGE	14	360	NEVER	src/ui/tag_create_popup.cpp status line in the small font, one line (French 293 px)
 # The twin box over the card: title and text in the card's text width, two buttons of 184 px.
 STR_SORT_TWIN_TITLE	20	360	NEVER	src/ui/sort_twin_popup.cpp title, UI_POPUP_W - UI_CARD_TEXT_PAD
 STR_SORT_TWIN_TEXT	16	360	WRAP:3	src/ui/sort_twin_popup.cpp question, UI_POPUP_W - UI_CARD_TEXT_PAD, %s is a filament name

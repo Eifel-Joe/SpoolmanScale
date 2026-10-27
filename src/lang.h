@@ -1934,6 +1934,11 @@ enum StringID {
   STR_SORT_KEY_GRAMS,         // the keyboard's title for the grams
   STR_SORT_GRAMS_BAD,         // under the field when the grams are out of range
 
+  // A density typed at the scale when no source knows one (ui/tag_create_popup.cpp)
+  STR_DENSITY_BTN,            // the card's left button while a density is missing, in place of "Create"
+  STR_DENSITY_PAD_TITLE,      // the price pad's title when it asks for the density (g/cm3)
+  STR_DENSITY_RANGE,          // the card's status line after a density outside the plausible range
+
   STR_COUNT
 };
 
