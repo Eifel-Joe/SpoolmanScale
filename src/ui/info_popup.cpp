@@ -147,9 +147,11 @@ static void buildResultCard(lv_obj_t *pop, int title_id, int text_id, uint8_t to
   }, LV_EVENT_CLICKED, NULL);
 
   if (done) {
-    // The countdown: a lighter fill that drains from the right. Behind the
-    // label, and not clickable, so a tap anywhere on the button still lands
-    // on the button. When it is empty the card closes as if OK was pressed.
+    // The countdown: a lighter fill that hangs from the right edge, so its
+    // left edge travels with the reading direction (uiCountdownFillSet).
+    // Behind the label, and not clickable, so a tap anywhere on the button
+    // still lands on the button. When it is empty the card closes as if OK
+    // was pressed.
     lv_obj_t *fill = lv_obj_create(btn);
     lv_obj_remove_style_all(fill);
     lv_obj_set_size(fill, btn_w, UI_POPUP_BTN_H);
@@ -164,7 +166,9 @@ static void buildResultCard(lv_obj_t *pop, int title_id, int text_id, uint8_t to
     lv_anim_set_values(&a, btn_w, 0);
     lv_anim_set_time(&a, INFO_DONE_CLOSE_MS);
     lv_anim_set_exec_cb(&a, [](void *obj, int32_t v) {
-      lv_obj_set_width((lv_obj_t *)obj, (lv_coord_t)v);
+      lv_obj_t *fill = (lv_obj_t *)obj;
+      lv_obj_set_width(fill, (lv_coord_t)v);
+      lv_obj_set_x(fill, lv_obj_get_content_width(lv_obj_get_parent(fill)) - (lv_coord_t)v);
     });
     lv_anim_set_ready_cb(&a, [](lv_anim_t *anim) {
       closeInfoPopupOf((lv_obj_t *)anim->var);

@@ -13,5 +13,9 @@
 // LVGL callback.
 void buildAmsAssignScreen();
 
+// The numpad for the window length. From the loop only, by way of
+// ams_window_pad_pending.
+void showAmsWindowPad();
+
 // Human readable name of the active mode, for the row in "More options".
 const char* amsModeName();

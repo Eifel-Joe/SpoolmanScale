@@ -97,6 +97,12 @@ extern bool show_system_pending;
 extern bool show_ota_pending;
 extern bool show_info_pending;
 extern bool show_drying_reminder_pending;
+// The numpads of the drying thresholds and of the AMS window. Opened from the
+// loop once the row's callback has released the screen they replace: built in
+// that callback, a pad stood in the pool next to its screen and pushed LVGL
+// into PSRAM (27.10.2026: 61 KB internal plus 11 KB PSRAM).
+extern int8_t dry_pad_pending;          // -1 none, 0 yellow, 1 red
+extern bool   ams_window_pad_pending;
 
 // The OTA screen asked for a check while the background task held the TLS
 // connection. Retried from appLoop() once it is free, and given up on after

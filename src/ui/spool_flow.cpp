@@ -2105,6 +2105,15 @@ void linkIdLookupAndPatch(int entered_id, bool is_bambu) {
     idPadSay(err, true);
     return;
   }
+  // Back or Cancel during the one LVGL pass above: the user left, so the
+  // spool found meanwhile is not linked behind their back.
+  if (!numPadOpen()) {
+    logSDf("Link by id: pad left during the lookup of spool %d, dropped", entered_id);
+    return;
+  }
+  // Found: the pad has said all it can, the warnings or the link take over.
+  idPadRelease();
+  id_input_open = false;
 
   String existing = "";
   if (!doc["extra"]["tag"].isNull()) {
@@ -3939,9 +3948,8 @@ void handleSpoolFlowDeferredActions() {
     int pid = link_id_lookup_pending;
     bool pbambu = link_id_lookup_is_bambu;
     link_id_lookup_pending = 0;
-    // Close numpad before HTTP call
-    idPadRelease();
-    id_input_open = false;
+    // The pad stays open during the lookup: a refusal is written into its
+    // answer line, and only a spool that was found closes it.
     linkIdLookupAndPatch(pid, pbambu);
   }
   if (copy_id_lookup_pending > 0) {

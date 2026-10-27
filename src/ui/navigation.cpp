@@ -205,6 +205,11 @@ void showMainScreen() {
                          resetExtraFieldsScreenState(); }
   if (scr_tag_field)   { lv_obj_del(scr_tag_field);   scr_tag_field   = nullptr; }
   if (scr_setup_done)  { lv_obj_del(scr_setup_done);  scr_setup_done  = nullptr; }
+  // Asynchronously: the X that brings us here sits on one of these two.
+  // Kept until the next settings visit, they held the scan list and the typed
+  // password in the pool.
+  releaseScreen(&scr_wifi_setup);
+  releaseScreen(&scr_wifi_pass);
   deleteSpoolFlowOverlays();
   resetActivityTimer();
   updateLinkButton();

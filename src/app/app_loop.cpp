@@ -927,6 +927,11 @@ void appLoop() {
     showDryingReminderScreen();
     lv_obj_clear_flag(scr_drying_reminder, LV_OBJ_FLAG_HIDDEN);
   }
+  if (dry_pad_pending >= 0) {
+    const int target = dry_pad_pending;
+    dry_pad_pending = -1;
+    showDryingPad(target);
+  }
   if (show_lastused_pending) {
     show_lastused_pending = false;
     // Always rebuild for fresh button states (active mode highlighting)
@@ -1052,6 +1057,10 @@ void appLoop() {
     buildAmsAssignScreen();        // releases the previous instance itself
     hideAllOverlays();
     lv_obj_clear_flag(scr_ams_assign, LV_OBJ_FLAG_HIDDEN);
+  }
+  if (ams_window_pad_pending) {
+    ams_window_pad_pending = false;
+    showAmsWindowPad();
   }
   if (show_filaman_fields_pending) {
     show_filaman_fields_pending = false;
