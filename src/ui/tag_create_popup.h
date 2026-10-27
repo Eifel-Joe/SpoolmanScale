@@ -21,7 +21,10 @@ bool tagCreateOffered();
 // closes the popup and opens the card.
 void tagCreateEntryTap(lv_event_t* e);
 
-// Builds the card for the tag that was scanned last. Loop task only.
+// Builds the card for the tag that was scanned last. Loop task only. A Bambu
+// tag with a roll on the pad, behind Bambuddy (with or without Spoolman), asks
+// the spool type first (V33): the card follows the answer, "without type"
+// included, and Back closes both, nothing made.
 void showTagCreatePopup();
 
 // The same card for a filament picked from the backend's database

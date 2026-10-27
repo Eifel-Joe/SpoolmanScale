@@ -393,8 +393,9 @@ static void stlOpenName() {
 
 void showSpoolTypeList(const SpoolTypeListReq &req, SpoolTypePicked on_pick,
                        void (*on_skip)(), void (*on_back)()) {
-  if (!spoolTypesActive()) {
-    logSD("UI: spool type list not opened, not Bambuddy in Spoolman mode");
+  if (!(req.any_inventory ? spoolTypesCatalogActive() : spoolTypesActive())) {
+    logSD(req.any_inventory ? "UI: spool type list not opened, not Bambuddy"
+                            : "UI: spool type list not opened, not Bambuddy in Spoolman mode");
     if (on_skip) on_skip();
     return;
   }

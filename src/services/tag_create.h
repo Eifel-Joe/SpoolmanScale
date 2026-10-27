@@ -73,10 +73,14 @@ struct TagCreateInput {
   int   spool_catalog_id;
   // The new spool's own empty weight (design note L20); spool_weight_g stays
   // what a filament or a vendor made on the way is given.
-  int   spool_type_g;   // chosen at the scale for this spool alone (BBS), 0: none; never a filament's or vendor's
+  // Chosen at the scale for this spool alone (Bambuddy: BBS, and V33 for a
+  // Bambu tag, also without Spoolman), 0: none; never a filament's or vendor's.
+  int   spool_type_g;
   // Our list of spool types was answered for this spool on the way (a type
-  // or "without type", db_pick_core_popup.cpp): the first weighing does not
-  // ask it again (tareEntryFirstWeighDone()). False for a tag's input.
+  // or "without type", db_pick_core_popup.cpp, or tag_create_popup.cpp for
+  // a Bambu tag): the first weighing does not ask it again
+  // (tareEntryFirstWeighDone()). False where no list came: any other tag's
+  // input, or a Bambu tag with nothing on the pad.
   bool  spool_type_asked;
   float diameter_mm;         // 0 when unknown
   int   temp_min;

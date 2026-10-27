@@ -12,8 +12,11 @@
 //  one instance. The scale offers it as "spool types" (spool_type_rules.h
 //  holds the rules for choosing among them).
 //
-//  Only with Bambuddy in Spoolman mode (spoolTypesActive(); design note L16).
-//  Everything here answers "no" or does nothing elsewhere.
+//  Only with Bambuddy in Spoolman mode (spoolTypesActive(); design note L16),
+//  with one exception: reading the catalog also works in Bambuddy's own
+//  inventory (spoolTypesCatalogActive()), for the card that makes a new spool
+//  from a Bambu tag (V33). Everything else here answers "no" or does nothing
+//  elsewhere.
 //
 //  The list is loaded when a screen opens and again after a type was added.
 //  Names are kept whole (63 bytes), the weight in whole grams. The catalog's
@@ -31,11 +34,19 @@
 // type screens asks this first.
 bool spoolTypesActive();
 
+// True for Bambuddy in either inventory mode: the catalog is Bambuddy's own
+// table, the same path with or without Spoolman behind it, and the original
+// reads it in Bambuddy's own inventory too (bambuddy_filament_db.cpp,
+// BB_PATH_CORES in loadCores()). Only reading it and the list on top of it
+// ask this; adding a type (spoolTypesCreate()) and every other entry into the
+// spool type screens stay with spoolTypesActive() (V33).
+bool spoolTypesCatalogActive();
+
 // Fetches the catalog and replaces the list. Entries without a name or with a
 // weight below one gram are left out. Returns the HTTP code (200 when the list
-// was replaced), -1 when it is not asked for (spoolTypesActive() is false) or
-// the request could not be built, -2 when the answer did not parse. A failed
-// load leaves the list as it was.
+// was replaced), -1 when it is not asked for (spoolTypesCatalogActive() is
+// false) or the request could not be built, -2 when the answer did not parse.
+// A failed load leaves the list as it was.
 int  spoolTypesLoad(uint32_t timeout_ms = 5000);
 
 // How many types the list holds, in the order the server sent them.

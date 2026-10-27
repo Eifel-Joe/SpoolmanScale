@@ -44,8 +44,11 @@
 //  the list and then calls back, from the loop. The name passed to on_pick
 //  is a copy that stays good until the next pick.
 //
-//  Bambuddy in Spoolman mode only (spoolTypesActive()). It belongs to no
-//  spool by itself: whoever opens it for a spool decides what closes it.
+//  Bambuddy in Spoolman mode only (spoolTypesActive()), unless the request
+//  says any_inventory: then Bambuddy in either inventory mode is enough
+//  (spoolTypesCatalogActive(); V33, the card for a new spool from a Bambu tag
+//  alone). It belongs to no spool by itself: whoever opens it for a spool
+//  decides what closes it.
 // ============================================================
 
 enum SpoolTypeListMode : uint8_t { STL_NEAR, STL_VENDOR, STL_ALL };
@@ -56,12 +59,16 @@ struct SpoolTypeListReq {
   float preselect_g;    // VENDOR/ALL: the type nearest to this is marked; 0: none
   float measured_g;     // > 0: "take measured" (NEAR) and "new" with this weight
   int   skip_text;      // STR_SPT_LATER, STR_SPT_WITHOUT or STR_CANCEL
+  // True: Bambuddy in either inventory mode opens the list. False (every
+  // request built with = {}): Bambuddy in Spoolman mode only. Last, so that
+  // the callers that do not know it stay on Spoolman mode.
+  bool  any_inventory;
 };
 typedef void (*SpoolTypePicked)(float grams, const char* name);  // "" for the measured value
-// Not Bambuddy in Spoolman mode: logged, nothing opens, and on_skip is called
-// at once, so the caller goes on as after a skip. "Take measured" and "add
-// new" need a measured weight a spool can have (spoolTypeTarePlausible); the
-// name entry would refuse any other.
+// Not Bambuddy in Spoolman mode (any_inventory: not Bambuddy at all): logged,
+// nothing opens, and on_skip is called at once, so the caller goes on as after
+// a skip. "Take measured" and "add new" need a measured weight a spool can
+// have (spoolTypeTarePlausible); the name entry would refuse any other.
 void showSpoolTypeList(const SpoolTypeListReq& req, SpoolTypePicked on_pick,
                        void (*on_skip)(), void (*on_back)() = nullptr);  // null: back = skip
 bool isSpoolTypeListOpen();

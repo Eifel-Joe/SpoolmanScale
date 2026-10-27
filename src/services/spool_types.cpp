@@ -56,6 +56,13 @@ bool spoolTypesActive() {
   return backendMode() == BACKEND_BAMBUDDY && bbInventoryMode() == BB_INV_SPOOLMAN;
 }
 
+// Reading the catalog needs no Spoolman: SPOOL_TYPES_PATH is Bambuddy's own
+// table in both modes (above), and the original reads it in Bambuddy's own
+// inventory as well (bambuddy_filament_db.cpp, BB_PATH_CORES in loadCores()).
+bool spoolTypesCatalogActive() {
+  return backendMode() == BACKEND_BAMBUDDY;
+}
+
 int spoolTypesCount() { return s_count; }
 
 const SpoolType* spoolTypesList() { return s_list; }
@@ -70,7 +77,7 @@ static bool readCatalog(Stream& body, void* ctx) {
 
 int spoolTypesLoad(uint32_t timeout_ms) {
   HttpStallTime stall(__func__);
-  if (!spoolTypesActive()) return -1;
+  if (!spoolTypesCatalogActive()) return -1;
 
   if (!s_list) {
     const size_t bytes = SPOOL_TYPES_MAX * sizeof(SpoolType);
@@ -161,6 +168,8 @@ static int postType(const char* name, int grams, uint32_t timeout_ms) {
 
 int spoolTypesCreate(const char* name, int grams, uint32_t timeout_ms) {
   HttpStallTime stall(__func__);
+  // Spoolman mode only, unlike the read: no flow without Spoolman adds a
+  // type (V33 reads the catalog there and nothing else).
   if (!spoolTypesActive()) return -1;
   char clean[SPOOL_TYPE_NAME_MAX];
   spoolTypeTrimName(clean, sizeof(clean), name);

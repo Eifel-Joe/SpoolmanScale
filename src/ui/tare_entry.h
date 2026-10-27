@@ -55,11 +55,12 @@ void tareEntryTick();
 void tareEntryForgetAsked();
 
 // A spool just created at the scale whose type our list asked on the way (a
-// type or "without type" answered, "new from database" or the copy): the
-// first weighing counts it as looked at, like a spool it asked itself, so the
-// same question does not come again right after it (Jörg, 26.10.2026); like
-// every spool looked at, until a restart or a backend switch. Called with the
-// new id at the create's success point, only where the create's own input
-// says the list was answered; a spool created from a tag (no list) is asked
-// as before.
+// type or "without type" answered, "new from database", the copy, or the card
+// for a Bambu tag, V33): the first weighing counts it as looked at, like a
+// spool it asked itself, so the same question does not come again right after
+// it (Jörg, 26.10.2026); like every spool looked at, until a restart or a
+// backend switch. Called with the new id at the create's success point, only
+// where the create's own input says the list was answered; a spool created
+// from a tag without the list (any other tag, or a Bambu tag with nothing on
+// the pad) is asked as before.
 void tareEntryFirstWeighDone(int spool_id);

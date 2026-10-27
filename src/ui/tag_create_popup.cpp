@@ -20,13 +20,16 @@
 #include "services/spool_cache.h"
 #include "services/spool_extras.h"
 #include "services/spool_start.h"
+#include "services/spool_type_rules.h"
 #include "services/tag_create.h"
 #include "services/tag_db_match.h"
+#include "services/tag_field.h"
 #include "services/user_options.h"
 #include "ui/main_screen_helpers.h"
 #include "ui/price_pad.h"
 #include "ui/sort_twin_popup.h"
 #include "ui/spool_flow_internal.h"
+#include "ui/spool_type_list.h"
 #include "ui/tag_db_diff_popup.h"
 #include "ui/tare_entry.h"
 #include "ui/theme.h"
@@ -108,8 +111,8 @@ void closeTagCreatePopup() {
 // ------------------------------------------------------------
 
 // The empty spool labelWeight() guesses the nominal size with: a spool type
-// chosen at the scale for this spool (BBS, design note L20), else the
-// entry's or the tag's.
+// chosen at the scale for this spool (BBS, design note L20; for a Bambu tag
+// the list asked in front of the card, V33), else the entry's or the tag's.
 static float cardCore() {
   return (float)(s_in.spool_type_g > 0 ? s_in.spool_type_g : s_in.spool_weight_g);
 }
@@ -421,6 +424,69 @@ static void buildCard() {
   s_job = TCP_PLAN;
 }
 
+// ---- the spool type, asked first (V33) ----
+
+// A roll with a Bambu tag is made on Bambu's fixed 250 g core, but a refill
+// sits on another spool and was weighed against 250 g, so the card for a Bambu
+// tag asks the type of the spool first, when one is on the pad (the rule is
+// spoolTypeTagAsk()). The list comes from Bambuddy's own catalog, with or
+// without Spoolman behind it (any_inventory). Only the vendor's types, "without
+// type" as the way out; no measured weight, so no "take measured" and no new
+// type. The input waits in s_in while the list is up.
+// NOT-TO-DO: dbPickTypeAsk() (db_pick_core_popup.cpp). It goes on into
+// showTagCreatePopupFor(), which makes the card a database pick (title, colour
+// source, status line), and that is not what a tag's card is.
+
+// Both answers travel with the input to the card, whose create marks the new
+// spool for the first weighing (tareEntryFirstWeighDone()). Called from the
+// loop (spoolTypeListTick()), where the card may be built. A card still
+// standing is closed first, as showTagCreatePopup() does.
+static void tagTypeGoOn() {
+  closeTagCreatePopup();
+  buildCard();
+}
+
+static void tagTypePicked(float grams, const char* name) {
+  s_in.spool_type_g     = spoolTypeGrams(grams);
+  s_in.spool_type_asked = true;
+  logSDf("TagCreate: spool type '%s' %d g for this spool alone", name ? name : "", s_in.spool_type_g);
+  tagTypeGoOn();
+}
+
+// Without a type the card goes on exactly as it did before the list: the
+// input keeps Bambu's core as the maker's figure, and only the flag is set so
+// that the first weighing does not ask again.
+static void tagTypeWithout() {
+  s_in.spool_type_g     = 0;
+  s_in.spool_type_asked = true;
+  logSD("TagCreate: without a spool type, the card goes on as before");
+  tagTypeGoOn();
+}
+
+// Back leaves the whole create: no card, nothing made. A function of its own,
+// not null, which the list would take as "without type".
+static void tagTypeBack() {
+  logSD("TagCreate: spool type list left, nothing created");
+}
+
+// True when the list was opened (the card follows the answer, or does not
+// follow at all after Back). The reading is the one the card takes, so a scale
+// that is not fitted or not ready asks nothing.
+static bool tagTypeAsk() {
+  const float bare = startGross();
+  if (!spoolTypeTagAsk(tagIsBambu(s_in.link_id), backendIsBamBuddy(), bare, s_in.spool_type_g))
+    return false;
+  SpoolTypeListReq req = {};
+  req.mode = STL_VENDOR;
+  utf8Cut(s_in.vendor, sizeof(req.vendor) - 1, req.vendor, sizeof(req.vendor));
+  req.preselect_g   = (float)s_in.spool_weight_g;
+  req.skip_text     = STR_SPT_WITHOUT;
+  req.any_inventory = true;
+  logSDf("TagCreate: Bambu tag with %.0f g on the pad, spool type asked first", bare);
+  showSpoolTypeList(req, tagTypePicked, tagTypeWithout, tagTypeBack);
+  return true;
+}
+
 void showTagCreatePopup() {
   logSD("SHOW: TagCreatePopup");
   closeTagCreatePopup();
@@ -429,6 +495,7 @@ void showTagCreatePopup() {
     return;
   }
   s_picked = false;
+  if (tagTypeAsk()) return;
   buildCard();
 }
 
@@ -566,9 +633,10 @@ static void runCreate() {
   char buf[96];
   if ((code == 200 || code == 201) && r.spool_id > 0) {
     spoolCacheForget("spool created from a tag");
-    // Our list asked this spool's type on the way here ("new from database"):
-    // the first weighing does not ask it again (tare_entry.h). A tag's input
-    // never carries it.
+    // Our list asked this spool's type on the way here ("new from database",
+    // or in front of the card for a Bambu tag, tagTypeAsk()): the first
+    // weighing does not ask it again (tare_entry.h). A tag's input carries
+    // it only from that list.
     if (s_in.spool_type_asked) tareEntryFirstWeighDone(r.spool_id);
     char link_id[sizeof(s_in.link_id)];
     memcpy(link_id, s_in.link_id, sizeof(link_id));
