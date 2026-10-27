@@ -157,7 +157,7 @@ The firmware is built for one board at a time. Everything above describes the WT
 | Waveshare ESP32-S3-Touch-LCD-7 | `waveshare-s3-lcd7` | 800×480, the 480×320 UI enlarged to fill it | built, not tested on hardware by this fork; see the notes below |
 | Waveshare ESP32-S3-Touch-LCD-7B | `waveshare-s3-lcd7b` | 1024×600, the 480×320 UI enlarged to fill it | tested on hardware by this fork; see the notes below |
 
-There is no printable enclosure for the other boards yet.
+For the Waveshare 7 and 7B there is one printable enclosure, both boards have the same outline: 👉 [7" Spoolman T-Scale](https://makerworld.com/en/models/3429397-7-spoolman-t-scale-waveshare-esp32-s3-touch-7) on MakerWorld. For the WT32-SC01 Plus, besides the original's enclosure, the 👉 [Spoolman T-Scale](https://makerworld.com/en/models/3302257-spoolman-t-scale-filamant-scale-filaman-bambuddy#profileId-3747973) fits as well.
 
 ### Waveshare ESP32-S3-Touch-LCD-7
 

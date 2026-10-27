@@ -57,7 +57,7 @@ The [release notes](https://github.com/Eifel-Joe/SpoolmanScale/releases) of this
 Everything else is in the [release notes](https://github.com/Niko11111/SpoolmanScale/releases/tag/v0.8.3).
 
 > [!NOTE]
-> **Skipped the USB update from 0.8.0?** 0.8.3 no longer fits the old memory layout, so your scale will not install it over the air. Open the original's [Web Flasher](https://niko11111.github.io/SpoolmanScale) in Chrome or Edge, connect the scale and choose **Update**: about 2 minutes, all settings are kept. After that, updates arrive over the air as usual.
+> **Skipped the USB update from 0.8.0?** 0.8.3 no longer fits the old memory layout, so your scale will not install it over the air. Open the original's [Web Flasher](https://niko11111.github.io/SpoolmanScale) in Chrome or Edge, connect the scale and choose **Update**: about 2 minutes, all settings are kept. The scale then runs the original's firmware and looks for its updates there. To move to this fork, download your board's firmware file from this fork's [Releases](https://github.com/Eifel-Joe/SpoolmanScale/releases) and upload it on the scale's web page; the settings are kept again. From then on, updates arrive over the air from this fork.
 
 ---
 
@@ -129,8 +129,12 @@ The firmware also runs on the **Waveshare ESP32-S3-Touch-LCD-7** (7", 800×480) 
 
 Prefer everything in one cart? A community member put together an AliExpress list with parts that work well too: 👉 [SpoolmanScale parts list on AliExpress](https://www.aliexpress.com/p/wish-manage/share.html?spm=a2g0o.cart.headerAcount.6.321738dayZTIa0&wishGroupId=800000022363334&smbPageCode=wishlist-amp&spreadId=E95BDFF0E1B4367408F1423D8C0ABF206981C084C10F93E3EE124B0AFA678D69)
 
-The 3D printable enclosure is available on MakerWorld, under MakerWorld's own license:
-👉 [makerworld.com/@FormFollowsF](https://makerworld.com/de/models/2713675-spoolmanscale#profileId-3005075)
+3D printable enclosures are available on MakerWorld, each under its own license there:
+
+| Board | Enclosure |
+|---|---|
+| WT32-SC01 Plus | 👉 [SpoolmanScale](https://makerworld.com/de/models/2713675-spoolmanscale#profileId-3005075) by FormFollowsF, the original's enclosure, or 👉 [Spoolman T-Scale](https://makerworld.com/en/models/3302257-spoolman-t-scale-filamant-scale-filaman-bambuddy#profileId-3747973) |
+| Waveshare ESP32-S3-Touch-LCD-7 and -7B | 👉 [7" Spoolman T-Scale](https://makerworld.com/en/models/3429397-7-spoolman-t-scale-waveshare-esp32-s3-touch-7) – one enclosure for both, the 7B has the same outline |
 
 <a href="https://makerworld.com/de/models/2713675-spoolmanscale#profileId-3005075">
   <img src="https://img.shields.io/badge/🖨%203D%20Files-Download%20on%20MakerWorld-1a8cff?style=for-the-badge" alt="MakerWorld"/>
@@ -240,7 +244,7 @@ A problem with this fork, or a request for what it adds? [Open an issue at the f
 
 SpoolmanScale is licensed under the [GNU General Public License v3.0 or later](LICENSE). You may use, change and share it, also commercially; whoever distributes a changed version, for example on pre-flashed scales, must publish its source under the same license.
 
-The license covers the firmware and everything else in this repository. The enclosure is not part of it: it is a MakerWorld Exclusive under the Standard Digital File License - Community Use (SDFL-C).
+The license covers the firmware and everything else in this repository. The enclosures are not part of it: they are published on MakerWorld under their own licenses; the original's enclosure is a MakerWorld Exclusive under the Standard Digital File License - Community Use (SDFL-C).
 
 ---
 
