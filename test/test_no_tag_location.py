@@ -249,4 +249,15 @@ assert names.index("Test no tag location") == names.index("Test ams info") + 1, 
 assert dict(steps)["Test no tag location"] == "python3 test/test_no_tag_location.py", \
     ".github/workflows/ci.yml: the step does not run python3 test/test_no_tag_location.py"
 
+# 8. Without WLAN the picker says so in its own box, not in the main screen's
+# status line: that line holds the note of the create (green, or for a Bambu
+# Lab spool the chip hint, which nothing paints again), and the picker now
+# comes after every create without a tag.
+picker = body_of(INFO, "showLocationPicker")
+_, at, end = block_of(picker, "if (!wifiManagerIsConnected()) {", f"src/{INFO}: showLocationPicker()")
+no_wifi = picker[at:end]
+once(no_wifi, "lv_label_set_text(lbl_loc_status, buf);", f"src/{INFO}: showLocationPicker() without WLAN")
+assert "lv_label_set_text(lbl_status," not in no_wifi, \
+    f"src/{INFO}: showLocationPicker() without WLAN writes the main screen's status line"
+
 print("no tag location: ok")

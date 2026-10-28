@@ -554,9 +554,17 @@ void showLocationPicker() {
   loc_list_obj   = list;
 
   // Trigger async HTTP fetch via loop()
+  // Wurzel: without WLAN the text went into lbl_status, the main screen's
+  // status line, while the picker's own box went on saying "Loading...".
+  // After a create without a tag that line holds the note of the create, for
+  // a Bambu Lab spool the chip hint that nothing paints again (V39 brings the
+  // picker after every such create).
+  // Fix: the picker's own status line says it.
+  // NOT-TO-DO: both lines: the main screen's is not the picker's to write.
+  // See test_no_tag_location.py.
   if (!wifiManagerIsConnected()) {
     char buf[32]; copyT(buf, sizeof(buf), STR_LOCATION_NO_WIFI);
-    lv_label_set_text(lbl_status, buf);
+    lv_label_set_text(lbl_loc_status, buf);
     return;
   }
   fetch_locations_pending = true;
