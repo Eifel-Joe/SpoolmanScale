@@ -66,8 +66,11 @@ OFFER = squeeze("amsInfoOffered(backendCanAssignAmsSlot(), amsPresenceHasAms(), 
 
 # 1. The page. The button sits in the header, left, and exists only inside the
 # one `if` that asks the rule - not for a spool the rule turns down. Its tap
-# raises the flag and closes the page the way the X does; the picker itself
-# opens from the loop, since the page's callback must not do it.
+# raises the flag and closes the page, the picker itself opens from the loop,
+# since the page's callback must not do it. The page is closed through
+# releaseScreen() (hidden at once, deleted a timer pass later): the project's
+# rules forbid lv_obj_del() inside a callback, and the X button's direct delete
+# is one of the old cases the ratchet in scripts/check_conventions.py counts.
 INFO = "ui/more_info_screen.cpp"
 where = f"src/{INFO}: buildMoreInfoScreen()"
 body = body_of(INFO, "buildMoreInfoScreen")
@@ -102,9 +105,10 @@ assert "ams_info_assign_pending=true;" in handler, f"{where}: the tap does not r
 assert "amsPickOpenFor(" not in handler and "backendAssignAmsSlot(" not in handler, \
     f"{where}: the tap opens the picker itself, on the page's callback; it belongs to the loop"
 assert "logSD(" in handler, f"{where}: the tap lost its log line"
-close = "if(scr_more_info){lv_obj_del(scr_more_info);scr_more_info=nullptr;}"
-assert close in handler, f"{where}: the tap does not close the page the way the X button does"
-# The page is gone after the delete; nothing may touch it (or the button) later.
+close = "releaseScreen(&scr_more_info);"
+assert close in handler, f"{where}: the tap does not close the page through releaseScreen(&scr_more_info)"
+assert "lv_obj_del(" not in handler, f"{where}: the tap deletes an object inside a callback (use releaseScreen())"
+# The page is gone after the release; nothing may touch it (or the button) later.
 assert handler.endswith(close), f"{where}: the tap does something after it closed the page"
 before(handler, "ams_info_assign_pending=true;", close, f"{where}: the tap")
 assert ",LV_EVENT_CLICKED," in after, f"{where}: the handler is not registered for LV_EVENT_CLICKED"

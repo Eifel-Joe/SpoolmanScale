@@ -23,6 +23,9 @@ struct Pending {
   int           spool_id;
   char          name[32];
   unsigned long noted_ms;
+  // Opened by a tap (the "Into AMS" button) and not by a removal. Only
+  // amsPickOpenFor() sets it; offerLocationAfterPick() reads it.
+  bool          by_tap;
 };
 
 Pending s_pending;
@@ -38,6 +41,9 @@ void amsPickNote(int spool_id, const char* spool_name) {
   s_pending.active   = true;
   s_pending.spool_id = spool_id;
   s_pending.noted_ms = millis();
+  // Every note taken here is for a removal; the tap path says otherwise
+  // after it, in amsPickOpenFor().
+  s_pending.by_tap   = false;
   s_pending.name[0]  = '\0';
   if (spool_name) {
     strncpy(s_pending.name, spool_name, sizeof(s_pending.name) - 1);
@@ -60,10 +66,29 @@ void amsPickDropPending() { s_pending.active = false; }
 // prompt is for. Same conditions and same guard as the AMS question's "no"
 // branch in ams_assign_popup.cpp: the NFC poll kept running under the page,
 // and a spool that landed meanwhile moved sm_id.
-static void offerLocationAfterPick(int spool_id) {
+//
+// Wurzel: the question stands in for a spool that was lifted off the dish. The
+// picker that the "Into AMS" button under "More info" opens (by_tap) was not
+// triggered by a removal at all, the spool may well still lie on the dish, and
+// closing the page without a bay is no sign that it is going to a shelf.
+// Fix: the remembered order says by_tap, and a tap-opened picker that closes
+// without an answer asks nothing. The caller passes the flag along, since it
+// drops the order before it asks.
+// NOT-TO-DO: reading s_pending in here, the order is gone by then. Skipping
+// every unanswered picker would lose the question after a removal, which is
+// what it is for.
+// Without a load cell the first line below already returns, so the button
+// there (amsPickOpenFor() from amsMainAssignRun()) behaves as it did.
+// See test_ams_info.py.
+static void offerLocationAfterPick(int spool_id, bool by_tap) {
   // Without a load cell nothing is asked on its own: the location has its
   // own button there, and the picker was opened by a tap, not by a removal.
   if (!g_scale_fitted) return;
+  if (by_tap) {
+    logSDf("LOC: not offered after the picker, it was opened by a tap, id=%d",
+           spool_id);
+    return;
+  }
   if (!g_auto_loc_popup || !wifi_ok) return;
   if (!sm_found || sm_archived || sm_id != spool_id) {
     logSDf("LOC: not offered after the picker, id=%d sm_id=%d found=%d archived=%d",
@@ -83,10 +108,11 @@ static void onPicked(int ams_id, int tray_id) {
   // not asked again for this spool - the location question still is, because
   // a spool that is not going into the printer is going onto a shelf.
   if (ams_id < 0 || tray_id < 0) {
-    const int spool_id = amsPickPendingSpoolId();
+    const int  spool_id = amsPickPendingSpoolId();
+    const bool by_tap   = s_pending.active && s_pending.by_tap;   // before the drop
     logSD("AMSPICK: picker closed without an answer, note dropped");
     amsPickDropPending();
-    offerLocationAfterPick(spool_id);
+    offerLocationAfterPick(spool_id, by_tap);
     return;
   }
 
@@ -162,6 +188,7 @@ void amsPickShow() {
 void amsPickOpenFor(int spool_id, const char* spool_name) {
   if (spool_id <= 0 || !backendCanAssignAmsSlot()) return;
   amsPickNote(spool_id, spool_name);
+  s_pending.by_tap = true;          // after the note, which clears it
   logSDf("AMSPICK: picker opened by the AMS button for id=%d", spool_id);
   openPicker();
 }

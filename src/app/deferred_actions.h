@@ -43,6 +43,10 @@ extern bool show_ams_view_scale_pending;
 // window, BamBuddy opens the bay picker - both make requests, so the button
 // only raises this and appLoop() does the rest.
 extern bool ams_main_assign_pending;
+// "Into AMS" under "More info", pressed for any spool on the screen (with or
+// without a load cell, with or without a tag): open the bay picker for it.
+// The page closes with the tap; the picker opens from appLoop().
+extern bool ams_info_assign_pending;
 // The tag view, from the NFC chip in the header. A flag like the AMS view's,
 // so the card is built on the loop and never inside the chip's callback.
 extern bool show_tag_view_pending;

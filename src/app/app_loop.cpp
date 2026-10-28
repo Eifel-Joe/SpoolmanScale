@@ -61,6 +61,7 @@
 #include "services/bambuddy_device.h"
 #include "services/ams_presence.h"
 #include "services/ams_pick.h"
+#include "services/no_tag_create_rules.h"   // amsInfoOffered()
 #include "ui/ams_detail_popup.h"
 #include "ui/status_picker.h"
 #include "ui/ams_view.h"
@@ -473,6 +474,20 @@ static void amsMainAssignRun() {
   if (!amsCommitWithWindow()) {
     showInfoPopup(STR_AMSV_TITLE, STR_AMSV_ASSIGN_FAIL, INFO_WARN);
   }
+}
+
+// "Into AMS" under "More info", one pass after the tap (which also closed the
+// page). The same question the page asked when it was built is asked again:
+// the NFC poll ran in between and a spool can have left the screen, landed in
+// its place or been archived, and the picker must not open for the wrong one.
+// Not folded into amsMainAssignRun(): that one is the button of the main
+// screen without a load cell and also serves FilaMan, which this does not.
+static void amsInfoAssignRun() {
+  if (!amsInfoOffered(backendCanAssignAmsSlot(), amsPresenceHasAms(), sm_found, sm_archived, sm_id)) {
+    logSDf("AMS: info button assign dropped, the spool is no longer offered, sm_id=%d", sm_id);
+    return;
+  }
+  amsPickOpenFor(sm_id, sm_filament_name);
 }
 
 // What a lifted tag left on the main screen goes the way the no-tag timer in
@@ -943,6 +958,10 @@ void appLoop() {
   if (ams_main_assign_pending) {
     ams_main_assign_pending = false;
     amsMainAssignRun();
+  }
+  if (ams_info_assign_pending) {
+    ams_info_assign_pending = false;
+    amsInfoAssignRun();
   }
   if (show_ams_assign_pending) {
     show_ams_assign_pending = false;

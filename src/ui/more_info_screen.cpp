@@ -23,6 +23,8 @@
 #include "services/http_progress.h"
 #include "services/backend_api.h"
 #include "services/ble_service.h"
+#include "services/ams_presence.h"
+#include "services/no_tag_create_rules.h"   // amsInfoOffered()
 #include "services/label_printer.h"
 #include "services/server_reach.h"
 #include "services/filaman_api.h"
@@ -805,6 +807,44 @@ void buildMoreInfoScreen() {
       if (!wifiManagerIsConnected()) return;
       show_status_picker_pending = true;
     });
+  }
+
+  // "Into AMS", in the same place as the chip above, which it never meets:
+  // backendCanAssignAmsSlot() is true for BamBuddy alone. The box below is
+  // full to the pixel and the left half of the header holds nothing else.
+  // Offered for any spool that is on the screen, not archived and has a
+  // number, with or without a load cell and with or without a tag (the main
+  // screen's own AMS button covers only the case without a load cell). The
+  // tap closes this page and raises a flag: the picker needs the loop, and
+  // the loop asks amsInfoOffered() once more.
+  if (amsInfoOffered(backendCanAssignAmsSlot(), amsPresenceHasAms(), sm_found, sm_archived, sm_id)) {
+    lv_obj_t *btn_ams = lv_btn_create(hdr);
+    lv_obj_set_size(btn_ams, 116, 34);
+    lv_obj_set_pos(btn_ams, 10, 9);
+    lv_obj_set_style_bg_color(btn_ams, lv_color_hex(UI_COL_ROW), 0);
+    lv_obj_set_style_bg_color(btn_ams, lv_color_hex(UI_COL_ROW_PRESS_FILL), LV_STATE_PRESSED);
+    lv_obj_set_style_border_color(btn_ams, lv_color_hex(UI_COL_ACCENT), 0);
+    lv_obj_set_style_border_width(btn_ams, 1, 0);
+    lv_obj_set_style_radius(btn_ams, UI_RADIUS_BTN, 0);
+    lv_obj_set_style_shadow_width(btn_ams, 0, 0);
+    lv_obj_add_event_cb(btn_ams, [](lv_event_t *e) {
+      logSD("BTN: MoreInfo -> into AMS");
+      ams_info_assign_pending = true;
+      // Wurzel: the page is closed from the callback of a button on it. The
+      // X above deletes it on the spot, which the project's rules forbid in
+      // a callback (the ratchet counts it).
+      // Fix: releaseScreen() hides the page at once and deletes it a timer
+      // pass later (lv_obj_del_async), as the status picker's archive branch
+      // does with this same page. Last in the handler, though: this button
+      // is hidden with the page and takes no further tap.
+      // NOT-TO-DO: copying the X's lv_obj_del() here.
+      releaseScreen(&scr_more_info);
+    }, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *lbl_ams = lv_label_create(btn_ams);
+    lv_label_set_text(lbl_ams, T(STR_AMS_MAIN_ASSIGN));
+    lv_obj_set_style_text_color(lbl_ams, lv_color_hex(UI_COL_ACCENT), 0);
+    lv_obj_set_style_text_font(lbl_ams, UI_FONT_SMALL, 0);
+    lv_obj_center(lbl_ams);
   }
 
   // Print label, left of the X. Only when it can do anything: a spool the
