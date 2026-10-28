@@ -330,4 +330,15 @@ assert names.index("Test no tag finish") == names.index("Test no tag weights") +
 assert dict(steps)["Test no tag finish"] == "python3 test/test_no_tag_finish.py", \
     ".github/workflows/ci.yml: the step does not run python3 test/test_no_tag_finish.py"
 
+# U2 (Festlegung 9): a spool shown by its id asks after a lift what a lifted
+# tag asks (original b7bc11a). A spool just created without a tag is such a
+# spool, and while "Print a label?" stands those questions wait for it.
+LOOP = "app/app_loop.cpp"
+loop = body_of(LOOP, "appLoop")
+lift = re.search(r"if\(\(loc_popup_pending_id>0\|\|ams_popup_pending_id>0\|\|"
+                 r"pick_popup_pending_id>0\)&&([^{]*)\)\{", loop)
+assert lift, f"src/{LOOP}: the block that asks after a lift is not there"
+assert "!noTagLabelAskOpen()" in lift.group(1), \
+    f"src/{LOOP}: the questions after a lift do not wait for the label question"
+
 print("no tag finish: ok")
