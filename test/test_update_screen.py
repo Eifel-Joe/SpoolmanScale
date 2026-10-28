@@ -1,4 +1,4 @@
-"""Read the source tree without a compiler and check that the answer of an update check asked for on the GitHub OTA screen reaches that screen while it is open. The switch "Auto check" brings the daily check forward by five seconds (updateCheckScheduleIn), but the handler builds the screen again at once, before the check has run, and the answer used to set only the badges: the open screen showed nothing until it was opened again (seen on the 7B, 25.10.2026). Now the switch says "Checking..." (or "no WiFi") on the screen it builds, the check remembers that the screen asked, and updateCheckTick() hands its answer to otaGithubShowCheckAnswer(), which builds the screen again from what the check stored and only while it is shown, and says "up to date", "too big" or "check failed" where nothing is to install. A daily check that lands by chance while the screen is open still leaves a manual result alone: only an answer the screen asked for clears the stored update there."""
+"""Read the source tree without a compiler and check that the answer of an update check asked for on the GitHub OTA screen reaches that screen while it is open. The switch "Auto check" brings the daily check forward by five seconds (updateCheckScheduleIn), and the answer used to set only the badges: the open screen showed nothing until it was opened again (seen on the 7B, 25.10.2026). The original's new update screen (3969d87) is built once and its handlers no longer build it again: they write the headline with ghShowStatus() and the button with ghSetAction(), and ghShowInitial() takes the screen back to what the check stored. The rule stays: the switch says "Checking..." (or "no WiFi") after it has taken the screen back to its opening state, the check remembers that the screen asked, and updateCheckTick() hands its answer to otaGithubShowCheckAnswer(), which writes only the status line and the button, only while the screen is shown and never by building the screen again (an open downgrade question stays on top), and says "up to date", "too big" or "check failed" where nothing is to install. A daily check that lands by chance while the screen is open still leaves a manual result alone: only an answer the screen asked for clears the stored update there."""
 import re
 import sys
 from pathlib import Path
@@ -51,9 +51,14 @@ def block_after(code, offset):
 
 
 # 1. The screen offers the answer: declared in its header, and it does nothing
-# once the screen is gone, builds the screen again from what the check stored
-# (a found update then reads and installs as after "Check") and says the two
-# answers that leave nothing to install with the texts the manual check uses.
+# once the screen is gone. The original's new screen (3969d87) is built once
+# and its handlers never build it again; they write the headline with
+# ghShowStatus() and the button with ghSetAction(). So the answer writes the
+# status line the same way, says the two answers that leave nothing to install
+# with the texts the manual check uses, and hands a found update to
+# ghShowInitial(), which reads what the check stored (a found update then
+# installs as after "Check"). A downgrade question that is open sits above
+# the screen and stays there, because nothing here builds the screen again.
 header = load(OTA_HEADER)
 if header is not None and not re.search(r"\b" + ANSWER + r"\s*\(", header.code):
     errors.append(f"src/{OTA_HEADER}: {ANSWER}() is not declared")
@@ -62,48 +67,47 @@ if screen is not None:
     body = function_body(screen, OTA_SCREEN, ANSWER)
     if body is not None:
         guard = re.search(r"\bif\s*\(\s*!\s*otaGithubScreenVisible\(\)\s*\)\s*return\s*;", body)
-        build = body.find("buildOtaGithubScreen()")
-        if guard is None or build < 0 or guard.start() > build:
+        first_show = re.search(r"\bghShow\w*\s*\(", body)
+        if guard is None or (first_show is not None and guard.start() > first_show.start()):
             errors.append(f"src/{OTA_SCREEN}: {ANSWER}() must return while the screen is not shown, "
-                          "before it builds the screen again")
-        # A dialog on this screen (the downgrade question) sits on the active
-        # screen; a screen built again is appended above it and would hide a
-        # question that still waits. Then only the status line is written.
-        modal = body.find("uiModalWaiting()")
-        if modal < 0 or build < 0 or modal > build:
-            errors.append(f"src/{OTA_SCREEN}: {ANSWER}() builds the screen again without asking "
-                          "uiModalWaiting() first, a waiting dialog would end up under it")
+                          "before the first ghShow call")
+        if re.search(r"\bbuildOtaGithubScreen\s*\(", body):
+            errors.append(f"src/{OTA_SCREEN}: {ANSWER}() builds the screen again, "
+                          "a waiting dialog would end up under it")
         # A failed check says so (Jörg, 26.10.2026: "Suche fehlgeschlagen"),
         # with the text the web page already has in all three languages.
         for text in ("STR_GH_OTA_UP_TO_DATE", "STR_GH_OTA_TOO_BIG", "STR_W_FW_CHECK_FAIL"):
             if text not in body:
                 errors.append(f"src/{OTA_SCREEN}: {ANSWER}() does not say {text}")
+        for call in ("ghShowStatus", "ghSetAction", "ghShowInitial"):
+            if not re.search(r"\b" + call + r"\s*\(", body):
+                errors.append(f"src/{OTA_SCREEN}: {ANSWER}() does not call {call}()")
 
-    # The switch: switched on, it brings the check forward and, on the screen
-    # it has just built, says that the check is on its way.
-    build_body = function_body(screen, OTA_SCREEN, "buildOtaGithubScreen")
-    if build_body is not None:
-        toggle = build_body.find("g_upd_autocheck = !g_upd_autocheck")
-        handler = None
-        if toggle >= 0:
-            opening = build_body.rfind("[](lv_event_t", 0, toggle)
-            handler = block_after(build_body, opening) if opening >= 0 else None
-        if handler is None:
-            errors.append(f"src/{OTA_SCREEN}: the click handler of the switch \"Auto check\" is not there")
-        else:
-            rebuilt = handler.rfind("buildOtaGithubScreen()")
-            if "updateCheckScheduleIn(" not in handler:
-                errors.append(f"src/{OTA_SCREEN}: the switch \"Auto check\" does not bring the check forward")
-            if rebuilt < 0:
-                errors.append(f"src/{OTA_SCREEN}: the switch \"Auto check\" does not build the screen again")
-            else:
-                after = handler[rebuilt:]
-                if not re.search(r"\blbl_gh_status\b", after) or "STR_GH_OTA_CHECKING" not in after:
-                    errors.append(f"src/{OTA_SCREEN}: the switch \"Auto check\" does not say STR_GH_OTA_CHECKING "
-                                  "on the screen it has built")
-                if "STR_GH_OTA_NO_WIFI" not in after:
-                    errors.append(f"src/{OTA_SCREEN}: the switch \"Auto check\" says \"checking\" without WiFi, "
-                                  "where the check cannot start")
+    # The switch: it takes the screen back to its opening state, brings the
+    # check forward and, after that, says that the check is on its way (or
+    # that there is no WiFi to start it with).
+    toggle = function_body(screen, OTA_SCREEN, "ghOnAutoToggle")
+    if toggle is not None:
+        if "updateCheckScheduleIn(" not in toggle:
+            errors.append(f"src/{OTA_SCREEN}: the switch \"Auto check\" does not bring the check forward")
+        if re.search(r"\bbuildOtaGithubScreen\s*\(", toggle):
+            errors.append(f"src/{OTA_SCREEN}: the switch \"Auto check\" builds the screen again from its handler")
+        opening = [m.end() for m in re.finditer(r"\bghShowInitial\s*\(\s*\)", toggle)]
+        if not opening:
+            errors.append(f"src/{OTA_SCREEN}: the switch \"Auto check\" does not take the screen back to "
+                          "its opening state (ghShowInitial())")
+        after = toggle[opening[-1]:] if opening else toggle
+        if "STR_GH_OTA_CHECKING" not in after:
+            errors.append(f"src/{OTA_SCREEN}: the switch \"Auto check\" does not say STR_GH_OTA_CHECKING "
+                          "after the last ghShowInitial()")
+        if "STR_GH_OTA_NO_WIFI" not in after:
+            errors.append(f"src/{OTA_SCREEN}: the switch \"Auto check\" says \"checking\" without WiFi, "
+                          "where the check cannot start (no STR_GH_OTA_NO_WIFI after the last ghShowInitial())")
+        # And the switch on the screen is that handler.
+        build_body = function_body(screen, OTA_SCREEN, "buildOtaGithubScreen")
+        if build_body is not None and not re.search(r"\bghOnAutoToggle\b", build_body):
+            errors.append(f"src/{OTA_SCREEN}: buildOtaGithubScreen() does not hand ghOnAutoToggle "
+                          "to the switch \"Auto check\"")
 
 # 2. The check: updateCheckScheduleIn() remembers that the screen asked, and
 # updateCheckTick() takes that back with the answer and hands the answer on
