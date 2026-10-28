@@ -12,6 +12,7 @@
 #include "ams_detail_popup.h"
 #include "confirm_popup.h"
 #include "info_popup.h"
+#include "no_tag_create.h"
 #include "second_tag_popup.h"
 #include "spool_flow.h"
 #include "tag_write_popup.h"
@@ -41,7 +42,8 @@ bool uiModalWaiting() {
       || isSecondTagPopupOpen()
       || isSpoolFlowTagMoveOpen()
       || isAmsAssignPopupOpen()
-      || isAmsDetailPopupOpen();
+      || isAmsDetailPopupOpen()
+      || noTagLabelAskOpen();
 }
 
 // The hue a swatch is drawn in: its own, or glass for a filament that names

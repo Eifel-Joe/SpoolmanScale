@@ -38,3 +38,25 @@ void noTagEntryTap();
 // The title of the "New / Copy" choice: named like the button that opens it,
 // so "create spool" in the flag, "New / Copy" otherwise.
 const char* noTagEntryTitle();
+
+// The end of a create without a tag, from the loop: closes the picker's
+// screens and the choice, shows the main screen with the new spool on it by
+// its number (as after "spool by ID", nothing is linked), says so in green
+// (the Bambu Lab note when the vendor is Bambu's), and clears the flag.
+// vendor is the maker of the new spool, "" when not known. With a label
+// printer ready, and only when the new spool is the one on the screen after
+// all (a tag laid on meanwhile takes the screen), it also arms the question
+// for a label, which noTagLabelAskTick() puts up.
+void noTagCreateFinish(int new_spool_id, const char* vendor);
+
+// The loop's part of the question for a label: builds the card a pass after
+// the ending, carries out the answer, and closes the card without printing
+// when the new spool is no longer the one on the screen.
+void noTagLabelAskTick();
+
+// Whether the card is up, so that the loop holds off its own questions.
+bool noTagLabelAskOpen();
+
+// Takes the card down and forgets a question that was armed and not yet
+// asked, without printing: any other screen is shown (hideAllOverlays()).
+void closeNoTagLabelAsk();

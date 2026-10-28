@@ -102,6 +102,12 @@ static int      s_copy_fill_hint       = STR_NOTAG_FILL_ASK;
 
 bool copyTypeAsked() { return s_copy_type_asked; }
 
+// The maker of the template, for the note a copy made without a tag ends with
+// (noTagCreateFinish()). Read off the copy of the look kept at file scope:
+// copyFlowDeferredActions() closes the card before the create runs, and
+// closing it leaves that copy alone. No look, no vendor.
+const char* copyCardVendor() { return copy_template_has_look ? copy_template_look.vendor : ""; }
+
 void closeCopyConfirmPopup() {
   releaseScreen(&scr_copy_confirm);
   s_copy_price_lbl = nullptr;

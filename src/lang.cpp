@@ -4243,6 +4243,15 @@ const char* const STRINGS[][3] = {
   { "Füllmenge nur von 100 bis 5000 g",
     "Filament weight only from 100 to 5000 g",
     "Poids de filament de 100 à 5000 g seulement" },  // STR_NOTAG_FILL_RANGE
+  { "Spule %d angelegt - ohne Tag",
+    "Spool %d created - no tag",
+    "Bobine %d créée - sans tag" },  // STR_NOTAG_CREATED
+  { "Spule %d - Chip vor AMS auflegen",
+    "Spool %d - read chip before AMS",
+    "Bobine %d - lire la puce avant l'AMS" },  // STR_NOTAG_CREATED_BAMBU
+  { "Etikett drucken?",
+    "Print label?",
+    "Imprimer l'étiquette ?" },  // STR_LABEL_ASK
 };
 
 StringID tagWriteResultString(uint8_t code) {

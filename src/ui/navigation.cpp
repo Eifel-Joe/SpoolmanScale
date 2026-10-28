@@ -17,6 +17,7 @@
 #include "ui/extra_fields_screen.h"
 #include "ui/language_screen.h"
 #include "ui/nfc_reset_popup.h"
+#include "ui/no_tag_create.h"
 #include "ui/ota_github.h"
 #include "ui/pc_print_popup.h"
 #include "ui/printer_screen.h"
@@ -122,6 +123,8 @@ void hideAllOverlays() {
   closeSpoolIdPad();
   closeTagView();
   closeBleDeviceCard();
+  // The question for a label belongs to the main screen it was asked on.
+  closeNoTagLabelAsk();
 }
 
 void deleteOtaScreens() {

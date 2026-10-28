@@ -500,6 +500,14 @@ STR_NOTAG_FILL_TITLE	14	460	NEVER	src/ui/price_pad.cpp title above the keypad, t
 STR_NOTAG_FILL_INFO	12	168	WRAP:3	src/ui/price_pad.cpp right column, PP_COL_W, as STR_PRICE_PAD_INFO
 STR_NOTAG_FILL_ASK	14	360	NEVER	src/ui/tag_create_popup.cpp status line, src/ui/copy_confirm_popup.cpp line 3, small font, one line: the hint names the button (German 320 px, French 337 px)
 STR_NOTAG_FILL_RANGE	14	360	NEVER	src/ui/tag_create_popup.cpp status line, src/ui/copy_confirm_popup.cpp line 3, small font, one line (French 327 px)
+# The end of a create without a tag (X): the status line of the spool shown by its number, and the title of the
+# question for a label. The line is lbl_status, HDR_STATUS_W 292 wide, and a text wider than that wraps and the 22 px
+# bar cuts it, so the budget is 292 less the digits of a five digit number over the 22 px of the unfilled %d (23 px).
+# With the clear button behind the line the narrow header leaves less (see STR_ID_SPOOL_STATUS); these two do not
+# keep to that, the German one is 219 px for a three digit number.
+STR_NOTAG_CREATED	14	269	NEVER	src/ui/no_tag_create.cpp status line, one line (French 197 px, German 219 px)
+STR_NOTAG_CREATED_BAMBU	14	269	NEVER	src/ui/no_tag_create.cpp status line, one line (French 259 px, German 247 px, English 236 px)
+STR_LABEL_ASK	20	360	NEVER	src/ui/no_tag_create.cpp title of the question, UI_POPUP_W - UI_CARD_TEXT_PAD, one line (French 221 px)
 # The twin box over the card: title and text in the card's text width, two buttons of 184 px.
 STR_SORT_TWIN_TITLE	20	360	NEVER	src/ui/sort_twin_popup.cpp title, UI_POPUP_W - UI_CARD_TEXT_PAD
 STR_SORT_TWIN_TEXT	16	360	WRAP:3	src/ui/sort_twin_popup.cpp question, UI_POPUP_W - UI_CARD_TEXT_PAD, %s is a filament name

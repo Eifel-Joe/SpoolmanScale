@@ -136,3 +136,6 @@ void copyCreateRequest(int template_spool_id, int template_filament_id, float te
 // The confirmation's list of spool types was answered for the copy on the
 // card (copy_confirm_popup.cpp); copyCreateRequest() takes it with its values.
 bool copyTypeAsked();
+// The maker of the template on the confirmation, "" when it came without a
+// look. Outlives the card: the create reads it after the card is closed.
+const char* copyCardVendor();

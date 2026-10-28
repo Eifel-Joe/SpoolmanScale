@@ -167,7 +167,10 @@ in_order(body, ["linkPickerClose();", "showMainScreen();", "idSpoolAdopt(new_spo
 for needle in ("linkPickerClose();", "showMainScreen();", "idSpoolAdopt(new_spool_id);",
                "statusMessageShow(msg, UI_COL_GOOD);", "noTagModeSet(false);"):
     once(body, needle, where)
-    assert depth_at(body, body.find(squeeze(needle))) == 0, f"{where}: '{needle}' is conditional"
+    at = body.find(squeeze(needle))
+    # Its own statement on the function's level: no brace around it, and no
+    # "if (...)" or "else" in front of it that a brace-less body would hide.
+    assert depth_at(body, at) == 0 and body[at - 1] in ";}{", f"{where}: '{needle}' is conditional"
 once(body, "const bool bambu = noTagCreatedNote(vendor) == NTN_BAMBU_CHIP;", where)
 once(body, "snprintf(msg, sizeof(msg), T(bambu ? STR_NOTAG_CREATED_BAMBU : STR_NOTAG_CREATED), new_spool_id);", where)
 assert body.find("snprintf(msg") < body.find("statusMessageShow("), f"{where}: the line is said before it is written"

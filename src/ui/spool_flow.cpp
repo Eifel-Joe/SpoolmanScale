@@ -42,6 +42,7 @@
 #include "ui/tag_spool_compare.h"
 #include "ui/theme.h"
 #include "ui/db_pick_screen.h"
+#include "ui/no_tag_create.h"
 #include "ui/sort_entry_screen.h"
 #include "ui/tag_create_popup.h"
 #include "ui/unknown_spool_popup.h"
@@ -3858,6 +3859,8 @@ void handleSpoolFlowDeferredActions() {
   copyFlowDeferredActions();
   // A new spool from the tag: its lookup and its creation.
   tagCreatePopupTick();
+  // The question for a label, once a spool created without a tag is on the screen.
+  noTagLabelAskTick();
   // A sort entered at the scale: before the picker's tick, which takes any finished load.
   sortEntryTick();
   // A new spool from the filament database: its lists as they come in.

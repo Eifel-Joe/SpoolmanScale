@@ -768,6 +768,15 @@ static void runCreate() {
   char buf[96];
   if ((code == 200 || code == 201) && r.spool_id > 0) {
     spoolCacheForget("spool created from a tag");
+    // No tag: no link and no mark for the first weighing, see
+    // noTagCreateFinish(). A price the server did not keep is still said, over
+    // the green line.
+    if (noTagMode()) {
+      closeTagCreatePopup();
+      noTagCreateFinish(r.spool_id, s_in.vendor);
+      if (r.price_lost) statusMessageShow(T(STR_TAGNEW_PRICE_LOST), UI_COL_WARN);
+      return;
+    }
     // Our list asked this spool's type on the way here ("new from database",
     // or in front of the card for a Bambu tag, tagTypeAsk()): the first
     // weighing does not ask it again (tare_entry.h). A tag's input carries

@@ -1948,6 +1948,9 @@ enum StringID {
   STR_NOTAG_FILL_INFO,        // the grey line beside the price pad's keys when it asks for the fill weight
   STR_NOTAG_FILL_ASK,         // the card's status line while the fill weight is missing
   STR_NOTAG_FILL_RANGE,       // the card's status line after a fill weight outside the range
+  STR_NOTAG_CREATED,          // the status line once the spool exists, no tag (%d: its number)
+  STR_NOTAG_CREATED_BAMBU,    // the same for a Bambu Lab spool: the chip goes on before the first AMS
+  STR_LABEL_ASK,              // the title of the question for a label after the create
 
   STR_COUNT
 };
