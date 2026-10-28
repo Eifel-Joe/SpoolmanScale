@@ -10,9 +10,13 @@ source = r'''
 #include <cstring>
 
 // The three groups, spelled out here on purpose: the production lists must
-// agree with this text, not with themselves.
+// agree with this text, not with themselves. The keys of the second server
+// set (alt_*) and of the AMS source server follow their active counterparts:
+// a parked credential is as secret as the one it was parked from.
 static const char* const SECRETS[] = {
-  "wifi_ssid", "wifi_pass", "filaman_key", "filaman_dev", "bb_key", "sm_secret", "sm_bind"
+  "wifi_ssid", "wifi_pass", "filaman_key", "filaman_dev", "bb_key", "sm_secret", "sm_bind",
+  "ams_src_key", "alt_fm_key", "alt_fm_dev", "alt_bb_key", "alt_sm_secret", "alt_sm_bind",
+  "alt_ams_key"
 };
 static const char* const DEVICE[] = {
   "fw_ver", "fw_since", "upd_sha", "upd_ver",
@@ -21,7 +25,9 @@ static const char* const DEVICE[] = {
 };
 static const char* const SETTINGS[] = {
   "cal_factor", "zero_offset", "mdns_host", "bb_host", "sm_user", "lang",
-  "tag_mv27", "bright"
+  "tag_mv27", "bright",
+  "ams_src_host", "alt_sm_ip", "alt_fm_host", "alt_bb_host", "alt_sm_auth", "alt_sm_user",
+  "alt_ams_host", "alt_set_name"
 };
 
 // A key is at most BACKUP_KEY_MAX characters: 15 fit, 16 do not.
