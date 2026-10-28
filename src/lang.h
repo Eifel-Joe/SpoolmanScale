@@ -1940,6 +1940,10 @@ enum StringID {
   STR_DENSITY_RANGE,          // the card's status line after a density outside the plausible range
   STR_DENSITY_PAD_INFO,       // the grey line beside the price pad's keys when it asks for the density
 
+  // A spool created without a tag and without weighing (ui/no_tag_create.cpp)
+  STR_BTN_CREATE_SPOOL,       // the main screen's right button with nothing on it, and the title of the choice it opens
+  STR_NOTAG_CTX,              // the choice's context line in place of the UID
+
   STR_COUNT
 };
 

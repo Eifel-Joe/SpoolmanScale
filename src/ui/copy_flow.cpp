@@ -22,6 +22,7 @@
 #include "services/copy_bbs.h"
 #include "services/copy_rules.h"   // CopyMissing
 #include "services/list_limits.h"
+#include "services/no_tag_create_rules.h"
 #include "services/server_reach.h"
 #include "services/spool_start.h"
 #include "services/spool_cache.h"
@@ -34,6 +35,7 @@
 #include "ui/loading_overlay.h"
 #include "ui/main_screen_helpers.h"
 #include "ui/navigation.h"
+#include "ui/no_tag_create.h"
 #include "ui/spoolman_lookup.h"
 #include "services/spool_tare.h"
 #include "ui/theme.h"
@@ -651,6 +653,9 @@ static void copyEntryTiles(bool offer_from_tag, bool offer_from_db) {
 // Entry popup: choose ID / Active spools / Archived spools
 void showCopyEntryPopup() {
   logSD("SHOW: CopyEntryPopup");
+  // Decided here, once, from the pad as it is now: no Bambu tag and no id
+  // means a create without a tag (X). Before the tiles, which read it.
+  noTagModeSet(noTagModeAtEntry(strlen(g_tag.tray_uuid) == 32, link_tag_uid[0] != '\0'));
   linkPickerReset();  // clear so NTAG always goes via vendor/material picker
   closeCopyEntryPopup();
 
@@ -665,7 +670,7 @@ void showCopyEntryPopup() {
 
   // Title: named like the button that opens it, since it also offers new spools
   lv_obj_t *lbl_title = lv_label_create(scr_copy_entry);
-  lv_label_set_text(lbl_title, T(STR_BTN_COPY_SPOOL));
+  lv_label_set_text(lbl_title, noTagEntryTitle());
   lv_obj_set_style_text_color(lbl_title, lv_color_hex(UI_COL_ACCENT), 0);
   lv_obj_set_style_text_font(lbl_title, &lv_font_montserrat_ext_18, 0);
   lv_obj_set_style_text_align(lbl_title, LV_TEXT_ALIGN_CENTER, 0);
@@ -688,7 +693,9 @@ void showCopyEntryPopup() {
   // Context: material info if available
   lv_obj_t *lbl_ctx = lv_label_create(scr_copy_entry);
   char ctx_buf[56];
-  if (strlen(g_tag.material) > 0) {
+  if (noTagMode()) {
+    copyT(ctx_buf, sizeof(ctx_buf), STR_NOTAG_CTX);   // no id to show
+  } else if (strlen(g_tag.material) > 0) {
     char fmt_c[48]; backendText(T(STR_LINK_CTX_NOT_IN_SM), fmt_c, sizeof(fmt_c));
     snprintf(ctx_buf, sizeof(ctx_buf), fmt_c, g_tag.material);
   } else if (strlen(link_tag_uid) > 0) {

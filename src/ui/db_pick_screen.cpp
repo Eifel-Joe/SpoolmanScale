@@ -10,11 +10,13 @@
 // before lang.h, which defines T().
 #include "services/backend_api.h"
 #include "services/filament_db.h"
+#include "services/no_tag_create_rules.h"
 #include "app/app_state.h"
 #include "hardware/sd_logger.h"
 #include "lang.h"
 #include "ui/db_pick_core_popup.h"
 #include "ui/link_wait_card.h"
+#include "ui/no_tag_create.h"
 #include "ui/sort_entry_screen.h"
 #include "ui/spool_flow.h"
 #include "ui/spool_flow_internal.h"
@@ -150,7 +152,9 @@ static const int FAMILY_TEXT[CF_COUNT] = {
 lv_obj_t* dbPickScreen() { return s_scr; }
 
 bool dbPickOffered() {
-  return strlen(g_tag.tray_uuid) != 32 && link_tag_uid[0] && fdbOffered();
+  // Without a tag there is no id to ask for (X): the flag stands in for it.
+  return noTagSourceOffered(noTagMode(), strlen(g_tag.tray_uuid) == 32, link_tag_uid[0] != '\0') &&
+         fdbOffered();
 }
 
 // ------------------------------------------------------------

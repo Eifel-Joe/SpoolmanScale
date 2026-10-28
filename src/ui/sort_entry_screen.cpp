@@ -11,10 +11,12 @@
 #include "hardware/sd_logger.h"
 #include "services/backend.h"
 #include "services/filament_db.h"
+#include "services/no_tag_create_rules.h"
 #include "services/sort_entry_source.h"
 #include "services/text_util.h"
 #include "ui/db_pick_screen.h"
 #include "ui/link_wait_card.h"
+#include "ui/no_tag_create.h"
 #include "ui/sort_entry_internal.h"
 #include "ui/spool_flow.h"
 #include "ui/theme.h"
@@ -104,7 +106,9 @@ SortUi& sortUi() { return s_ui; }
 lv_obj_t* sortEntryScreen() { return s_scr; }
 
 bool sortEntryOffered() {
-  return !backendIsFilaMan() && strlen(g_tag.tray_uuid) != 32 && link_tag_uid[0];
+  // The flag stands in for the id here too (X), see dbPickOffered().
+  return !backendIsFilaMan() &&
+         noTagSourceOffered(noTagMode(), strlen(g_tag.tray_uuid) == 32, link_tag_uid[0] != '\0');
 }
 
 // ------------------------------------------------------------

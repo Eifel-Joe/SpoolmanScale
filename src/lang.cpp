@@ -4222,6 +4222,12 @@ const char* const STRINGS[][3] = {
   { "Leer = keine Dichte. Bereich 0,50 bis 4,00 g/cm3.",
     "Empty = no density. Range 0.50 to 4.00 g/cm3.",
     "Vide = sans densité. Plage 0,50 à 4,00 g/cm3." },  // STR_DENSITY_PAD_INFO
+  { "Spule anlegen",
+    "Create spool",
+    "Créer bobine" },  // STR_BTN_CREATE_SPOOL
+  { "Ohne Tag - wird nicht gewogen",
+    "No tag - not weighed",
+    "Sans tag - non pesée" },  // STR_NOTAG_CTX
 };
 
 StringID tagWriteResultString(uint8_t code) {

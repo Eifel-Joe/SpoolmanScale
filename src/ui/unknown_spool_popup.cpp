@@ -14,6 +14,7 @@
 #include "services/tag_create.h"
 #include "services/user_options.h"
 #include "ui/db_pick_screen.h"
+#include "ui/no_tag_create.h"
 #include "ui/sort_entry_screen.h"
 #include "ui/spool_flow.h"
 #include "ui/spool_flow_internal.h"
@@ -539,6 +540,10 @@ static void runAction() {
     return;
   }
   closeUnknownSpoolPopup();
+  // A tag is on the pad for every way out of this card. A flag left on by an
+  // earlier "create spool" that was cancelled must not carry into it; the copy
+  // choice decides afresh.
+  noTagModeSet(false);
   switch (a) {
     case UA_LINK_PICK:  linkSuggestOpenList(s_action_id);  break;
     case UA_LINK_LIST:  linkSuggestOpenList(0);            break;

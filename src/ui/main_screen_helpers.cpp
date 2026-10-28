@@ -126,6 +126,19 @@ void paintTagStatus() {
       : sm_found ? UI_COL_GOOD : UI_COL_WARN), 0);
 }
 
+// The right-hand button is the copy button under two names: "Create spool"
+// while nothing is on the screen, "New / Copy" for an unknown tag and an
+// archived spool. The name is set each time the button is shown, so it never
+// keeps the one of the state before, and only written when it differs: this
+// runs on every change of the link bar.
+static void setCopyButtonLabel(StringID id) {
+  lv_obj_t *lbl = btn_copy ? lv_obj_get_child(btn_copy, 0) : nullptr;
+  if (!lbl) return;
+  char buf[32];
+  copyT(buf, sizeof(buf), id);
+  if (strcmp(lv_label_get_text(lbl), buf) != 0) lv_label_set_text(lbl, buf);
+}
+
 void updateLinkButton() {
   // Whichever button buildUI() put in the left slot. With a load cell that is
   // "update weight"; without one there is no weight to send and the slot holds
@@ -137,6 +150,8 @@ void updateLinkButton() {
 
   // Nothing on screen: the left slot offers a spool by its id, which is the
   // only thing it could do. Weighing needs a spool, the location one as well.
+  // The right slot offers a new spool (the copy button as "Create spool", X):
+  // "dried" has no spool to dry here.
   const bool empty = !tag_present && !sm_found;
   if (btn_by_id) {
     if (empty) lv_obj_clear_flag(btn_by_id, LV_OBJ_FLAG_HIDDEN);
@@ -144,9 +159,10 @@ void updateLinkButton() {
   }
   if (empty) {
     lv_obj_add_flag(slot1,             LV_OBJ_FLAG_HIDDEN);
-    lv_obj_clear_flag(btn_dried,       LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(btn_dried,         LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(btn_link,          LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(btn_copy,          LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(btn_copy,        LV_OBJ_FLAG_HIDDEN);
+    setCopyButtonLabel(STR_BTN_CREATE_SPOOL);
     return;
   }
 
@@ -169,6 +185,7 @@ void updateLinkButton() {
     lv_obj_add_flag(btn_dried,         LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(btn_link,          LV_OBJ_FLAG_HIDDEN);
     lv_obj_clear_flag(btn_copy,        LV_OBJ_FLAG_HIDDEN);
+    setCopyButtonLabel(STR_BTN_COPY_SPOOL);
     return;
   }
 
@@ -187,6 +204,7 @@ void updateLinkButton() {
     lv_obj_add_flag(btn_dried,         LV_OBJ_FLAG_HIDDEN);
     lv_obj_clear_flag(btn_link,        LV_OBJ_FLAG_HIDDEN);
     lv_obj_clear_flag(btn_copy,        LV_OBJ_FLAG_HIDDEN);
+    setCopyButtonLabel(STR_BTN_COPY_SPOOL);
   } else {
     lv_obj_clear_flag(slot1,           LV_OBJ_FLAG_HIDDEN);
     lv_obj_clear_flag(btn_dried,       LV_OBJ_FLAG_HIDDEN);

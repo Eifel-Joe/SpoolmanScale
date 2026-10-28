@@ -27,6 +27,7 @@
 #include "services/tag_field.h"
 #include "services/user_options.h"
 #include "ui/main_screen_helpers.h"
+#include "ui/no_tag_create.h"
 #include "ui/price_pad.h"
 #include "ui/sort_twin_popup.h"
 #include "ui/spool_flow_internal.h"
@@ -548,6 +549,10 @@ static bool tagTypeAsk() {
 
 void showTagCreatePopup() {
   logSD("SHOW: TagCreatePopup");
+  // The card for the tag on the pad is not a create without a tag; a flag left
+  // on by a cancelled one would drop the tag's link. showTagCreatePopupFor()
+  // keeps it: the database and the sort entry come in with the flag on.
+  noTagModeSet(false);
   closeTagCreatePopup();
   if (!tagCreateInputFromTag(&s_in)) {
     logSD("TagCreate: no tag to create from");
