@@ -4122,10 +4122,11 @@ const char* const STRINGS[][3] = {
   // Heavier than the backend by this much: nothing sent, a tap asks.
   { "%+.0f g, prüfen", "%+.0f g, check", "%+.0f g, à vérifier" },  // STR_WB_RISE
   // The weight popup (weight_popup.cpp). Its first line when the spool
-  // reads heavier than stored; %s is the backend's name. 436 px at f14.
-  { "Schwerer als in %s: Beutel drauf? Andere Spule?",
-    "Heavier than in %s: bag on it? Another spool?",
-    "Plus lourde que dans %s : sachet ? Autre bobine ?" },  // STR_WP_RISE_LINE
+  // reads heavier than stored; %s is the backend's name. 344 px at f14,
+  // beside the parts chip, with the longest backend name in it.
+  { "Mehr als in %s: Beutel? Andere Spule?",
+    "Heavier than in %s: bag? Other spool?",
+    "Plus que %s : sachet ? Autre bobine ?" },  // STR_WP_RISE_LINE
   // The large button, f24, 436 px with a tick before it.
   { "%.0f g senden",          "Send %.0f g",        "Envoyer %.0f g" },  // STR_WP_SEND
   { "%.0f g trotzdem senden", "Send %.0f g anyway", "Envoyer %.0f g quand même" },  // STR_WP_SEND_ANYWAY

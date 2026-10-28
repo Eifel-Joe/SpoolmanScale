@@ -591,7 +591,10 @@ STR_WEB_QR_HINT	12	456	NEVER	src/ui/ota_browser.cpp under the QR code
 STR_WB_SENT	16	160	NEVER	src/ui/weight_button.cpp main screen button, behind an icon
 STR_WB_UNCHANGED	16	160	NEVER	src/ui/weight_button.cpp main screen button, behind an icon
 STR_WB_RISE	16	160	NEVER	src/ui/weight_button.cpp main screen button, behind an icon
-STR_WP_RISE_LINE	14	436	NEVER	src/ui/weight_popup.cpp first line, %s = backend name
+# The first line gives up the parts chip and a gap (WP_INNER_W 436 - WP_CHIP_W 84 - WP_GAP 8),
+# and the chip is there whenever parts are set up. The gate measures %s as written; with the
+# longest backend name in its place the text must still fit (test_weight_popup.py).
+STR_WP_RISE_LINE	14	344	NEVER	src/ui/weight_popup.cpp first line beside the parts chip, %s = backend name
 STR_WP_SEND	24	390	NEVER	src/ui/weight_popup.cpp large button, behind a tick
 STR_WP_SEND_ANYWAY	24	390	NEVER	src/ui/weight_popup.cpp large button
 STR_WP_BAG_MINUS	12	436	NEVER	src/ui/weight_popup.cpp under the large button
