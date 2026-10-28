@@ -99,6 +99,7 @@
 #include "web/web_jobs.h"
 #include "ui/confirm_popup.h"
 #include "ui/tare_entry.h"
+#include "ui/no_tag_create.h"   // noTagLabelAskOpen()
 #include "ui/ble_devices_screen.h"
 #include "ui/bluetooth_screen.h"
 #include "ui/connection_screen.h"
@@ -1171,9 +1172,15 @@ void appLoop() {
   // branch of that popup raises the location question again.
   // Held, not dropped, while the empty spool weight is being entered: the
   // questions wait for that dialog like for any other modal.
+  // Held the same way while "Print a label?" stands for a spool just created
+  // without a tag (design note U2, decision 9): that card was asked first, and
+  // the spool may be lifted while it is up, which raises the questions at
+  // once. They stay pending, and the pass after the card closes asks them;
+  // the spool is still shown then, since its lift clock (idSpoolTick()) starts
+  // over while the card is up. See test_no_tag_finish.py.
   if ((loc_popup_pending_id > 0 || ams_popup_pending_id > 0 ||
        pick_popup_pending_id > 0) && !tag_present &&
-      !isTareEntryOpen() && !isSpoolWeightScopeOpen()) {
+      !isTareEntryOpen() && !isSpoolWeightScopeOpen() && !noTagLabelAskOpen()) {
     const unsigned long since = millis() - last_tag_seen_ms;
     const bool weight_says_gone = weightSaysSpoolGone();
     const bool weight_says_stay = weightSaysSpoolStayed();

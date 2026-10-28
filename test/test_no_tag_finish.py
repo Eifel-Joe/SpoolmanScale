@@ -341,4 +341,20 @@ assert lift, f"src/{LOOP}: the block that asks after a lift is not there"
 assert "!noTagLabelAskOpen()" in lift.group(1), \
     f"src/{LOOP}: the questions after a lift do not wait for the label question"
 
+# The lift clock of that spool (original: 15 s, not over while a screen covers
+# the main one) does not run while the label question stands: the card covers
+# the screen, but the clock kept running behind it, and a slow answer ended the
+# spool in the pass the card closed in, before the questions were asked. The
+# clock restarts under the label question, so the 15 s count from its close.
+ID_SPOOL = "app/id_spool.cpp"
+where = f"src/{ID_SPOOL}: idSpoolTick()"
+body = body_of(ID_SPOOL, "idSpoolTick")
+inner, _, _ = block_of(body, "else if (noTagLabelAskOpen()) {", where)
+assert inner == squeeze("s_lifted_ms = millis();"), \
+    f"{where}: under the label question the lift clock must restart and nothing else, found '{inner}'"
+in_order(body, ["if (!s_lifted_ms) {", "else if (noTagLabelAskOpen()) {",
+                "else if (millis() - s_lifted_ms > ID_SPOOL_LIFTED_MS && !uiMainScreenCovered()) {"], where)
+assert '#include "ui/no_tag_create.h"' in (src / ID_SPOOL).read_text(encoding="utf-8"), \
+    f"src/{ID_SPOOL}: noTagLabelAskOpen() is used without its header"
+
 print("no tag finish: ok")
