@@ -407,7 +407,8 @@ void updateCheckTick() {
         break;
     }
     // After the switch, with the stored update and the badges already set:
-    // the screen is built again from them.
+    // the open screen writes the answer into its parts in place, a found
+    // update from what was stored here (otaGithubShowCheckAnswer()).
     if (to_screen) otaGithubShowCheckAnswer(shown, s_found_version);
   }
 
