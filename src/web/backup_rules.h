@@ -21,16 +21,23 @@
 //             every backup. This is the default: a key that is in
 //             neither list below is a setting.
 //
-//    secret   Credentials: the Wi-Fi network and password and the
-//             keys to FilaMan, Bambuddy and Spoolman. Travels only
-//             when the file is asked to carry secrets, because a
-//             backup is a file that lands on a PC or in a mailbox.
-//             The consequence of that default: a new key that holds
-//             a credential has to be added to the secret list, or
-//             it travels in every backup. sm_bind goes with them: it
-//             is the address the Spoolman secret was entered for, and
-//             restored without its secret it would bind the secret a
-//             device kept to whatever host the file names.
+//    secret   Credentials: the Wi-Fi network and password, the keys to
+//             FilaMan, Bambuddy and Spoolman, and the key of the AMS
+//             source server. Travels only when the file is asked to
+//             carry secrets, because a backup is a file that lands on
+//             a PC or in a mailbox. The consequence of that default: a
+//             new key that holds a credential has to be added to the
+//             secret list, or it travels in every backup. sm_bind goes
+//             with them: it is the address the Spoolman secret was
+//             entered for, and restored without its secret it would
+//             bind the secret a device kept to whatever host the file
+//             names. The second server set (services/server_sets.cpp)
+//             parks a copy of every one of those under an alt_ name,
+//             and a parked credential is as secret as the one it was
+//             parked from: alt_fm_key, alt_fm_dev, alt_bb_key,
+//             alt_sm_secret, alt_sm_bind and alt_ams_key are listed,
+//             while the parked addresses, the Spoolman user and the
+//             set name are settings like their active counterparts.
 //
 //    device   Facts about this unit and its history, not choices:
 //             the firmware version and the update bookkeeping, what
