@@ -4252,6 +4252,12 @@ const char* const STRINGS[][3] = {
   { "Etikett drucken?",
     "Print label?",
     "Imprimer l'étiquette ?" },  // STR_LABEL_ASK
+  { "Farbe suchen",
+    "Search colour",
+    "Rechercher une couleur" },  // STR_COLOUR_FIND_KEY
+  { "Keine Farbe mit \"%s\"",
+    "No colour with \"%s\"",
+    "Aucune couleur avec \"%s\"" },  // STR_COLOUR_FIND_NONE
 };
 
 StringID tagWriteResultString(uint8_t code) {

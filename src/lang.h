@@ -1952,6 +1952,10 @@ enum StringID {
   STR_NOTAG_CREATED_BAMBU,    // the same for a Bambu Lab spool: the chip goes on before the first AMS
   STR_LABEL_ASK,              // the title of the question for a label after the create
 
+  // The search in a colour list (ui/colour_search.cpp)
+  STR_COLOUR_FIND_KEY,        // the keyboard's title: the word the colour names are searched for
+  STR_COLOUR_FIND_NONE,       // across the list when no colour holds the word (%s: the word)
+
   STR_COUNT
 };
 

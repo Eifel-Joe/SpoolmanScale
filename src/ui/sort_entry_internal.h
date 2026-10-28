@@ -6,6 +6,7 @@
 
 #include "services/sort_entry_rules.h"
 #include "services/sort_entry_source.h"
+#include "ui/colour_search.h"
 
 // ============================================================
 //  A NEW FILAMENT SORT ENTERED AT THE SCALE: WHAT THE STEPS SHARE
@@ -67,14 +68,18 @@ enum SortNav : uint8_t {
 // the name a typed one matched in its list, said once on top of the next
 // step (sortExistsCaption()), empty for none. waiting: the database loads of
 // the chosen material are waited for (sortMaterialLoads()), behind the
-// waiting card once the first pass found them running.
+// waiting card once the first pass found them running. find: the search in
+// the colour list (V40, ui/colour_search.h); its word outlives the colour
+// step, so the way back from the weight step or the colour grid finds the
+// list cut as it was left.
 struct SortUi {
-  SortEntry entry;
-  SortStep  step;
-  char      last_vendor[32];
-  char      last_material[17];
-  char      exists[SORT_NAME_MAX];
-  bool      waiting;
+  SortEntry    entry;
+  SortStep     step;
+  char         last_vendor[32];
+  char         last_material[17];
+  char         exists[SORT_NAME_MAX];
+  bool         waiting;
+  ColourSearch find;
 };
 SortUi& sortUi();
 
@@ -89,6 +94,9 @@ void  sortOnNav(lv_event_t* e);
 // letters of the maker step included. Tiles flow in rows.
 lv_obj_t* sortNewBody();
 void      sortTitle(const char* text);
+// The title of the colour step, with the colour search beside it
+// (colourSearchTitle()); redraw builds the step again with the word.
+void      sortSearchTitle(const char* text, void (*redraw)());
 // A caption across the list, between groups of tiles.
 void      sortCaption(lv_obj_t* parent, const char* text);
 // A tile of SORT_TILE_W x SORT_TILE_H that is one label; a long text ends in dots.
@@ -123,6 +131,10 @@ void sortChooseMaker(const char* name);
 // closes the keys and leaves the step under them as it was.
 enum SortKeyKind : uint8_t { SK_TEXT = 0, SK_HEX, SK_GRAMS };
 void sortKeysShow(uint8_t kind, int title_id, size_t max_len, void (*done)(const char* text));
+// The same over another screen than the entry's: the keys go when under()
+// is hidden or gone. The colour search of "New from database" (V40).
+void sortKeysShowOver(lv_obj_t* (*under)(), uint8_t kind, int title_id, size_t max_len,
+                      void (*done)(const char* text));
 void sortKeysSay(const char* text);
 void sortKeysClose();
 // From sortEntryTick(), every pass.

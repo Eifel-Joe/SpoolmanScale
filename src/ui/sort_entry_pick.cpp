@@ -36,7 +36,9 @@
 //  (plan Festlegung 2) or six hex digits. The hue is what Spoolman finds the
 //  filament by next time, so the grid says so on top, and "Enter hex" stands
 //  right under that hint, above the fields, so no scrolling is needed to
-//  reach it.
+//  reach it. A magnifier in the header cuts the list to the names that hold
+//  a word, in their groups (V40, ui/colour_search.h); the list itself is the
+//  one the line built, the search loads nothing.
 //
 //  The weight step takes the diameter (1.75 mm unless 2.85 is tapped) and
 //  the net weight of a full spool, from the list or typed. Then the entry
@@ -237,7 +239,7 @@ void sortShowColours() {
   snprintf(what, sizeof(what), "%s%s%s", ui.entry.material, ui.entry.line[0] ? " " : "", ui.entry.line);
   char title[sizeof(ui.entry.vendor) + sizeof(what) + 32];
   snprintf(title, sizeof(title), T(STR_SORT_COLOUR_TITLE), ui.entry.vendor, what);
-  sortTitle(title);
+  sortSearchTitle(title, sortShowColours);
   lv_obj_t* body = sortNewBody();
   logLvMem("sortentry-colours/pre", 0);
   sortExistsCaption(body);
@@ -247,6 +249,7 @@ void sortShowColours() {
     bool captioned = false;
     for (int i = 0; i < d->colours.n; i++) {
       if (groupOf(d->colours.item[i]) != g) continue;
+      if (!colourSearchShows(&ui.find, d->colours.item[i].name)) continue;
       if (!lvPoolHasRoomForRow()) { logSDf("SortEntry: LVGL pool low, colours cut at %d", rows); full = true; break; }
       if (!captioned) sortCaption(body, T(GROUP_CAPTION[g]));
       captioned = true;
@@ -254,6 +257,8 @@ void sortShowColours() {
       rows++;
     }
   }
+  // A search that found nothing says so; "Not listed - add new" stays under it.
+  if (rows == 0) colourSearchNone(&ui.find, body, SORT_ROW_W);
   sortNewTile(body);
   logLvMem("sortentry-colours/post", rows);
 }

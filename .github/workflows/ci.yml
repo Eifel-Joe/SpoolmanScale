@@ -95,6 +95,10 @@ jobs:
         run: python3 test/test_ams_info.py
       - name: Test no tag location
         run: python3 test/test_no_tag_location.py
+      - name: Test colour search rules
+        run: python3 test/test_colour_search_rules.py
+      - name: Test colour search
+        run: python3 test/test_colour_search.py
       - name: Test copy rules
         run: python3 test/test_copy_rules.py
       - name: Test spool start rules

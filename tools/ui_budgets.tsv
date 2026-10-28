@@ -552,6 +552,12 @@ STR_SORT_GRAMS_BAD	14	440	NEVER	src/ui/sort_entry_keys.cpp word line under the f
 STR_SORT_HEX	14	446	NEVER	src/ui/sort_entry_pick.cpp sortTile widened to SORT_ROW_W, under the hint, above the colour grid
 # A tile of three to a row (SORT_TILE_W 148), one label: minus 2 x (pad 2 + border 1).
 STR_SORT_TYPE_GRAMS	14	142	NEVER	src/ui/sort_entry_pick.cpp sortTile, the last tile of the weight step
+# --- the search in a colour list: "Enter filament" and "New from database" (ui/colour_search.cpp, V40) --------
+# The keyboard is the entry's (sortKeysShowOver), its title as wide as on the other steps.
+STR_COLOUR_FIND_KEY	18	460	NEVER	src/ui/sort_entry_keys.cpp sortKeysShow title, 480 - 2 * SORT_KEYS_SIDE (10), opened by colourSearchTick
+# A caption across the list (DBP_ROW_W, SORT_ROW_W: 452) when no colour holds the word. %s is the word, at most
+# 23 bytes (COLOUR_SEARCH_MAX): 23 letters of a colour name keep it one line (French 323 px), the label wraps beyond.
+STR_COLOUR_FIND_NONE	14	452	NEVER	src/ui/colour_search.cpp colourSearchNone, caption across the list, %s the word
 
 # --- the tiles of the unknown spool's card, with "Enter filament" as a fourth (unknown_spool_popup.cpp) ---
 # Four tiles to a row are (UNK_ROW_W 412 - 3 * UNK_GAP 8) / 4 = 97 px, and the German
