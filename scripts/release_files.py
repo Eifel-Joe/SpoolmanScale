@@ -172,9 +172,11 @@ def flasher_manifest(board: str, version: str) -> dict:
 
 
 def release_title(version: str, day: datetime.date) -> str:
-    """The title of the GitHub release: the date only behind a pre-release,
-    where the tag alone does not say when the build was made."""
-    title = "SpoolmanScale " + version
+    """The title of the GitHub release: the fork's name in every one, because
+    the numbers are this fork's own and the original's 0.8.4 is a different
+    firmware; the date only behind a pre-release, where the tag alone does not
+    say when the build was made."""
+    title = "SpoolmanScale (Eifel-Joe fork) " + version
     if is_prerelease(version):
         title += " (" + day.strftime("%d.%m.%Y") + ")"
     return title
