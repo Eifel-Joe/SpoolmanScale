@@ -11,7 +11,7 @@
 ### *One Scale to rule them all.*
 
 > [!NOTE]
-> **This is a fork** of [Niko11111/SpoolmanScale](https://github.com/Niko11111/SpoolmanScale). Version 0.8.5 builds on the original's 0.8.3 and adds what is listed under [What this fork adds](#what-this-fork-adds). Releases, the web flasher and the scale's update check come from this fork; the manual, Discord, Ko-fi, MakerWorld and the FilaMan plugin are the original's. Problems with this fork: [open an issue here](https://github.com/Eifel-Joe/SpoolmanScale/issues).
+> **This is a fork** of [Niko11111/SpoolmanScale](https://github.com/Niko11111/SpoolmanScale). Version 0.8.5 builds on the original's 0.8.3 and adds what is listed under [What this fork adds](#what-this-fork-adds). Version numbers of this fork are its own; the original's 0.8.4 is a different firmware. Releases, the web flasher and the scale's update check come from this fork; the manual, Discord, Ko-fi, MakerWorld and the FilaMan plugin are the original's. Problems with this fork: [open an issue here](https://github.com/Eifel-Joe/SpoolmanScale/issues).
 
 [![Discord](https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/K3KmKnrWhP)
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/formfollowsfunction)

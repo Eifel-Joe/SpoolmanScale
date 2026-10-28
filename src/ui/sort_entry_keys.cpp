@@ -22,7 +22,10 @@
 //  Like that one it is a full screen on lv_scr_act(), over the step, and not
 //  a child of the entry's screen: a close of the entry in the same pass
 //  would hand both to lv_obj_del_async(), and the parent's delete would
-//  free the child before the child's own delete ran.
+//  free the child before the child's own delete ran. The colour search of
+//  "New from database" (ui/colour_search.cpp, V40) has it over the picker's
+//  screen instead (sortKeysShowOver()): the keys go with whichever screen
+//  they were opened over.
 //
 //  OK only parks the text; sortKeysTick() hands it to the step on the loop,
 //  where the step may ask the inventory, and closes the keys afterwards
@@ -43,6 +46,8 @@ static lv_obj_t* s_ta   = nullptr;
 static lv_obj_t* s_say  = nullptr;
 static size_t    s_max  = SORT_KEYS_TEXT_MAX - 1;
 static void    (*s_done)(const char* text) = nullptr;
+// The screen the keys are over: the entry's, or the picker's for its search.
+static lv_obj_t* (*s_under)() = sortEntryScreen;
 // The text the check mark parked, for sortKeysTick().
 static bool      s_parked = false;
 static char      s_text[SORT_KEYS_TEXT_MAX] = "";
@@ -90,12 +95,14 @@ static void onKeysReady(lv_event_t* e) {
 // LVGL's keyboard key: only the keys go, the step under them stays.
 static void onKeysCancel(lv_event_t* e) {
   (void)e;
-  logSD("BTN: Enter filament, keys cancelled");
+  logSD("BTN: keys cancelled");
   sortKeysClose();
 }
 
-void sortKeysShow(uint8_t kind, int title_id, size_t max_len, void (*done)(const char* text)) {
+void sortKeysShowOver(lv_obj_t* (*under)(), uint8_t kind, int title_id, size_t max_len,
+                      void (*done)(const char* text)) {
   sortKeysClose();
+  s_under = under;
   s_shown++;
   s_max  = (max_len > 0 && max_len < sizeof(s_text)) ? max_len : sizeof(s_text) - 1;
   s_done = done;
@@ -162,11 +169,15 @@ void sortKeysShow(uint8_t kind, int title_id, size_t max_len, void (*done)(const
   lv_obj_add_event_cb(kb, onKeysCancel, LV_EVENT_CANCEL, NULL);
 }
 
+void sortKeysShow(uint8_t kind, int title_id, size_t max_len, void (*done)(const char* text)) {
+  sortKeysShowOver(sortEntryScreen, kind, title_id, max_len, done);
+}
+
 void sortKeysTick() {
   if (!s_keys) return;
-  // The entry's screen hidden (hideSpoolFlowOverlays()) or gone: the keys
-  // go with it before the entry is closed on a later pass.
-  lv_obj_t* under = sortEntryScreen();
+  // The screen under the keys hidden (hideSpoolFlowOverlays()) or gone: the
+  // keys go with it before that screen is closed on a later pass.
+  lv_obj_t* under = s_under ? s_under() : nullptr;
   if (!under || lv_obj_has_flag(under, LV_OBJ_FLAG_HIDDEN)) {
     sortKeysClose();
     return;

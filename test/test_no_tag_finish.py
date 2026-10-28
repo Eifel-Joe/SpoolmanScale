@@ -1,4 +1,4 @@
-"""Read the source tree without a compiler and check how a spool created without a tag ends (X, V35): the copy's create and the card's create both end in noTagCreateFinish() while the flag is on, and in finishCopyFlow() with the first weighing's type question switched off only outside it; the finish closes the choice and the lists, shows the new spool by its id, says it in green, clears the flag, and arms the question for a label only when a printer is ready and the new spool is on the screen; the question is built and answered from the loop, and "Print" does what "More info" -> "Print label" does."""
+"""Read the source tree without a compiler and check how a spool created without a tag ends (X, V35): the copy's create and the card's create both end in noTagCreateFinish() while the flag is on, and in finishCopyFlow() with the first weighing's type question switched off only outside it; the finish closes the choice and the lists, shows the new spool by its id, says it in green, clears the flag, and arms no question for a label itself (that one follows the location picker, V39, see test_no_tag_location.py); the question is built and answered from the loop, and "Print" does what "More info" -> "Print label" does."""
 import re
 import sys
 from pathlib import Path
@@ -199,14 +199,11 @@ once(body, "snprintf(msg, sizeof(msg), T(bambu ? STR_NOTAG_CREATED_BAMBU : STR_N
 assert body.find("snprintf(msg") < body.find("statusMessageShow("), f"{where}: the line is said before it is written"
 for banned in ("finishCopyFlow(", "doLinkPatch", "tareEntryFirstWeighDone(", "lv_", "buildAsk("):
     assert banned not in body, f"{where}: {banned} must not be in the ending (no link, no mark, no card built here)"
-# The question is armed for the spool, and only when a printer is ready and
-# the new spool is the one on the screen (a tag laid down meanwhile takes the
-# screen, idSpoolAdopt() then leaves it alone, and the label would be the
-# tag's spool's).
-once(body, "s_ask_for = (sm_found && sm_id == new_spool_id && labelPrinterReadiness() == LP_OK) ? new_spool_id : 0;", where)
-assert depth_at(body, body.find("s_ask_for=")) == 0, f"{where}: the question is armed conditionally in a second place"
-assert body.count("s_ask_for=") == 1, f"{where}: the question is armed in more than one place"
-assert body.find("noTagModeSet(false);") < body.find("s_ask_for="), f"{where}: the flag stays on while the question is armed"
+# The ending arms no question for a label (V39): it arms the location picker,
+# and the question follows once the picker has ended, for a spool still on the
+# screen with a printer ready. Where and when, test_no_tag_location.py.
+assert "s_ask_for" not in body and "s_ask_wait" not in body, \
+    f"{where}: the ending arms the question for a label itself; it follows the location picker"
 
 # The Bambu chip hint is the last word on the status line (spec 5.3 X: the one
 # line that keeps Bambuddy from making the roll a second time at the first
@@ -228,10 +225,10 @@ assert "logSDf(" in body[body.find("returntrue;"):] and "statusMessageShow(" not
 assert squeeze("bool noTagYellowLineAllowed(int new_spool_id, const char* lost, unsigned parts);") \
     in squeeze(source_of(HEADER).code), f"src/{HEADER}: noTagYellowLineAllowed() is not declared"
 
-# 3. The question. It is built from the loop, a pass after the ending (the
-# choice's screens were released in that pass and the pool takes them back
-# only after LVGL ran), it stays up only while its spool is the one on the
-# screen, its buttons only park the answer, and "Print" does what "More info"
+# 3. The question. It is built from the loop, a pass after it was armed (the
+# screens closed in that pass go back to the pool only after LVGL ran), it
+# stays up only while its spool is the one on the screen, its buttons only
+# park the answer, and "Print" does what "More info"
 # -> "Print label" does (the print sheet unless the printer screen switched it
 # off, else the label straight away), once the loop picks the answer up.
 where = f"src/{CORE}: shownStill()"

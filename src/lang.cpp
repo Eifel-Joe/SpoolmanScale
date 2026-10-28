@@ -4474,6 +4474,12 @@ const char* const STRINGS[][3] = {
     "Copier une bobine par ID" },  // STR_ID_PAD_COPY_TITLE
   { "Die ID steht in Spoolman und auf dem Etikett.", "The ID is shown in Spoolman and on the label.",
     "L'ID figure dans Spoolman et sur l'étiquette." },  // STR_ID_PAD_WHERE
+  { "Farbe suchen",
+    "Search colour",
+    "Rechercher une couleur" },  // STR_COLOUR_FIND_KEY
+  { "Keine Farbe mit \"%s\"",
+    "No colour with \"%s\"",
+    "Pas de couleur \"%s\"" },  // STR_COLOUR_FIND_NONE
 };
 
 StringID tagWriteResultString(uint8_t code) {

@@ -242,10 +242,44 @@ static bool locCountTick() {
   return true;
 }
 
+// Who waits for the end of the picker, and for which spool
+// (requestLocationPickerThen()). Empty for every other request.
+struct LocEnded {
+  void (*fn)(int spool_id);
+  int spool_id;
+};
+static LocEnded s_loc_ended = { nullptr, 0 };
+
+// Taken before the picker's own way out navigates: showMainScreen() reaches
+// hideMoreInfoOverlays(), which forgets it.
+static LocEnded locEndedTake() {
+  const LocEnded e = s_loc_ended;
+  s_loc_ended = LocEnded{};
+  return e;
+}
+
+static void locEndedRun(const LocEnded& e) {
+  if (e.fn) e.fn(e.spool_id);
+}
+
 void requestLocationPicker(bool from_popup) {
   g_loc_picker_from_popup = from_popup;
   g_loc_picker_by_tap = false;
+  s_loc_ended = LocEnded{};
   show_location_picker_pending = true;
+}
+
+// Wurzel (V39): the question for a label after a create without a tag waits
+// for this picker, whose own ways out end in showMainScreen(); its
+// hideAllOverlays() forgets every question armed on the main screen.
+// Fix: on every end of its own (see the header) who waits is taken before the
+// way back and called after it; a navigation and any other request forget it.
+// NOT-TO-DO: asking from outside whether the picker is still up: once it is
+// gone, an end and a navigation look the same.
+// See test_no_tag_location.py.
+void requestLocationPickerThen(int spool_id, void (*ended)(int spool_id)) {
+  requestLocationPicker(true);
+  s_loc_ended = LocEnded{ended, spool_id};
 }
 
 void tapLocationButton(bool from_popup) {
@@ -282,14 +316,17 @@ void handleMoreInfoDeferredActions() {
   }
   if (loc_cancel_pending) {
     loc_cancel_pending = false;
+    const LocEnded ended = locEndedTake();
     closeLocationPicker();
     clearLeftAmsLocation();
     s_loc_target_id = 0;
     if (g_loc_picker_from_popup) showMainScreen();
     else                         showMoreInfoScreen();
+    locEndedRun(ended);
   }
   if (loc_patch_pending) {
     loc_patch_pending = false;
+    const LocEnded ended = locEndedTake();
     closeLocationPicker();
     const int target = locTargetId();
     // The pad's own fields only follow when the pad's spool was written.
@@ -320,6 +357,7 @@ void handleMoreInfoDeferredActions() {
     }
     if (g_loc_picker_from_popup) showMainScreen();
     else                         showMoreInfoScreen();
+    locEndedRun(ended);
   }
   if (show_location_picker_pending) {
     show_location_picker_pending = false;
@@ -366,6 +404,8 @@ void hideMoreInfoOverlays() {
   loc_status_obj  = nullptr;
   loc_list_obj    = nullptr;
   loc_cancel_fill = nullptr;
+  // Taken down by a navigation, not ended: nobody hears of it.
+  s_loc_ended = LocEnded{};
 }
 
 // The picker and the two labels inside it, always together. The three buttons
@@ -422,6 +462,8 @@ void showLocationPicker() {
   } else if (!sm_found || (sm_archived && !g_loc_picker_by_tap) || sm_id <= 0) {
     logSDf("LOC: picker not shown, sm_found=%d archived=%d sm_id=%d",
            (int)sm_found, (int)sm_archived, sm_id);
+    // Not shown is an end as well: who waits for the picker goes on.
+    locEndedRun(locEndedTake());
     return;
   }
 
@@ -555,9 +597,17 @@ void showLocationPicker() {
   loc_list_obj   = list;
 
   // Trigger async HTTP fetch via loop()
+  // Wurzel: without WLAN the text went into lbl_status, the main screen's
+  // status line, while the picker's own box went on saying "Loading...".
+  // After a create without a tag that line holds the note of the create, for
+  // a Bambu Lab spool the chip hint that nothing paints again (V39 brings the
+  // picker after every such create).
+  // Fix: the picker's own status line says it.
+  // NOT-TO-DO: both lines: the main screen's is not the picker's to write.
+  // See test_no_tag_location.py.
   if (!wifiManagerIsConnected()) {
     char buf[32]; copyT(buf, sizeof(buf), STR_LOCATION_NO_WIFI);
-    lv_label_set_text(lbl_status, buf);
+    lv_label_set_text(lbl_loc_status, buf);
     return;
   }
   fetch_locations_pending = true;

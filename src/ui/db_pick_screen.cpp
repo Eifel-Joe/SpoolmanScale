@@ -14,6 +14,7 @@
 #include "app/app_state.h"
 #include "hardware/sd_logger.h"
 #include "lang.h"
+#include "ui/colour_search.h"
 #include "ui/db_pick_core_popup.h"
 #include "ui/link_wait_card.h"
 #include "ui/no_tag_create.h"
@@ -82,6 +83,7 @@ static int       s_maker = -1;
 static char      s_material[17] = "";
 static int       s_family = -1;      // -1: every family
 static bool      s_family_step = false;
+static ColourSearch s_find;          // the colour search, V40 (ui/colour_search.h)
 // The product lines of the list: the first entry of each and its names.
 static int16_t   s_line_first[DBP_LINES_MAX];
 static uint16_t  s_line_count[DBP_LINES_MAX];
@@ -259,7 +261,7 @@ static lv_obj_t* newBody(int y, int h) {
 }
 
 static void setTitle(const char* text) {
-  if (s_title) lv_label_set_text(s_title, text);
+  colourSearchTitle(&s_find, s_scr, s_title, text, nullptr);   // no search on this step
 }
 
 // A caption across the whole width, between groups of tiles.
@@ -482,8 +484,7 @@ static void showMakers() {
   letterStrip();
 }
 
-// A letter tapped on a long list: its makers in place of the others, the
-// letters stay.
+// A letter tapped on a long list: its makers in place of the others, the letters stay.
 static void showLetter(int letter) {
   s_letter = letter;
   if (s_body) lv_obj_del(s_body);
@@ -530,7 +531,9 @@ static bool inLine(const FdbEntry& e) {
   return s_line < 0 || strcmp(e.line, fdbEntry(s_line_first[s_line])->line) == 0;
 }
 
+// A search (V40) spans every family of the line, by the name the row shows.
 static bool inFamily(const FdbEntry& e) {
+  if (s_find.word[0]) return inLine(e) && colourSearchFdb(&s_find, e, fdbMaker(s_maker)->name, s_material);
   return inLine(e) && (s_family < 0 || e.family == s_family);
 }
 
@@ -636,11 +639,12 @@ static void familyTile(lv_obj_t* body, int family, int count, int first) {
   tileText(t, text, &s_st_text_soft, LV_ALIGN_BOTTOM_MID, 0);
 }
 
+static void showFamilyStep();   // the family step again: its search's way back
 static void showFamilies(const int counts[CF_COUNT], const int typical[CF_COUNT], int total) {
   s_step = DBP_FAMILY;
   char title[64];
   listTitle(title, sizeof(title));
-  setTitle(title);
+  colourSearchTitle(&s_find, s_scr, s_title, title, showFamilyStep);
   lv_obj_t* body = newBody(DBP_BODY_Y, DBP_BODY_H);
   caption(body, T(STR_DBPICK_COLOR_TITLE));
   for (int f = 0; f < CF_COUNT; f++)
@@ -694,14 +698,14 @@ static void entryRow(lv_obj_t* body, int first, int n) {
 }
 
 static void showEntries() {
-  s_step = DBP_ENTRIES;
+  if (s_step != DBP_FAMILY || !s_find.word[0]) s_step = DBP_ENTRIES;   // family step kept, see colour_search.h
   char title[96];
   listTitle(title, sizeof(title));
-  if (s_family >= 0) {
+  if (s_family >= 0 && !s_find.word[0]) {
     const size_t used = strlen(title);
     snprintf(title + used, sizeof(title) - used, ": %s", T(FAMILY_TEXT[s_family]));
   }
-  setTitle(title);
+  colourSearchTitle(&s_find, s_scr, s_title, title, s_step == DBP_FAMILY ? showFamilyStep : showEntries);
   lv_obj_t* body = newBody(DBP_BODY_Y, DBP_BODY_H);
   logLvMem("dbpick-entries/pre", 0);
   int rows = 0;
@@ -714,6 +718,7 @@ static void showEntries() {
     }
     i += n;
   }
+  if (rows == 0) colourSearchNone(&s_find, body, DBP_ROW_W);
   logLvMem("dbpick-entries/post", rows);
 }
 
@@ -721,7 +726,8 @@ static void showFamilyStep() {
   int counts[CF_COUNT], typical[CF_COUNT];
   const int total = countNames(counts, typical);
   s_family = -1;
-  showFamilies(counts, typical, total);
+  if (s_find.word[0]) showEntries();   // its search: the entries of every family
+  else showFamilies(counts, typical, total);
 }
 
 // The list of one line, or of all: straight to it, or through the families
@@ -818,6 +824,7 @@ void dbPickClose() {
   s_body = nullptr;
   s_strip = nullptr;
   s_title = nullptr;
+  colourSearchClose(&s_find);
   releaseScreen(&s_scr);
   s_step = DBP_CLOSED;
   // A load still running hands its PSRAM back once it is collected.
@@ -901,6 +908,7 @@ static void collectLoad() {
 // ------------------------------------------------------------
 
 static void goBack() {
+  if (colourSearchBack(&s_find)) return;   // back ends a search first, the step stays
   switch (s_step) {
     case DBP_ENTRIES:
       if (s_family_step) showFamilyStep();
@@ -983,6 +991,7 @@ void dbPickTick() {
   }
   if (s_want != FDB_JOB_NONE && s_scr && fdbState() == FDB_IDLE &&
       (s_want_ms == 0 || millis() - s_want_ms >= DBP_RETRY_MS)) startLoad(s_want);
+  colourSearchTick(&s_find, dbPickScreen);
   if (s_nav == NAV_NONE) return;
   const DbpNav nav = s_nav;
   const int arg = s_nav_arg;

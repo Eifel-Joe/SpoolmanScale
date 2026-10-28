@@ -253,9 +253,10 @@ jobs:
           # in release_files.py follows TZ.
           TZ: Europe/Berlin
         run: |
-          # "SpoolmanScale v0.8.4" for a stable tag. A pre-release carries the
-          # day of the build, "SpoolmanScale v0.8.4-beta.1 (25.10.2026)": its
-          # tag alone does not say when it was made.
+          # "SpoolmanScale (Eifel-Joe fork) v0.8.4" for a stable tag: the
+          # numbers are this fork's own. A pre-release carries the day of the
+          # build, "SpoolmanScale (Eifel-Joe fork) v0.8.4-beta.1 (25.10.2026)":
+          # its tag alone does not say when it was made.
           TITLE=$(python3 scripts/release_files.py title "${{ steps.version.outputs.version }}")
           echo "$TITLE"
           echo "title=$TITLE" >> "$GITHUB_OUTPUT"

@@ -2047,6 +2047,9 @@ enum StringID {
   STR_ID_PAD_LINK_TITLE,
   STR_ID_PAD_COPY_TITLE,
   STR_ID_PAD_WHERE,
+  // The search in a colour list (ui/colour_search.cpp)
+  STR_COLOUR_FIND_KEY,        // the keyboard's title: the word the colour names are searched for
+  STR_COLOUR_FIND_NONE,       // across the list when no colour holds the word (%s: the word)
 
   STR_COUNT
 };

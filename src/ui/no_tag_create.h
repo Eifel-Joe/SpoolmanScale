@@ -43,10 +43,11 @@ const char* noTagEntryTitle();
 // screens and the choice, shows the main screen with the new spool on it by
 // its number (as after "spool by ID", nothing is linked), says so in green
 // (the Bambu Lab note when the vendor is Bambu's), and clears the flag.
-// vendor is the maker of the new spool, "" when not known. With a label
-// printer ready, and only when the new spool is the one on the screen after
-// all (a tag laid on meanwhile takes the screen), it also arms the question
-// for a label, which noTagLabelAskTick() puts up.
+// vendor is the maker of the new spool, "" when not known. Only when the new
+// spool is the one on the screen after all (a tag laid on meanwhile takes the
+// screen), it also arms the location picker (V39), which noTagLabelAskTick()
+// opens; with a label printer ready the question for a label follows once
+// the picker has ended.
 void noTagCreateFinish(int new_spool_id, const char* vendor);
 
 // After noTagCreateFinish(): whether a yellow line (the parts a copy left
@@ -57,14 +58,18 @@ void noTagCreateFinish(int new_spool_id, const char* vendor);
 // behind (CM_*), 0 where there are none.
 bool noTagYellowLineAllowed(int new_spool_id, const char* lost, unsigned parts);
 
-// The loop's part of the question for a label: builds the card a pass after
-// the ending, carries out the answer, and closes the card without printing
-// when the new spool is no longer the one on the screen.
+// The loop's part of what follows the ending: a pass after it, the location
+// picker for the new spool (the list of "More info" -> "Location", whatever
+// "location on removal" says); once the picker has ended, the card for a
+// label a pass later. It carries out the answer, and closes the card without
+// printing when the new spool is no longer the one on the screen.
 void noTagLabelAskTick();
 
 // Whether the card is up, so that the loop holds off its own questions.
 bool noTagLabelAskOpen();
 
-// Takes the card down and forgets a question that was armed and not yet
-// asked, without printing: any other screen is shown (hideAllOverlays()).
+// Takes the card down and forgets a question, or a picker, that was armed and
+// not yet asked, without printing: any other screen is shown
+// (hideAllOverlays()). A picker already up is the picker's own: a navigation
+// takes it down without a question for a label after it.
 void closeNoTagLabelAsk();

@@ -220,8 +220,13 @@ static lv_obj_t* newBody(bool under_letters) {
 
 lv_obj_t* sortNewBody() { return newBody(false); }
 
+// Every step but the colour step: no search in the header (V40).
 void sortTitle(const char* text) {
-  if (s_title) lv_label_set_text(s_title, text);
+  colourSearchTitle(&s_ui.find, s_scr, s_title, text, nullptr);
+}
+
+void sortSearchTitle(const char* text, void (*redraw)()) {
+  colourSearchTitle(&s_ui.find, s_scr, s_title, text, redraw);
 }
 
 void sortCaption(lv_obj_t* parent, const char* text) {
@@ -497,6 +502,7 @@ void sortEntryClose() {
   s_strip = nullptr;
   s_title = nullptr;
   memset(s_letter_btn, 0, sizeof(s_letter_btn));
+  colourSearchClose(&s_ui.find);
   releaseScreen(&s_scr);
   s_ui.step = SS_CLOSED;
   // Only an entry that was open has lists: the picker's entries stay alone.
@@ -613,7 +619,8 @@ static void goBack() {
   switch (s_ui.step) {
     case SS_WEIGHT:   sortShowColours(); break;
     case SS_RASTER:   sortShowColours(); break;
-    case SS_COLOUR:   sortShowLines(); break;
+    // A search ends first, and the colour step stays (V40).
+    case SS_COLOUR:   if (!colourSearchBack(&s_ui.find)) sortShowLines(); break;
     case SS_LINE:     sortShowMaterials(); break;
     case SS_MATERIAL: showMakers(); break;
     default:
@@ -668,6 +675,8 @@ void sortEntryTick() {
     runNav(nav, arg);
   }
   sortKeysTick();
+  // After the keys': a word typed is shown in the pass it came.
+  colourSearchTick(&s_ui.find, sortEntryScreen);
   // Last, right before dbPickTick(): a database load of the entry that has
   // finished is collected here before the picker's tick could take it
   // (sortSourceTick() starts one again that vanished, but the window stays

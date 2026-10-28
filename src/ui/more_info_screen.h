@@ -11,6 +11,14 @@ void tapLocationButton(bool from_popup);
 // the location it has now, and returns to the main screen when done. With
 // clear_on_cancel a picker closed without a choice empties the location.
 void requestLocationPickerFor(int spool_id, const char* current, bool clear_on_cancel);
+// The picker as requestLocationPicker(true) asks for it (its ways out go to the
+// main screen, with Cancel and its countdown), for a caller that waits for its
+// end: ended(spool_id) runs once when it ended by itself - a row or "no
+// location" chosen, the X, Cancel, the countdown, or not shown at all - after
+// its own way back to the main screen. Not when a navigation took it down
+// (hideAllOverlays()) or another request replaced it. Only flags; ended runs
+// from the loop.
+void requestLocationPickerThen(int spool_id, void (*ended)(int spool_id));
 void handleMoreInfoDeferredActions();
 
 // Both More Info pickers, released from hideAllOverlays(). Without this a
