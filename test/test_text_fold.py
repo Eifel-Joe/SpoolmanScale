@@ -1,10 +1,18 @@
 """Compile the production fold of one UTF-8 character and check it (V43): A-Z and the capitals of Latin-1 become their small letters, the multiplication sign and the sharp s stay, OE and Y diaeresis outside Latin-1 are folded too; a cut or broken sequence is one byte, as it is; the end of the text is 0 and goes nowhere. No locale, no tolower() (services/text_fold.h). The search in a list and the names that are one both read their text through it."""
+import re
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
 root = Path(__file__).parents[1]
 src = root / "src"
+
+# The tokenizer of the convention ratchet: comments and string contents
+# blanked, so that a NOT-TO-DO comment may name the call it rejects. The
+# script is not a package, so its folder goes on the path.
+sys.path.insert(0, str(root / "scripts"))
+import check_conventions as cc  # noqa: E402
 
 # The rule is host-tested and must not depend on where it runs: no Arduino,
 # no LVGL, nothing that follows a locale.
@@ -12,11 +20,14 @@ for rel in ("services/text_fold.h", "services/text_fold.cpp"):
     path = src / rel
     assert path.is_file(), f"src/{rel}: file is missing"
     raw = path.read_text(encoding="utf-8")
+    includes = [line for line in raw.splitlines() if line.lstrip().startswith("#include")]
     for banned in ("Arduino.h", "lvgl.h", "lang.h", "<ctype.h>", "<cctype>", "<wctype.h>", "<cwctype>",
                    "<locale.h>", "<clocale>", "<locale>"):
-        assert banned not in raw, f"src/{rel}: includes {banned} (the fold follows no locale)"
-    for banned in ("tolower(", "towlower(", "toupper(", "setlocale("):
-        assert banned not in raw, f"src/{rel}: calls {banned} (the fold follows no locale)"
+        assert not any(banned in line for line in includes), f"src/{rel}: includes {banned} (the fold follows no locale)"
+    code = cc.Source(raw).code
+    for banned in ("tolower", "towlower", "toupper", "towupper", "setlocale"):
+        assert not re.search(r"(?<![A-Za-z0-9_])" + banned + r"\s*\(", code), \
+            f"src/{rel}: calls {banned}() (the fold follows no locale)"
 
 source = r'''
 #include "services/text_fold.h"
