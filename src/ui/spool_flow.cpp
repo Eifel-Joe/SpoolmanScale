@@ -2240,9 +2240,11 @@ void showIdInputPopup(bool is_bambu, bool is_copy) {
 
   // Kontext-Info
   lv_obj_t *lbl_ctx = lv_label_create(scr_link_id);
-  char ctx_buf[48];
+  char ctx_buf[56];   // room for the longest STR_NOTAG_CTX (bmax 55)
   if (is_bambu) {
     snprintf(ctx_buf, sizeof(ctx_buf), "Bambu  %s", g_tag.material[0] ? g_tag.material : "Tag");
+  } else if (noTagMode()) {
+    copyT(ctx_buf, sizeof(ctx_buf), STR_NOTAG_CTX);   // no tag in this flow, the choice says the same
   } else {
     snprintf(ctx_buf, sizeof(ctx_buf), "UID: %.14s", link_tag_uid);
   }

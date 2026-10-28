@@ -194,4 +194,20 @@ assert "dropLiftedTagDisplay" in header, "src/app/app_loop.h: dropLiftedTagDispl
 nt_header = (src / "ui/no_tag_create.h").read_text(encoding="utf-8")
 assert "noTagEntryTap" in nt_header, "src/ui/no_tag_create.h: noTagEntryTap() is not declared"
 
+# 7. The id keypad ("Kopie per ID" from the choice) has no UID to show in the
+# flag: its context line says "no tag" as the choice does, in the room of the
+# longest of the three texts (bmax 55 in tools/lang_fr.jsonl, so 56 bytes).
+# A Bambu tag still beats the flag (ruling R1), so the Bambu branch comes first.
+KEYPAD = "ui/spool_flow.cpp"
+body = body_of(KEYPAD, "showIdInputPopup")
+ctx_start = body.find("lbl_ctx=lv_label_create(scr_link_id);")
+ctx_end = body.find("lv_label_set_text(lbl_ctx,ctx_buf);")
+assert 0 <= ctx_start < ctx_end, f"src/{KEYPAD}: showIdInputPopup() has no context line block"
+ctx = body[ctx_start:ctx_end]
+size = re.search(r"charctx_buf\[(\d+)\]", ctx)
+assert size and int(size.group(1)) >= 56, \
+    f"src/{KEYPAD}: showIdInputPopup() ctx_buf is too small for STR_NOTAG_CTX (needs 56, has {size and size.group(1)})"
+for first, second in (("if(is_bambu)", "noTagMode()"), ("noTagMode()", "STR_NOTAG_CTX"), ("STR_NOTAG_CTX", "link_tag_uid")):
+    before(ctx, first, second, f"src/{KEYPAD}: showIdInputPopup() context line")
+
 print("no tag entry: ok")
