@@ -260,4 +260,16 @@ once(no_wifi, "lv_label_set_text(lbl_loc_status, buf);", f"src/{INFO}: showLocat
 assert "lv_label_set_text(lbl_status," not in no_wifi, \
     f"src/{INFO}: showLocationPicker() without WLAN writes the main screen's status line"
 
+# 9. V42: the location picker after the create counts as the location question
+# for the lift that follows. The original asks a spool shown by its id, when it
+# is lifted, what a lifted tag asks (idSpoolLiftQuestions(), b7bc11a), and the
+# location only for a spool not yet marked as asked. askLocation() marks the new
+# spool (step 4), so the lift asks for the AMS bay at most, not for the location
+# a second time, whether the picker got a choice or not. Kept here, since an
+# update of the original could drop the check on its side.
+where = f"src/{LOOP}: idSpoolLiftQuestions()"
+lift = body_of(LOOP, "idSpoolLiftQuestions")
+once(lift, "if (g_auto_loc_popup && g_loc_popup_shown_for_id != sm_id) loc_popup_pending_id = sm_id;", where)
+assert "g_loc_popup_shown_for_id = -1;" not in lift,     f"{where}: the lift forgets that the location was asked at the create"
+
 print("no tag location: ok")
