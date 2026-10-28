@@ -475,6 +475,24 @@ static void amsMainAssignRun() {
   }
 }
 
+// What a lifted tag left on the main screen goes the way the no-tag timer in
+// appLoop() takes it, and the timer's wait ends with it.
+//
+// Wurzel: the display of a lifted tag stays up for NO_TAG_CLEAR_MS (or until
+// the clear button), and for that long the main screen already offers "Create
+// spool" (nothing on the pad, nothing found), whose choice would read the
+// lifted tag's id. Fix: one function for the timer and for that button.
+// NOT-TO-DO: clearTagDisplay() alone from the button: last_tag_seen_ms would
+// still run, and the timer would clear the screen a second time in the middle
+// of the create. See test_no_tag_entry.py.
+void dropLiftedTagDisplay() {
+  // clearTagDisplay() drops sm_id, so the note loses the spool it refers
+  // to. Nothing is lost by forgetting it, the weight was written already.
+  if (amsHasPending() && !isAmsAssignPopupOpen()) amsDropPending();
+  clearTagDisplay();
+  last_tag_seen_ms = 0;
+}
+
 void appLoop() {
   // Overwritten every pass, so a crumb from a marked section only stands while
   // that section runs. Three stores and a short copy into RTC memory.
@@ -1258,11 +1276,7 @@ void appLoop() {
   statusClearSync(lifted_on_screen || idSpoolActive());
   if (lifted_shown &&
       (millis() - last_tag_seen_ms > NO_TAG_CLEAR_MS || statusClearTaken())) {
-    // clearTagDisplay() drops sm_id, so the note loses the spool it refers
-    // to. Nothing is lost by forgetting it, the weight was written already.
-    if (amsHasPending() && !isAmsAssignPopupOpen()) amsDropPending();
-    clearTagDisplay();
-    last_tag_seen_ms = 0;
+    dropLiftedTagDisplay();
   }
 
   // Fill display with new tag data

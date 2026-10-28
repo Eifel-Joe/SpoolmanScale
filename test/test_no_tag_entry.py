@@ -1,4 +1,4 @@
-"""Read the source tree without a compiler and check the way into "create spool" without a tag (X, V35): the empty main screen offers "Spule anlegen" in place of "Heute getrocknet" and every other state keeps "Neu / Kopie", the choice sets the flag from the tag and the id on the pad before it computes its tiles, the database and the sort entry follow the flag, and every other way into creating (the unknown-tag card's actions, the card from a Bambu tag) clears it."""
+"""Read the source tree without a compiler and check the way into "create spool" without a tag (X, V35): the empty main screen offers "Spule anlegen" in place of "Heute getrocknet" and every other state keeps "Neu / Kopie", the choice sets the flag from the tag and the id on the pad before it computes its tiles, the database and the sort entry follow the flag, and every other way into creating (the unknown-tag card's actions, the card from a Bambu tag) clears it. The tap on the button drops what a lifted tag left on the screen before it opens the choice, through the one function the 60 s timer uses too."""
 import re
 import sys
 from pathlib import Path
@@ -147,5 +147,51 @@ for sid, texts in (
     row = re.search(r'\{\s*"([^"]*)"\s*,\s*"([^"]*)"\s*,\s*"([^"]*)"\s*\}\s*,\s*//\s*' + sid + r"\b", lang_cpp)
     assert row, f"src/lang.cpp: the row of {sid} is not there"
     assert row.groups() == texts, f"src/lang.cpp: {sid} reads {row.groups()}, expected {texts}"
+
+# 6. A tag that was lifted leaves its id behind for up to 60 s (the display is
+# cleared by the timer, app_loop.cpp), while the button already reads "create
+# spool" (nothing on the pad, nothing found). The choice would then open with
+# the flag off, the lifted tag's id on its context line and a create that links
+# to a tag no longer there. So the tap drops those leftovers first, through the
+# same function the timer calls (which also ends the timer's wait, or it would
+# clear the screen a second time in the middle of the create), and then opens
+# the choice; in every other state it only opens the choice.
+MAIN_SCREEN = "ui/main_screen.cpp"
+code = squeeze(code_of(MAIN_SCREEN))
+marker = squeeze("lv_obj_add_event_cb(btn_copy, [](lv_event_t *e) {")
+assert code.count(marker) == 1, f"src/{MAIN_SCREEN}: btn_copy has {code.count(marker)} click handlers, expected 1"
+handler, _ = block_after(code, marker, f"src/{MAIN_SCREEN}: btn_copy handler")
+assert "noTagEntryTap()" in handler, f"src/{MAIN_SCREEN}: the btn_copy handler does not call noTagEntryTap()"
+assert "showCopyEntryPopup()" not in handler, \
+    f"src/{MAIN_SCREEN}: the btn_copy handler opens the choice itself, it would skip the leftovers of a lifted tag"
+assert "logSD(" in handler, f"src/{MAIN_SCREEN}: the btn_copy handler lost its log line"
+
+TAP = "ui/no_tag_create.cpp"
+body = body_of(TAP, "noTagEntryTap")
+guard = re.search(r"if\(([^{}]*)\)\{", body)
+assert guard, f"src/{TAP}: noTagEntryTap() has no guarded block"
+for needle in ("!tag_present", "!sm_found", "g_tag.uid_str[0]", "g_tag.tray_uuid[0]", "link_tag_uid[0]"):
+    assert needle in guard.group(1), f"src/{TAP}: noTagEntryTap() does not guard the drop on {needle}"
+dropped, outside = block_after(body, guard.group(0), f"src/{TAP}: noTagEntryTap()")
+assert "dropLiftedTagDisplay()" in dropped, f"src/{TAP}: noTagEntryTap() does not call dropLiftedTagDisplay() in its guarded block"
+assert "dropLiftedTagDisplay" not in outside, f"src/{TAP}: noTagEntryTap() drops the display outside the empty-state guard"
+assert body.find("showCopyEntryPopup()") > body.find(guard.group(0)) + len(guard.group(0)) + len(dropped), \
+    f"src/{TAP}: noTagEntryTap() does not open the choice after the drop"
+assert "showCopyEntryPopup()" in outside, f"src/{TAP}: noTagEntryTap() does not open the choice in every state"
+
+# The one function: the timer and the tap clear the display the same way, and
+# it also ends the timer's wait.
+LOOP = "app/app_loop.cpp"
+body = body_of(LOOP, "dropLiftedTagDisplay")
+for needle in ("clearTagDisplay()", "last_tag_seen_ms=0"):
+    assert needle in body, f"src/{LOOP}: dropLiftedTagDisplay() does not do {needle}"
+loop_body = body_of(LOOP, "appLoop")
+assert "dropLiftedTagDisplay()" in loop_body, f"src/{LOOP}: the no-tag timer does not call dropLiftedTagDisplay()"
+assert "clearTagDisplay()" not in loop_body, \
+    f"src/{LOOP}: appLoop() still clears the display on its own, the timer and the tap have two ways to do it"
+header = (src / "app/app_loop.h").read_text(encoding="utf-8")
+assert "dropLiftedTagDisplay" in header, "src/app/app_loop.h: dropLiftedTagDisplay() is not declared"
+nt_header = (src / "ui/no_tag_create.h").read_text(encoding="utf-8")
+assert "noTagEntryTap" in nt_header, "src/ui/no_tag_create.h: noTagEntryTap() is not declared"
 
 print("no tag entry: ok")

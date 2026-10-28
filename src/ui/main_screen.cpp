@@ -25,6 +25,7 @@
 #include "ui/confirm_popup.h"
 #include "ui/diag_banner.h"
 #include "ui/dried_action.h"
+#include "ui/no_tag_create.h"
 #include "ui/update_badges.h"
 #include "ui/tare_mark.h"
 #include "ui/live_zone.h"
@@ -895,7 +896,7 @@ void buildUI() {
   lv_obj_add_flag(btn_copy, LV_OBJ_FLAG_HIDDEN);
   lv_obj_add_event_cb(btn_copy, [](lv_event_t *e) {
     logSD("UI: Button -> Copy Spool");
-    showCopyEntryPopup();
+    noTagEntryTap();   // "Create spool" on an empty screen, else "New / Copy"
   }, LV_EVENT_CLICKED, NULL);
   lv_obj_t *lbl_cp = lv_label_create(btn_copy);
   char lbl_cp_buf[32]; copyT(lbl_cp_buf, sizeof(lbl_cp_buf), STR_BTN_COPY_SPOOL);

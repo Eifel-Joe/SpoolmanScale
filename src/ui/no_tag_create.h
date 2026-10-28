@@ -30,6 +30,11 @@ void noTagModeSet(bool on);
 // Whether a create without a tag is under way.
 bool noTagMode();
 
+// The tap on the main screen's copy button: opens the "New / Copy" choice. With
+// nothing on the pad and nothing found (the button reads "Create spool") it
+// first drops what a lifted tag still has up, see the .cpp.
+void noTagEntryTap();
+
 // The title of the "New / Copy" choice: named like the button that opens it,
 // so "create spool" in the flag, "New / Copy" otherwise.
 const char* noTagEntryTitle();
