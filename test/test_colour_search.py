@@ -1,4 +1,4 @@
-"""Read the source tree without a compiler and check the search in a colour list (V40): a magnifier in the header of "Enter filament" (the colour step) and of "New from database" (the colour families and the entries); a tap parks and the screen's tick opens the entry's keyboard over that screen, a word that comes back builds the list once with the names that hold it, and the header shows the word with an x that ends the search; back ends a search first and the step stays, a close forgets it; the lists are the ones already loaded (the database's of the chosen material, the entry's of its sources), and in "New from database" a search spans every family of the list."""
+"""Read the source tree without a compiler and check the search in a colour list (V40): a magnifier in the header of "Enter filament" (the colour step) and of "New from database" (the colour families and the entries); a tap parks and the screen's tick opens the entry's keyboard over that screen, a word that comes back builds the list once with the names that hold it, and the header shows the word with an x that ends the search; back ends a search first and the step stays, a close forgets it; the lists are the ones already loaded (the database's of the chosen material, the entry's of its sources), and in "New from database" a search spans every family of the list. The keyboard's title and the line for nothing found are the list's own when it brings them (key_title, none_fmt: the list of spool types, w01), the colour texts when not."""
 import re
 import sys
 from pathlib import Path
@@ -70,6 +70,48 @@ def once(body, needle, where):
     assert body.count(sq(needle)) == 1, f"{where}: '{needle}' is not there exactly once"
 
 
+def call_args(body, name, where):
+    """The arguments of the one call of name in a squeezed body, split at the
+    commas outside brackets."""
+    found = [m for m in re.finditer(r"(?<![A-Za-z0-9_])" + name + r"\(", body)]
+    assert len(found) == 1, f"{where}: {name}() is not called exactly once"
+    out, depth, cur = [], 0, ""
+    for ch in body[found[0].end():]:
+        if ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            if depth == 0:
+                break
+            depth -= 1
+        if ch == "," and depth == 0:
+            out.append(cur)
+            cur = ""
+        else:
+            cur += ch
+    out.append(cur)
+    return out
+
+
+def made_of(rel, fn, arg):
+    """The argument and what it is made of, two steps deep: a local of the
+    function it names (its initialiser), a function of the file it calls
+    (its body)."""
+    raw = source_of(rel).code
+    funcs = {name for name, _, _ in cc.find_functions(raw)}
+    spans = [(start, end) for name, start, end in cc.find_functions(raw) if name == fn]
+    local = raw[spans[0][0]:spans[0][1]] if spans else ""
+    text, seen = arg, set()
+    for _ in range(2):
+        for ident in set(re.findall(r"[A-Za-z_]\w*", text)) - seen:
+            seen.add(ident)
+            init = re.search(r"\b" + ident + r"\s*=(?!=)\s*([^;]+);", local)
+            if init:
+                text += " " + re.sub(r"\s+", "", init.group(1))
+            if ident in funcs and ident != fn:
+                text += " " + body_of(rel, ident)
+    return text
+
+
 # 1. The rule: a unit of its own without Arduino or LVGL (the host test
 # compiles it alone), the word of 23 bytes and a terminator.
 rules_h = code_of(RULES_H)
@@ -79,7 +121,7 @@ assert re.search(r"#define\s+COLOUR_SEARCH_MAX\s+24\b", (src / RULES_H).read_tex
 for rel in (RULES_H, RULES):
     raw = (src / rel).read_text(encoding="utf-8")
     for banned in ("Arduino.h", "lvgl.h", "lang.h", "<ctype.h>", "<cctype>", "<strings.h>"):
-        assert banned not in raw, f"src/{rel}: includes {banned} (the rule is host-tested, ASCII folding only)"
+        assert banned not in raw, f"src/{rel}: includes {banned} (the rule is host-tested and folds without a locale)"
 
 # 2. The part both screens share. The head's tap only parks.
 where = f"src/{UI}: onHeadTap()"
@@ -92,7 +134,8 @@ assert ui.count(sq("lv_obj_add_event_cb(b, onHeadTap, LV_EVENT_CLICKED, s);")) =
 # The tick: a list that is gone or hidden, or a step without a search, takes
 # nothing; a word that came back builds the list; a tap with a word ends the
 # search; a tap without one opens the entry's keyboard over that screen, for
-# a word of COLOUR_SEARCH_MAX - 1 bytes.
+# a word of COLOUR_SEARCH_MAX - 1 bytes. The keyboard's title is the list's
+# own (key_title, the spool types', w01), the colour one for a list without.
 where = f"src/{UI}: colourSearchTick()"
 body = without_logs(body_of(UI, "colourSearchTick"))
 in_order(body, ["const bool typed = s->typed;", "s->tapped = false;", "s->typed = false;",
@@ -100,9 +143,14 @@ in_order(body, ["const bool typed = s->typed;", "s->tapped = false;", "s->typed 
                 "if (!scr || lv_obj_has_flag(scr, LV_OBJ_FLAG_HIDDEN) || !s->redraw) { if (typed) s->word[0] = '\\0'; return; }",
                 "if (typed) { s->redraw(); }",
                 "else if (s->word[0]) { s->word[0] = '\\0'; s->redraw(); }",
-                "else { s_asking = s; sortKeysShowOver(under, SK_TEXT, STR_COLOUR_FIND_KEY, COLOUR_SEARCH_MAX - 1, wordTyped); }"],
+                "else {", "s_asking = s;", "sortKeysShowOver(under, SK_TEXT,", ", COLOUR_SEARCH_MAX - 1, wordTyped); }"],
          where)
 once(ui, "sortKeysShowOver(", f"src/{UI}")
+keys_args = call_args(body, "sortKeysShowOver", where)
+assert len(keys_args) == 5, f"{where}: sortKeysShowOver() has not five arguments"
+title_from = made_of(UI, "colourSearchTick", keys_args[2])
+assert "key_title" in title_from and "STR_COLOUR_FIND_KEY" in title_from, \
+    f"{where}: the keyboard's title is not s->key_title, with STR_COLOUR_FIND_KEY for a search without one"
 assert body_of(UI, "wordTyped") == sq("if (!s_asking || !text) return; "
                                       "utf8Cut(text, sizeof(s_asking->word) - 1, s_asking->word, sizeof(s_asking->word)); "
                                       "s_asking->typed = true;"), \
@@ -138,8 +186,16 @@ assert body_of(UI, "colourSearchShows") == sq("return !s || colourSearchMatch(na
 in_order(body_of(UI, "colourSearchFdb"), ["if (!s || !s->word[0]) return true;",
                                           "fdbEntryDisplayName(e, maker, material, shown, sizeof(shown));",
                                           "return colourSearchMatch(shown, s->word);"], f"src/{UI}: colourSearchFdb()")
-in_order(body_of(UI, "colourSearchNone"), ["if (!s || !s->word[0] || !body || !lvPoolHasRoomForRow()) return;",
-                                           "T(STR_COLOUR_FIND_NONE), s->word"], f"src/{UI}: colourSearchNone()")
+# Nothing found: the line is the list's own (none_fmt), the colour one for a
+# list without, with the word in it.
+where = f"src/{UI}: colourSearchNone()"
+body = body_of(UI, "colourSearchNone")
+in_order(body, ["if (!s || !s->word[0] || !body || !lvPoolHasRoomForRow()) return;", "snprintf("], where)
+line_args = call_args(body, "snprintf", where)
+assert len(line_args) == 4 and line_args[3] == "s->word", f"{where}: the line is not the format with the word"
+line_from = made_of(UI, "colourSearchNone", line_args[2])
+assert "none_fmt" in line_from and "STR_COLOUR_FIND_NONE" in line_from, \
+    f"{where}: the line is not s->none_fmt, with STR_COLOUR_FIND_NONE for a search without one"
 # Nothing is loaded for a search: no database load, no inventory, no source.
 for banned in ("fdbStart", "sortSource", "backend", "http", "fdbRelease"):
     assert banned not in ui, f"src/{UI}: '{banned}' - a search cuts the list that is loaded and loads nothing"

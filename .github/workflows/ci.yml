@@ -113,6 +113,22 @@ jobs:
         run: python3 test/test_weight_popup.py
       - name: Test print card
         run: python3 test/test_print_card.py
+      - name: Test text fold
+        run: python3 test/test_text_fold.py
+      - name: Test list search
+        run: python3 test/test_list_search.py
+      - name: Test key layout
+        run: python3 test/test_key_layout.py
+      - name: Test keyboards
+        run: python3 test/test_keyboards.py
+      - name: Test spool colour RGB
+        run: python3 test/test_spool_color_rgb.py
+      - name: Test label RGB
+        run: python3 test/test_label_rgb.py
+      - name: Test leave buttons
+        run: python3 test/test_leave_buttons.py
+      - name: Test batch create rules
+        run: python3 test/test_batch_create_rules.py
 
   build:
     name: Build ${{ matrix.env }}

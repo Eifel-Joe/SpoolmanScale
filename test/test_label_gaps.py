@@ -43,6 +43,20 @@ int main() {
   assert(!(e & bit(LF_BRAND)));
   assert(!(e & bit(LF_FREE_TEXT)));
 
+  // The colour as RGB (w04): empty with no colour and for a clear filament,
+  // whose 00000000 names no hue; a hue fills it. The colour line itself
+  // prints the clear one all the same.
+  assert(e & bit(LF_COLOR_RGB));
+  SpoolLabelData clear = full;
+  snprintf(clear.color, sizeof(clear.color), "00000000");
+  assert(labelEmptyFields(clear, 0) == bit(LF_COLOR_RGB));
+  SpoolLabelData hue = full;
+  snprintf(hue.color, sizeof(hue.color), "F2F2E8");
+  assert(labelEmptyFields(hue, 0) == 0);
+  SpoolLabelData blank = full;
+  blank.color[0] = '\0';
+  assert(labelEmptyFields(blank, 0) == (bit(LF_COLOR) | bit(LF_COLOR_RGB)));
+
   // Drying needs both numbers.
   SpoolLabelData half = full;
   half.dry_hours = 0;
@@ -65,6 +79,7 @@ with tempfile.TemporaryDirectory() as tmp:
     cpp.write_text(source)
     binary = Path(tmp) / "test"
     subprocess.run(["c++", "-std=c++17", "-Wall", "-Wextra", "-Werror", "-I", str(root / "src"), str(cpp),
-                    str(root / "src/services/label_gaps.cpp"), "-o", str(binary)], check=True)
+                    str(root / "src/services/label_gaps.cpp"), str(root / "src/services/spool_color.cpp"),
+                    "-o", str(binary)], check=True)
     subprocess.run([str(binary)], check=True)
 print("Label empty-field tests passed")

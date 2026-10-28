@@ -77,8 +77,10 @@ int main() {
   assert(!sortEntrySame("Light Green", "Light Greens") && !sortEntrySame("PLA", "PLA+"));
   assert(!sortEntrySame("", "") && !sortEntrySame("-", " "));
   assert(sortEntrySame("Caf\xC3\xA9", "CAF\xC3\xA9") && !sortEntrySame("Caf\xC3\xA9", "Cafe"));
-  // A capital umlaut is not a small one: only ASCII letters are folded.
-  assert(!sortEntrySame("\xC3\x84rger", "\xC3\xA4rger"));
+  // A capital umlaut is a small one (QWERTZ, V43): "grün" typed is "Grün".
+  assert(sortEntrySame("\xC3\x84rger", "\xC3\xA4rger"));
+  assert(sortEntrySame("gr\xC3\xBCn", "Gr\xC3\x9Cn") && !sortEntrySame("gr\xC3\xBCn", "gruen"));
+  assert(!sortEntrySame("a", "\xC3\xA4"));
   // No name is no name.
   assert(!sortEntrySame(nullptr, nullptr) && !sortEntrySame("ABS", nullptr) && !sortEntrySame(nullptr, "ABS"));
 
@@ -362,6 +364,7 @@ with tempfile.TemporaryDirectory() as tmp:
     subprocess.run(["c++", "-std=c++17", "-Wall", "-Wextra", "-Werror", "-I", str(root / "src"),
                     str(cpp),
                     str(root / "src" / "services" / "sort_entry_rules.cpp"),
+                    str(root / "src" / "services" / "text_fold.cpp"),
                     str(root / "src" / "services" / "text_util.cpp"),
                     "-o", str(binary)], check=True)
     subprocess.run([str(binary)], check=True)
