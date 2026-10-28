@@ -283,6 +283,28 @@ static void askLocation() {
   requestLocationPickerThen(id, locationPickerEnded);
 }
 
+// Wurzel (U2, decision 9): the loop held the questions after a lift and the
+// lift clock of the spool (idSpoolTick()) only while the label card was up.
+// Since the picker comes first (V39), a lift during the picker raised the
+// bay question over it at once, and the clock ran on behind the picker: in
+// the uncovered pass before the card is built the spool ended, and the label
+// question and "Print" with it.
+// Fix: one predicate for the whole way, each state handing over to the next
+// in the same pass: the picker armed (s_loc_for, its pass of delay included),
+// asked for or up with the label question waiting on its end (the waiter
+// read in more_info_screen.cpp), the question armed (s_ask_for, its pass of
+// delay included), the card up. False again once the last answer is taken,
+// or a navigation dropped the rest (closeNoTagLabelAsk(), hideMoreInfoOverlays()).
+// NOT-TO-DO: a flag of our own set when the picker is asked for and cleared
+// in locationPickerEnded(): a navigation or another request drops the waiter
+// without calling it, and the flag would hold the questions and the clock
+// for good.
+// See test_no_tag_finish.py.
+bool noTagAfterCreateBusy() {
+  return s_loc_for != 0 || locationPickerThenPending(locationPickerEnded) ||
+         s_ask_for != 0 || noTagLabelAskOpen();
+}
+
 // Wurzel: the question is about the spool that was just made, and a label is
 // printed "for the screen". A tag laid on while the card stands, or any other
 // spool that takes the screen, would turn "Print" into the label of something

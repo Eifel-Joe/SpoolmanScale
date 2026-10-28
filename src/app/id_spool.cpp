@@ -12,7 +12,7 @@
 #include "services/location_state.h"
 #include "services/user_options.h"
 #include "ui/main_screen_helpers.h"
-#include "ui/no_tag_create.h"   // noTagLabelAskOpen()
+#include "ui/no_tag_create.h"   // noTagAfterCreateBusy()
 #include "ui/spoolman_lookup.h"
 #include "ui/status_clear.h"
 #include "ui/tag_display.h"
@@ -104,19 +104,20 @@ void idSpoolTick() {
   // or AMS button tapped on the way, still finds it. Put back in time, it goes
   // on as before. Not over while anything covers the main screen: a location
   // picker writes to the spool on display, and has 30 s for it.
-  // One more case is ours: while "Print a label?" stands for a spool just
-  // created without a tag, the clock starts over every pass. The card covers
-  // the screen, but the clock ran on behind it, and an answer later than the
-  // 15 s ended the spool in the very pass the card closed in: the location
-  // question found nothing to ask about and "Print" found no spool. Now the
-  // 15 s count from the moment the label question is closed. Not for every
-  // covering screen: that would change what the original does for them (see
-  // test_no_tag_finish.py).
+  // One more case is ours: while the questions of a spool just created
+  // without a tag are still to come or open (the location picker, then
+  // "Print a label?", noTagAfterCreateBusy()), the clock starts over every
+  // pass. They cover the screen, but the clock ran on behind them, and an
+  // answer later than the 15 s ended the spool in an uncovered pass between
+  // them or in the very pass the card closed in: the label question, "Print"
+  // and the location question after the lift found no spool. Now the 15 s
+  // count from the last answer. Not for every covering screen: that would
+  // change what the original does for them (see test_no_tag_finish.py).
   if (!s_lifted_ms) {
     s_lifted_ms = millis();
     s_lift_news = true;
     logSDf("IdSpool: spool %d lifted, shown for %lu s more", s_id, ID_SPOOL_LIFTED_MS / 1000UL);
-  } else if (noTagLabelAskOpen()) {
+  } else if (noTagAfterCreateBusy()) {
     s_lifted_ms = millis();
   } else if (millis() - s_lifted_ms > ID_SPOOL_LIFTED_MS && !uiMainScreenCovered()) {
     endIdSpool("taken off the pad", true);

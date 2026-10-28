@@ -282,6 +282,12 @@ void requestLocationPickerThen(int spool_id, void (*ended)(int spool_id)) {
   s_loc_ended = LocEnded{ended, spool_id};
 }
 
+// Read only: the waiter is taken on an end and forgotten on a navigation or
+// another request, so it says what the picker's own state cannot (see above).
+bool locationPickerThenPending(void (*ended)(int spool_id)) {
+  return ended && s_loc_ended.fn == ended;
+}
+
 void tapLocationButton(bool from_popup) {
   requestLocationPicker(from_popup);
   g_loc_picker_by_tap = true;

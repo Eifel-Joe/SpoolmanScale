@@ -68,6 +68,12 @@ void noTagLabelAskTick();
 // Whether the card is up, so that the loop holds off its own questions.
 bool noTagLabelAskOpen();
 
+// Whether the create's own questions are still to come or open: from the
+// ending until the last of them is answered (the location picker armed, asked
+// for or up; then the label question armed or its card up). The questions
+// after a lift and the lift clock of the spool wait for this.
+bool noTagAfterCreateBusy();
+
 // Takes the card down and forgets a question, or a picker, that was armed and
 // not yet asked, without printing: any other screen is shown
 // (hideAllOverlays()). A picker already up is the picker's own: a navigation

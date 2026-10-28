@@ -329,29 +329,55 @@ assert dict(steps)["Test no tag finish"] == "python3 test/test_no_tag_finish.py"
 
 # U2 (Festlegung 9): a spool shown by its id asks after a lift what a lifted
 # tag asks (original b7bc11a). A spool just created without a tag is such a
-# spool, and while "Print a label?" stands those questions wait for it.
+# spool, and its own questions come first: the location picker (V39), then
+# "Print a label?". The questions after a lift wait for both, through one
+# predicate that covers the whole way from the create's end to the last answer:
+# the picker armed by the ending (s_loc_for, its pass of delay included), the
+# picker asked for or up with the label question waiting on its end (the
+# waiter in more_info_screen.cpp), the label question armed (s_ask_for, its
+# pass of delay included), and the card up.
+where = f"src/{CORE}: noTagAfterCreateBusy()"
+busy = body_of(CORE, "noTagAfterCreateBusy")
+assert busy.startswith("return") and busy.count(";") == 1, \
+    f"{where}: must be one return of the states it covers, found '{busy}'"
+for needle, what in (("s_loc_for!=0", "the picker armed by the ending"),
+                     ("locationPickerThenPending(locationPickerEnded)", "the picker asked for or up"),
+                     ("s_ask_for!=0", "the label question armed"),
+                     ("noTagLabelAskOpen()", "the label card up")):
+    assert needle in busy, f"{where}: does not cover {what} ('{needle}')"
+assert "bool noTagAfterCreateBusy();" in (src / HEADER).read_text(encoding="utf-8"), \
+    f"src/{HEADER}: noTagAfterCreateBusy() is not declared"
+INFO, INFO_H = "ui/more_info_screen.cpp", "ui/more_info_screen.h"
+assert body_of(INFO, "locationPickerThenPending") == squeeze("return ended && s_loc_ended.fn == ended;"), \
+    f"src/{INFO}: locationPickerThenPending() must only say whether this waiter is still pending"
+assert squeeze("bool locationPickerThenPending(void (*ended)(int spool_id));") in \
+    squeeze((src / INFO_H).read_text(encoding="utf-8")), \
+    f"src/{INFO_H}: locationPickerThenPending() is not declared"
+
 LOOP = "app/app_loop.cpp"
 loop = body_of(LOOP, "appLoop")
 lift = re.search(r"if\(\(loc_popup_pending_id>0\|\|ams_popup_pending_id>0\|\|"
                  r"pick_popup_pending_id>0\)&&([^{]*)\)\{", loop)
 assert lift, f"src/{LOOP}: the block that asks after a lift is not there"
-assert "!noTagLabelAskOpen()" in lift.group(1), \
-    f"src/{LOOP}: the questions after a lift do not wait for the label question"
+assert "!noTagAfterCreateBusy()" in lift.group(1), \
+    f"src/{LOOP}: the questions after a lift do not wait for the location picker and the label question"
 
 # The lift clock of that spool (original: 15 s, not over while a screen covers
-# the main one) does not run while the label question stands: the card covers
-# the screen, but the clock kept running behind it, and a slow answer ended the
-# spool in the pass the card closed in, before the questions were asked. The
-# clock restarts under the label question, so the 15 s count from its close.
+# the main one) does not run while the create's own questions are open: the
+# picker and the card cover the screen, but the clock ran on behind them, and
+# in an uncovered pass between them (before the card is built) or the pass the
+# card closed in it ended the spool before the questions were asked, "Print"
+# included. The clock restarts as long as the predicate holds, so the 15 s
+# count from the last answer.
 ID_SPOOL = "app/id_spool.cpp"
 where = f"src/{ID_SPOOL}: idSpoolTick()"
 body = body_of(ID_SPOOL, "idSpoolTick")
-inner, _, _ = block_of(body, "else if (noTagLabelAskOpen()) {", where)
+inner, _, _ = block_of(body, "else if (noTagAfterCreateBusy()) {", where)
 assert inner == squeeze("s_lifted_ms = millis();"), \
-    f"{where}: under the label question the lift clock must restart and nothing else, found '{inner}'"
-in_order(body, ["if (!s_lifted_ms) {", "else if (noTagLabelAskOpen()) {",
+    f"{where}: under the create's questions the lift clock must restart and nothing else, found '{inner}'"
+in_order(body, ["if (!s_lifted_ms) {", "else if (noTagAfterCreateBusy()) {",
                 "else if (millis() - s_lifted_ms > ID_SPOOL_LIFTED_MS && !uiMainScreenCovered()) {"], where)
 assert '#include "ui/no_tag_create.h"' in (src / ID_SPOOL).read_text(encoding="utf-8"), \
-    f"src/{ID_SPOOL}: noTagLabelAskOpen() is used without its header"
+    f"src/{ID_SPOOL}: noTagAfterCreateBusy() is used without its header"
 
 print("no tag finish: ok")

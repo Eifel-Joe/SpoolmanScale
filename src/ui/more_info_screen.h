@@ -19,6 +19,9 @@ void requestLocationPickerFor(int spool_id, const char* current, bool clear_on_c
 // (hideAllOverlays()) or another request replaced it. Only flags; ended runs
 // from the loop.
 void requestLocationPickerThen(int spool_id, void (*ended)(int spool_id));
+// Whether a requestLocationPickerThen() with this ended still waits: asked
+// for or up, not yet ended, not taken down by a navigation, not replaced.
+bool locationPickerThenPending(void (*ended)(int spool_id));
 void handleMoreInfoDeferredActions();
 
 // Both More Info pickers, released from hideAllOverlays(). Without this a
