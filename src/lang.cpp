@@ -4228,6 +4228,21 @@ const char* const STRINGS[][3] = {
   { "Ohne Tag - wird nicht gewogen",
     "No tag - not weighed",
     "Sans tag - non pesée" },  // STR_NOTAG_CTX
+  { "Füllmenge",
+    "Filament",
+    "Filament" },  // STR_NOTAG_FILL_BTN
+  { "Füllmenge (g)",
+    "Filament weight (g)",
+    "Poids de filament (g)" },  // STR_NOTAG_FILL_TITLE
+  { "Filament einer vollen Rolle, ohne Spule",
+    "Filament on a full spool, without the spool",
+    "Filament seul d'une bobine pleine" },  // STR_NOTAG_FILL_INFO
+  { "Füllmenge fehlt: mit \"Füllmenge\" eingeben",
+    "Filament weight missing: use \"Filament\"",
+    "Poids de filament inconnu : utilisez \"Filament\"" },  // STR_NOTAG_FILL_ASK
+  { "Füllmenge nur von 100 bis 5000 g",
+    "Filament weight only from 100 to 5000 g",
+    "Poids de filament de 100 à 5000 g seulement" },  // STR_NOTAG_FILL_RANGE
 };
 
 StringID tagWriteResultString(uint8_t code) {

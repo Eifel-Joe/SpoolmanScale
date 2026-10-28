@@ -232,7 +232,7 @@ for sid, texts in (
     ("STR_NOTAG_FILL_BTN", ("Füllmenge", "Filament", "Filament")),
     ("STR_NOTAG_FILL_TITLE", ("Füllmenge (g)", "Filament weight (g)", "Poids de filament (g)")),
     ("STR_NOTAG_FILL_INFO", ("Filament einer vollen Rolle, ohne Spule", "Filament on a full spool, without the spool", None)),
-    ("STR_NOTAG_FILL_ASK", ('Füllmenge unbekannt: mit \\"Füllmenge\\" eingeben', 'Filament weight unknown: enter it with \\"Filament\\"', None)),
+    ("STR_NOTAG_FILL_ASK", ('Füllmenge fehlt: mit \\"Füllmenge\\" eingeben', 'Filament weight missing: use \\"Filament\\"', None)),
     ("STR_NOTAG_FILL_RANGE", ("Füllmenge nur von 100 bis 5000 g", "Filament weight only from 100 to 5000 g", "Poids de filament de 100 à 5000 g seulement")),
 ):
     assert re.search(rf"\b{sid}\b\s*,", lang_h), f"src/lang.h: {sid} is not in the enum"

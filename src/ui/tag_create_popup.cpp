@@ -17,6 +17,7 @@
 #include "hardware/sd_logger.h"
 #include "lang.h"
 #include "services/density_rules.h"
+#include "services/no_tag_create_rules.h"
 #include "services/server_reach.h"
 #include "services/spool_cache.h"
 #include "services/spool_extras.h"
@@ -127,8 +128,14 @@ static float cardCore() {
 // spool's nor the filament's, and the raw one would count them as filament.
 static uint8_t s_tare_from = TARE_NONE;
 
+// Wurzel: for a spool created without a tag the pad holds the wrapped roll that
+// is being entered (a roll, a box, a bag of desiccant), nothing that is this
+// spool's weight, and the start rule would file it as a measured net. Fix: in
+// the flag the reading is 0 (noTagGross), whatever lies on the dish.
+// NOT-TO-DO: reading it when it "looks like a spool"; a roll is no empty spool.
+// See test_no_tag_weights.py.
 static float startGross() {
-  return (g_scale_fitted && scale_ready) ? spoolExtrasBareReading() : 0.0f;
+  return noTagGross(noTagMode(), (g_scale_fitted && scale_ready) ? spoolExtrasBareReading() : 0.0f);
 }
 
 static SpoolStart startValues() {
@@ -140,8 +147,11 @@ static SpoolStart startValues() {
 static bool tareInherited() { return s_tare_from == TARE_FILAMENT || s_tare_from == TARE_VENDOR; }
 
 // The tag's own net weight; without it the nominal size nearest the reading.
+// In the flag only what the input says, 0 when it says nothing: the guess
+// below takes the reading for the spool, and the reading is the wrapped roll
+// (see startGross()). A fill weight that stays 0 is asked for (fillAskDue()).
 static int labelWeight() {
-  if (s_in.net_weight_g > 0) return s_in.net_weight_g;
+  if (noTagMode() || s_in.net_weight_g > 0) return s_in.net_weight_g;
   static const int choices[NEWTAG_LABEL_COUNT] = NEWTAG_LABEL_CHOICES;
   const float netto = spoolExtrasBareReading() - cardCore();
   int best = choices[NEWTAG_LABEL_COUNT - 1], best_diff = -1;
@@ -156,8 +166,9 @@ static int labelWeight() {
 //  The status line and the create button
 // ------------------------------------------------------------
 
-// The text on the left answer button: "Create", or "Density" while the card
-// asks for a density. The label is the button's first child (answerButton()).
+// The text on the left answer button: "Create", or "Density" / "Fill weight"
+// while the card asks for one of them. The label is the button's first child
+// (answerButton()).
 static void setOkText(int text_id) {
   if (!s_btn_ok) return;
   lv_obj_t* lbl = lv_obj_get_child(s_btn_ok, 0);
@@ -165,34 +176,60 @@ static void setOkText(int text_id) {
 }
 
 // button_free: the left button can be pressed, to create or to ask for the
-// density.
+// density or the fill weight.
 static void showStatus(const char* text, uint32_t color, bool button_free) {
   if (!s_status) return;
   lv_label_set_text(s_status, text);
   lv_obj_set_style_text_color(s_status, lv_color_hex(color), 0);
-  // Every line is one body line; the density hint sets its own after this.
+  // Every line is one body line; the two hints set their own after this.
   lv_obj_set_style_text_font(s_status, UI_FONT_BODY, 0);
   if (!s_btn_ok) return;
-  // Every line but the density hint is about creating, so the button goes back
-  // to "Create" whenever the status changes; showDensityAsk() puts its text on
-  // after this.
+  // Every line but the two hints is about creating, so the button goes back to
+  // "Create" whenever the status changes; showAsk() puts its text on after this.
   setOkText(STR_COPY_CARD_CREATE);
   if (button_free) lv_obj_clear_state(s_btn_ok, LV_STATE_DISABLED);
   else             lv_obj_add_state(s_btn_ok, LV_STATE_DISABLED);
 }
 
-// No source knows a density (or the one typed was out of range): the hint is
-// the line's text, and the left button asks for the density instead of
-// creating, free to be pressed. One line of the small font (the hint names the
-// button, so it must not wrap away from it); the line ends above the answer row.
-static void showDensityAsk(int hint_id) {
+// What the create button can act on.
+static bool planCanCreate(TagFilamentState state) {
+  return state == TFS_FOUND || state == TFS_CREATE_DB ||
+         state == TFS_CREATE_TAG || state == TFS_NOT_NEEDED;
+}
+
+// The card needs something the scale cannot supply (a density, V34; a fill
+// weight, X): the hint is the line's text, and the left button asks for it
+// instead of creating, free to be pressed. One line of the small font (the hint
+// names the button, so it must not wrap away from it); the line ends above the
+// answer row.
+static void showAsk(int hint_id, int button_id) {
   showStatus(T(hint_id), UI_COL_WARN, true);
   if (s_status) lv_obj_set_style_text_font(s_status, UI_FONT_SMALL, 0);
-  setOkText(STR_DENSITY_BTN);
+  setOkText(button_id);
+}
+
+// No source knows a density (or the one typed was out of range).
+static void showDensityAsk(int hint_id) { showAsk(hint_id, STR_DENSITY_BTN); }
+
+// No tag and no fill weight (or the one typed was out of range).
+static void showFillAsk(int hint_id) { showAsk(hint_id, STR_NOTAG_FILL_BTN); }
+
+// Whether the card asks for the fill weight now (X): it is missing, and the
+// plan would otherwise let the card create or ask for a density. A plan that
+// failed, or waits for the catalog, says so and keeps its button; the question
+// comes with the plan that works. The fill weight goes before the density, so
+// with both missing the density is asked once the fill weight is kept.
+static bool fillAskDue() {
+  return noTagFillMissing(noTagMode(), s_label_weight) && (planCanCreate(s_plan.state) || s_plan.no_density);
 }
 
 static void showPlan() {
   char buf[96];
+  // Before everything else the plan has to say, the density included.
+  if (fillAskDue()) {
+    showFillAsk(STR_NOTAG_FILL_ASK);
+    return;
+  }
   switch (s_plan.state) {
     case TFS_FOUND:
       snprintf(buf, sizeof(buf), T(STR_TAGNEW_FOUND), s_plan.filament_id);
@@ -434,11 +471,42 @@ static void onDensity(float density) {
   s_job = TCP_PLAN;
 }
 
+// The answer of the price pad when it asked for the fill weight (X, no tag),
+// handed on from the loop (pricePadTick()). Like the density's: an emptied
+// field types nothing and Cancel never gets here, so the card stays as it was;
+// a value outside NO_TAG_FILL_MIN_G to NO_TAG_FILL_MAX_G is not taken, the line
+// says the range and the button keeps asking. A valid one is the card's label
+// weight from here on (rounded to whole grams, as the backends take it). The
+// plan is asked again before the create: it keys on the weight (a database
+// entry of another weight no longer fits, nor the density found for it).
+static void onFill(float grams) {
+  if (grams <= 0.0f) return;
+  if (!noTagFillPlausible(grams)) {
+    logSDf("TagCreate: fill weight %.0f g is out of range, not taken", grams);
+    showFillAsk(STR_NOTAG_FILL_RANGE);
+    return;
+  }
+  s_in.net_weight_g = (int)lroundf(grams);
+  s_label_weight = labelWeight();
+  s_plan_stale = true;
+  logSDf("TagCreate: fill weight %d g typed at the scale", s_in.net_weight_g);
+  refreshMeta();
+  showPlan();
+}
+
 static void buildAnswers(lv_obj_t* box) {
   s_btn_ok = answerButton(box, UI_CARD_ROW_X, TCP_ANSWER_W, true, STR_COPY_CARD_CREATE);
   lv_obj_add_state(s_btn_ok, LV_STATE_DISABLED);   // until the lookup has answered
   lv_obj_add_event_cb(s_btn_ok, [](lv_event_t*) {
     if (s_job != TCP_IDLE) return;
+    // No tag and no fill weight: the button asks for it on the price pad
+    // instead of creating, ahead of the density, and the answer comes back
+    // through onFill().
+    if (fillAskDue()) {
+      logSD("BTN: TagCreate -> Fill weight");
+      showPricePadInfo((float)s_in.net_weight_g, STR_NOTAG_FILL_TITLE, STR_NOTAG_FILL_INFO, onFill);
+      return;
+    }
     // No density known: the button asks for it on the price pad instead of
     // creating, and the answer comes back through onDensity().
     if (s_plan.no_density) {
@@ -600,6 +668,8 @@ static void mergeDbEntry() {
   logSDf("TagCreate: database entry #%s merged, %d difference(s)", s_plan.db.id, s_diff_n);
   s_label_weight = labelWeight();
   refreshMeta();
+  // The entry may bring the fill weight the line was still asking for.
+  if (noTagMode()) showPlan();
   if (s_diff_n > 0) showTagDbDiffPopup(s_diffs, s_diff_n, onDiffAnswer);
 }
 
@@ -666,12 +736,6 @@ static void runPlan() {
   // A plan asked again may have found another twin, or none: the answer
   // given before no longer holds, and neither does its title.
   refreshTitle();
-}
-
-// What the create button can act on.
-static bool planCanCreate(TagFilamentState state) {
-  return state == TFS_FOUND || state == TFS_CREATE_DB ||
-         state == TFS_CREATE_TAG || state == TFS_NOT_NEEDED;
 }
 
 // The request reached the server but its answer did not come back, so the

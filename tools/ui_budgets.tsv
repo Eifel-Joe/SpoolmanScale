@@ -491,6 +491,15 @@ STR_DENSITY_BTN	18	132	NEVER	src/ui/tag_create_popup.cpp left answer button, TCP
 STR_DENSITY_PAD_TITLE	14	460	NEVER	src/ui/price_pad.cpp title above the keypad, the density
 STR_DENSITY_RANGE	14	360	NEVER	src/ui/tag_create_popup.cpp status line in the small font, one line (French 293 px)
 STR_DENSITY_PAD_INFO	12	168	WRAP:3	src/ui/price_pad.cpp right column, PP_COL_W, as STR_PRICE_PAD_INFO (French 267 px: two lines)
+# The fill weight asked for a spool created without a tag (X), the way the density is: the left answer
+# button on the card for a new spool (140 px, -8 air) and on the copy card (140 px behind Bambuddy on
+# Spoolman, 170 px outside it), the price pad under its own title and grey line, and the hint line in the
+# small font, one line, on both cards (the copy card shows it as its line 3).
+STR_NOTAG_FILL_BTN	18	132	NEVER	src/ui/tag_create_popup.cpp, src/ui/copy_confirm_popup.cpp left answer button beside the price button, -8 air
+STR_NOTAG_FILL_TITLE	14	460	NEVER	src/ui/price_pad.cpp title above the keypad, the fill weight
+STR_NOTAG_FILL_INFO	12	168	WRAP:3	src/ui/price_pad.cpp right column, PP_COL_W, as STR_PRICE_PAD_INFO
+STR_NOTAG_FILL_ASK	14	360	NEVER	src/ui/tag_create_popup.cpp status line, src/ui/copy_confirm_popup.cpp line 3, small font, one line: the hint names the button (German 320 px, French 337 px)
+STR_NOTAG_FILL_RANGE	14	360	NEVER	src/ui/tag_create_popup.cpp status line, src/ui/copy_confirm_popup.cpp line 3, small font, one line (French 327 px)
 # The twin box over the card: title and text in the card's text width, two buttons of 184 px.
 STR_SORT_TWIN_TITLE	20	360	NEVER	src/ui/sort_twin_popup.cpp title, UI_POPUP_W - UI_CARD_TEXT_PAD
 STR_SORT_TWIN_TEXT	16	360	WRAP:3	src/ui/sort_twin_popup.cpp question, UI_POPUP_W - UI_CARD_TEXT_PAD, %s is a filament name

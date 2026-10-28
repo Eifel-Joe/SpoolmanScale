@@ -213,8 +213,9 @@ void doCopySpoolCreate(int template_spool_id, int template_filament_id, float te
   // and a full copy files what it weighs as its full weight (spool_start.h).
   // Behind Bambuddy on Spoolman that full weight is the copy's label, the
   // one the card priced; in Bambuddy's own inventory the label stays the
-  // template's and only what is left comes from here (copy_bbs.h).
-  const float bare = spoolExtrasBareReading();
+  // template's and only what is left comes from here (copy_bbs.h). A copy made
+  // without a tag weighs nothing: the reading is 0 for it (noTagGross()).
+  const float bare = noTagGross(noTagMode(), spoolExtrasBareReading());
   const SpoolStart start = spoolStartValues(bare, (int)lroundf(tare_g),
                                             tare_g > 0.0f ? TARE_Q_KNOWN : TARE_Q_NONE,
                                             (int)lroundf(template_initial));

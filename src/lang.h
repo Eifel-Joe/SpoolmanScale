@@ -1943,6 +1943,11 @@ enum StringID {
   // A spool created without a tag and without weighing (ui/no_tag_create.cpp)
   STR_BTN_CREATE_SPOOL,       // the main screen's right button with nothing on it, and the title of the choice it opens
   STR_NOTAG_CTX,              // the choice's context line in place of the UID
+  STR_NOTAG_FILL_BTN,         // the card's left button while the fill weight is missing, in place of "Create"
+  STR_NOTAG_FILL_TITLE,       // the price pad's title when it asks for the fill weight (g)
+  STR_NOTAG_FILL_INFO,        // the grey line beside the price pad's keys when it asks for the fill weight
+  STR_NOTAG_FILL_ASK,         // the card's status line while the fill weight is missing
+  STR_NOTAG_FILL_RANGE,       // the card's status line after a fill weight outside the range
 
   STR_COUNT
 };
