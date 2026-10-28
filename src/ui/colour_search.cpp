@@ -122,14 +122,19 @@ void colourSearchTitle(ColourSearch* s, lv_obj_t* scr, lv_obj_t* title, const ch
   s->head = nullptr;
   s->tapped = false;
   s->redraw = redraw;
+  // Wurzel: the head is built while the step's old list still stands, and a
+  //   list may have cut itself at the row reserve (the WT32 builds no rows in
+  //   PSRAM): behind a reserve guard a list cut to a word came without its x,
+  //   and so without a way back to the whole list.
+  // Fix: no guard. The head is three objects, not a row of a scrolling list,
+  //   and lvMemAlloc() puts what the internal heap cannot take in PSRAM on
+  //   every board.
+  // NOT-TO-DO: building the head after the new list instead: the list then
+  //   takes the reserve, and the same cut leaves no room for it either.
   int room = 0;
   if (redraw && scr) {
-    if (lvPoolHasRoomForRow()) {
-      s->head = s->word[0] ? chip(scr, s) : magnifier(scr, s);
-      room = (s->word[0] ? CS_CHIP_W : CS_HEAD_BTN) + CS_SEP;
-    } else {
-      logSD("ColourSearch: LVGL pool low, no search in the header");
-    }
+    s->head = s->word[0] ? chip(scr, s) : magnifier(scr, s);
+    room = (s->word[0] ? CS_CHIP_W : CS_HEAD_BTN) + CS_SEP;
   }
   if (!title) return;
   lv_label_set_text(title, text ? text : "");
@@ -153,9 +158,13 @@ void colourSearchTick(ColourSearch* s, lv_obj_t* (*under)()) {
   s->tapped = false;
   s->typed = false;
   // For a screen that is gone, hidden (hideSpoolFlowOverlays()), or on a step
-  // without a search: nothing to build.
+  // without a search: nothing to build. A word typed for it goes as well, or
+  // it would cut the next list that offers a search without being asked to.
   lv_obj_t* scr = under ? under() : nullptr;
-  if (!scr || lv_obj_has_flag(scr, LV_OBJ_FLAG_HIDDEN) || !s->redraw) return;
+  if (!scr || lv_obj_has_flag(scr, LV_OBJ_FLAG_HIDDEN) || !s->redraw) {
+    if (typed) s->word[0] = '\0';
+    return;
+  }
   if (typed) {
     logSDf("ColourSearch: \"%s\"", s->word);
     s->redraw();

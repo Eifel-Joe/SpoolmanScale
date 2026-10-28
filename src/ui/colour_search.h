@@ -30,6 +30,23 @@ struct FdbEntry;
 //  step stays (colourSearchBack()), a close forgets it (colourSearchClose()).
 //  The steps after it leave it alone, so the way back to the list finds it cut
 //  as it was left. See test_colour_search.py.
+//
+//  "New from database": a search on the family step shows entries and stays
+//  the family step (db_pick_screen.cpp, showEntries() and showFamilyStep()).
+//  Wurzel: the families cut a long list by colour, and "bone" must be found
+//    whichever family it is in: from the family step the search lists the
+//    entries of every family, which only showEntries() can draw, and
+//    showEntries() made the step the entries step.
+//  Fix: showEntries() sets DBP_ENTRIES only when it is not called on the
+//    family step with a word, showFamilyStep() hands a word to showEntries(),
+//    and the redraw is showFamilyStep() while the step is the family step:
+//    the x and back show the families again, the next back goes to the lines
+//    or the materials as before.
+//  NOT-TO-DO: switching to the entries step with every family (s_family -1):
+//    its x and back would then show all entries of the line, not the
+//    families the search started from. A step of its own for the search
+//    would reach into goBack() and every caller of the steps, in a file at
+//    its 1000 lines.
 // ============================================================
 
 struct ColourSearch {

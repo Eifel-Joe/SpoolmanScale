@@ -699,7 +699,7 @@ static void entryRow(lv_obj_t* body, int first, int n) {
 }
 
 static void showEntries() {
-  if (s_step != DBP_FAMILY || !s_find.word[0]) s_step = DBP_ENTRIES;   // a search keeps the family step
+  if (s_step != DBP_FAMILY || !s_find.word[0]) s_step = DBP_ENTRIES;   // family step kept, see colour_search.h
   char title[96];
   listTitle(title, sizeof(title));
   if (s_family >= 0 && !s_find.word[0]) {

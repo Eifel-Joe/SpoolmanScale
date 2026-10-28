@@ -4257,7 +4257,7 @@ const char* const STRINGS[][3] = {
     "Rechercher une couleur" },  // STR_COLOUR_FIND_KEY
   { "Keine Farbe mit \"%s\"",
     "No colour with \"%s\"",
-    "Aucune couleur avec \"%s\"" },  // STR_COLOUR_FIND_NONE
+    "Pas de couleur \"%s\"" },  // STR_COLOUR_FIND_NONE
 };
 
 StringID tagWriteResultString(uint8_t code) {

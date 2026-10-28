@@ -97,7 +97,7 @@ where = f"src/{UI}: colourSearchTick()"
 body = without_logs(body_of(UI, "colourSearchTick"))
 in_order(body, ["const bool typed = s->typed;", "s->tapped = false;", "s->typed = false;",
                 "lv_obj_t* scr = under ? under() : nullptr;",
-                "if (!scr || lv_obj_has_flag(scr, LV_OBJ_FLAG_HIDDEN) || !s->redraw) return;",
+                "if (!scr || lv_obj_has_flag(scr, LV_OBJ_FLAG_HIDDEN) || !s->redraw) { if (typed) s->word[0] = '\\0'; return; }",
                 "if (typed) { s->redraw(); }",
                 "else if (s->word[0]) { s->word[0] = '\\0'; s->redraw(); }",
                 "else { s_asking = s; sortKeysShowOver(under, SK_TEXT, STR_COLOUR_FIND_KEY, COLOUR_SEARCH_MAX - 1, wordTyped); }"],
@@ -109,14 +109,21 @@ assert body_of(UI, "wordTyped") == sq("if (!s_asking || !text) return; "
     f"src/{UI}: wordTyped() must keep the word for the one who asked and leave the list to the tick"
 
 # The title: the old head goes, the new one (magnifier or word) only on a
-# step that can redraw its list, the title narrowed by what it takes.
+# step that can redraw its list, the title narrowed by what it takes. The
+# head has no pool guard: it is built while the old list still stands, which
+# may have cut itself at the reserve (the WT32 builds no rows in PSRAM), and
+# a list with a word but no x would have no way back to the whole list. Its
+# three objects go to PSRAM when the internal heap is short (lvMemAlloc()).
 where = f"src/{UI}: colourSearchTitle()"
 body = without_logs(body_of(UI, "colourSearchTitle"))
 in_order(body, ["if (s->head) lv_obj_del(s->head);", "s->head = nullptr;", "s->tapped = false;", "s->redraw = redraw;",
-                "if (redraw && scr) {", "s->head = s->word[0] ? chip(scr, s) : magnifier(scr, s);",
-                "room = (s->word[0] ? CS_CHIP_W : CS_HEAD_BTN) + CS_SEP;",
+                "if (redraw && scr) { s->head = s->word[0] ? chip(scr, s) : magnifier(scr, s); "
+                "room = (s->word[0] ? CS_CHIP_W : CS_HEAD_BTN) + CS_SEP; }",
                 "lv_label_set_text(title, text ? text : \"\");", "lv_obj_set_width(title, CS_TITLE_W - room);",
                 "lv_obj_set_x(title, -room / 2);"], where)
+for fn in ("colourSearchTitle", "headButton", "magnifier", "chip"):
+    assert "lvPoolHasRoomForRow" not in body_of(UI, fn), \
+        f"src/{UI}: {fn}() guards the head with the row reserve (a cut list would come without its x)"
 # Back ends a search and builds the list, and says so; a close forgets
 # everything, the head with the screen it is on.
 assert without_logs(body_of(UI, "colourSearchBack")) == sq(
@@ -241,14 +248,15 @@ assert "sortSource" not in body_of(PICK, "sortShowColours"), f"src/{PICK}: sortS
 lang_cpp = (src / "lang.cpp").read_text(encoding="utf-8")
 for sid, texts in (("STR_COLOUR_FIND_KEY", ("Farbe suchen", "Search colour", "Rechercher une couleur")),
                    ("STR_COLOUR_FIND_NONE", ('Keine Farbe mit \\"%s\\"', 'No colour with \\"%s\\"',
-                                             'Aucune couleur avec \\"%s\\"'))):
+                                             'Pas de couleur \\"%s\\"'))):
     row = re.search(r'\{\s*"((?:[^"\\]|\\.)*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*\}\s*,\s*//\s*'
                     + sid + r"\b", lang_cpp)
     assert row and row.groups() == texts, f"src/lang.cpp: {sid} is not {texts}"
     assert re.search(r"^\s*" + sid + r",", (src / "lang.h").read_text(encoding="utf-8"), re.M), f"src/lang.h: no {sid}"
 budgets = (root / "tools" / "ui_budgets.tsv").read_text(encoding="utf-8")
 assert re.search(r"^STR_COLOUR_FIND_KEY\t18\t460\tNEVER\t", budgets, re.M), "tools/ui_budgets.tsv: no budget for the keyboard's title"
-assert re.search(r"^STR_COLOUR_FIND_NONE\t14\t452\tNEVER\t", budgets, re.M), "tools/ui_budgets.tsv: no budget for the line"
+assert re.search(r"^STR_COLOUR_FIND_NONE\t14\t452\tWRAP:2\t", budgets, re.M), \
+    "tools/ui_budgets.tsv: the line (a wrapping label with the word in it) has no WRAP:2 budget"
 
 # 7. Both steps are in the pipeline, right after the one for the location.
 steps = re.findall(r"- name: (Test [^\n]*)\n\s+run: ([^\n]*)", (root / ".github/workflows/ci.yml").read_text(encoding="utf-8"))

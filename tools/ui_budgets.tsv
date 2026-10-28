@@ -555,9 +555,10 @@ STR_SORT_TYPE_GRAMS	14	142	NEVER	src/ui/sort_entry_pick.cpp sortTile, the last t
 # --- the search in a colour list: "Enter filament" and "New from database" (ui/colour_search.cpp, V40) --------
 # The keyboard is the entry's (sortKeysShowOver), its title as wide as on the other steps.
 STR_COLOUR_FIND_KEY	18	460	NEVER	src/ui/sort_entry_keys.cpp sortKeysShow title, 480 - 2 * SORT_KEYS_SIDE (10), opened by colourSearchTick
-# A caption across the list (DBP_ROW_W, SORT_ROW_W: 452) when no colour holds the word. %s is the word, at most
-# 23 bytes (COLOUR_SEARCH_MAX): 23 letters of a colour name keep it one line (French 323 px), the label wraps beyond.
-STR_COLOUR_FIND_NONE	14	452	NEVER	src/ui/colour_search.cpp colourSearchNone, caption across the list, %s the word
+# A caption across the list (DBP_ROW_W, SORT_ROW_W: 452) when no colour holds the word, a wrapping label as
+# STR_SORT_EXISTS. %s is the word, at most 23 bytes (COLOUR_SEARCH_MAX). Without a NEVER row the French keeps to
+# the wider of German and English at every size: "Pas de couleur" (143 px at f14 against 152 for the German).
+STR_COLOUR_FIND_NONE	14	452	WRAP:2	src/ui/colour_search.cpp colourSearchNone, caption across the list, %s the word
 
 # --- the tiles of the unknown spool's card, with "Enter filament" as a fourth (unknown_spool_popup.cpp) ---
 # Four tiles to a row are (UNK_ROW_W 412 - 3 * UNK_GAP 8) / 4 = 97 px, and the German
