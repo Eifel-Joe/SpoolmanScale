@@ -40,9 +40,9 @@
 // (g_tag.tray_uuid) and no id (link_tag_uid) on the pad.
 bool noTagModeAtEntry(bool bambu_tag, bool have_uid);
 
-// Whether the database and "enter sort" tiles are offered. In the flag always;
-// otherwise as before: an id is there and it is no Bambu tag (the Bambu tag
-// has its own card).
+// Whether the database and "enter sort" tiles are offered. In the flag unless a
+// Bambu tag is on the pad; otherwise as before: an id is there and it is no
+// Bambu tag (the Bambu tag has its own card).
 // Wurzel: a cancel leaves the flag on, and a Bambu tag laid on afterwards shows
 // the "not in BamBuddy" card, which must not grow the tiles of the no-tag mode.
 // Fix: a Bambu tag always wins over the flag.

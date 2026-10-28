@@ -242,7 +242,7 @@ for sid, texts in (
         assert got, f"src/lang.cpp: {sid} has no {lang_name} text"
         if want is not None:
             assert got == want, f"src/lang.cpp: {sid} ({lang_name}) reads '{got}', expected '{want}'"
-        assert "—" not in got, f"src/lang.cpp: {sid} ({lang_name}) has an em-dash"
+        assert "\u2014" not in got, f"src/lang.cpp: {sid} ({lang_name}) has an em-dash"
     if sid == "STR_NOTAG_FILL_RANGE":
         for got in row.groups():
             assert str(low) in got and str(high) in got, \
