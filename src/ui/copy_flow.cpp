@@ -240,10 +240,11 @@ void doCopySpoolCreate(int template_spool_id, int template_filament_id, float te
     spoolCacheForget("spool created by copy");
     // No tag: no link and no mark for the first weighing, see
     // noTagCreateFinish(). The green line gives way to what did not come
-    // across; with nothing missing copyCreatedStatus() would say "copied".
+    // across, unless the Bambu chip hint stands on it (noTagYellowLineAllowed());
+    // with nothing missing copyCreatedStatus() would say "copied".
     if (noTagMode()) {
       noTagCreateFinish(new_id, copyCardVendor());
-      if (missing != CM_NONE) copyCreatedStatus(missing);
+      if (missing != CM_NONE && noTagYellowLineAllowed(new_id, "copy parts not taken over", missing)) copyCreatedStatus(missing);
       return;
     }
     // The card's list asked this copy's type: the first weighing does not

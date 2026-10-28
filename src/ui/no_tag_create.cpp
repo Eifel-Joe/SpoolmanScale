@@ -72,6 +72,7 @@ static int         s_card_for = 0;          // the spool the card asks about
 static LabelAnswer s_answer   = LA_NONE;    // parked by a button, taken by the tick
 static int         s_ask_for  = 0;          // armed by the ending: ask for this spool, 0: none
 static bool        s_ask_wait = false;      // the card is built a pass after it was armed
+static bool        s_chip_hint = false;     // the status line holds the Bambu chip hint
 
 // Whether the spool is the one on the screen, by its number and with no tag
 // on the pad: the only state in which a label printed "for the screen" is
@@ -111,6 +112,7 @@ void noTagCreateFinish(int new_spool_id, const char* vendor) {
   char msg[96];
   snprintf(msg, sizeof(msg), T(bambu ? STR_NOTAG_CREATED_BAMBU : STR_NOTAG_CREATED), new_spool_id);
   statusMessageShow(msg, UI_COL_GOOD);
+  s_chip_hint = bambu;   // see noTagYellowLineAllowed()
   noTagModeSet(false);
   // Only when the new spool is on the screen after all: idSpoolAdopt() does
   // not take it over while a tag is on the pad, and it may not have loaded.
@@ -118,6 +120,29 @@ void noTagCreateFinish(int new_spool_id, const char* vendor) {
   s_ask_wait = s_ask_for != 0;
   logSDf("NoTag: spool %d created, shown by its number (%s), label question %s",
          new_spool_id, bambu ? "Bambu note" : "plain note", s_ask_for ? "armed" : "not asked");
+}
+
+// Wurzel: the status line holds one text and has no queue, and both callers
+// wrote a yellow line over the green one after the finish (the parts a copy
+// left behind, a price the server did not keep). For a Bambu Lab spool that
+// replaced the chip hint, the one line that keeps Bambuddy from making the
+// roll a second time when it goes unknown into the first AMS (spec 5.3 X);
+// with no tag on the pad nothing paints the line again, so it never came back.
+// Fix: while the chip hint stands (s_chip_hint, set by the finish) it is the
+// last word: the callers ask here before they write a yellow line, a refusal
+// puts what was lost in the log with the spool's number instead. With the
+// plain note the yellow line still replaces the green one, as it always did.
+// NOT-TO-DO: one line with both: the status line has 292 px (262 in the
+// narrow header) and the hint alone takes 236 to 259. One after the other:
+// there is no queue, the first text would be gone before it was read.
+// See test_no_tag_finish.py.
+bool noTagYellowLineAllowed(int new_spool_id, const char* lost, unsigned parts) {
+  if (!s_chip_hint) return true;
+  if (parts) logSDf("NoTag: spool %d: %s (parts 0x%02x) not on the status line, the chip hint stays there",
+                    new_spool_id, lost, parts);
+  else       logSDf("NoTag: spool %d: %s, not on the status line, the chip hint stays there",
+                    new_spool_id, lost);
+  return false;
 }
 
 // ------------------------------------------------------------

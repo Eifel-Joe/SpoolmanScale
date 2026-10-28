@@ -49,6 +49,14 @@ const char* noTagEntryTitle();
 // for a label, which noTagLabelAskTick() puts up.
 void noTagCreateFinish(int new_spool_id, const char* vendor);
 
+// After noTagCreateFinish(): whether a yellow line (the parts a copy left
+// behind, a price the server did not keep) may be written to the status line
+// now. It may not while the Bambu Lab chip hint stands there: the hint is the
+// last word, and what was lost goes to the log with the spool's number
+// instead. lost names it for the log; parts is the bits of what a copy left
+// behind (CM_*), 0 where there are none.
+bool noTagYellowLineAllowed(int new_spool_id, const char* lost, unsigned parts);
+
 // The loop's part of the question for a label: builds the card a pass after
 // the ending, carries out the answer, and closes the card without printing
 // when the new spool is no longer the one on the screen.

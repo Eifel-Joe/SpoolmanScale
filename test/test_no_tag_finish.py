@@ -82,6 +82,20 @@ def once(body, needle, where):
     assert body.count(squeeze(needle)) == 1, f"{where}: '{needle}' is not there exactly once"
 
 
+def yellow_after_finish(inner, finish_call, allowed, where):
+    """After the finish call nothing in the flag's branch but the one guarded
+    yellow write (allowed, exactly) and the return writes to the status line:
+    a second write, or the one without its guard, could follow the Bambu chip
+    hint and replace it."""
+    finish = squeeze(finish_call)
+    assert inner.count(finish) == 1, f"{where}: '{finish_call}' is not there exactly once"
+    rest = inner[inner.find(finish) + len(finish):]
+    once(rest, allowed, where + " (the yellow line, behind noTagYellowLineAllowed())")
+    rest = rest.replace(squeeze(allowed), "", 1)
+    assert rest == "return;", \
+        f"{where}: after the finish only the guarded yellow line and the return may follow, found '{rest}'"
+
+
 def handler_bodies(rel):
     """The squeezed bodies of every event handler in a file, log calls taken out."""
     source = source_of(rel)
@@ -102,9 +116,15 @@ body = body_of(FLOW, "doCopySpoolCreate")
 inner, start, end = block_of(body, "if (noTagMode()) {", where)
 once(body, "noTagCreateFinish(", where)
 once(inner, "noTagCreateFinish(new_id, copyCardVendor());", where + " in the flag")
-once(inner, "if (missing != CM_NONE) copyCreatedStatus(missing);", where + " in the flag")
 assert inner.startswith(squeeze("noTagCreateFinish(new_id, copyCardVendor());")), \
     f"{where}: the flag's branch must finish first, the parts that did not come across follow"
+# The yellow line for the parts left behind is the only thing that may write to
+# the status line after the finish, and only where noTagYellowLineAllowed()
+# lets it (the Bambu chip hint is the last word, spec 5.3 X); the code view
+# blanks the text of a string, so it reads "".
+yellow_after_finish(inner, "noTagCreateFinish(new_id, copyCardVendor());",
+                    'if (missing != CM_NONE && noTagYellowLineAllowed(new_id, "", missing)) copyCreatedStatus(missing);',
+                    where + " in the flag")
 assert inner.endswith("return;"), f"{where}: the flag's branch must leave, nothing of the old ending may run after it"
 for banned in ("finishCopyFlow(", "tareEntryFirstWeighDone(", "doLinkPatch"):
     assert banned not in inner, f"{where}: {banned} runs in the flag"
@@ -124,9 +144,12 @@ where = f"src/{POPUP}: runCreate()"
 body = body_of(POPUP, "runCreate")
 inner, start, end = block_of(body, "if (noTagMode()) {", where)
 once(body, "noTagCreateFinish(", where)
-in_order(inner, ["closeTagCreatePopup();", "noTagCreateFinish(r.spool_id, s_in.vendor);",
-                 "if (r.price_lost) statusMessageShow(T(STR_TAGNEW_PRICE_LOST), UI_COL_WARN);", "return;"],
+in_order(inner, ["closeTagCreatePopup();", "noTagCreateFinish(r.spool_id, s_in.vendor);", "return;"],
          where + " in the flag")
+yellow_after_finish(inner, "noTagCreateFinish(r.spool_id, s_in.vendor);",
+                    'if (r.price_lost && noTagYellowLineAllowed(r.spool_id, "", 0)) '
+                    'statusMessageShow(T(STR_TAGNEW_PRICE_LOST), UI_COL_WARN);',
+                    where + " in the flag")
 assert inner.endswith("return;"), f"{where}: the flag's branch must leave, nothing of the old ending may run after it"
 for banned in ("finishCopyFlow(", "tareEntryFirstWeighDone(", "doLinkPatch"):
     assert banned not in inner, f"{where}: {banned} runs in the flag"
@@ -184,6 +207,26 @@ once(body, "s_ask_for = (sm_found && sm_id == new_spool_id && labelPrinterReadin
 assert depth_at(body, body.find("s_ask_for=")) == 0, f"{where}: the question is armed conditionally in a second place"
 assert body.count("s_ask_for=") == 1, f"{where}: the question is armed in more than one place"
 assert body.find("noTagModeSet(false);") < body.find("s_ask_for="), f"{where}: the flag stays on while the question is armed"
+
+# The Bambu chip hint is the last word on the status line (spec 5.3 X: the one
+# line that keeps Bambuddy from making the roll a second time at the first
+# AMS). The finish remembers whether it wrote the hint, and a caller asks
+# noTagYellowLineAllowed() before it writes a yellow line over the green one:
+# plain note, yes (as it always was); chip hint, no, the loss goes to the log.
+once(body, "s_chip_hint = bambu;", where)
+assert depth_at(body, body.find("s_chip_hint=")) == 0 and body[body.find("s_chip_hint=") - 1] in ";}{", \
+    f"{where}: the hint is remembered conditionally"
+assert body.find("statusMessageShow(msg, UI_COL_GOOD);") < body.find("s_chip_hint="), \
+    f"{where}: the hint is remembered before it is written"
+where = f"src/{CORE}: noTagYellowLineAllowed()"
+body = body_of(CORE, "noTagYellowLineAllowed")
+assert body.startswith(squeeze("if (!s_chip_hint) return true;")) and body.endswith("returnfalse;"), \
+    f"{where}: must allow the yellow line when no chip hint stands, and refuse it otherwise"
+assert body.count("returntrue;") == 1 and body.count("returnfalse;") == 1, f"{where}: more ways out than the two"
+assert "logSDf(" in body[body.find("returntrue;"):] and "statusMessageShow(" not in body and "lbl_status" not in body, \
+    f"{where}: a refused yellow line goes to the log, not to the status line"
+assert squeeze("bool noTagYellowLineAllowed(int new_spool_id, const char* lost, unsigned parts);") \
+    in squeeze(source_of(HEADER).code), f"src/{HEADER}: noTagYellowLineAllowed() is not declared"
 
 # 3. The question. It is built from the loop, a pass after the ending (the
 # choice's screens were released in that pass and the pool takes them back

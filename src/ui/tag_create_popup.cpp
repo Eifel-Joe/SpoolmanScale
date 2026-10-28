@@ -770,11 +770,11 @@ static void runCreate() {
     spoolCacheForget("spool created from a tag");
     // No tag: no link and no mark for the first weighing, see
     // noTagCreateFinish(). A price the server did not keep is still said, over
-    // the green line.
+    // the green line, unless the Bambu chip hint stands on it (noTagYellowLineAllowed()).
     if (noTagMode()) {
       closeTagCreatePopup();
       noTagCreateFinish(r.spool_id, s_in.vendor);
-      if (r.price_lost) statusMessageShow(T(STR_TAGNEW_PRICE_LOST), UI_COL_WARN);
+      if (r.price_lost && noTagYellowLineAllowed(r.spool_id, "price not saved", 0)) statusMessageShow(T(STR_TAGNEW_PRICE_LOST), UI_COL_WARN);
       return;
     }
     // Our list asked this spool's type on the way here ("new from database",
