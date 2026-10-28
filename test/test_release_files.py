@@ -1,4 +1,4 @@
-"""Check, without a build, the script that writes the data files of a release: the version ranking (the same numbers as version_compare.cpp, so the release workflow and the device agree on what is newer), the refusal of a tag that does not rank above what is published, version.json with one entry per board (the WT32 at the top, the Waveshare boards under "boards"), the web flasher manifests, the release title, and the four commands the workflow calls."""
+"""Check, without a build, the script that writes the data files of a release: the version ranking (the same numbers as version_compare.cpp, so the release workflow and the device agree on what is newer), the refusal of a tag that does not rank above what is published, version.json with one entry per board (the WT32 at the top, the Waveshare boards under "boards"), the web flasher manifests, the release title with the fork's name and the README line that says the same, and the four commands the workflow calls."""
 import datetime
 import hashlib
 import json
@@ -209,12 +209,21 @@ expect("manifest WT32 file", wt32["builds"][0]["parts"][0]["path"] == "SpoolmanS
 expect("manifest WT32 version", wt32.get("version") == "v0.8.4-beta.1")
 expect("manifest is JSON with null", json.loads(json.dumps(wt32))["home_assistant_domain"] is None)
 
-# 7. release_title: the date only behind a pre-release.
-expect("title pre-release", rf.release_title("v0.8.4-beta.1", datetime.date(2026, 10, 25)) == "SpoolmanScale v0.8.4-beta.1 (25.10.2026)",
+# 7. release_title: the fork's name in every title, because the numbers are
+#    this fork's own and the original's 0.8.4 is a different firmware; the date
+#    only behind a pre-release.
+expect("title pre-release", rf.release_title("v0.8.4-beta.1", datetime.date(2026, 10, 25)) == "SpoolmanScale (Eifel-Joe fork) v0.8.4-beta.1 (25.10.2026)",
        repr(rf.release_title("v0.8.4-beta.1", datetime.date(2026, 10, 25))))
-expect("title release", rf.release_title("v0.8.4", datetime.date(2026, 10, 25)) == "SpoolmanScale v0.8.4",
+expect("title release", rf.release_title("v0.8.4", datetime.date(2026, 10, 25)) == "SpoolmanScale (Eifel-Joe fork) v0.8.4",
        repr(rf.release_title("v0.8.4", datetime.date(2026, 10, 25))))
-expect("title pads day and month", rf.release_title("v0.8.4-beta.2", datetime.date(2027, 1, 5)) == "SpoolmanScale v0.8.4-beta.2 (05.01.2027)")
+expect("title pads day and month", rf.release_title("v0.8.4-beta.2", datetime.date(2027, 1, 5)) == "SpoolmanScale (Eifel-Joe fork) v0.8.4-beta.2 (05.01.2027)")
+
+# 7b. The README says the same in its fork note at the top, in the sentence the
+#     release notes carry too.
+fork_note = next((line for line in (root / "README.md").read_text(encoding="utf-8").splitlines()
+                  if line.startswith("> **This is a fork**")), "")
+expect("readme fork note", "Version numbers of this fork are its own; the original's 0.8.4 is a different firmware." in fork_note,
+       repr(fork_note[:120]))
 
 
 # 8. The commands the workflow calls: python3 scripts/release_files.py <command> ...
@@ -231,11 +240,11 @@ with tempfile.TemporaryDirectory() as tmp:
     # 8a. title: the date of the day the command runs (a midnight between the calls is allowed for).
     done = run("title", "v0.8.4")
     expect("cli title release: exit 0", done.returncode == 0, f"{done.returncode}: {done.stdout}{done.stderr}")
-    expect("cli title release: text", done.stdout.strip() == "SpoolmanScale v0.8.4", repr(done.stdout))
+    expect("cli title release: text", done.stdout.strip() == "SpoolmanScale (Eifel-Joe fork) v0.8.4", repr(done.stdout))
     days = {datetime.date.today()}
     done = run("title", "v0.8.4-beta.1")
     days.add(datetime.date.today())
-    allowed = {f"SpoolmanScale v0.8.4-beta.1 ({day.strftime('%d.%m.%Y')})" for day in days}
+    allowed = {f"SpoolmanScale (Eifel-Joe fork) v0.8.4-beta.1 ({day.strftime('%d.%m.%Y')})" for day in days}
     expect("cli title pre-release: exit 0", done.returncode == 0, f"{done.returncode}: {done.stdout}{done.stderr}")
     expect("cli title pre-release: text", done.stdout.strip() in allowed, f"{done.stdout!r} not in {allowed}")
 
