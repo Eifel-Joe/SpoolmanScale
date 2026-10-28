@@ -234,10 +234,44 @@ static bool locCountTick() {
   return true;
 }
 
+// Who waits for the end of the picker, and for which spool
+// (requestLocationPickerThen()). Empty for every other request.
+struct LocEnded {
+  void (*fn)(int spool_id);
+  int spool_id;
+};
+static LocEnded s_loc_ended = { nullptr, 0 };
+
+// Taken before the picker's own way out navigates: showMainScreen() reaches
+// hideMoreInfoOverlays(), which forgets it.
+static LocEnded locEndedTake() {
+  const LocEnded e = s_loc_ended;
+  s_loc_ended = LocEnded{};
+  return e;
+}
+
+static void locEndedRun(const LocEnded& e) {
+  if (e.fn) e.fn(e.spool_id);
+}
+
 void requestLocationPicker(bool from_popup) {
   g_loc_picker_from_popup = from_popup;
   g_loc_picker_by_tap = false;
+  s_loc_ended = LocEnded{};
   show_location_picker_pending = true;
+}
+
+// Wurzel (V39): the question for a label after a create without a tag waits
+// for this picker, whose own ways out end in showMainScreen(); its
+// hideAllOverlays() forgets every question armed on the main screen.
+// Fix: on every end of its own (see the header) who waits is taken before the
+// way back and called after it; a navigation and any other request forget it.
+// NOT-TO-DO: asking from outside whether the picker is still up: once it is
+// gone, an end and a navigation look the same.
+// See test_no_tag_location.py.
+void requestLocationPickerThen(int spool_id, void (*ended)(int spool_id)) {
+  requestLocationPicker(true);
+  s_loc_ended = LocEnded{ended, spool_id};
 }
 
 void tapLocationButton(bool from_popup) {
@@ -253,12 +287,15 @@ void handleMoreInfoDeferredActions() {
   }
   if (loc_cancel_pending) {
     loc_cancel_pending = false;
+    const LocEnded ended = locEndedTake();
     closeLocationPicker();
     if (g_loc_picker_from_popup) showMainScreen();
     else                         showMoreInfoScreen();
+    locEndedRun(ended);
   }
   if (loc_patch_pending) {
     loc_patch_pending = false;
+    const LocEnded ended = locEndedTake();
     closeLocationPicker();
     if (sm_id > 0) {
       const bool clear = (loc_patch_name[0] == '\0');
@@ -282,6 +319,7 @@ void handleMoreInfoDeferredActions() {
     }
     if (g_loc_picker_from_popup) showMainScreen();
     else                         showMoreInfoScreen();
+    locEndedRun(ended);
   }
   if (show_location_picker_pending) {
     show_location_picker_pending = false;
@@ -326,6 +364,8 @@ void hideMoreInfoOverlays() {
   loc_status_obj  = nullptr;
   loc_list_obj    = nullptr;
   loc_cancel_fill = nullptr;
+  // Taken down by a navigation, not ended: nobody hears of it.
+  s_loc_ended = LocEnded{};
 }
 
 // The picker and the two labels inside it, always together. The three buttons
@@ -380,6 +420,8 @@ void showLocationPicker() {
   if (!sm_found || (sm_archived && !g_loc_picker_by_tap) || sm_id <= 0) {
     logSDf("LOC: picker not shown, sm_found=%d archived=%d sm_id=%d",
            (int)sm_found, (int)sm_archived, sm_id);
+    // Not shown is an end as well: who waits for the picker goes on.
+    locEndedRun(locEndedTake());
     return;
   }
 

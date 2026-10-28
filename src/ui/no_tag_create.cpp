@@ -9,8 +9,10 @@
 #include "app/id_spool.h"
 #include "hardware/sd_logger.h"
 #include "services/label_printer.h"
+#include "services/location_state.h"
 #include "services/no_tag_create_rules.h"
 #include "ui/main_screen_helpers.h"
+#include "ui/more_info_screen.h"
 #include "ui/navigation.h"
 #include "ui/spool_flow.h"
 #include "ui/spool_flow_internal.h"
@@ -63,15 +65,18 @@ const char* noTagEntryTitle() {
 //  The end of a create
 // ------------------------------------------------------------
 
-// The question for a label, after the create. The ending below only arms it;
-// the card and its answers follow the ending.
+// After the create: the location picker, then the question for a label. The
+// ending below only arms the picker; the picker, the card and its answers
+// follow the ending.
 enum LabelAnswer : uint8_t { LA_NONE = 0, LA_PRINT, LA_NO };
 
 static lv_obj_t*   s_card     = nullptr;    // the scrim with the box on it
 static int         s_card_for = 0;          // the spool the card asks about
 static LabelAnswer s_answer   = LA_NONE;    // parked by a button, taken by the tick
-static int         s_ask_for  = 0;          // armed by the ending: ask for this spool, 0: none
+static int         s_ask_for  = 0;          // armed when the picker ended: ask for this spool, 0: none
 static bool        s_ask_wait = false;      // the card is built a pass after it was armed
+static int         s_loc_for  = 0;          // armed by the ending: the picker for this spool, 0: none
+static bool        s_loc_wait = false;      // the picker is asked for a pass after it was armed
 static bool        s_chip_hint = false;     // the status line holds the Bambu chip hint
 
 // Whether the spool is the one on the screen, by its number and with no tag
@@ -116,10 +121,11 @@ void noTagCreateFinish(int new_spool_id, const char* vendor) {
   noTagModeSet(false);
   // Only when the new spool is on the screen after all: idSpoolAdopt() does
   // not take it over while a tag is on the pad, and it may not have loaded.
-  s_ask_for  = (sm_found && sm_id == new_spool_id && labelPrinterReadiness() == LP_OK) ? new_spool_id : 0;
-  s_ask_wait = s_ask_for != 0;
-  logSDf("NoTag: spool %d created, shown by its number (%s), label question %s",
-         new_spool_id, bambu ? "Bambu note" : "plain note", s_ask_for ? "armed" : "not asked");
+  // Then neither the picker nor the question for a label comes.
+  s_loc_for  = (sm_found && sm_id == new_spool_id) ? new_spool_id : 0;
+  s_loc_wait = s_loc_for != 0;
+  logSDf("NoTag: spool %d created, shown by its number (%s), location picker %s",
+         new_spool_id, bambu ? "Bambu note" : "plain note", s_loc_for ? "armed" : "not asked");
 }
 
 // Wurzel: the status line holds one text and has no queue, and both callers
@@ -165,6 +171,10 @@ void closeNoTagLabelAsk() {
   s_answer   = LA_NONE;
   s_ask_for  = 0;
   s_ask_wait = false;
+  // A picker armed and not yet asked for belongs to the same main screen. One
+  // already asked for is the picker's own (requestLocationPickerThen()).
+  s_loc_for  = 0;
+  s_loc_wait = false;
 }
 
 // One answer: "Print" in the house green, "No" quiet, as the other questions.
@@ -233,18 +243,59 @@ static void buildAsk(int spool_id) {
   logSDf("NoTag: label question up for spool %d", spool_id);
 }
 
+// The picker has ended by itself, after its own way back to the main screen:
+// now the question for a label, under its own rules below. The label reads
+// the location off the screen, so it carries the one just chosen.
+static void locationPickerEnded(int spool_id) {
+  s_ask_for  = (shownStill(spool_id) && labelPrinterReadiness() == LP_OK) ? spool_id : 0;
+  s_ask_wait = s_ask_for != 0;
+  logSDf("NoTag: location picker for spool %d ended, label question %s",
+         spool_id, s_ask_for ? "armed" : "not asked");
+}
+
+// Wurzel (V39): a spool made without a tag was never asked where it is
+// stored. The picker opens unasked only when a tag is lifted ("location on
+// removal", and only with a load cell), and this spool has no tag; the label
+// asked for right after the create went out without the shelf, or with the
+// template's for a copy.
+// Fix: the ending arms the picker for the new spool, whatever that setting
+// and the load cell say; a pass after it this opens the list of "More info"
+// -> "Location" (the choice and the lists were released in the ending's
+// pass), for the spool that is still the one on the screen, marked as asked
+// so that the removal does not ask it again. The question for a label is
+// armed only from locationPickerEnded(); closed without a choice, the
+// location stays as it is (a copy's is the template's).
+// NOT-TO-DO: arming the question at the ending and holding it while the
+// picker stands: the picker's way out is showMainScreen(), whose
+// hideAllOverlays() calls closeNoTagLabelAsk(), so the question would be gone.
+// Keeping it through that would let it come over a screen a navigation opened.
+// See test_no_tag_location.py.
+static void askLocation() {
+  if (s_loc_wait) { s_loc_wait = false; return; }
+  const int id = s_loc_for;
+  s_loc_for = 0;
+  if (!shownStill(id)) {
+    logSDf("NoTag: location picker for spool %d not opened, the screen changed", id);
+    return;
+  }
+  g_loc_popup_shown_for_id = id;
+  logSDf("NoTag: location picker for spool %d", id);
+  requestLocationPickerThen(id, locationPickerEnded);
+}
+
 // Wurzel: the question is about the spool that was just made, and a label is
 // printed "for the screen". A tag laid on while the card stands, or any other
 // spool that takes the screen, would turn "Print" into the label of something
 // else.
 // Fix: the card lives only while the new spool is the one shown by its number,
 // and the answer is checked against the screen again when it is carried out.
-// The card is built a pass after the ending, not in it: the choice and the
-// lists were released in that pass and the pool takes them back only after
-// LVGL has run (print_sheet.cpp and confirm_popup.cpp wait a pass the same way).
+// The card is built a pass after it was armed, not in that pass: what the
+// picker's way back released there goes back to the pool only after LVGL has
+// run (print_sheet.cpp and confirm_popup.cpp wait a pass the same way). While
+// the picker is armed and not yet asked for, the question waits behind it.
 // NOT-TO-DO: printing in the button's callback, or on the answer without
 // asking the screen again: the tap can be a pass old.
-// See test_no_tag_finish.py.
+// See test_no_tag_finish.py and test_no_tag_location.py.
 void noTagLabelAskTick() {
   if (s_card) {
     const LabelAnswer answer = s_answer;
@@ -259,6 +310,7 @@ void noTagLabelAskTick() {
     }
     return;
   }
+  if (s_loc_for) { askLocation(); return; }
   if (!s_ask_for) return;
   if (s_ask_wait) { s_ask_wait = false; return; }
   const int id = s_ask_for;

@@ -6,6 +6,14 @@ void requestLocationPicker(bool from_popup);
 // picker for an archived spool too: tapped, the location is asked for. The
 // automatic offers call requestLocationPicker() and leave archived spools out.
 void tapLocationButton(bool from_popup);
+// The picker as requestLocationPicker(true) asks for it (its ways out go to the
+// main screen, with Cancel and its countdown), for a caller that waits for its
+// end: ended(spool_id) runs once when it ended by itself - a row or "no
+// location" chosen, the X, Cancel, the countdown, or not shown at all - after
+// its own way back to the main screen. Not when a navigation took it down
+// (hideAllOverlays()) or another request replaced it. Only flags; ended runs
+// from the loop.
+void requestLocationPickerThen(int spool_id, void (*ended)(int spool_id));
 void handleMoreInfoDeferredActions();
 
 // Both More Info pickers, released from hideAllOverlays(). Without this a
