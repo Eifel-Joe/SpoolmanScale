@@ -43,15 +43,20 @@ int main() {
   assert(!(e & bit(LF_BRAND)));
   assert(!(e & bit(LF_FREE_TEXT)));
 
-  // The colour as RGB (w04): empty with no colour and for a clear filament,
-  // whose 00000000 names no hue; a hue fills it. The colour line itself
-  // prints the clear one all the same.
+  // The colour as RGB (w04): empty with no colour and for a clear filament
+  // (alpha 00, 00000000 or a hue with alpha 00); a colour fills it, a
+  // translucent one too. The colour line itself prints the clear one all
+  // the same.
   assert(e & bit(LF_COLOR_RGB));
   SpoolLabelData clear = full;
   snprintf(clear.color, sizeof(clear.color), "00000000");
   assert(labelEmptyFields(clear, 0) == bit(LF_COLOR_RGB));
+  snprintf(clear.color, sizeof(clear.color), "F2F2E800");
+  assert(labelEmptyFields(clear, 0) == bit(LF_COLOR_RGB));
   SpoolLabelData hue = full;
   snprintf(hue.color, sizeof(hue.color), "F2F2E8");
+  assert(labelEmptyFields(hue, 0) == 0);
+  snprintf(hue.color, sizeof(hue.color), "F2F2E880");
   assert(labelEmptyFields(hue, 0) == 0);
   SpoolLabelData blank = full;
   blank.color[0] = '\0';

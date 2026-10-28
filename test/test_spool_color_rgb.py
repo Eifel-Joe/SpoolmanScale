@@ -1,4 +1,4 @@
-"""Compile the production spool colour helpers and check the colour as RGB for the label (w04): "242, 242, 232" from six or eight hex digits, a '#' in front and any case welcome, the alpha of eight digits dropped; nothing for no colour, a text that is no hex colour, a filament that lets light through (clear or translucent, spoolColorSeeThrough()) or a buffer too small, and the buffer is then empty (services/spool_color.h)."""
+"""Compile the production spool colour helpers and check the colour as RGB for the label (w04): "242, 242, 232" from six or eight hex digits, a '#' in front and any case welcome, the alpha of eight digits dropped, a translucent filament's too; nothing for no colour, a text that is no hex colour, a clear filament (alpha 00, SPOOL_ALPHA_CLEAR: it has no colour of its own) or a buffer too small, and the buffer is then empty (services/spool_color.h)."""
 import subprocess
 import tempfile
 from pathlib import Path
@@ -33,10 +33,12 @@ int main() {
   assert(spoolColorRgbText("#f2F2e8", t, sizeof t) && strcmp(t, "242, 242, 232") == 0);
   assert(spoolColorRgbText("#F2F2E8FF", t, sizeof t) && strcmp(t, "242, 242, 232") == 0);
   assert(spoolColorRgbText("0A141E", t, sizeof t) && strcmp(t, "10, 20, 30") == 0);
-  // Translucent lets light through as well (spoolColorSeeThrough()): the RGB
-  // of a tint is not the colour of the spool.
+  // Translucent is still a colour: its first six digits, whatever the alpha
+  // as long as it is not 00. Only a clear filament (alpha 00) has none.
+  assert(spoolColorRgbText("F2F2E880", t, sizeof t) && strcmp(t, "242, 242, 232") == 0);
+  assert(spoolColorRgbText("#F2F2E801", t, sizeof t) && strcmp(t, "242, 242, 232") == 0);
   stale(t);
-  assert(!spoolColorRgbText("F2F2E880", t, sizeof t) && t[0] == 0);
+  assert(!spoolColorRgbText("#F2F2E800", t, sizeof t) && t[0] == 0);
   // Every refusal leaves the buffer empty.
   stale(t);
   assert(!spoolColorRgbText("", t, sizeof t) && t[0] == 0);
