@@ -78,8 +78,11 @@ static WpView s_v = {};
 // confirmQueueWeight() for the AMS note would still carry them.
 static float s_gross_g = 0.0f;
 // "Weighed in the bag", off every time the popup opens: a spool in use is
-// weighed bare almost always (Nikolai, 26.10.2026).
+// weighed bare almost always (Nikolai, 26.10.2026). Fork: not on the way back
+// from the parts chooser, see wpReopenAfterParts().
 static bool  s_bag_on  = false;
+// The spool the parts chooser was opened for from the chip.
+static int   s_parts_for = 0;
 
 static float bagG() { return s_bag_on ? bag_weight_g : 0.0f; }
 
@@ -265,9 +268,11 @@ static void wpPrimaryClicked(lv_event_t *e) {
 // the reading, a tap to change it. Only once any are set up in the web
 // settings. It stands beside both header lines, 44 px high to be hit, so the
 // first line and the difference make room for it rather than run under it.
-// The chooser opens the popup again on its way out, through showWeightPopup()
-// and so with a fresh reading that takes the new choice off. Returns the
-// width the header lines give up, 0 without the chip.
+// The chooser opens the popup again on its way out, through
+// wpReopenAfterParts(): a fresh reading that takes the new choice off, the
+// bag switch as it was. Returns the width the header lines give up, 0
+// without the chip.
+static void wpReopenAfterParts();
 static int wpBuildPartsChip(lv_obj_t *box) {
   if (!spoolExtrasAny()) return 0;
   lv_obj_t *chip = lv_btn_create(box);
@@ -283,8 +288,9 @@ static int wpBuildPartsChip(lv_obj_t *box) {
   lv_obj_center(wpLabel(chip, buf, UI_FONT_SMALL, UI_COL_INK_2));
   lv_obj_add_event_cb(chip, [](lv_event_t *e) {
     logSD("UI: weight popup -> parts");
+    s_parts_for = sm_id;
     closeWeightPopups();
-    showExtrasChooser(showWeightPopup);
+    showExtrasChooser(wpReopenAfterParts);
   }, LV_EVENT_CLICKED, NULL);
   return WP_CHIP_W + WP_GAP;
 }
@@ -390,6 +396,21 @@ static void wpOpenLevel1(bool fresh) {
 void showWeightPopup() {
   logSDf("SHOW: WeightPopup (spool %d, %.0f g on the pad)", sm_id, scale_weight_g);
   wpOpenLevel1(true);
+}
+
+// Fork. Wurzel: the chooser came back through showWeightPopup(), a fresh
+// open that turns the bag switch off: bag on, chip, back, and the large
+// button carried the bag weight again with nothing on screen to say why.
+// Fix: this way back reads the pad again, so the new parts come off, and
+// keeps the switch; another spool on the screen by now gets a fresh open.
+// NOT-TO-DO: keeping the switch on every open: the original turns it off for
+// each new look at a spool on purpose (see s_bag_on).
+// See test_weight_popup.py.
+static void wpReopenAfterParts() {
+  if (sm_id != s_parts_for) { showWeightPopup(); return; }
+  logSDf("SHOW: WeightPopup after the parts (spool %d, bag %s)", sm_id, s_bag_on ? "on" : "off");
+  s_gross_g = spoolExtrasBareReading();
+  wpOpenLevel1(false);
 }
 
 // ---------------------------------------------------------------------------
