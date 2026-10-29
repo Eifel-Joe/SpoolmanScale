@@ -162,6 +162,7 @@ assert without_logs(body).endswith(arming), \
     f"{where}: must arm the question for a label for a spool still on the screen with a printer ready, and nothing else"
 head = without_logs(body)[:-len(arming)]
 assert "s_ask" not in head and "s_loc_for" not in head, f"{where}: the run's hand-over touches the questions"
+assert "return" not in head, f"{where}: the run's hand-over can leave before the question is armed"
 assert "logSD" in body, f"{where}: the end of the picker is not in the log"
 arms = [a for a in re.findall(r"s_ask_for=([^;=][^;]*);", core) if a != "0"]
 assert arms == [squeeze("(shownStill(spool_id) && labelPrinterReadiness() == LP_OK) ? spool_id : 0")], \

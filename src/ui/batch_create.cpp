@@ -393,9 +393,19 @@ void batchLabelsStart(LabelKind kind, int from) {
   const int sheet_for = s_lr_first;
   labelsIdle();
   SpoolLabelData d{};
+  const bool shown = labelSpoolFromScan(&d);
+  // The sheet printed its label, and the screen has another spool since (a
+  // tag laid on): the rest of the sheet's run gets none, said like any stop.
+  if (sheet && (!shown || d.id != sheet_for)) {
+    const int* rest = nullptr;
+    const int rn = batchRunOf(sheet_for, &rest);
+    logSDf("Batch: spool %d left the screen with the print sheet, its run stops", sheet_for);
+    if (rn > 1) runLeftOut(rest, 1, rn, STR_BATCH_LABELS_MISSING, "no label for");
+    return;
+  }
   const int* ids = nullptr;
-  const int n = labelSpoolFromScan(&d) ? batchRunOf(d.id, &ids) : 0;
-  if (n < 2 || from >= n || (sheet && d.id != sheet_for)) {
+  const int n = shown ? batchRunOf(d.id, &ids) : 0;
+  if (n < 2 || from >= n) {
     logSDf("Batch: labels not started, spool %d on the screen heads no run (%d)", d.id, n);
     return;
   }
@@ -424,6 +434,16 @@ void batchLabelsStart(LabelKind kind, int from) {
 // in the print. A result other than printed or sent stops the rest: the next
 // would meet the same printer, and a card per label waiting for OK would ask
 // the same thing again and again.
+// Wurzel, the reply: a Brother may answer in the 10 s after its "sent"
+// (brotherReplyTick() in printer_screen.cpp), which turns that label's kept
+// verdict into the reply and opens a card of its own that waits for OK. The
+// run waited for that card and then sent the next label into a printer that
+// had just reported something, and called itself done in the pass of its last
+// label, before a reply to it could come.
+// Fix: once the card is gone, the verdict of the label before
+// (printerLastLabelResult()) is asked again, the sheet's first included; one
+// that is no longer printed or sent stops the rest like a failed print. The
+// run ends only in that pass, after its last label's card.
 // NOT-TO-DO: reading the screen again for each label: a tag laid on during
 // the run takes the screen, and the labels left would carry its spool.
 // See test_batch_flow.py (after the run).
@@ -438,7 +458,17 @@ void batchLabelsTick() {
   if (s_lr != LR_RUN || printCardOpen()) return;
   const int* ids = nullptr;
   const int n = batchRunOf(s_lr_first, &ids);
-  if (s_lr_next >= n) { labelsIdle(); return; }
+  if (s_lr_next > 0 && !labelWentOut(printerLastLabelResult())) {
+    logSDf("Batch: the printer answered after label %d of %d, the run stops", s_lr_next, n);
+    labelsIdle();
+    if (s_lr_next < n) runLeftOut(ids, s_lr_next, n, STR_BATCH_LABELS_MISSING, "no label for");
+    return;
+  }
+  if (s_lr_next >= n) {
+    labelsIdle();
+    logSDf("Batch: all %d labels of the run of spool %d out", n, s_lr_first);
+    return;
+  }
   s_lr_data.id = ids[s_lr_next];
   printCardSetStep(s_lr_next + 1, n);
   const LabelPrintResult r = printerPrintSpoolData(s_lr_data, s_lr_kind);
@@ -449,10 +479,7 @@ void batchLabelsTick() {
     runLeftOut(ids, s_lr_next, n, STR_BATCH_LABELS_MISSING, "no label for");
     return;
   }
-  if (++s_lr_next >= n) {
-    labelsIdle();
-    logSDf("Batch: all %d labels of the run of spool %d out", n, s_lr_first);
-  }
+  s_lr_next++;
 }
 
 void batchLabelsForget() {

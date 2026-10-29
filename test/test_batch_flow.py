@@ -746,17 +746,34 @@ def part_end():
     in_order(body, ["constboolsheet=from>0;", "if(sheet&&s_lr!=LR_SHEET)return;", "labelSpoolFromScan(&d)",
                     "batchRunOf(d.id,&ids)", "if(sheet&&!labelWentOut(printerLastLabelResult())){",
                     'runLeftOut(ids,0,n,STR_BATCH_LABELS_MISSING,"");', "s_lr_data=d;", "s_lr_next=from;", "s_lr=LR_RUN;"], where)
+    # After the sheet's print the screen no longer shows the run's first spool:
+    # the rest is dropped and said in yellow like every other stop, before the
+    # run of the spool now shown is asked for.
+    left, _ = block_after(body, "if (sheet && (!shown || d.id != sheet_for)) {", where)
+    in_order(left, ["batchRunOf(sheet_for,&rest)", 'if(rn>1)runLeftOut(rest,1,rn,STR_BATCH_LABELS_MISSING,"");',
+                    "return;"], where + ": the sheet's spool left the screen")
+    assert body.find("if(sheet&&(!shown||d.id!=sheet_for)){") < body.find("batchRunOf(d.id,&ids)"),         f"{where}: the run of the spool now shown is asked before the sheet's spool is checked"
     assert body_of(BATCH, "labelWentOut") == squeeze(
         "return text == labelPrintResultString(LP_OK) || text == labelPrintResultString(LP_NET_SENT);"), \
         f"src/{BATCH}: labelWentOut() is not 'printed or sent' as the print's own verdict text"
     where = f"src/{BATCH}: batchLabelsTick()"
     body = body_of(BATCH, "batchLabelsTick")
     in_order(body, ["if(s_lr==LR_SHEET){", "if(!show_print_sheet_pending&&!printSheetOpen()){", "labelsIdle();",
-                    "return;}", "if(s_lr!=LR_RUN||printCardOpen())return;", "s_lr_data.id=ids[s_lr_next];",
+                    "return;}", "if(s_lr!=LR_RUN||printCardOpen())return;",
+                    "if(s_lr_next>0&&!labelWentOut(printerLastLabelResult())){", "labelsIdle();",
+                    'if(s_lr_next<n)runLeftOut(ids,s_lr_next,n,STR_BATCH_LABELS_MISSING,"");', "return;}",
+                    "if(s_lr_next>=n){", "labelsIdle();", "return;}", "s_lr_data.id=ids[s_lr_next];",
                     "printCardSetStep(s_lr_next+1,n);",
                     "constLabelPrintResultr=printerPrintSpoolData(s_lr_data,s_lr_kind);", "printCardSetStep(0,0);",
                     "if(r!=LP_OK&&r!=LP_NET_SENT){", "labelsIdle();", 'runLeftOut(ids,s_lr_next,n,STR_BATCH_LABELS_MISSING,"");', "return;}",
-                    "if(++s_lr_next>=n)"], where)
+                    "s_lr_next++;"], where)
+    # A Brother's reply after a label of the run (its card waits for OK, and
+    # the label's kept verdict becomes the reply) stops the run as a failed
+    # print does: once that card has closed the verdict of the label before is
+    # asked, the sheet's included, and only then is the run called done. No
+    # label is counted done in the pass it was sent.
+    tail = body[body.find("constLabelPrintResultr=printerPrintSpoolData("):]
+    assert "labelsIdle();" not in tail[tail.find("return;}") + len("return;}"):],         f"{where}: the run ends in the pass of its last label, before a reply to it could be seen"
     assert body.count("printerPrintSpoolData(") == 1 and code_of(BATCH).count("printerPrintSpoolData(") == 1, \
         f"src/{BATCH}: a label is printed elsewhere than in the tick"
     # Both leave-outs, the location's and the labels', say which spools in one

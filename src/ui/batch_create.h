@@ -141,8 +141,9 @@ void batchLabelsAfterSheet(int first_id);
 void batchLabelsStart(LabelKind kind, int from);
 
 // From the loop, once a pass: the next label once the print card of the one
-// before has closed; a result other than printed or sent stops the rest,
-// whose numbers go to the status line in yellow.
+// before has closed; a result other than printed or sent, or a printer's reply
+// to the label before, stops the rest, whose numbers go to the status line in
+// yellow. The run is over once its last label's card has closed.
 void batchLabelsTick();
 
 // Drops the labels still to come (the sheet closed without its print).
