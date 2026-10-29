@@ -261,6 +261,44 @@ int main() {
   assert(!spoolTypeNameTaken(cat, 7, "Tinmorry grey Spool 2"));
   assert(!spoolTypeNameTaken(cat, 7, ""));
 
+  // The same name with an umlaut or an accent is taken in any case (V43): the
+  // keyboards type capitals of them, and the fold is the one of the search
+  // and of "Enter filament" (textFoldNext()). One name per list, so that each
+  // line below stands on its own: capital stored and small typed, the other
+  // way round, an accent, the blanks around still not counting. The escapes
+  // are cut into pieces so that a hex digit of the word cannot join one.
+  const SpoolType capsU[1]  = {{"Pappspule Gr\xC3\x9C" "n", 120}};   // capital U umlaut
+  const SpoolType lowU[1]   = {{"Pappspule gr\xC3\xBC" "n", 121}};   // small u umlaut
+  const SpoolType accent[1] = {{"\xC3\x89" "cole Spule", 122}};      // capital E acute
+  const SpoolType sharp[1]  = {{"Spule Gro\xC3\x9F", 123}};          // the sharp s has no capital here
+  assert(spoolTypeNameTaken(capsU, 1, "Pappspule gr\xC3\xBC" "n"));
+  assert(spoolTypeNameTaken(capsU, 1, "PAPPSPULE GR\xC3\x9C" "N"));
+  assert(spoolTypeNameTaken(capsU, 1, "  pappspule GR\xC3\xBC" "n "));
+  assert(spoolTypeNameTaken(lowU, 1, "Pappspule Gr\xC3\x9C" "n"));
+  assert(spoolTypeNameTaken(lowU, 1, "pappspule gr\xC3\xBC" "N"));
+  assert(spoolTypeNameTaken(accent, 1, "\xC3\xA9" "cole spule"));
+  assert(spoolTypeNameTaken(sharp, 1, "spule gro\xC3\x9F"));
+  // Another letter stays another name: the u is not the u umlaut, a longer or
+  // shorter name is another one, and the sharp s is no "ss".
+  assert(!spoolTypeNameTaken(capsU, 1, "Pappspule Grun"));
+  assert(!spoolTypeNameTaken(lowU, 1, "Pappspule Grun"));
+  assert(!spoolTypeNameTaken(capsU, 1, "Pappspule gr\xC3\xBC" "ne"));
+  assert(!spoolTypeNameTaken(capsU, 1, "Pappspule gr\xC3\xBC"));
+  assert(!spoolTypeNameTaken(sharp, 1, "Spule Gross"));
+  // The multiplication sign (U+00D7) and the division sign (U+00F7) are not a
+  // capital and its small letter.
+  const SpoolType signs[1] = {{"Spule \xC3\x97", 124}};
+  assert(spoolTypeNameTaken(signs, 1, "spule \xC3\x97"));
+  assert(!spoolTypeNameTaken(signs, 1, "Spule \xC3\xB7"));
+
+  // The types of a vendor are told apart the same way: the vendor in capitals,
+  // the type name in small ones, and the prefix still ends at a word.
+  assert(spoolTypeOfVendor("\xC3\x84" "rger Pappe", "\xC3\xA4" "rger"));
+  assert(spoolTypeOfVendor("\xC3\xA4" "rger - Pappe", "\xC3\x84" "RGER"));
+  assert(spoolTypeOfVendor("\xC3\xA4" "rger", "\xC3\x84" "rger"));
+  assert(!spoolTypeOfVendor("\xC3\x84" "rgerlich Pappe", "\xC3\xA4" "rger"));
+  assert(!spoolTypeOfVendor("Arger Pappe", "\xC3\xA4" "rger"));
+
   // Whole grams, rounded; not a number and negative are 0.
   assert(spoolTypeGrams(199.5f) == 200);
   assert(spoolTypeGrams(199.4f) == 199);
@@ -308,6 +346,7 @@ with tempfile.TemporaryDirectory() as tmp:
     binary = Path(tmp) / "t"
     cpp.write_text(source, encoding="utf-8")
     subprocess.run(["c++", "-std=c++17", "-Wall", "-Wextra", "-Werror", "-I", str(root / "src"),
-                    str(cpp), str(root / "src" / "services" / "spool_type_rules.cpp"), "-o", str(binary)], check=True)
+                    str(cpp), str(root / "src" / "services" / "spool_type_rules.cpp"),
+                    str(root / "src" / "services" / "text_fold.cpp"), "-o", str(binary)], check=True)
     subprocess.run([str(binary)], check=True)
 print("spool type rules: ok")

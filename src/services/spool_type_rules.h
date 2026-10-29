@@ -73,8 +73,9 @@ struct SpoolType {
 // list. STA_LIST: nothing can be read off this spool, show the list.
 enum SpoolTypeAsk : unsigned char { STA_NONE = 0, STA_SUGGEST, STA_IMPLAUSIBLE, STA_LIST };
 
-// True when the type name begins with the vendor, in any case (ASCII only)
-// and with the blanks around both ignored, and the vendor ends where a word
+// True when the type name begins with the vendor, in any case (the fold of
+// textFoldNext(), umlauts and accents included, V43) and with the blanks
+// around both ignored, and the vendor ends where a word
 // ends in the name: at its end, at a blank or at a dash. "Tin" is not
 // "Tinmorry". Nothing belongs to an empty vendor, and a null name or vendor
 // is no match. The name is read up to SPOOL_TYPE_NAME_MAX bytes.
@@ -183,8 +184,9 @@ bool spoolTypeTagAsk(bool bambu_tag, bool bambuddy, float bare, int type_g);
 // may be dst. Nothing if dst is null or n is 0.
 void spoolTypeTrimName(char* dst, size_t n, const char* src);
 
-// True when the list has that name, in any case (ASCII only) and with the
-// blanks around either ignored. A longer name is another one; an empty name
+// True when the list has that name, in any case (the fold of textFoldNext(),
+// umlauts and accents included, V43) and with the blanks around either
+// ignored. A longer name is another one; an empty name
 // or a null list is never taken. Names in the list are read up to
 // SPOOL_TYPE_NAME_MAX bytes.
 bool spoolTypeNameTaken(const SpoolType* list, int n, const char* name);

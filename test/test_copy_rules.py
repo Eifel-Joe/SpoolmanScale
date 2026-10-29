@@ -94,6 +94,7 @@ with tempfile.TemporaryDirectory() as tmp:
     cpp.write_text(source, encoding="utf-8")
     subprocess.run(["c++", "-std=c++17", "-Wall", "-Wextra", "-Werror", "-I", str(root / "src"),
                     str(cpp), str(root / "src" / "services" / "copy_rules.cpp"),
-                    str(root / "src" / "services" / "spool_type_rules.cpp"), "-o", str(binary)], check=True)
+                    str(root / "src" / "services" / "spool_type_rules.cpp"),
+                    str(root / "src" / "services" / "text_fold.cpp"), "-o", str(binary)], check=True)
     subprocess.run([str(binary)], check=True)
 print("copy rules: ok")
