@@ -1,4 +1,4 @@
-"""Read the source tree without a compiler and check the sizes the label's fact lines are offered (V45): one candidate list per head, 203 and 300 dpi, the two-line styles as they were and after them the one-line styles in every even print size down to just above the small line (300 dpi: 36 to 26, 203 dpi: 24 to 18); planLarger() leaves the choice to labelFactPick(), compares print sizes and no raw line heights; the log names the size; the one-line sizes are fonts of their own, PRINTED_18 to PRINTED_36, copies that print as themselves on any head, so the table of the finer head and the stroke of boldFor() stay as they are."""
+"""Read the source tree without a compiler and check the sizes the label's fact lines are offered (V45): one candidate list per head, 203 and 300 dpi, ordered by the size the value prints in, from large to small, the two-line style first where two print in the same size (so a label with one line fewer never prints smaller, Joerg 29.10.2026), the one-line styles in every even print size down to what the 14 px small lines of the big-code arrangement leave (300 dpi: 36 to 24, 203 dpi: 24 to 16); planLarger() leaves the choice to labelFactPick(), stops measuring at the first style that passes, compares print sizes and no raw line heights; the log names the size; the one-line sizes are fonts of their own, PRINTED_16 to PRINTED_36, copies that print as themselves on any head, so the table of the finer head and the stroke of boldFor() stay as they are."""
 import re
 import sys
 from pathlib import Path
@@ -53,44 +53,67 @@ def printed(n):
 
 
 # 1. The candidate lists, one per head: value font, caption font, two_lines,
-# print size of the value font. The two-line rows are the ones of today in
-# today's order; behind them the one-line rows in every even print size from
-# the largest one-line style down to just above the small line; the last row
-# is the small lines once more, which only a label without a code may take.
-# On the 300 dpi head a 203 dpi font prints in the next size of FONTS_300,
-# which is why its two-line rows carry 40, 36 and 30 and why the one-line
-# rows are fonts that print as themselves.
+# print size of the value font. The rows are ordered by the size the value
+# prints in, from large to small, and where a two-line and a one-line row
+# print in the same size the two-line one comes first (Joerg 29.10.2026:
+# with two-line rows first, six short lines printed one-line 34 and five of
+# them two-line 30, smaller with one line fewer). The two-line rows are the
+# ones of before; the one-line rows go in every even print size down to what
+# the 14 px small lines of the big-code arrangement leave (300 dpi 24, 203
+# dpi 16). The last row is the small lines once more, which only a label
+# without a code may take. On the 300 dpi head a 203 dpi font prints in the
+# next size of FONTS_300, which is why its two-line rows carry 40, 36 and 30
+# and why the one-line rows are fonts that print as themselves.
 EXPECTED = {
     "FACT_STYLES_203": [
         (ext(28), ext(16), "true", "28"),
         (ext(24), ext(14), "true", "24"),
-        (ext(20), ext(14), "true", "20"),
         (printed(24), ext(14), "false", "24"),
         (printed(22), ext(14), "false", "22"),
+        (ext(20), ext(14), "true", "20"),
         (printed(20), ext(14), "false", "20"),
         (printed(18), ext(14), "false", "18"),
+        (printed(16), ext(14), "false", "16"),
         (ext(16), ext(14), "false", "16"),
     ],
     "FACT_STYLES_300": [
         (ext(28), ext(16), "true", "40"),
         (ext(24), ext(14), "true", "36"),
-        (ext(20), ext(14), "true", "30"),
         (printed(36), ext(14), "false", "36"),
         (printed(34), ext(14), "false", "34"),
         (printed(32), ext(14), "false", "32"),
+        (ext(20), ext(14), "true", "30"),
         (printed(30), ext(14), "false", "30"),
         (printed(28), ext(14), "false", "28"),
         (printed(26), ext(14), "false", "26"),
+        (printed(24), ext(14), "false", "24"),
         (ext(16), ext(14), "false", "24"),
     ],
 }
+
+
+def ordered_by_size(name, rows):
+    """The rule behind the rows, apart from the last one (the no-code row,
+    which may print larger than the row before it): the px never rises from
+    one row to the next, and of two rows with the same px the two-line one
+    stands first."""
+    ranked = rows[:-1]
+    for upper, lower in zip(ranked, ranked[1:]):
+        assert int(lower[3]) <= int(upper[3]), \
+            f"src/{RENDER}: {name} is not ordered by print size: {lower} after {upper}"
+        assert not (int(lower[3]) == int(upper[3]) and lower[2] == "true" and upper[2] == "false"), \
+            f"src/{RENDER}: {name}: of two rows in {upper[3]} px the two-line one comes first: {lower} after {upper}"
+
+
 render_src = source_of(RENDER)
 render = render_src.code
 flat = squeeze(render)
 for name, want in EXPECTED.items():
+    ordered_by_size(name + " (expected)", want)
     table = re.search(r"FactStyle" + name + r"\[\d*\]=\{(.*?)\};", flat)
     assert table, f"src/{RENDER}: no table {name} of FactStyle"
     got = [tuple(row.rstrip(",").split(",")) for row in re.findall(r"\{([^{}]*)\}", table.group(1))]
+    ordered_by_size(name, got)
     assert got == want, \
         f"src/{RENDER}: {name} has not the rows of the ruling (value, caption, two_lines, px):\n" \
         f"  want {want}\n  got  {got}"
@@ -121,6 +144,11 @@ assert not re.search(r"\bline_height\b", plan), \
     f"src/{RENDER}: planLarger() still reads a raw line_height; lineHeight() is the print size"
 assert not re.search(r"\b(?:malloc|calloc|realloc|heap_caps_\w+|new|vector)\b", plan), \
     f"src/{RENDER}: planLarger() takes its candidates from the heap; they live in fixed arrays"
+# Measuring stops at the first style that passes the rule on its own: the
+# ones after it cannot be chosen, and each would encode the QR code once more.
+assert re.search(r"if\(labelFactPick\(&\w+\[\w+-1\],1,\w+\)==0\)break;", squeeze(plan)), \
+    f"src/{RENDER}: planLarger() measures on after the first style that passes " \
+    f"(no `if (labelFactPick(&fits[n - 1], 1, room) == 0) break;`)"
 
 # 6. The log names the size that was chosen: "<px> px lines" for one line
 # larger, "two lines of <px> px" for two lines, "small lines" as before.
@@ -135,11 +163,11 @@ for text in ("px lines", "two lines of", "small lines"):
 assert re.search(r"(?:\.|->)px\b", region), \
     f"src/{RENDER}: the size in the log is not the px of the chosen row"
 
-# 7. The one-line sizes: PRINTED_18 to PRINTED_36, every even size, declared
+# 7. The one-line sizes: PRINTED_16 to PRINTED_36, every even size, declared
 # in label_draw.h inside namespace labeldraw and defined in label_draw.cpp
 # as a copy of the font of that size. A copy has an address of its own, is
 # no key of FONTS_300, and so sized() hands it back as it is.
-sizes = range(18, 37, 2)
+sizes = range(16, 37, 2)
 header = view_of(DRAW_H)
 h_space = header.find("namespace labeldraw")
 assert h_space >= 0, f"src/{DRAW_H}: no namespace labeldraw"
