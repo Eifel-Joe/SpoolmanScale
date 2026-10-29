@@ -149,15 +149,15 @@ void showExtrasChooser(void (*on_close)()) {
   lv_obj_t *cancel = lv_btn_create(box);
   lv_obj_set_size(cancel, BTN_W, FOOT_H);
   lv_obj_set_pos(cancel, EDGE, FOOT_Y);
-  lv_obj_set_style_bg_color(cancel, lv_color_hex(UI_COL_BAD_BG), 0);
-  lv_obj_set_style_bg_color(cancel, lv_color_hex(UI_COL_BAD_BG_PRESSED), LV_STATE_PRESSED);
   lv_obj_set_style_radius(cancel, UI_RADIUS_BTN, 0);
   lv_obj_set_style_shadow_width(cancel, 0, 0);
   lv_obj_t *lc = lv_label_create(cancel);
   lv_label_set_text(lc, T(STR_CANCEL));
-  lv_obj_set_style_text_color(lc, lv_color_hex(UI_COL_BAD_TEXT), 0);
   lv_obj_set_style_text_font(lc, UI_FONT_SMALL, 0);
   lv_obj_center(lc);
+  // The original's way out: red outline and a cross in front. The style sets
+  // the fill and the caption colour itself, once the caption is on the button.
+  styleLeaveButton(cancel);
   lv_obj_add_event_cb(cancel, [](lv_event_t *e) { extrasClose(false); }, LV_EVENT_CLICKED, NULL);
 
   lv_obj_t *ok = lv_btn_create(box);

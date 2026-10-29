@@ -307,10 +307,15 @@ static void stlButton(int x, int y, int w, uint8_t act, const char *text) {
   lv_obj_set_style_shadow_width(b, 0, 0);
   lv_obj_set_style_border_width(b, 0, 0);
   lv_obj_set_style_pad_all(b, 0, 0);
+  // The skip button says what the caller asked for (stlSkipText()). A Cancel,
+  // as the list opened from the tare choice or the full spool has it, leaves
+  // in the original's style, red outline and cross, applied below once the
+  // caption is on it. "Later" and "Without type" are answers, not a leave:
+  // they keep the resting look of a secondary button.
+  const bool leave = act == STL_ACT_SKIP && stlSkipText() == STR_CANCEL;
   if (act == STL_ACT_SKIP) {
-    // The way out, in the resting look of a secondary button.
     lv_obj_set_style_bg_color(b, lv_color_hex(UI_COL_POPUP_BORDER), LV_STATE_PRESSED);
-    uiSecondaryFill(b);
+    if (!leave) uiSecondaryFill(b);
   } else {
     lv_obj_set_style_bg_color(b, lv_color_hex(UI_COL_CHIP), 0);
     lv_obj_set_style_bg_color(b, lv_color_hex(UI_COL_PRESS_FILL), LV_STATE_PRESSED);
@@ -323,6 +328,7 @@ static void stlButton(int x, int y, int w, uint8_t act, const char *text) {
   lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_INK_2), 0);
   lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_center(l);
+  if (leave) styleLeaveButton(b);
   lv_obj_add_event_cb(b, stlButtonCb, LV_EVENT_CLICKED, (void *)(intptr_t)act);
 }
 

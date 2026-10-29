@@ -562,8 +562,10 @@ void showTareChoice() {
   lv_obj_t *cancel = padButton(box, EDGE, Y_CANCEL, grid ? 2 * BTN_W + GAP : BTN_W,
                                UI_TOUCH_MIN, UI_COL_BAD_BG, UI_COL_BAD_BG_PRESSED);
   lv_obj_set_style_radius(cancel, UI_RADIUS_BTN, 0);
-  lv_obj_set_style_border_width(cancel, 0, 0);
   padLabel(cancel, T(STR_CANCEL), UI_COL_BAD_TEXT, UI_FONT_SMALL);
+  // The original's way out: red outline and a cross in front, the fill and
+  // the caption colour are the style's own (the keypad's Cancel above).
+  styleLeaveButton(cancel);
   lv_obj_add_event_cb(cancel, [](lv_event_t *e) { closeSpoolEntry(); }, LV_EVENT_CLICKED, NULL);
 }
 
