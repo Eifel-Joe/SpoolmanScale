@@ -19,7 +19,7 @@
 // ============================================================
 
 // The fonts, from src/fonts/: the large ones are compiled in by their own
-// guard. Only the sizes up to 24 have the French supplement behind them; a
+// guard. Only the sizes up to 24 but 22 have the French supplement behind them; a
 // line the big ones cannot spell drops to 24 where the list has it, else it
 // prints without its accents (services/accent_fold.h). 30 to 48 are what a
 // 300 dpi head prints the others in.
@@ -53,8 +53,9 @@ lv_coord_t lineHeight(const lv_font_t* base);
 // The fonts that print in their own size on any head, for the one-line
 // sizes of the fact lines (V45): sized() hands each back as it is, so the
 // 28 prints as 28 on a 300 dpi head too, where no 203 dpi font prints as 28.
-extern const lv_font_t PRINTED_18, PRINTED_20, PRINTED_22, PRINTED_24, PRINTED_26,
-                       PRINTED_28, PRINTED_30, PRINTED_32, PRINTED_34, PRINTED_36;
+extern const lv_font_t PRINTED_16, PRINTED_18, PRINTED_20, PRINTED_22, PRINTED_24,
+                       PRINTED_26, PRINTED_28, PRINTED_30, PRINTED_32, PRINTED_34,
+                       PRINTED_36;
 // Whether a font, in the size this head prints it, can spell a line as written.
 bool canSpell(const lv_font_t* base, const char* s);
 // The extra stroke a font is drawn with: the small ones one dot wider, by

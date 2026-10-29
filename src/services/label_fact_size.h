@@ -44,10 +44,11 @@ struct LabelFactRoom { int16_t width; int16_t height; int16_t code_min; };
 //   though 28 would have held them whole (Joerg's label, 29.10.2026).
 // Fix: the renderer offers every size it has, in its order, and the first
 //   one that passes all four tests wins.
-// NOT-TO-DO: sorting the candidates by size here. The order is the
-//   renderer's: the two-line styles come first, as before V45, and a label
-//   that prints two lines today must go on doing so. Nor taking a width of 0
-//   as a fit: it is how a letter the font cannot spell is measured, and only
-//   `spells` says so.
+// NOT-TO-DO: choosing among the passing candidates here, or sorting them.
+//   The order is the renderer's: by the size the value prints in, large to
+//   small, the two-line form first on equal size, so that a label with one
+//   line fewer never prints smaller (Joerg 29.10.2026); the rule knows no
+//   print sizes. Nor taking a width of 0 as a fit: it is how a letter the
+//   font cannot spell is measured, and only `spells` says so.
 // See test_label_fact_size.py.
 int labelFactPick(const LabelFactFit* fits, int n, const LabelFactRoom& room);

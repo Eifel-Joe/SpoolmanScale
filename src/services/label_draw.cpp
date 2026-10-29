@@ -82,6 +82,7 @@ lv_coord_t lineHeight(const lv_font_t* base) { return sized(base)->line_height; 
 //   compressed font (no umlauts), or a switch that turns sized() off (it
 //   holds for everything drawn until the next label).
 // See test_label_fact_styles.py.
+const lv_font_t PRINTED_16 = lv_font_montserrat_ext_16;
 const lv_font_t PRINTED_18 = lv_font_montserrat_ext_18;
 const lv_font_t PRINTED_20 = lv_font_montserrat_ext_20;
 const lv_font_t PRINTED_22 = lv_font_montserrat_ext_22;

@@ -44,7 +44,7 @@ using namespace labeldraw;
 #define LR_QR_MIN_PX      64
 #define LR_WRAP_ROWS       4    // what a wrapped paragraph is sized for
 #define LR_QR_GOOD_PX     96    // under this, smaller fact lines buy code size
-#define LR_FACT_STYLES_MAX 10   // the most styles a head's list may have
+#define LR_FACT_STYLES_MAX 11   // the most styles a head's list may have
 #define LR_FACTS_LOG_LEN  24    // "two lines of 40 px" and its end, with room
 // The calibration page's ruler, in dots from the top of the label.
 #define LC_NUM_Y          12    // the numbers' row, and the top of their ticks
@@ -297,47 +297,55 @@ static void drawOneLine(lv_obj_t* canvas, const LabelArea& a, const LabelContent
   }
 }
 
-// The larger sizes for the facts, tried in this order: two lines each (the
-// caption small, the value large under it), then one line in a larger font.
-// A fact with no value, the project name, stays in the small font. The
-// largest is for the tall sizes only; on the base size no fact outgrows the
-// filament's name. `px` is the size the value prints in on the list's head.
+// The larger sizes for the facts, tried in this order: by the size the
+// value prints in, from large to small, either two lines each (the caption
+// small, the value large under it) or one line, the two-line form first
+// where both print in the same size. A fact with no value, the project
+// name, stays in the small font. The largest is for the tall sizes only; on
+// the base size no fact outgrows the filament's name. `px` is the size the
+// value prints in on the list's head.
 // Root: one list for both heads named the one-line sizes by 203 dpi fonts,
 //   24 and 20. A 300 dpi head prints those as 36 and 30, and below 30 came
 //   the small lines (24): six facts two dots too wide for 30 fell to them,
-//   where 28 would have held them whole (V45).
-// Fix: a list per head. The two-line rows are the ones of before, in their
-//   order; after them one line in every even print size, from the largest
-//   one-line size down to just above the small lines, in the PRINTED_ fonts
-//   that print as themselves (label_draw.h). The last row is the small lines
-//   once more, for a label without a code only: in two columns they hold
-//   what one column would push off the label.
+//   where 28 would have held them whole (V45). With the two-line rows all
+//   first, six short lines printed one-line 34 and five of them two-line
+//   30: smaller with one line fewer.
+// Fix: a list per head, ordered by print size (Joerg 29.10.2026: one line
+//   fewer never prints smaller). The two-line rows are the ones of before;
+//   one line goes in every even print size from the largest one-line size
+//   down to what the big-code arrangement's 14 px small lines leave, in the
+//   PRINTED_ fonts that print as themselves (label_draw.h). The usual small
+//   lines are larger, and planLarger() skips what is not. The last row is
+//   the small lines once more, for a label without a code only: in two
+//   columns they hold what one column would push off the label.
 // NOT-TO-DO: one list of 203 dpi fonts for both heads. On a 300 dpi head
 //   they print 1.48 times their size, so 26, 28 and 34 cannot be named and
-//   the 28 prints as 40. Nor new two-line rows: a label that prints two
-//   lines keeps the size it had.
+//   the 28 prints as 40. Nor all two-line rows first: they read well, but a
+//   label with one line fewer then fell from one-line 34 to two-line 30.
 // See test_label_fact_styles.py.
 struct FactStyle { const lv_font_t* value; const lv_font_t* caption; bool two_lines; uint8_t px; };
 static const FactStyle FACT_STYLES_203[] = {
   { &lv_font_montserrat_ext_28, &lv_font_montserrat_ext_16, true, 28 },
   { &lv_font_montserrat_ext_24, &lv_font_montserrat_ext_14, true, 24 },
-  { &lv_font_montserrat_ext_20, &lv_font_montserrat_ext_14, true, 20 },
   { &PRINTED_24, &lv_font_montserrat_ext_14, false, 24 },
   { &PRINTED_22, &lv_font_montserrat_ext_14, false, 22 },
+  { &lv_font_montserrat_ext_20, &lv_font_montserrat_ext_14, true, 20 },
   { &PRINTED_20, &lv_font_montserrat_ext_14, false, 20 },
   { &PRINTED_18, &lv_font_montserrat_ext_14, false, 18 },
+  { &PRINTED_16, &lv_font_montserrat_ext_14, false, 16 },
   { &lv_font_montserrat_ext_16, &lv_font_montserrat_ext_14, false, 16 },   // no code only, last
 };
 static const FactStyle FACT_STYLES_300[] = {
   { &lv_font_montserrat_ext_28, &lv_font_montserrat_ext_16, true, 40 },
   { &lv_font_montserrat_ext_24, &lv_font_montserrat_ext_14, true, 36 },
-  { &lv_font_montserrat_ext_20, &lv_font_montserrat_ext_14, true, 30 },
   { &PRINTED_36, &lv_font_montserrat_ext_14, false, 36 },
   { &PRINTED_34, &lv_font_montserrat_ext_14, false, 34 },
   { &PRINTED_32, &lv_font_montserrat_ext_14, false, 32 },
+  { &lv_font_montserrat_ext_20, &lv_font_montserrat_ext_14, true, 30 },
   { &PRINTED_30, &lv_font_montserrat_ext_14, false, 30 },
   { &PRINTED_28, &lv_font_montserrat_ext_14, false, 28 },
   { &PRINTED_26, &lv_font_montserrat_ext_14, false, 26 },
+  { &PRINTED_24, &lv_font_montserrat_ext_14, false, 24 },
   { &lv_font_montserrat_ext_16, &lv_font_montserrat_ext_14, false, 24 },   // no code only, last
 };
 static_assert(sizeof(FACT_STYLES_203) / sizeof(FACT_STYLES_203[0]) <= LR_FACT_STYLES_MAX,
@@ -415,15 +423,19 @@ static lv_coord_t factsWidth(const LabelContent& c, const FactStyle& s) {
 //   no code, two columns: the width both take side by side, 2 w + gap (that
 //   is within a.w exactly when w is within columnWidth()), the taller column,
 //   no code. Else one column, its code measured only where the style spells
-//   and fits; 0 for the others, which cannot win anyway.
-// NOT-TO-DO: measuring the code for every style: each measurement encodes
-//   the QR code once more. Nor sorting by size: the two-line styles come
-//   first, as before V45.
+//   and fits; 0 for the others, which cannot win anyway. Measuring stops at
+//   the first style the rule passes on its own: none after it can be
+//   chosen, so the code is encoded about once per pass, as before V45.
+// NOT-TO-DO: measuring every style before asking the rule: each code
+//   measured encodes the QR code once more, for styles that cannot win.
+//   Nor reordering here: the list is by print size, two lines first on
+//   equal size (Joerg 29.10.2026: one line fewer never prints smaller).
 // See test_label_fact_styles.py and test_label_fact_size.py.
 static bool planLarger(const LabelArea& a, bool tall, const LabelContent& c,
                        const BodyPlan& one, FactsPlan* out) {
   if (c.wrap || !c.facts || c.n == 0) return false;
   const lv_coord_t avail_h = a.bottom - a.y;
+  const LabelFactRoom room{ (int16_t)a.w, (int16_t)avail_h, (int16_t)one.code };
   int count = 0;
   const FactStyle* styles = factStyles(&count);
   const FactStyle* no_code = &styles[count - 1];
@@ -446,21 +458,21 @@ static bool planLarger(const LabelArea& a, bool tall, const LabelContent& c,
       f.height = h2;
       f.code = 0;
       plans[n++] = FactsPlan{ &s, 0, h2, 2 };
-      continue;
+    } else {
+      lv_coord_t code = 0;
+      if (one.code && f.spells && w <= a.w && h <= avail_h) {
+        lv_coord_t box = one.beside ? a.w - w - dots(LR_GAP_PX) : avail_h - h - dots(LR_GAP_PX);
+        box = LV_MIN(box, one.beside ? avail_h : a.w);
+        box = LV_MIN(box, a.qr_max);
+        code = box >= dots(LR_QR_MIN_PX) ? drawQr(nullptr, 0, 0, box, c.qr, true) : 0;
+      }
+      f.width = w;
+      f.height = h;
+      f.code = code;
+      plans[n++] = FactsPlan{ &s, code, h, 1 };
     }
-    lv_coord_t code = 0;
-    if (one.code && f.spells && w <= a.w && h <= avail_h) {
-      lv_coord_t box = one.beside ? a.w - w - dots(LR_GAP_PX) : avail_h - h - dots(LR_GAP_PX);
-      box = LV_MIN(box, one.beside ? avail_h : a.w);
-      box = LV_MIN(box, a.qr_max);
-      code = box >= dots(LR_QR_MIN_PX) ? drawQr(nullptr, 0, 0, box, c.qr, true) : 0;
-    }
-    f.width = w;
-    f.height = h;
-    f.code = code;
-    plans[n++] = FactsPlan{ &s, code, h, 1 };
+    if (labelFactPick(&fits[n - 1], 1, room) == 0) break;
   }
-  const LabelFactRoom room{ (int16_t)a.w, (int16_t)avail_h, (int16_t)one.code };
   const int pick = labelFactPick(fits, n, room);
   if (pick < 0) return false;
   *out = plans[pick];
