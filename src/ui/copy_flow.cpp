@@ -30,6 +30,7 @@
 #include "services/spool_types.h"   // spoolTypesActive()
 #include "services/spoolman_actions.h"
 #include "services/tag_field.h"
+#include "ui/batch_create.h"
 #include "ui/info_popup.h"
 #include "ui/link_wait_card.h"
 #include "ui/loading_overlay.h"
@@ -164,7 +165,7 @@ static const struct { uint8_t bit; int text; } COPY_MISSING_PARTS[] = {
 // own font and width, and "..." for the rest; the log has every part.
 // NOT-TO-DO: giving lbl_status one line of height from here - the fix for
 // every status message, but a change to the main screen of every backend.
-static void copyCreatedStatus(uint8_t missing) {
+void copyCreatedStatus(uint8_t missing) {
   if (missing == CM_NONE) {
     statusMessageShow(T(STR_COPY_OK), UI_COL_GOOD);
     return;
@@ -222,6 +223,7 @@ void doCopySpoolCreate(int template_spool_id, int template_filament_id, float te
   logSDf("Copy: start %s gross=%.0f tare=%.0f label=%.0f -> initial=%d remaining=%.0f",
          spoolStartVerdictName(start.verdict), bare, tare_g, template_initial,
          start.initial_g, start.remaining_g);
+  if (noTagMode() && batchCount() > 1) { batchCopyCreate(template_spool_id, template_filament_id, start, tare_g, chosen_core_g); return; }
 
   int new_id = 0;
   int code = serverReachNote(backendCreateSpool(cfg_spoolman_base, template_spool_id, template_filament_id,

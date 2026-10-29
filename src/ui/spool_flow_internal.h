@@ -139,3 +139,7 @@ bool copyTypeAsked();
 // The maker of the template on the confirmation, "" when it came without a
 // look. Outlives the card: the create reads it after the card is closed.
 const char* copyCardVendor();
+// The status line once a copy stands: what it did not take over (CopyMissing
+// bits) in yellow, else "copied" in green. Also after a run of several copies
+// (batch_create.h), once for all of them.
+void copyCreatedStatus(uint8_t missing);

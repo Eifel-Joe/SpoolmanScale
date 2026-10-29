@@ -8,6 +8,7 @@
 #include "app/deferred_actions.h"
 #include "app/id_spool.h"
 #include "hardware/sd_logger.h"
+#include "services/batch_create_rules.h"
 #include "services/label_printer.h"
 #include "services/location_state.h"
 #include "services/no_tag_create_rules.h"
@@ -136,6 +137,22 @@ void noTagCreateFinish(int new_spool_id, const char* vendor) {
   s_loc_wait = s_loc_for != 0;
   logSDf("NoTag: spool %d created, shown by its number (%s), location picker %s",
          new_spool_id, bambu ? "Bambu note" : "plain note", s_loc_for ? "armed" : "not asked");
+}
+
+// For now the first spool goes the way of one (noTagCreateFinish()), the
+// location and the label included, and the green line says how many there
+// are; the log has every number and the reason of a stop.
+void noTagBatchFinish(const int* ids, int made, int wanted, const char* vendor, const char* reason) {
+  if (!ids || made < 1) return;
+  noTagCreateFinish(ids[0], vendor);
+  char list[BATCH_IDS_TEXT_MAX];
+  if (!batchIdsText(ids, made, list, sizeof(list))) list[0] = '\0';
+  logSDf("NoTag: run of %d made %d: %s%s%s", wanted, made, list,
+         (reason && reason[0]) ? ", stopped: " : "", reason ? reason : "");
+  if (made < 2) return;
+  char msg[96];
+  snprintf(msg, sizeof(msg), T(s_chip_hint ? STR_BATCH_CREATED_BAMBU : STR_BATCH_CREATED), made);
+  statusMessageShow(msg, UI_COL_GOOD);
 }
 
 // Wurzel: the status line holds one text and has no queue, and both callers

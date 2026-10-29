@@ -2062,6 +2062,12 @@ enum StringID {
   STR_BATCH_COUNT_INFO,       // the grey line beside the price pad's keys when it asks for the count
   STR_BATCH_COUNT_RANGE,      // the button's text after a count outside the range
   STR_BATCH_CREATE_N,         // the create button for more than one spool (%d: the count)
+  // Several identical spools in one go: the run (ui/batch_create.cpp) and its end (ui/no_tag_create.cpp)
+  STR_BATCH_PROGRESS,         // the loading overlay before each create (%d: the spool's place in the run, %d: the count)
+  STR_BATCH_CREATED,          // the status line once several spools exist, no tag (%d: how many)
+  STR_BATCH_CREATED_BAMBU,    // the same for Bambu Lab spools: the chips go on before the first AMS (%d: how many)
+  STR_BATCH_STOP_FAILED,      // why the run stopped: the create failed (%d: the spool's place, %d: the HTTP code)
+  STR_BATCH_STOP_UNSURE,      // why the run stopped: no answer, the spool may exist (%d: the spool's place)
 
   STR_COUNT
 };

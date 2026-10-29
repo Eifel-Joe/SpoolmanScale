@@ -523,6 +523,14 @@ STR_BATCH_COUNT_RANGE	14	92	NEVER	src/ui/batch_create.cpp the count button after
 STR_BATCH_CREATE_N	18	132	NEVER	src/ui/tag_create_popup.cpp, src/ui/copy_confirm_popup.cpp left answer button beside the price button, -8 air (German 106 px with the %d)
 STR_BATCH_COUNT_TITLE	14	460	NEVER	src/ui/price_pad.cpp title above the keypad, the count (French 229 px)
 STR_BATCH_COUNT_INFO	12	168	WRAP:3	src/ui/price_pad.cpp right column, PP_COL_W, as STR_PRICE_PAD_INFO (two lines in all three)
+# The run of several spools: "Spool 2 of 5 ..." on the loading overlay, whose line is 290 px at 16 and wraps, held to
+# one line. The green line at its end is lbl_status like STR_NOTAG_CREATED, with the same 269 px: the count has two
+# digits at most, narrower than the %d measured. Why a run stopped is one line of a card's text width.
+STR_BATCH_PROGRESS	16	290	NEVER	src/ui/loading_overlay.cpp the overlay's line, 290 px, one line (French 162 px with the %d)
+STR_BATCH_CREATED	14	269	NEVER	src/ui/no_tag_create.cpp status line, one line (German 229 px)
+STR_BATCH_CREATED_BAMBU	14	269	NEVER	src/ui/no_tag_create.cpp status line, one line (French 268 px, German 264 px, English 248 px)
+STR_BATCH_STOP_FAILED	16	360	NEVER	src/ui/no_tag_create.cpp the line of a stop, UI_POPUP_W - UI_CARD_TEXT_PAD (German 290 px)
+STR_BATCH_STOP_UNSURE	16	360	NEVER	src/ui/no_tag_create.cpp the line of a stop, UI_POPUP_W - UI_CARD_TEXT_PAD (French 344 px, German 340 px)
 # The twin box over the card: title and text in the card's text width, two buttons of 184 px.
 STR_SORT_TWIN_TITLE	20	360	NEVER	src/ui/sort_twin_popup.cpp title, UI_POPUP_W - UI_CARD_TEXT_PAD
 STR_SORT_TWIN_TEXT	16	360	WRAP:3	src/ui/sort_twin_popup.cpp question, UI_POPUP_W - UI_CARD_TEXT_PAD, %s is a filament name

@@ -4505,6 +4505,22 @@ const char* const STRINGS[][3] = {
   { "%d anlegen",
     "Create %d",
     "Créer %d" },  // STR_BATCH_CREATE_N
+  // Several identical spools in one go: the run and its end
+  { "Spule %d von %d ...",
+    "Spool %d of %d ...",
+    "Bobine %d sur %d ..." },  // STR_BATCH_PROGRESS
+  { "%d Spulen angelegt - ohne Tag",
+    "%d spools created - no tag",
+    "%d bobines créées - sans tag" },  // STR_BATCH_CREATED
+  { "%d Spulen - Chips vor AMS auflegen",
+    "%d spools - read chips before AMS",
+    "%d bobines - puces à lire avant l'AMS" },  // STR_BATCH_CREATED_BAMBU
+  { "Spule %d: nicht angelegt (HTTP %d)",
+    "Spool %d: not created (HTTP %d)",
+    "Bobine %d : non créée (HTTP %d)" },  // STR_BATCH_STOP_FAILED
+  { "Spule %d: ohne Antwort - Inventar prüfen",
+    "Spool %d: no answer - check inventory",
+    "Bobine %d : sans réponse - voir l'inventaire" },  // STR_BATCH_STOP_UNSURE
 };
 
 StringID tagWriteResultString(uint8_t code) {

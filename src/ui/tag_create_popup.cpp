@@ -748,10 +748,8 @@ static void runPlan() {
   refreshTitle();
 }
 
-// The request reached the server but its answer did not come back, so the
-// server may have done it: a read timeout, a dropped link, a proxy that gave
-// up waiting. A refused connection or a 502 never got that far.
-static bool answerLost(int code) {
+// See tag_create_popup.h.
+bool tagCreateAnswerLost(int code) {
   return code == HTTPC_ERROR_READ_TIMEOUT || code == HTTPC_ERROR_CONNECTION_LOST ||
          code == HTTP_CODE_GATEWAY_TIMEOUT;
 }
@@ -772,10 +770,10 @@ static void runCreate() {
          spoolStartVerdictName(start.verdict), startGross(), start.tare_g,
          tareSourceName(s_tare_from), s_label_weight, start.initial_g, start.remaining_g);
   const TagSpoolValues values = { start.initial_g, start.remaining_g, s_price };
+  if (noTagMode() && batchCount() > 1) { batchTagCreate(s_in, &s_plan, values, s_in.vendor); return; }
   const int code = serverReachNote(backendCreateFromTag(s_in, s_plan, values, &r), true);
   logSDf("TagCreate: HTTP %d, spool %d, filament %d, full %d g, price %.2f, link %s",
          code, r.spool_id, r.filament_id, start.initial_g, s_price, s_in.link_id);
-  char buf[96];
   if ((code == 200 || code == 201) && r.spool_id > 0) {
     spoolCacheForget("spool created from a tag");
     // No tag: no link and no mark for the first weighing, see
@@ -804,9 +802,14 @@ static void runCreate() {
     else statusMessageShow(T(with_filament ? STR_TAGNEW_OK_BOTH : STR_NEWTAG_OK), UI_COL_GOOD);
     return;
   }
+  tagCreateFailed(code, r);
+}
+
+void tagCreateFailed(int code, const TagCreateResult& r) {
+  char buf[96];
   // The spool may exist without the tag's link. Another try would make a
   // second one, so the card stops here and the inventory has the answer.
-  if (r.spool_sent && answerLost(code)) {
+  if (r.spool_sent && tagCreateAnswerLost(code)) {
     showStatus(T(STR_TAGNEW_SPOOL_UNSURE), UI_COL_BAD_TEXT, false);
     return;
   }

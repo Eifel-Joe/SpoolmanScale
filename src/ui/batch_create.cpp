@@ -3,12 +3,27 @@
 #include <stdint.h>
 #include <stdio.h>
 
+// backend_api.h brings ArduinoJson, whose templates have a parameter T: before
+// lang.h, which defines T(), and spool_flow_internal.h includes lang.h (see the
+// note in tag_create_popup.cpp). app_state.h as everywhere before it.
+#include "services/backend_api.h"
+#include "app/app_state.h"
+#include "ui/spool_flow_internal.h"
 #include "hardware/sd_logger.h"
 #include "services/batch_create_rules.h"
+#include "services/copy_bbs.h"
+#include "services/copy_rules.h"    // CopyMissing
+#include "services/server_reach.h"
+#include "services/spool_cache.h"
+#include "services/spool_start.h"
+#include "services/spool_types.h"   // spoolTypesActive()
+#include "services/tag_create.h"
+#include "ui/loading_overlay.h"
+#include "ui/main_screen_helpers.h"
 #include "ui/no_tag_create.h"
 #include "ui/price_pad.h"
+#include "ui/tag_create_popup.h"
 #include "ui/theme.h"
-// Last, see the note on ArduinoJson and T() in tag_create_popup.cpp.
 #include "lang.h"
 
 // The count button: BATCH_CHIP_EDGE from the card's top and right edge, above
@@ -126,4 +141,135 @@ void batchCountChip(lv_obj_t* box, void (*changed)()) {
     }
   }, LV_EVENT_DELETE, s_chip_lbl);
   chipShowCount();
+}
+
+// ------------------------------------------------------------
+//  The run (batch_create.h)
+// ------------------------------------------------------------
+
+// What a stop says about the spool it stopped at, for the overview.
+#define BATCH_REASON_MAX 96
+
+// The count of the run. batchCountValid() keeps it within the rules already;
+// the ids arrays below hold BATCH_COUNT_MAX, so the run does not rely on that.
+static int runWanted() {
+  const int wanted = batchCount();
+  return wanted > BATCH_COUNT_MAX ? BATCH_COUNT_MAX : wanted;
+}
+
+// "Spool 2 of 5 ..." on the loading overlay, at = the place of the spool about
+// to be made. The overlay paints before it returns (loadingOverlaySetText()
+// calls lv_refr_now()), so the line is on the screen while the call holds
+// the loop.
+static void runProgress(int at, int wanted) {
+  char buf[48];
+  snprintf(buf, sizeof(buf), T(STR_BATCH_PROGRESS), at, wanted);
+  loadingOverlayShow(buf);
+}
+
+// Why the run stopped at the spool in place `at`: no answer, so the spool may
+// exist and the user is sent to the inventory, or the code it failed with.
+static void runStopReason(BatchStep step, int at, int code, char* out, size_t cap) {
+  if (step == BS_STOP_UNSURE) snprintf(out, cap, T(STR_BATCH_STOP_UNSURE), at);
+  else                        snprintf(out, cap, T(STR_BATCH_STOP_FAILED), at, code);
+}
+
+// Wurzel: behind Bambuddy on Spoolman, copyBbsCreate() takes the template the
+// card loaded, and the price typed on it, only while that load is held
+// (copy_bbs.h); doCopySpoolCreate() frees it after its one create. Freed after
+// each copy, the second would read the template again (another stall), and
+// would go without the typed price.
+// Fix: the load is freed once, after the loop, on every way out of the run.
+// The parts each copy left behind are gathered (copyBbsLastMissing() holds the
+// last create's only) and said once, as for one copy. A lost answer stops the
+// run as "unsure", as on the card: the copy may exist.
+// NOT-TO-DO: one copyBbsLoad() per copy: the card showed one template, and a
+// read between two copies could bring other values than it showed.
+// See test_batch_flow.py (the run).
+void batchCopyCreate(int template_spool_id, int template_filament_id, const SpoolStart& start,
+                     float tare_g, float chosen_core_g) {
+  const int wanted = runWanted();
+  int ids[BATCH_COUNT_MAX] = {};
+  int made = 0, code = 0;
+  uint8_t missing = CM_NONE;
+  BatchStep step = BS_NEXT;
+  while (step == BS_NEXT) {
+    runProgress(made + 1, wanted);
+    int new_id = 0;
+    code = serverReachNote(backendCreateSpool(cfg_spoolman_base, template_spool_id, template_filament_id,
+      (float)start.initial_g, tare_g, start.remaining_g, &new_id, 8000, chosen_core_g), true);
+    const bool ok = (code == 200 || code == 201) && new_id > 0;
+    if (ok) {
+      ids[made++] = new_id;
+      if (spoolTypesActive()) missing |= copyBbsLastMissing();
+    }
+    logSDf("Batch: copy %d of %d from template %d: HTTP %d, spool %d",
+           made + (ok ? 0 : 1), wanted, template_spool_id, code, new_id);
+    step = batchCreateStep(made, wanted, ok, tagCreateAnswerLost(code));
+  }
+  loadingOverlayHide();
+  copyBbsClear();
+  if (made == 0) {
+    // As doCopySpoolCreate() ends a copy that failed: nothing was created,
+    // the picker's hidden screens and its copy mode go.
+    logSDf("Batch: no copy made, HTTP %d", code);
+    linkPickerClose();
+    lv_label_set_text(lbl_status, T(STR_COPY_FAIL));
+    lv_obj_set_style_text_color(lbl_status, lv_color_hex(UI_COL_BAD_TEXT), 0);
+    return;
+  }
+  // Spools the kept list does not have, see doCopySpoolCreate().
+  spoolCacheForget("spools created by copy");
+  char reason[BATCH_REASON_MAX] = "";
+  if (step != BS_DONE) runStopReason(step, made + 1, code, reason, sizeof(reason));
+  noTagBatchFinish(ids, made, wanted, copyCardVendor(), reason);
+  if (missing != CM_NONE && noTagYellowLineAllowed(ids[0], "copy parts not taken over", missing)) copyCreatedStatus(missing);
+}
+
+// Wurzel: the card's plan says how the spool's filament comes about: found
+// (TFS_FOUND), or created from the database or the tag along with the spool.
+// Asked the same for every spool of the run, a plan that creates one would
+// make a filament per spool, five alike for five spools.
+// Fix: a spool that made its filament (r.filament_id > 0) turns the plan into
+// that filament, as the card does when only the filament was made: every
+// further spool is created under it, and the backends create nothing else for
+// a found filament (filamentForSpool() in backend_api.cpp; Bambuddy with its
+// own inventory has no filament, reports none, and its plan stays as it is).
+// Only the state and the id change: the weights stay the first spool's, so
+// each spool is weighed against the same empty spool (tagCreateTare()).
+// NOT-TO-DO: asking the plan again between two spools (runPlan()): it holds
+// the loop once more per spool, and for a sort typed in it may come back with
+// a twin to ask about in the middle of the run.
+// See test_batch_flow.py (the run).
+void batchTagCreate(const TagCreateInput& in, TagFilamentPlan* plan, const TagSpoolValues& values,
+                    const char* vendor) {
+  const int wanted = runWanted();
+  int ids[BATCH_COUNT_MAX] = {};
+  int made = 0, code = 0;
+  bool price_lost = false;
+  TagCreateResult r = {};
+  BatchStep step = BS_NEXT;
+  while (step == BS_NEXT) {
+    runProgress(made + 1, wanted);
+    code = serverReachNote(backendCreateFromTag(in, *plan, values, &r), true);
+    const bool ok = (code == 200 || code == 201) && r.spool_id > 0;
+    if (ok) {
+      ids[made++] = r.spool_id;
+      price_lost |= r.price_lost;
+      if (r.filament_id > 0) { plan->state = TFS_FOUND; plan->filament_id = r.filament_id; }
+    }
+    logSDf("Batch: spool %d of %d: HTTP %d, spool %d, filament %d",
+           made + (ok ? 0 : 1), wanted, code, r.spool_id, r.filament_id);
+    step = batchCreateStep(made, wanted, ok, r.spool_sent && tagCreateAnswerLost(code));
+  }
+  loadingOverlayHide();
+  if (made == 0) { tagCreateFailed(code, r); return; }
+  spoolCacheForget("spools created from a tag");
+  char reason[BATCH_REASON_MAX] = "";
+  if (step != BS_DONE) runStopReason(step, made + 1, code, reason, sizeof(reason));
+  // vendor is the card's input, which outlives the card (runCreate() reads it
+  // after closing too).
+  closeTagCreatePopup();
+  noTagBatchFinish(ids, made, wanted, vendor, reason);
+  if (price_lost && noTagYellowLineAllowed(ids[0], "price not saved", 0)) statusMessageShow(T(STR_TAGNEW_PRICE_LOST), UI_COL_WARN);
 }

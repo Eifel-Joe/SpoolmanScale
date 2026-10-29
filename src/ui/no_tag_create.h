@@ -51,6 +51,16 @@ const char* noTagEntryTitle();
 // the picker has ended.
 void noTagCreateFinish(int new_spool_id, const char* vendor);
 
+// The end of a run of several spools (batch_create.h), with at least one made:
+// ids holds the `made` numbers in the order made, `wanted` is the count typed
+// in. The first spool is shown and asked about exactly as noTagCreateFinish()
+// does it; with several, the green line names how many (the Bambu Lab note
+// when the vendor is Bambu's). reason says why the run stopped ("Spool 4:
+// ..."; after a lost answer it sends the user to the inventory), "" or nullptr
+// when every spool was made. ids and reason live only for the call: anything
+// kept beyond it must be copied. Does nothing when ids is null or made below 1.
+void noTagBatchFinish(const int* ids, int made, int wanted, const char* vendor, const char* reason);
+
 // After noTagCreateFinish(): whether a yellow line (the parts a copy left
 // behind, a price the server did not keep) may be written to the status line
 // now. It may not while the Bambu Lab chip hint stands there: the hint is the
