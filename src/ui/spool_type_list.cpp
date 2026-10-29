@@ -10,6 +10,7 @@
 #include "services/server_reach.h"
 #include "services/spool_type_rules.h"
 #include "services/spool_types.h"
+#include "colour_search.h"
 #include "spool_type_name.h"
 #include "theme.h"
 #include "ui_common.h"
@@ -52,6 +53,25 @@ enum StlLoad : uint8_t { STL_LOAD_PENDING = 0, STL_LOAD_OK, STL_LOAD_FAILED };
 static lv_obj_t *s_scr  = nullptr;
 static lv_obj_t *s_list = nullptr;   // the rows, scrolling
 static lv_obj_t *s_bar  = nullptr;   // the buttons under it
+static lv_obj_t *s_title = nullptr;  // the header's title, narrowed by the search head
+
+// The search in the list (V43): the magnifier of the colour lists, with the
+// texts of this list. A word lists the types of the whole catalog that hold it,
+// the maker's or not; the word with its x, back, "Show all" and "Only <maker>"
+// end it, and a close forgets it.
+// Wurzel: with over 90 types in the catalog (160 at most) the list is a long
+//   scroll, and the maker's types are not the only ones a spool may carry (a
+//   cardboard spool is named after another maker).
+// Fix: the rows are filtered while they are built, once per word, and the
+//   maker's filter is off under a word. The keyboard is the entry's and sits
+//   over the list, never beside it: the WT32 has no room for both.
+// NOT-TO-DO: hiding the rows that do not hold the word (LV_OBJ_FLAG_HIDDEN):
+//   every row is five objects whether it is hidden or not, and the list is
+//   cut at the row reserve already. A field above the list that filters while
+//   typing: the keyboard takes half the screen, and the list is built again
+//   at every key.
+// See test_list_search.py.
+static ColourSearch s_find = { "", nullptr, nullptr, false, false, STR_SPT_FIND_KEY, STR_SPT_FIND_NONE };
 
 static SpoolTypeListReq s_req        = {};
 static SpoolTypePicked  s_on_pick    = nullptr;
@@ -86,6 +106,9 @@ void closeSpoolTypeList() {
   releaseScreen(&s_scr);
   s_list        = nullptr;
   s_bar         = nullptr;
+  s_title       = nullptr;
+  // The head goes with the screen released above, the word with the list.
+  colourSearchClose(&s_find);
   s_on_pick     = nullptr;
   s_on_skip     = nullptr;
   s_on_back     = nullptr;
@@ -105,6 +128,33 @@ static int stlSkipText() {
 // can have, which is all the name entry accepts. Zero (none) is not.
 static bool stlMeasured() {
   return spoolTypeTarePlausible(s_req.measured_g);
+}
+
+// The screen the search's keyboard is put over; none once the list is closed,
+// which takes the keyboard with it.
+static lv_obj_t *stlScreen() {
+  return s_scr;
+}
+
+// Whether the header offers the search: the maker's types and all of them, not
+// the few near a weight, and only over rows that came from the server.
+static bool stlSearchable() {
+  return s_load == STL_LOAD_OK && s_req.mode != STL_NEAR;
+}
+
+// "Show all" and "Only <maker>" end the search before the list is built anew:
+// a list cut to a word that the new mode no longer shows would be empty, and
+// the tick would stand on a row that is not there.
+// Wurzel: colourSearchClose() forgets the head without deleting it, because
+//   a close takes the screen it is on along. Here the screen stays, and the
+//   old chip would stay drawn beside the new head.
+// Fix: the head is deleted first, from the loop (never from its own tap).
+// NOT-TO-DO: colourSearchBack() would end the search as well, but it builds
+//   the list itself, and the mode is not set yet.
+// See test_list_search.py.
+static void stlEndSearch() {
+  if (s_find.head) lv_obj_del(s_find.head);
+  colourSearchClose(&s_find);
 }
 
 // ---------------------------------------------------------------------------
@@ -209,7 +259,9 @@ static lv_obj_t *stlBuildRows() {
       logSDf("UI: spool type list: no type of '%s', all shown", s_req.vendor);
       s_req.mode = STL_ALL;
     }
-    if (s_req.mode == STL_VENDOR) {
+    // A word is searched for in the whole catalog, the maker's types or not.
+    const bool by_word = s_find.word[0] != '\0';
+    if (s_req.mode == STL_VENDOR && !by_word) {
       count = of_vendor;
     } else {
       for (int i = 0; i < n; i++) s_idx[i] = i;
@@ -228,6 +280,9 @@ static lv_obj_t *stlBuildRows() {
   for (int k = 0; k < count; k++) {
     const int i = s_idx[k];
     if (i < 0 || i >= n) continue;
+    // Under a word only the types that hold it get a row; the tick is set on
+    // a row that is built, never on one the search left out.
+    if (!colourSearchShows(&s_find, types[i].name)) continue;
     // A row is five objects. The list stops where internal RAM would run
     // short, and its last line says that it did.
     if (!lvPoolHasRoomForRow()) {
@@ -240,6 +295,7 @@ static lv_obj_t *stlBuildRows() {
     shown++;
   }
   logLvMem("spooltypes/post", shown);
+  if (shown == 0) colourSearchNone(&s_find, s_list, STL_ROW_W);   // a line under a word only
   return marked;
 }
 
@@ -334,6 +390,10 @@ static void stlBuildBar() {
 }
 
 static void stlBuild() {
+  // The search head first, while the old rows still stand: it is three
+  // objects, and a list cut at the row reserve must not leave it without a
+  // place (colour_search.cpp). A mode without a search drops it.
+  colourSearchTitle(&s_find, s_scr, s_title, T(STR_SPT_TITLE), stlSearchable() ? stlBuild : nullptr);
   lv_obj_t *marked = stlBuildRows();
   stlBuildBar();
   // After the bar: it sets the height of the list the row is scrolled into.
@@ -391,6 +451,21 @@ static void stlOpenName() {
   showSpoolTypeName(prefill, s_req.measured_g, stlNameCreated, stlNameCancelled);
 }
 
+// The title label of the header, for the search head to narrow: buildSubHeader()
+// of the original keeps no pointer to it (and stays as it is). It is the child
+// after the back button; a header that is built otherwise leaves the title as
+// it is, and the search head sits beside it.
+static void stlTakeTitle() {
+  lv_obj_t *t = lv_obj_get_child(s_scr, 1);
+  s_title = (t && lv_obj_check_type(t, &lv_label_class)) ? t : nullptr;
+  if (!s_title) return;
+  // Narrowed by the head, the title stays centred on one line: the dots need
+  // a height to end at, or the text wraps.
+  lv_label_set_long_mode(s_title, LV_LABEL_LONG_DOT);
+  lv_obj_set_height(s_title, lv_font_get_line_height(lv_obj_get_style_text_font(s_title, 0)));
+  lv_obj_set_style_text_align(s_title, LV_TEXT_ALIGN_CENTER, 0);
+}
+
 void showSpoolTypeList(const SpoolTypeListReq &req, SpoolTypePicked on_pick,
                        void (*on_skip)(), void (*on_back)()) {
   if (!(req.any_inventory ? spoolTypesCatalogActive() : spoolTypesActive())) {
@@ -417,6 +492,7 @@ void showSpoolTypeList(const SpoolTypeListReq &req, SpoolTypePicked on_pick,
   // closeConfirmPopups() reaches closeTareEntry() and so this, without a
   // callback.
   buildSubHeader(s_scr, T(STR_SPT_TITLE), stlBackCb);
+  stlTakeTitle();
   s_list = buildOptionList(s_scr);
   lv_obj_set_y(s_list, STL_LIST_Y);
   s_bar = lv_obj_create(s_scr);
@@ -453,6 +529,8 @@ void spoolTypeListTick() {
     stlBuild();
     return;
   }
+  // The head's tap, the word from the keyboard: the rows are built again.
+  colourSearchTick(&s_find, stlScreen);
   const uint8_t act = s_park;
   const int     idx = s_park_idx;
   s_park     = STL_ACT_NONE;
@@ -478,7 +556,8 @@ void spoolTypeListTick() {
     case STL_ACT_OTHER:
     case STL_ACT_ONLY_VENDOR:
     case STL_ACT_SHOW_ALL:
-      // The same load, the rows of another mode.
+      // The same load, the rows of another mode, without a search.
+      stlEndSearch();
       s_req.mode = act == STL_ACT_SHOW_ALL ? STL_ALL : STL_VENDOR;
       logSDf("UI: spool type list mode %d", (int)s_req.mode);
       stlBuild();
@@ -494,6 +573,8 @@ void spoolTypeListTick() {
       stlLeave(false);
       return;
     case STL_ACT_BACK:
+      // A search ends first, and the list stays.
+      if (colourSearchBack(&s_find)) return;
       stlLeave(true);
       return;
     default:

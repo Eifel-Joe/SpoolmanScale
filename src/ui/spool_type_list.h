@@ -31,6 +31,12 @@
 //  In VENDOR and ALL the type nearest to preselect_g is marked, at any
 //  distance; the list scrolls to the marked row.
 //
+//  In VENDOR and ALL the header has the magnifier of the colour lists
+//  (ui/colour_search.h, V43). A word lists the types of the whole catalog
+//  that hold it, the maker's or not, and says so when none does; the mark is
+//  set on a row that is shown only. The word with its x in the header, back,
+//  "show all" and "only the maker's" end the search; a close forgets it.
+//
 //  The catalog is loaded fresh when the list opens, from the loop; a load
 //  that fails is no list here (the failure stands in the list, the buttons
 //  stay). The buttons that change the mode build the rows again from the

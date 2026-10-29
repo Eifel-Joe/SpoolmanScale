@@ -4481,6 +4481,12 @@ const char* const STRINGS[][3] = {
   { "Keine Farbe mit \"%s\"",
     "No colour with \"%s\"",
     "Pas de couleur \"%s\"" },  // STR_COLOUR_FIND_NONE
+  { "Spulentyp suchen",
+    "Find spool type",
+    "Chercher un type" },  // STR_SPT_FIND_KEY
+  { "Kein Spulentyp mit \"%s\"",
+    "No spool type with \"%s\"",
+    "Aucun type avec \"%s\"" },  // STR_SPT_FIND_NONE
 };
 
 StringID tagWriteResultString(uint8_t code) {

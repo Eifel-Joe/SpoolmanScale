@@ -31,6 +31,12 @@ struct FdbEntry;
 //  The steps after it leave it alone, so the way back to the list finds it cut
 //  as it was left. See test_colour_search.py.
 //
+//  The list of spool types (spool_type_list.cpp, V43) searches the same way, with
+//  its own keyboard title and its own line for no match (key_title, none_fmt).
+//  A screen that stays when its search ends deletes the head itself before
+//  colourSearchClose(): that one leaves the head to the screen it is on.
+//  See test_list_search.py.
+//
 //  "New from database": a search on the family step shows entries and stays
 //  the family step (db_pick_screen.cpp, showEntries() and showFamilyStep()).
 //  Wurzel: the families cut a long list by colour, and "bone" must be found
@@ -55,6 +61,13 @@ struct ColourSearch {
   void    (*redraw)();                 // builds the step on screen again; nullptr on a step without a search
   bool      tapped;                    // parked by the head
   bool      typed;                     // a word came from the keyboard
+  // The texts of the list the search is on: a row of the table each, 0 for the
+  // colour texts (STR_COLOUR_FIND_KEY, STR_COLOUR_FIND_NONE), so that the
+  // colour lists stay as they were. The list of spool types has its own
+  // (spool_type_list.cpp, V43); they are the search's, not the word's, and
+  // colourSearchClose() leaves them alone.
+  int       key_title = 0;             // the keyboard's title
+  int       none_fmt  = 0;             // the line for no match, one %s: the word
 };
 
 // The header's title, and the search beside it when redraw is not null: the

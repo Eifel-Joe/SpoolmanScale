@@ -377,7 +377,7 @@ STR_SPT_EMPTY_BTN	16	320	NEVER	src/ui/scale_menu.cpp makeListBtn title, text_w 3
 STR_SPT_EMPTY_SUB	12	320	NEVER	src/ui/scale_menu.cpp makeListBtn sub, text_w 320
 STR_SPT_EMPTY_TITLE	18	376	NEVER	src/ui/empty_spool_type.cpp sub header title, 480 - 2 * (44 + 2 * 4)
 STR_SPT_NAME_TITLE	18	460	NEVER	src/ui/spool_type_name.cpp title of a full screen with no buttons in its head, 480 - 2 * 10
-STR_SPT_TITLE	18	376	NEVER	src/ui/spool_type_list.cpp sub header title, 480 - 2 * (44 + 2 * 4)
+STR_SPT_TITLE	18	228	NEVER	src/ui/spool_type_list.cpp sub header title, narrowed by the search head (colourSearchTitle): 480 - 2 * (44 + 2 * 4) - (CS_CHIP_W 140 + CS_SEP 8) with a word, 324 with the magnifier, 376 near a weight
 STR_SPT_TAKE_MEASURED	14	221	NEVER	src/ui/spool_type_list.cpp bar button, two to a row (four buttons): (480 - 2 * 8 - 6) / 2 - 8
 STR_SPT_OTHER	14	221	NEVER	src/ui/spool_type_list.cpp bar button, two to a row (NEAR: two or four buttons): (480 - 2 * 8 - 6) / 2 - 8
 STR_SPT_ONLY_VENDOR	14	221	NEVER	src/ui/spool_type_list.cpp bar button, two to a row (ALL); the maker may wrap it to a second line
@@ -562,6 +562,12 @@ STR_COLOUR_FIND_KEY	18	460	NEVER	src/ui/sort_entry_keys.cpp sortKeysShow title, 
 # STR_SORT_EXISTS. %s is the word, at most 23 bytes (COLOUR_SEARCH_MAX). Without a NEVER row the French keeps to
 # the wider of German and English at every size: "Pas de couleur" (143 px at f14 against 152 for the German).
 STR_COLOUR_FIND_NONE	14	452	WRAP:2	src/ui/colour_search.cpp colourSearchNone, caption across the list, %s the word
+
+# --- the search in the list of spool types (ui/spool_type_list.cpp, V43) ---------------------------------------
+# The same keyboard and the same caption as the colour lists, with texts of their own (ColourSearch key_title and
+# none_fmt). The caption is as wide as the list body, STL_ROW_W 456; %s is the word, at most 23 bytes.
+STR_SPT_FIND_KEY	18	460	NEVER	src/ui/sort_entry_keys.cpp sortKeysShow title, 480 - 2 * SORT_KEYS_SIDE (10), opened by colourSearchTick
+STR_SPT_FIND_NONE	14	456	WRAP:2	src/ui/colour_search.cpp colourSearchNone, caption across the list (STL_ROW_W), %s the word
 
 # --- the tiles of the unknown spool's card, with "Enter filament" as a fourth (unknown_spool_popup.cpp) ---
 # Four tiles to a row are (UNK_ROW_W 412 - 3 * UNK_GAP 8) / 4 = 97 px, and the German

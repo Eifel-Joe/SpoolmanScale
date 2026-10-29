@@ -2050,6 +2050,9 @@ enum StringID {
   // The search in a colour list (ui/colour_search.cpp)
   STR_COLOUR_FIND_KEY,        // the keyboard's title: the word the colour names are searched for
   STR_COLOUR_FIND_NONE,       // across the list when no colour holds the word (%s: the word)
+  // The search in the list of spool types (ui/spool_type_list.cpp)
+  STR_SPT_FIND_KEY,           // the keyboard's title: the word the spool type names are searched for
+  STR_SPT_FIND_NONE,          // across the list when no spool type holds the word (%s: the word)
 
   STR_COUNT
 };

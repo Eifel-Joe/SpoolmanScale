@@ -175,7 +175,8 @@ void colourSearchTick(ColourSearch* s, lv_obj_t* (*under)()) {
   } else {
     logSD("BTN: colour search");
     s_asking = s;
-    sortKeysShowOver(under, SK_TEXT, STR_COLOUR_FIND_KEY, COLOUR_SEARCH_MAX - 1, wordTyped);
+    sortKeysShowOver(under, SK_TEXT, s->key_title ? s->key_title : (int)STR_COLOUR_FIND_KEY,
+                     COLOUR_SEARCH_MAX - 1, wordTyped);
   }
 }
 
@@ -212,7 +213,7 @@ bool colourSearchFdb(const ColourSearch* s, const FdbEntry& e, const char* maker
 void colourSearchNone(const ColourSearch* s, lv_obj_t* body, int width) {
   if (!s || !s->word[0] || !body || !lvPoolHasRoomForRow()) return;
   char text[COLOUR_SEARCH_MAX + 64];
-  snprintf(text, sizeof(text), T(STR_COLOUR_FIND_NONE), s->word);
+  snprintf(text, sizeof(text), T(s->none_fmt ? s->none_fmt : (int)STR_COLOUR_FIND_NONE), s->word);
   // A caption across the list, as the screens draw theirs.
   lv_obj_t* l = lv_label_create(body);
   lv_label_set_text(l, text);
