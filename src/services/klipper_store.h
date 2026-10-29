@@ -64,8 +64,10 @@ bool klipperStoreFind(uint32_t id, KlipperPrinterCfg* out);      // false when n
 // Adds a printer (c->id == 0: a new id, the first free slot kl_pN) or changes
 // one (c->id is the printer's). Name, host and key are cleaned by the rules of
 // klipper_store_rules.h before anything is judged; a name another printer has
-// is refused, port 0 becomes KL_PORT_DEFAULT. key == nullptr leaves the key as
-// it is, "" takes it away. Changing the host or the port resets the outcome of
+// is refused, port 0 becomes KL_PORT_DEFAULT. key == nullptr leaves the key of
+// an existing printer as it is, "" takes it away; a new printer starts with
+// the key it is given or none (a key left in the list under the same id is
+// removed, it is never inherited). Changing the host or the port resets the outcome of
 // the last test (KlipperTestOutcome{}, KT_NONE): it was about another address.
 // c->last is not read, klipperStoreSetTest() is how the outcome is set.
 // On KLS_OK *c holds the printer as it is now stored (id, cleaned texts, port,
