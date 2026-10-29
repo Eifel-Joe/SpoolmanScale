@@ -68,6 +68,31 @@ const lv_font_t* sized(const lv_font_t* base) {
 
 lv_coord_t lineHeight(const lv_font_t* base) { return sized(base)->line_height; }
 
+// The one-line sizes of the fact lines (V45), each in the size it is named
+// for on any head.
+// Root: sized() takes every 203 dpi font to the one about 1.48 times its
+//   size on a 300 dpi head. No font the layout could name printed there as
+//   26, 28 or 34, and lv_font_montserrat_ext_28 itself is the key for 40.
+// Fix: copies of the fonts of those sizes. A copy has an address of its
+//   own, is no key of FONTS_300, and so sized() hands it back as it is:
+//   measuring and drawing take the same font. They are made before setup(),
+//   from fonts that are constants of their C files and so are set first.
+// NOT-TO-DO: new FONTS_300 entries (no 203 dpi font maps onto 28 or 34, and
+//   a key changed there changes every block that uses it), the 28 px
+//   compressed font (no umlauts), or a switch that turns sized() off (it
+//   holds for everything drawn until the next label).
+// See test_label_fact_styles.py.
+const lv_font_t PRINTED_18 = lv_font_montserrat_ext_18;
+const lv_font_t PRINTED_20 = lv_font_montserrat_ext_20;
+const lv_font_t PRINTED_22 = lv_font_montserrat_ext_22;
+const lv_font_t PRINTED_24 = lv_font_montserrat_ext_24;
+const lv_font_t PRINTED_26 = lv_font_montserrat_ext_26;
+const lv_font_t PRINTED_28 = lv_font_montserrat_ext_28;
+const lv_font_t PRINTED_30 = lv_font_montserrat_ext_30;
+const lv_font_t PRINTED_32 = lv_font_montserrat_ext_32;
+const lv_font_t PRINTED_34 = lv_font_montserrat_ext_34;
+const lv_font_t PRINTED_36 = lv_font_montserrat_ext_36;
+
 // The canvas into the raster: black is anything darker than mid grey, and the
 // canvas starts at dot x0 of the print row, where the stock runs.
 bool packCanvas(lv_obj_t* canvas, uint16_t content_w, uint16_t h,
@@ -130,8 +155,11 @@ static const char* spelled(const lv_font_t* base, const char* s, char* buf) {
   return buf;
 }
 
+// By the size the font prints in: each font of FONTS_300 prints larger than
+// the one before it, so every font that was asked before V45 gets the same
+// answer, and a PRINTED_ copy the stroke of its own size.
 lv_coord_t boldFor(const lv_font_t* font) {
-  return font->line_height > lv_font_montserrat_ext_24.line_height ? 0 : dots(LR_BOLD_DOTS);
+  return sized(font)->line_height > sized(&lv_font_montserrat_ext_24)->line_height ? 0 : dots(LR_BOLD_DOTS);
 }
 
 lv_coord_t textWidth(const char* s, const lv_font_t* font) {
@@ -297,6 +325,7 @@ bool splitTwoLines(const char* text, const lv_font_t* f, lv_coord_t w,
 }
 
 void setDpi(uint16_t dpi) { s_dpi = dpi; }
+uint16_t dpi() { return s_dpi; }
 void setTurned(bool turned) { s_turned = turned; }
 
 }  // namespace labeldraw

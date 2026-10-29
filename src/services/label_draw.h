@@ -39,6 +39,8 @@ namespace labeldraw {
 
 // The head's resolution for what is drawn next: 203 or 300.
 void setDpi(uint16_t dpi);
+// The resolution setDpi() was given last.
+uint16_t dpi();
 // Whether the canvas is the label upright, turned onto the raster by packCanvas().
 void setTurned(bool turned);
 
@@ -48,9 +50,15 @@ lv_coord_t dots(lv_coord_t base);
 // the 203 dpi fonts and compares them; only measuring and drawing take this.
 const lv_font_t* sized(const lv_font_t* base);
 lv_coord_t lineHeight(const lv_font_t* base);
+// The fonts that print in their own size on any head, for the one-line
+// sizes of the fact lines (V45): sized() hands each back as it is, so the
+// 28 prints as 28 on a 300 dpi head too, where no 203 dpi font prints as 28.
+extern const lv_font_t PRINTED_18, PRINTED_20, PRINTED_22, PRINTED_24, PRINTED_26,
+                       PRINTED_28, PRINTED_30, PRINTED_32, PRINTED_34, PRINTED_36;
 // Whether a font, in the size this head prints it, can spell a line as written.
 bool canSpell(const lv_font_t* base, const char* s);
-// The extra stroke a font is drawn with: the small ones one dot wider.
+// The extra stroke a font is drawn with: the small ones one dot wider, by
+// the size the font prints in on this head.
 lv_coord_t boldFor(const lv_font_t* font);
 lv_coord_t textWidth(const char* s, const lv_font_t* font);
 // The largest of the fonts that fits the line into the width, the last one
