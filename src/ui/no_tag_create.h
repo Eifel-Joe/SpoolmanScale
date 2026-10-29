@@ -56,7 +56,8 @@ void noTagCreateFinish(int new_spool_id, const char* vendor);
 // in. The first spool is shown and asked about exactly as noTagCreateFinish()
 // does it; with several, the green line names how many (the Bambu Lab note
 // when the vendor is Bambu's). reason says why the run stopped ("Spool 4:
-// ..."; after a lost answer it sends the user to the inventory), "" or nullptr
+// ..."; after a lost answer, or one without a number, it sends the user to the
+// inventory), "" or nullptr
 // when every spool was made. ids and reason live only for the call: anything
 // kept beyond it must be copied. Does nothing when ids is null or made below 1.
 void noTagBatchFinish(const int* ids, int made, int wanted, const char* vendor, const char* reason);

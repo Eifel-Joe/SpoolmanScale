@@ -422,12 +422,22 @@ def part_loop():
         assert needle in reason, f"src/{BATCH}: runStopReason() does not use {needle}"
     assert "BATCH_COUNT_MAX" in body_of(BATCH, "runWanted"), \
         f"src/{BATCH}: runWanted() does not keep the count within the ids (BATCH_COUNT_MAX)"
+    # A try that gave no number may still have made the spool: its answer got
+    # lost, or the server said 200 or 201 and no number could be read. Both
+    # stop the run as "unsure" (the user is sent to the inventory), not as
+    # "not created (HTTP 201)", which says the spool does not exist. The runs
+    # ask the one helper, not tagCreateAnswerLost() themselves.
+    assert body_of(BATCH, "spoolMayExist") == "returntagCreateAnswerLost(code)||code==200||code==201;", \
+        f"src/{BATCH}: spoolMayExist() is not 'the answer got lost, or the server said 200 or 201'"
+    for name in ("batchCopyCreate", "batchTagCreate"):
+        assert "tagCreateAnswerLost" not in body_of(BATCH, name), \
+            f"src/{BATCH}: {name}() asks tagCreateAnswerLost() itself, a 201 without a number would count as failed"
     runs = {}
     for name, call, ok, made_id, unsure in (
         ("batchCopyCreate", "backendCreateSpool(", "constboolok=(code==200||code==201)&&new_id>0;",
-         "ids[made++]=new_id;", "batchCreateStep(made,wanted,ok,tagCreateAnswerLost(code))"),
+         "ids[made++]=new_id;", "batchCreateStep(made,wanted,ok,spoolMayExist(code))"),
         ("batchTagCreate", "backendCreateFromTag(", "constboolok=(code==200||code==201)&&r.spool_id>0;",
-         "ids[made++]=r.spool_id;", "batchCreateStep(made,wanted,ok,r.spool_sent&&tagCreateAnswerLost(code))"),
+         "ids[made++]=r.spool_id;", "batchCreateStep(made,wanted,ok,r.spool_sent&&spoolMayExist(code))"),
     ):
         body = body_of(BATCH, name)
         where = f"src/{BATCH}: {name}()"

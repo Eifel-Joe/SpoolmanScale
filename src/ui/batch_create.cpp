@@ -173,11 +173,30 @@ static void runProgress(int at, int wanted) {
   loadingOverlayShow(buf);
 }
 
-// Why the run stopped at the spool in place `at`: no answer, so the spool may
-// exist and the user is sent to the inventory, or the code it failed with.
+// Why the run stopped at the spool in place `at`: no usable answer, so the
+// spool may exist and the user is sent to the inventory, or the code it failed
+// with.
 static void runStopReason(BatchStep step, int at, int code, char* out, size_t cap) {
   if (step == BS_STOP_UNSURE) snprintf(out, cap, T(STR_BATCH_STOP_UNSURE), at);
   else                        snprintf(out, cap, T(STR_BATCH_STOP_FAILED), at, code);
+}
+
+// Wurzel: a try that did not give a number stopped the run as "not created
+// (HTTP 201)" when the server had said 200 or 201 and no number could be read
+// from the answer. That text says the spool does not exist, and the server
+// most likely made it: only the lost answer counted as "unsure".
+// Fix: a try that gave no number may have made the spool when its answer got
+// lost (tagCreateAnswerLost()) or when the server said 200 or 201: the run
+// stops as "unsure" and the user is sent to the inventory. Any other code is a
+// refusal and stays "not created". Asked only for a try that failed:
+// batchCreateStep() ignores it for one that worked.
+// NOT-TO-DO: trying the spool again after such an answer; it may be made twice
+// (batchCreateStep()). Nor widening tagCreateAnswerLost() itself to 200 and
+// 201: the end of a single create (tagCreateFailed()) reads it too, and what
+// that one says about a create without a number is not this run's to change.
+// See test_batch_flow.py (the run).
+static bool spoolMayExist(int code) {
+  return tagCreateAnswerLost(code) || code == 200 || code == 201;
 }
 
 // Wurzel: behind Bambuddy on Spoolman, copyBbsCreate() takes the template the
@@ -187,8 +206,9 @@ static void runStopReason(BatchStep step, int at, int code, char* out, size_t ca
 // would go without the typed price.
 // Fix: the load is freed once, after the loop, on every way out of the run.
 // The parts each copy left behind are gathered (copyBbsLastMissing() holds the
-// last create's only) and said once, as for one copy. A lost answer stops the
-// run as "unsure", as on the card: the copy may exist.
+// last create's only) and said once, as for one copy. A lost answer, or one
+// without a number, stops the run as "unsure" (spoolMayExist()): the copy may
+// exist.
 // NOT-TO-DO: one copyBbsLoad() per copy: the card showed one template, and a
 // read between two copies could bring other values than it showed.
 // See test_batch_flow.py (the run).
@@ -211,7 +231,7 @@ void batchCopyCreate(int template_spool_id, int template_filament_id, const Spoo
     }
     logSDf("Batch: copy %d of %d from template %d: HTTP %d, spool %d",
            made + (ok ? 0 : 1), wanted, template_spool_id, code, new_id);
-    step = batchCreateStep(made, wanted, ok, tagCreateAnswerLost(code));
+    step = batchCreateStep(made, wanted, ok, spoolMayExist(code));
   }
   loadingOverlayHide();
   copyBbsClear();
@@ -266,7 +286,7 @@ void batchTagCreate(const TagCreateInput& in, TagFilamentPlan* plan, const TagSp
     }
     logSDf("Batch: spool %d of %d: HTTP %d, spool %d, filament %d",
            made + (ok ? 0 : 1), wanted, code, r.spool_id, r.filament_id);
-    step = batchCreateStep(made, wanted, ok, r.spool_sent && tagCreateAnswerLost(code));
+    step = batchCreateStep(made, wanted, ok, r.spool_sent && spoolMayExist(code));
   }
   loadingOverlayHide();
   if (made == 0) { tagCreateFailed(code, r); return; }
