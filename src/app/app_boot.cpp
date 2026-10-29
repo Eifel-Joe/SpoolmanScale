@@ -25,6 +25,7 @@
 #include "services/backend_api.h"
 #include "services/breadcrumb.h"
 #include "services/device_name.h"
+#include "services/klipper_store.h"
 #include "services/mdns_service.h"
 #include "services/time_service.h"
 #include "services/update_check.h"
@@ -173,6 +174,9 @@ void appSetup() {
   // in wifiConnect(). Logs only whether tokens are present, never their values.
   backendLoadSettings();
   amsSourceLoadSettings();
+  // The Klipper printers, with the line that says how full the settings memory
+  // is. After initSD() for the same reason.
+  klipperStoreLoad();
 
   displayHardwareBegin(resetActivityTimer);
   // The palette, before anything is drawn: every UI_COL_* is read when an
