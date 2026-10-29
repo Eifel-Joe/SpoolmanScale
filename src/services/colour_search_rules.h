@@ -14,19 +14,27 @@
 //
 //  The rule lives here without Arduino or LVGL, so a host test holds it to
 //  the values in test_colour_search_rules.py; ui/colour_search.cpp is what
-//  both screens share on the panel.
+//  both screens share on the panel. Letters are compared in any case through
+//  the fold of services/text_fold.h, the keyboard's umlauts and accents
+//  included (V43).
 // ============================================================
 
 // The word, terminator included: 23 bytes, cut at a character boundary.
 #define COLOUR_SEARCH_MAX  24
 
 // True when name holds word anywhere: "2.0 Bone White" holds "bone", "BONE"
-// and "e w", not "bonewhite". ASCII letters are compared in any case, every
-// other byte as it is, so an umlaut typed as written is found and a capital
-// umlaut is not a small one.
-// Wurzel: the names are mostly English, and LVGL's keyboard has no umlauts;
-//   case is what a typed word gets wrong.
-// Fix: fold A-Z to a-z and nothing else.
+// and "e w", not "bonewhite". Letters are compared in any case, the capital
+// umlauts and accents of Latin-1 included: a capital U umlaut typed finds the
+// name with the small one, and the other way round. One character at a time
+// through textFoldNext(); nothing is spelled out or stripped, so the letter u
+// is not the letter u umlaut and "ue" does not find it.
+// Wurzel: the names are mostly English, but the keyboard has umlauts and
+//   accents now (QWERTZ, AZERTY), so a word typed can start with a capital
+//   umlaut where the name has the small one. The fold of A-Z alone, with
+//   every other byte as it is, made the two different letters (V43).
+// Fix: both sides are read a character at a time through textFoldNext()
+//   (services/text_fold.h), the one fold that "Enter filament" uses for the
+//   same name, too.
 // NOT-TO-DO: tolower(), strcasestr(): they follow the locale. A fold of every
 //   byte (c | 0x20) takes 0x9C, the second byte of the capital U umlaut, for
 //   0xBC, the small one's: one UTF-8 sequence would match another.

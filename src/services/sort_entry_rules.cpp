@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "services/text_fold.h"
 #include "services/text_util.h"
 
 // ---- the usual values ------------------------------------------------
@@ -35,12 +36,6 @@ const char* const SORT_MATERIALS[SORT_MATERIALS_COUNT] = {
 
 // ---- reading text ------------------------------------------------------
 
-// ASCII letters only, on purpose: a name with an umlaut is compared byte for
-// byte, so that no locale and no half-folded UTF-8 sequence can sneak in.
-static char foldAscii(char c) {
-  return (c >= 'A' && c <= 'Z') ? (char)(c + ('a' - 'A')) : c;
-}
-
 // What sortEntrySame() leaves out of a name.
 static bool skipped(char c) {
   return c == ' ' || c == '-';
@@ -67,17 +62,28 @@ static const char* afterWord(const char* s, size_t len) {
   return s;
 }
 
-// Whether text begins with word as a whole word, in any case (ASCII only):
-// "Tough Cyan" begins with "Tough", "Tough+ Cyan" does not. The word ends at
-// the end of the text, at a blank or at a dash. The same reading as
-// tagCreateStartsWithWord(), which lives in a file that is not host-testable.
-static bool startsWithWord(const char* text, const char* word) {
+// Whether text begins with word as a whole word, in any case: "Tough Cyan"
+// begins with "Tough", "Tough+ Cyan" does not. The word ends at the end of the
+// text, at a blank or at a dash. The same reading as tagCreateStartsWithWord(),
+// which lives in a file that is not host-testable. Both are read a character
+// at a time through textFoldNext() (V43), like sortEntrySame(). When after is
+// not null it is set to the end of the word in text: the word and the text it
+// matched can differ in length (a broken byte meets a sequence of the same
+// value), and the caller must step by the text's length, not the word's.
+static bool startsWithWord(const char* text, const char* word, const char** after) {
   if (!text || !word || !word[0]) return false;
-  const size_t n = strlen(word);
-  for (size_t i = 0; i < n; i++) {
-    if (!text[i] || foldAscii(text[i]) != foldAscii(word[i])) return false;
+  const char* t = text;
+  const char* w = word;
+  while (*w) {
+    if (!*t) return false;
+    uint32_t ct, cw;
+    t = textFoldNext(t, &ct);
+    w = textFoldNext(w, &cw);
+    if (ct != cw) return false;
   }
-  return text[n] == '\0' || text[n] == ' ' || text[n] == '-';
+  if (*t != '\0' && *t != ' ' && *t != '-') return false;
+  if (after) *after = t;
+  return true;
 }
 
 // The usual line that text begins with, as spelled in SORT_LINES. Where two
@@ -88,7 +94,7 @@ static const char* leadingLine(const char* text) {
   size_t best_len = 0;
   for (int i = 0; i < SORT_LINES_COUNT; i++) {
     const size_t n = strlen(SORT_LINES[i]);
-    if (n > best_len && startsWithWord(text, SORT_LINES[i])) {
+    if (n > best_len && startsWithWord(text, SORT_LINES[i], nullptr)) {
       best = SORT_LINES[i];
       best_len = n;
     }
@@ -104,17 +110,21 @@ static int hexValue(char c) {
   return -1;
 }
 
+// Characters, not bytes, are compared (textFoldNext(), V43). The blanks and
+// hyphens are skipped before each character is read: a byte below 0x80 never
+// sits inside a UTF-8 sequence, so a skip cannot cut one.
 bool sortEntrySame(const char* a, const char* b) {
   if (!a || !b) return false;
-  bool any = false;   // at least one byte was compared: nothing left is never equal
+  bool any = false;   // at least one character was compared: nothing left is never equal
   for (;;) {
     while (skipped(*a)) a++;
     while (skipped(*b)) b++;
     if (!*a || !*b) return any && !*a && !*b;
-    if (foldAscii(*a) != foldAscii(*b)) return false;
+    uint32_t ca, cb;
+    a = textFoldNext(a, &ca);
+    b = textFoldNext(b, &cb);
+    if (ca != cb) return false;
     any = true;
-    a++;
-    b++;
   }
 }
 
@@ -224,7 +234,8 @@ void sortEntrySplitName(const char* name, const char* material, char line[SORT_L
   if (!name || !line || !colour) return;
   const char* rest = skipBlanks(name);
   // "PETG Basic" names the material in front, which is no part of the line.
-  if (material && material[0] && startsWithWord(rest, material)) rest = afterWord(rest, strlen(material));
+  const char* after = nullptr;
+  if (material && material[0] && startsWithWord(rest, material, &after)) rest = afterWord(rest, (size_t)(after - rest));
   const char* found = leadingLine(rest);
   if (found) {
     utf8Cut(found, SORT_LINE_MAX - 1, line, SORT_LINE_MAX);

@@ -33,10 +33,12 @@
 //  The rules live here without Arduino, LVGL or a backend: a host test holds
 //  them to the values in test_sort_entry_rules.py, and the screens and the
 //  sources of the lists ask this unit instead of keeping rules of their own.
-//  The comparison folds ASCII letters only, on purpose: a name with an umlaut
-//  is compared byte for byte, so that no locale and no half-folded UTF-8
-//  sequence can sneak in. Whatever is cut to a field is cut at a character
-//  boundary (utf8Cut), never through a sequence.
+//  The comparison reads a character at a time through the fold of
+//  services/text_fold.h (V43), the one the search in a colour list uses too:
+//  case is no difference, the capital umlauts and accents of Latin-1 included,
+//  and a letter with its accent is still not the letter without it. No locale
+//  and no half-folded UTF-8 sequence can sneak in. Whatever is cut to a field
+//  is cut at a character boundary (utf8Cut), never through a sequence.
 // ============================================================
 
 #define SORT_NAME_MAX        48       // a name in a list, as TagCreateInput::color_name
@@ -89,12 +91,22 @@ extern const char* const     SORT_MATERIALS[SORT_MATERIALS_COUNT];
 struct SortEntry { char vendor[32]; char material[17]; char line[SORT_LINE_MAX]; char colour[SORT_NAME_MAX];
                    char hex[7]; bool clear; int grams; float diameter_mm; int filament_id; };
 
-// True when both names are equal once ASCII case, blanks and '-' are left
-// out: "Light Green", "light-green" and "LightGreen" are one name, " ABS "
-// and "abs" too. Bytes outside ASCII are compared as they are: a name with an
-// accented letter is not the name without the accent, and a capital umlaut is
-// not a small one. A name with nothing left is never equal to anything, not
-// even to another one with nothing left, and neither is a null name.
+// True when both names are equal once case, blanks and '-' are left out:
+// "Light Green", "light-green" and "LightGreen" are one name, " ABS " and
+// "abs" too. Case is the fold of textFoldNext(): the capital umlauts and
+// accents of Latin-1 are their small letters, so a name typed with a small u
+// umlaut is the one stored with the capital. A letter with its accent is not
+// the letter without it (an e acute is not an e, a u umlaut is not "ue"). A
+// name with nothing left is never equal to anything, not even to another one
+// with nothing left, and neither is a null name.
+// Wurzel: the keyboard types umlauts and accents now (QWERTZ, AZERTY); the
+//   fold of A-Z alone kept the small and the capital umlaut apart, so a name
+//   typed with the small one entered a second filament next to the stored
+//   one with the capital.
+// Fix: both names are read a character at a time through textFoldNext().
+// NOT-TO-DO: a fold of bytes (c | 0x20) takes one UTF-8 sequence for another
+//   (0x9C for 0xBC); tolower() follows the locale.
+// See test_sort_entry_rules.py.
 bool sortEntrySame(const char* a, const char* b);
 
 // The index of the entry of the list that is the same name (sortEntrySame),
