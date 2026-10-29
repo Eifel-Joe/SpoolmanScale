@@ -7,6 +7,7 @@
 
 #include "hardware/sd_logger.h"
 #include "services/text_util.h"
+#include "ui/key_maps.h"
 #include "ui/sort_entry_screen.h"
 #include "ui/theme.h"
 #include "ui/ui_common.h"
@@ -155,9 +156,12 @@ void sortKeysShowOver(lv_obj_t* (*under)(), uint8_t kind, int title_id, size_t m
   lv_obj_set_style_text_align(s_say, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_set_style_text_color(s_say, lv_color_hex(UI_COL_WARN), 0);
 
-  // LVGL's own layout, QWERTY without umlauts; its keyboard key reports
-  // CANCEL, the way back to the step.
+  // The layout of the scale's language (ui/key_maps.cpp); its keyboard key
+  // reports CANCEL, the way back to the step. A hex value is typed on it too,
+  // and the field takes only the characters of one; the weights get LVGL's
+  // number pad, which no layout replaces.
   lv_obj_t* kb = lv_keyboard_create(scr);
+  keyMapsApply(kb, false);
   lv_keyboard_set_textarea(kb, s_ta);
   if (kind == SK_GRAMS) lv_keyboard_set_mode(kb, LV_KEYBOARD_MODE_NUMBER);
   lv_obj_set_size(kb, LV_HOR_RES, SORT_KEYS_KB_H);

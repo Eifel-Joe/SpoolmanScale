@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "hardware/sd_logger.h"
+#include "key_maps.h"
 #include "loading_overlay.h"
 #include "services/server_reach.h"
 #include "services/spool_type_rules.h"
@@ -134,10 +135,12 @@ void showSpoolTypeName(const char *prefill, float grams, SpoolTypeCreated on_cre
   lv_obj_set_style_text_align(s_status, LV_TEXT_ALIGN_CENTER, 0);
   nameStatus("", UI_COL_CAPTION);
 
-  // LVGL's own layout (wifi_setup_screen.cpp keeps a copy without the
-  // keyboard key; a name needs none of the extra signs the password page has).
-  // Its keyboard key reports CANCEL, which is the way out of this screen.
+  // The layout of the scale's language (ui/key_maps.cpp; the WiFi password of
+  // wifi_pass_screen.cpp has its own without the keyboard key, and a name
+  // needs none of the extra signs its sign page has). The keyboard key
+  // reports CANCEL, which is the way out of this screen.
   lv_obj_t *kb = lv_keyboard_create(scr);
+  keyMapsApply(kb, false);
   lv_keyboard_set_textarea(kb, s_ta);
   lv_obj_set_size(kb, 480, 160);
   lv_obj_align(kb, LV_ALIGN_BOTTOM_MID, 0, 0);

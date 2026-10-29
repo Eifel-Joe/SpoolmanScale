@@ -3,13 +3,14 @@
 // ============================================================
 //  A NEW EMPTY SPOOL TYPE, NAMED AT THE SCALE (design A3)
 //
-//  A full screen with a text field and LVGL's own keyboard. The weight is
-//  given by whoever opens it (a weighed empty spool, or one computed from a
-//  full spool); the user types the name. Its check mark parks the name, and
-//  the loop then loads the catalog fresh, refuses a name that is taken (in
-//  any case, against that fresh list: there is no overwriting at the scale,
-//  design note L15) and adds the type to Bambuddy's catalog with the weight
-//  in whole grams. The keyboard's own keyboard key (LVGL's CANCEL) cancels.
+//  A full screen with a text field and LVGL's keyboard in the layout of the
+//  scale's language (ui/key_maps.h). The weight is given by whoever opens
+//  it (a weighed empty spool, or one computed from a full spool); the user
+//  types the name. Its check mark parks the name, and the loop then loads
+//  the catalog fresh, refuses a name that is taken (in any case, against
+//  that fresh list: there is no overwriting at the scale, design note L15)
+//  and adds the type to Bambuddy's catalog with the weight in whole grams.
+//  The keyboard's own keyboard key (LVGL's CANCEL) cancels.
 //
 //  Bambuddy in Spoolman mode only (spoolTypesActive()). Nothing here talks
 //  to the server from a button; spoolTypeNameTick() does, from the loop.

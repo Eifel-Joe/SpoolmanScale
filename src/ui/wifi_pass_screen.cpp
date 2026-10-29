@@ -7,6 +7,7 @@
 #include <cstring>
 
 #include "hardware/sd_logger.h"
+#include "key_maps.h"
 #include "lang.h"
 #include "setup_frame.h"
 #include "ui_common.h"
@@ -25,68 +26,6 @@
 #define WIFI_EYE_W           48
 #define WIFI_KB_H           216
 #define WIFI_KB_GAP           4
-
-// LVGL's default keyboard, adjusted in two places. The special page had no
-// ^ ~ | or `, so a WiFi password containing one could not be typed at all.
-// And the keyboard key at the bottom left only sends CANCEL, which nothing on
-// this screen answers, so it is gone on all three pages and the space bar has
-// its width. Otherwise the same keys, and the control keys carry LVGL's own
-// labels, so lv_keyboard_def_event_cb() still switches pages, deletes and
-// confirms. LVGL keeps the arrays by pointer, which is why they live here and
-// not on the stack.
-#define WIFI_KB_BTN(w)  (LV_BTNMATRIX_CTRL_POPOVER | (w))
-#define WIFI_KB_KEY     WIFI_KB_BTN(1)
-// One bottom row for all three pages, so nothing shifts on a page switch.
-#define WIFI_KB_MAP_BOTTOM   LV_SYMBOL_LEFT, " ", LV_SYMBOL_RIGHT, LV_SYMBOL_OK, ""
-// The confirm key is twice as wide as the arrows and drawn in the accent
-// (wifiKbDrawCb), so the way on reads as the main button.
-#define WIFI_KB_CTRL_BOTTOM  LV_BTNMATRIX_CTRL_CHECKED | 2, 6, \
-                             LV_BTNMATRIX_CTRL_CHECKED | 2, LV_KEYBOARD_CTRL_BTN_FLAGS | 4
-static const char * const wifi_kb_map_lc[] = {
-  "1#", "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", LV_SYMBOL_BACKSPACE, "\n",
-  "ABC", "a", "s", "d", "f", "g", "h", "j", "k", "l", LV_SYMBOL_NEW_LINE, "\n",
-  "_", "-", "z", "x", "c", "v", "b", "n", "m", ".", ",", ":", "\n",
-  WIFI_KB_MAP_BOTTOM
-};
-static const char * const wifi_kb_map_uc[] = {
-  "1#", "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", LV_SYMBOL_BACKSPACE, "\n",
-  "abc", "A", "S", "D", "F", "G", "H", "J", "K", "L", LV_SYMBOL_NEW_LINE, "\n",
-  "_", "-", "Z", "X", "C", "V", "B", "N", "M", ".", ",", ":", "\n",
-  WIFI_KB_MAP_BOTTOM
-};
-// Lower and upper case share their widths.
-static const lv_btnmatrix_ctrl_t wifi_kb_ctrl_text[] = {
-  LV_KEYBOARD_CTRL_BTN_FLAGS | 5,
-  WIFI_KB_BTN(4), WIFI_KB_BTN(4), WIFI_KB_BTN(4), WIFI_KB_BTN(4), WIFI_KB_BTN(4),
-  WIFI_KB_BTN(4), WIFI_KB_BTN(4), WIFI_KB_BTN(4), WIFI_KB_BTN(4), WIFI_KB_BTN(4),
-  LV_BTNMATRIX_CTRL_CHECKED | 7,
-  LV_KEYBOARD_CTRL_BTN_FLAGS | 6,
-  WIFI_KB_BTN(3), WIFI_KB_BTN(3), WIFI_KB_BTN(3), WIFI_KB_BTN(3), WIFI_KB_BTN(3),
-  WIFI_KB_BTN(3), WIFI_KB_BTN(3), WIFI_KB_BTN(3), WIFI_KB_BTN(3),
-  LV_BTNMATRIX_CTRL_CHECKED | 7,
-  LV_BTNMATRIX_CTRL_CHECKED | WIFI_KB_KEY, LV_BTNMATRIX_CTRL_CHECKED | WIFI_KB_KEY,
-  WIFI_KB_KEY, WIFI_KB_KEY, WIFI_KB_KEY, WIFI_KB_KEY, WIFI_KB_KEY, WIFI_KB_KEY, WIFI_KB_KEY,
-  LV_BTNMATRIX_CTRL_CHECKED | WIFI_KB_KEY, LV_BTNMATRIX_CTRL_CHECKED | WIFI_KB_KEY,
-  LV_BTNMATRIX_CTRL_CHECKED | WIFI_KB_KEY,
-  WIFI_KB_CTRL_BOTTOM
-};
-static const char * const wifi_kb_map_spec[] = {
-  "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "^", "~", LV_SYMBOL_BACKSPACE, "\n",
-  "abc", "+", "&", "/", "*", "=", "%", "!", "?", "#", "<", ">", "\n",
-  "\\", "@", "$", "(", ")", "{", "}", "[", "]", ";", "\"", "'", "|", "`", "\n",
-  WIFI_KB_MAP_BOTTOM
-};
-static const lv_btnmatrix_ctrl_t wifi_kb_ctrl_spec[] = {
-  WIFI_KB_KEY, WIFI_KB_KEY, WIFI_KB_KEY, WIFI_KB_KEY, WIFI_KB_KEY, WIFI_KB_KEY,
-  WIFI_KB_KEY, WIFI_KB_KEY, WIFI_KB_KEY, WIFI_KB_KEY, WIFI_KB_KEY, WIFI_KB_KEY,
-  LV_BTNMATRIX_CTRL_CHECKED | 2,
-  LV_KEYBOARD_CTRL_BTN_FLAGS | 2,
-  WIFI_KB_KEY, WIFI_KB_KEY, WIFI_KB_KEY, WIFI_KB_KEY, WIFI_KB_KEY, WIFI_KB_KEY,
-  WIFI_KB_KEY, WIFI_KB_KEY, WIFI_KB_KEY, WIFI_KB_KEY, WIFI_KB_KEY,
-  WIFI_KB_KEY, WIFI_KB_KEY, WIFI_KB_KEY, WIFI_KB_KEY, WIFI_KB_KEY, WIFI_KB_KEY, WIFI_KB_KEY,
-  WIFI_KB_KEY, WIFI_KB_KEY, WIFI_KB_KEY, WIFI_KB_KEY, WIFI_KB_KEY, WIFI_KB_KEY, WIFI_KB_KEY,
-  WIFI_KB_CTRL_BOTTOM
-};
 
 static lv_obj_t *ta_wifi_pass = nullptr;
 static lv_obj_t *kb_wifi_pass = nullptr;
@@ -208,13 +147,13 @@ void buildWifiPassScreen() {
 
   buildWifiPassField(scr_wifi_pass);
 
+  // The WiFi password's own layout (services/key_layout.cpp): the letters of
+  // the scale's language without umlauts or accents, a sign page with ^ ~ |
+  // and `, and no keyboard key, which only sends CANCEL and nothing on this
+  // screen answers; OK has its width and is drawn in the accent
+  // (wifiKbDrawCb), so the way on reads as the main button.
   kb_wifi_pass = lv_keyboard_create(scr_wifi_pass);
-  lv_keyboard_set_map(kb_wifi_pass, LV_KEYBOARD_MODE_TEXT_LOWER,
-                      (const char **)wifi_kb_map_lc, wifi_kb_ctrl_text);
-  lv_keyboard_set_map(kb_wifi_pass, LV_KEYBOARD_MODE_TEXT_UPPER,
-                      (const char **)wifi_kb_map_uc, wifi_kb_ctrl_text);
-  lv_keyboard_set_map(kb_wifi_pass, LV_KEYBOARD_MODE_SPECIAL,
-                      (const char **)wifi_kb_map_spec, wifi_kb_ctrl_spec);
+  keyMapsApply(kb_wifi_pass, true);
   lv_keyboard_set_textarea(kb_wifi_pass, ta_wifi_pass);
   lv_obj_set_size(kb_wifi_pass, 480, WIFI_KB_H);
   lv_obj_align(kb_wifi_pass, LV_ALIGN_BOTTOM_MID, 0, 0);
