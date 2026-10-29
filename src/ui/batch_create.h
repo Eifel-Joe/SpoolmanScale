@@ -151,3 +151,11 @@ void batchLabelsForget();
 
 // Whether labels of a run are being printed (for noTagAfterCreateBusy()).
 bool batchLabelsBusy();
+
+// Whether the preview sheet of a run's first label is being awaited: from the
+// "Print" that arms it until the sheet printed (then the labels are busy) or
+// was closed without printing (the tick drops it). Only for the idle clock of
+// the spool shown (idSpoolTick()), which must outlast the sheet; not part of
+// noTagAfterCreateBusy(), the questions after a lift would wait for a sheet
+// the user may leave open.
+bool batchLabelsSheetWait();

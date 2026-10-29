@@ -381,4 +381,25 @@ in_order(body, ["if (!s_lifted_ms) {", "else if (noTagAfterCreateBusy()) {",
 assert '#include "ui/no_tag_create.h"' in (src / ID_SPOOL).read_text(encoding="utf-8"), \
     f"src/{ID_SPOOL}: noTagAfterCreateBusy() is used without its header"
 
+# The other clock of that spool, the original's 120 s for a spool that was
+# never put on the pad (ID_SPOOL_IDLE_MS), is held the same way. It ran on
+# behind the create's questions: after a create without a tag (one spool or a
+# run) the overview card has no countdown, the location picker, the write to
+# the rest, the label question and the preview sheet stand as long as the user
+# takes, and past the 120 s the spool ended: shownStill() failed and the run
+# lost its location for all and its labels. Held while the predicate holds,
+# the 120 s count from the last answer. The sheet of a run is not part of the
+# predicate (the lift questions must not wait for a sheet that is left open),
+# so the idle clock asks for it by name: batchLabelsSheetWait(), dropped by
+# the labels' tick when the sheet is gone. The lift clock is not given the
+# sheet: the sheet covers the main screen, which that clock already waits for.
+idle, _, _ = block_of(body, "if (!s_seen_load) {", where)
+assert idle == squeeze("if (noTagAfterCreateBusy() || batchLabelsSheetWait()) s_since_ms = millis();"
+                       " else if (millis() - s_since_ms > ID_SPOOL_IDLE_MS) endIdSpool(\"\", true); return;"), \
+    f"{where}: the idle clock must start over while the create's questions or the run's sheet are open, found '{idle}'"
+assert body.count("batchLabelsSheetWait()") == 1, \
+    f"{where}: the sheet of a run belongs to the idle clock only, not to the lift clock"
+assert '#include "ui/batch_create.h"' in (src / ID_SPOOL).read_text(encoding="utf-8"), \
+    f"src/{ID_SPOOL}: batchLabelsSheetWait() is used without its header"
+
 print("no tag finish: ok")

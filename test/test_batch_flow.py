@@ -586,7 +586,8 @@ def part_end():
         (BATCH_H, ("void batchRunKeep(const int* ids, int n);", "int batchRunOf(int first_id, const int** ids);",
                    "void batchLocationToRest(int first_id, const char* name);",
                    "void batchLabelsAfterSheet(int first_id);", "void batchLabelsStart(LabelKind kind, int from);",
-                   "void batchLabelsTick();", "void batchLabelsForget();", "bool batchLabelsBusy();")),
+                   "void batchLabelsTick();", "void batchLabelsForget();", "bool batchLabelsBusy();",
+                   "bool batchLabelsSheetWait();")),
         (INFO_H, ("bool locationPickerChosen(char* name, size_t cap, bool* cleared);",)),
         (PRINTER_H, ("LabelPrintResult printerPrintSpoolData(const SpoolLabelData& spool, LabelKind kind);",)),
         (CARD_H, ("void printCardSetStep(int i, int n);",)),
@@ -724,6 +725,12 @@ def part_end():
         assert needle in busy, f"src/{NOTAG}: noTagAfterCreateBusy() does not cover {needle}"
     assert body_of(BATCH, "batchLabelsBusy") == "returns_lr==LR_RUN;", \
         f"src/{BATCH}: batchLabelsBusy() must be true while labels are being printed, and only then"
+    # The wait for the preview sheet is the idle clock's alone (idSpoolTick(),
+    # see test_no_tag_finish.py): in the predicate the questions after a lift
+    # would wait for a sheet the user may leave open.
+    assert body_of(BATCH, "batchLabelsSheetWait") == "returns_lr==LR_SHEET;",         f"src/{BATCH}: batchLabelsSheetWait() must be true while the sheet of a run is awaited, and only then"
+    assert "batchLabelsSheetWait" not in busy,         f"src/{NOTAG}: noTagAfterCreateBusy() covers the wait for the sheet, the questions after a lift would wait for it"
+    assert "batchLabelsSheetWait" not in code_of(LOOP),         f"src/{LOOP}: the loop's questions wait for the sheet of a run"
     close = body_of(NOTAG, "closeNoTagLabelAsk")
     for needle in ("s_over_for=0;", "s_over_wait=false;"):
         assert needle in close, f"src/{NOTAG}: closeNoTagLabelAsk() does not do {needle}"

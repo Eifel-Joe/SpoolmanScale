@@ -376,7 +376,10 @@ static bool labelWentOut(int text) {
 // NOT-TO-DO: dropping them in closePrintSheet(): the print button closes the
 // sheet before it prints. Nor counting the wait for the sheet as busy
 // (batchLabelsBusy()): a sheet a navigation closed would hold the questions
-// after a lift for good.
+// after a lift for good. The idle clock of the spool shown does wait for it,
+// by name (batchLabelsSheetWait(), see idSpoolTick()): the print goes on with
+// the rest by reading the screen again, and past the 120 s under the sheet
+// the spool is gone and the rest of the run with it.
 void batchLabelsAfterSheet(int first_id) {
   const int n = batchRunOf(first_id, nullptr);
   if (n < 2) return;
@@ -488,3 +491,5 @@ void batchLabelsForget() {
 }
 
 bool batchLabelsBusy() { return s_lr == LR_RUN; }
+
+bool batchLabelsSheetWait() { return s_lr == LR_SHEET; }

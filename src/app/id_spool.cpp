@@ -11,6 +11,7 @@
 #include "services/auto_weight_state.h"
 #include "services/location_state.h"
 #include "services/user_options.h"
+#include "ui/batch_create.h"       // batchLabelsSheetWait()
 #include "ui/main_screen_helpers.h"
 #include "ui/no_tag_create.h"   // noTagAfterCreateBusy()
 #include "ui/spoolman_lookup.h"
@@ -96,8 +97,25 @@ void idSpoolTick() {
     s_lift_news = false;
     return;
   }
+  // Never put on the pad: the original's 120 s. A spool just created without a
+  // tag is such a spool, and its questions take as long as the user does: the
+  // overview card of a run has no countdown, the location picker, the write to
+  // the rest, "Print a label?" and the preview sheet stand until they are
+  // answered. The clock ran on behind them, and past the 120 s the spool
+  // ended: shownStill() failed and the run lost its location for all and its
+  // labels. Now it starts over every pass while the questions are open
+  // (noTagAfterCreateBusy()), so the 120 s count from the last answer.
+  // The sheet of a run is asked for by name (batchLabelsSheetWait()) and not
+  // put into that predicate: the questions after a lift would wait for a
+  // sheet the user may leave open. It is no wait for good: the labels' tick
+  // drops it when the sheet is gone. The lift clock below is not given it,
+  // the sheet covers the main screen, which that clock waits for anyway.
+  // NOT-TO-DO: holding the clock for every covering screen; the original ends
+  // a spool shown by its number under any of them, and so it stays.
+  // See test_no_tag_finish.py.
   if (!s_seen_load) {
-    if (millis() - s_since_ms > ID_SPOOL_IDLE_MS) endIdSpool("never put on the pad", true);
+    if (noTagAfterCreateBusy() || batchLabelsSheetWait()) s_since_ms = millis();
+    else if (millis() - s_since_ms > ID_SPOOL_IDLE_MS) endIdSpool("never put on the pad", true);
     return;
   }
   // Lifted: shown a little longer, so a question about it, or the location
