@@ -153,9 +153,15 @@ for inc in ('#include "ui/more_info_screen.h"', '#include "services/location_sta
 # cleared.
 where = f"src/{CORE}: locationPickerEnded()"
 body = body_of(CORE, "locationPickerEnded")
-assert without_logs(body) == squeeze("s_ask_for = (shownStill(spool_id) && labelPrinterReadiness() == LP_OK) ? spool_id : 0; "
-                                     "s_ask_wait = s_ask_for != 0;"), \
+# After a run of several spools the location chosen is handed to the others
+# first (the block before, held by test_batch_flow.py); the question is armed
+# after it exactly as for one spool, and the block arms no question itself.
+arming = squeeze("s_ask_for = (shownStill(spool_id) && labelPrinterReadiness() == LP_OK) ? spool_id : 0; "
+                 "s_ask_wait = s_ask_for != 0;")
+assert without_logs(body).endswith(arming), \
     f"{where}: must arm the question for a label for a spool still on the screen with a printer ready, and nothing else"
+head = without_logs(body)[:-len(arming)]
+assert "s_ask" not in head and "s_loc_for" not in head, f"{where}: the run's hand-over touches the questions"
 assert "logSD" in body, f"{where}: the end of the picker is not in the log"
 arms = [a for a in re.findall(r"s_ask_for=([^;=][^;]*);", core) if a != "0"]
 assert arms == [squeeze("(shownStill(spool_id) && labelPrinterReadiness() == LP_OK) ? spool_id : 0")], \

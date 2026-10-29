@@ -256,8 +256,9 @@ in_order(rest, ["if (!s_ask_for) return;", "if (s_ask_wait) { s_ask_wait = false
 
 # The buttons park their answer and do nothing else; nothing the print needs
 # is touched from a tap (the NVS read of the setting, the flags of the loop).
+# The third is the "Next" of a run's overview, the same card (test_batch_flow.py).
 handlers = handler_bodies(CORE)
-assert sorted(handlers) == sorted(["s_answer=LA_PRINT;", "s_answer=LA_NO;"]), \
+assert sorted(handlers) == sorted(["s_answer=LA_PRINT;", "s_answer=LA_NO;", "s_answer=LA_NEXT;"]), \
     f"src/{CORE}: the buttons must park their answer and do nothing else, found {handlers}"
 body = body_of(CORE, "buildAsk")
 assert "labelPrinterAskFirst();" in body, f"src/{CORE}: buildAsk() does not read the setting once, so the loop's print finds it cached"

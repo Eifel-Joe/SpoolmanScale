@@ -2,6 +2,7 @@
 
   part_card()   the count on both create cards, only in the flag, and the create button naming it
   part_loop()   the run: the spools one after another, the stop at the first failure, one filament
+  part_end()    after the run: one overview, one location for all, all labels one after another
 """
 import json
 import re
@@ -27,6 +28,15 @@ NOTAG = "ui/no_tag_create.cpp"
 NOTAG_H = "ui/no_tag_create.h"
 COPY = "ui/copy_flow.cpp"
 INTERNAL_H = "ui/spool_flow_internal.h"
+INFO = "ui/more_info_screen.cpp"
+INFO_H = "ui/more_info_screen.h"
+PRINTER = "ui/printer_screen.cpp"
+PRINTER_H = "ui/printer_screen.h"
+SHEET = "ui/print_sheet.cpp"
+SHEET_H = "ui/print_sheet.h"
+CARD = "ui/print_card.cpp"
+CARD_H = "ui/print_card.h"
+LOOP = "app/app_loop.cpp"
 
 
 # ------------------------------------------------------------
@@ -161,11 +171,12 @@ def string_tables():
     return {"h": text_of("lang.h"), "cpp": text_of("lang.cpp"), "work": work, "budgets": budgets}
 
 
-def text_row(tables, sid, german, conv):
+def text_row(tables, sid, german, conv, spec="%d"):
     """The German, English and French of one text, held to the house rules: in
-    the enum, three cells in lang.cpp without an em-dash, exactly conv %d in
-    each, German as written when german is given, translated in the working
-    file with the French of lang.cpp, and a width budget."""
+    the enum, three cells in lang.cpp without an em-dash, exactly conv
+    conversions in each and all of them spec (%d unless named), German as
+    written when german is given, translated in the working file with the
+    French of lang.cpp, and a width budget."""
     assert re.search(rf"\b{sid}\b\s*,", tables["h"]), f"src/lang.h: {sid} is not in the enum"
     row = re.search(r'\{\s*"((?:[^"\\]|\\.)*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*\}\s*,\s*//\s*'
                     + sid + r"\b", tables["cpp"])
@@ -173,8 +184,8 @@ def text_row(tables, sid, german, conv):
     for lang_name, got in zip(("German", "English", "French"), row.groups()):
         assert got.strip(), f"src/lang.cpp: {sid} has no {lang_name} text"
         assert "\N{EM DASH}" not in got, f"src/lang.cpp: {sid} ({lang_name}) has an em-dash"
-        assert got.count("%") == conv and got.count("%d") == conv, \
-            f"src/lang.cpp: {sid} ({lang_name}) '{got}' does not have exactly {conv} %d"
+        assert got.count("%") == conv and got.count(spec) == conv, \
+            f"src/lang.cpp: {sid} ({lang_name}) '{got}' does not have exactly {conv} {spec}"
     if german is not None:
         assert row.group(1) == german, f"src/lang.cpp: {sid} reads '{row.group(1)}' in German, expected '{german}'"
     entry = tables["work"].get(sid)
@@ -511,10 +522,10 @@ def part_loop():
     assert not re.search(r"(?<![A-Za-z0-9_])answerLost\(", code), f"src/{POPUP}: answerLost() is still there"
     assert "booltagCreateAnswerLost(intcode){" in code, f"src/{POPUP}: tagCreateAnswerLost() is not defined"
 
-    # 7. The end of the run, as little as it is for now: the first spool shown
-    # as after one create, never with nothing made, and the green line naming
-    # how many when there are several, with the Bambu chip hint when that
-    # stands.
+    # 7. The end of the run: the first spool shown as after one create, never
+    # with nothing made, and the green line naming how many when there are
+    # several, with the Bambu chip hint when that stands. What follows it (the
+    # overview, the location, the labels) is part_end().
     body = body_of(NOTAG, "noTagBatchFinish")
     in_order(body, ["if(!ids||made<1)return;", "noTagCreateFinish(ids[0],vendor);", "if(made<2)return;",
                     "s_chip_hint?STR_BATCH_CREATED_BAMBU:STR_BATCH_CREATED", "statusMessageShow("],
@@ -539,7 +550,279 @@ def part_loop():
         "src/ui/loading_overlay.cpp: the overlay's line is no longer 290 px wide"
 
 
-PARTS = (part_card, part_loop)
+# ------------------------------------------------------------
+#  Part 3: one overview, one location for all, all labels (Task 9)
+# ------------------------------------------------------------
+
+def block_after(body, head, where):
+    """The code between the braces of the one block that starts with head (it
+    ends in an opening brace), blanks gone, and the offset of its closing brace."""
+    head = squeeze(head)
+    assert head.endswith("{"), f"{where}: '{head}' must end in an opening brace"
+    assert body.count(head) == 1, f"{where}: '{head}' is not there exactly once"
+    opening = body.find(head) + len(head) - 1
+    end = braces_close(body, opening)
+    return body[opening + 1:end], end
+
+
+def part_end():
+    """After a run with at least one spool made, the scale shows one overview
+    with every new number (and why it stopped), a pass after the end and only
+    for the first spool still on the screen; its "Next" opens the location
+    picker for that spool as after one create. A location chosen there is
+    written to every other spool of the run, one call each with "Location 2 of
+    5 ..." on the overlay, stopping at the first failure; closed without a
+    choice, nothing. Then "5 labels?" (only with a printer ready); "Print"
+    prints every label one after another from the first spool's data with only
+    the number changed, the next only once the print card has closed, and a
+    result other than printed or sent stops the rest with their numbers in
+    yellow. With the preview the sheet comes once for the first, and its print
+    goes on with the rest. The card names the label's place, the loop drives
+    it, the create's busy predicate covers every step, the texts are in the
+    tables."""
+
+    # 1. The interfaces.
+    for rel, decls in (
+        (BATCH_H, ("void batchRunKeep(const int* ids, int n);", "int batchRunOf(int first_id, const int** ids);",
+                   "void batchLocationToRest(int first_id, const char* name);",
+                   "void batchLabelsAfterSheet(int first_id);", "void batchLabelsStart(LabelKind kind, int from);",
+                   "void batchLabelsTick();", "void batchLabelsForget();", "bool batchLabelsBusy();")),
+        (INFO_H, ("bool locationPickerChosen(char* name, size_t cap, bool* cleared);",)),
+        (PRINTER_H, ("LabelPrintResult printerPrintSpoolData(const SpoolLabelData& spool, LabelKind kind);",)),
+        (CARD_H, ("void printCardSetStep(int i, int n);",)),
+        (SHEET_H, ("bool printSheetOpen();",)),
+    ):
+        header = code_of(rel)
+        for decl in decls:
+            assert squeeze(decl) in header, f"src/{rel}: does not declare {decl}"
+
+    # 2. The finish: the first spool as after one create, then the run kept
+    # (its ids and reason live only for the call), and the picker the ending
+    # armed turned into the overview, which comes before it. None of that
+    # under a condition: the overview is armed exactly when the picker would
+    # have been, for the first spool still on the screen.
+    where = f"src/{NOTAG}: noTagBatchFinish()"
+    body = body_of(NOTAG, "noTagBatchFinish")
+    in_order(body, ["if(!ids||made<1)return;", "noTagCreateFinish(ids[0],vendor);", "batchRunKeep(ids,made);",
+                    "s_over_wanted=wanted;", 'snprintf(s_over_reason,sizeof(s_over_reason),"",reason?reason:"");',
+                    "s_over_for=s_loc_for;", "s_over_wait=s_loc_wait;", "s_loc_for=0;", "s_loc_wait=false;",
+                    "if(made<2)return;"], where)
+    head = body[:body.find("if(made<2)return;")]
+    head = head[head.find("noTagCreateFinish("):]
+    assert head.count("{") == head.count("}") == 0 and "return" not in head, \
+        f"{where}: the run is kept or the overview armed under a condition"
+    keep = body_of(BATCH, "batchRunKeep")
+    assert "BATCH_COUNT_MAX" in keep and "s_run_n=" in keep, \
+        f"src/{BATCH}: batchRunKeep() does not keep the ids within BATCH_COUNT_MAX"
+    run_of = body_of(BATCH, "batchRunOf")
+    assert "s_run_ids[0]==first_id" in run_of, f"src/{BATCH}: batchRunOf() does not key the run by its first spool"
+
+    # 3. The overview: a pass after it was armed (what the ending released goes
+    # back to the pool only after LVGL ran), only for the spool still shown;
+    # all its numbers as one text, "5 made" or "3 of 5 made", the reason of a
+    # stop in red, and one button whose tap only parks "Next".
+    where = f"src/{NOTAG}: askOverview()"
+    in_order(body_of(NOTAG, "askOverview"),
+             ["if(s_over_wait){s_over_wait=false;return;}", "constintid=s_over_for;", "s_over_for=0;",
+              "if(!shownStill(id)){", "return;}", "buildOverview(id);"], where)
+    where = f"src/{NOTAG}: buildOverview()"
+    body = body_of(NOTAG, "buildOverview")
+    for needle in ("batchRunOf(spool_id,&ids)", "closeNoTagLabelAsk();", "s_card_for=spool_id;",
+                   "batchIdsText(ids,made,list,sizeof(list))", "T(STR_BATCH_OVERVIEW_SOME),made,s_over_wanted",
+                   "T(STR_BATCH_OVERVIEW_ALL),made", "s_over_reason", "UI_COL_BAD_TEXT",
+                   "askButton(box,UI_CARD_ROW_X,true,STR_BTN_NEXT)", "lv_scr_act()"):
+        assert needle in body, f"{where}: does not do {needle}"
+    assert body.find("closeNoTagLabelAsk();") < body.find("s_card_for=spool_id;"), \
+        f"{where}: the card's spool is set before the old card is closed"
+    assert handler_of(NOTAG, "LA_NEXT") == "s_answer=LA_NEXT;", \
+        f"src/{NOTAG}: the overview's button does more than park its answer"
+
+    # 4. The loop: the overview's "Next" arms the picker for its spool, a pass
+    # later, only while that spool is still shown; "Print" for a run goes to
+    # the run, for one spool the way it always went. The steps after the card
+    # in the order of the way: picker, overview, the location to the rest,
+    # then the question for a label.
+    where = f"src/{NOTAG}: noTagLabelAskTick()"
+    body = body_of(NOTAG, "noTagLabelAskTick")
+    inner, end = block_after(body, "if (s_card) {", where)
+    in_order(inner, ["if(answer==LA_NONE&&shownStill(s_card_for))return;",
+                     "constboolnext=answer==LA_NEXT&&shownStill(s_card_for);", "constintasked=s_card_for;",
+                     "closeNoTagLabelAsk();", "if(next){s_loc_for=asked;s_loc_wait=true;return;}",
+                     "if(print&&batchRunOf(asked,nullptr)>1){printRun(asked);return;}", "if(print){"], where)
+    in_order(body[end:], ["if(s_loc_for){askLocation();return;}", "if(s_over_for){askOverview();return;}",
+                          "if(s_rest_for){writeRest();return;}", "if(!s_ask_for)return;"], where + " after the card")
+    where = f"src/{NOTAG}: printRun()"
+    body = body_of(NOTAG, "printRun")
+    assert body == squeeze("if (labelPrinterAskFirst()) { batchLabelsAfterSheet(first_id); show_print_sheet_pending = true; }"
+                           " else batchLabelsStart(LABEL_KIND_SPOOL, 0);"), \
+        f"{where}: with the preview the sheet for the first, else every label in a row from the first"
+
+    # 5. The question for a label names the count for a run.
+    body = body_of(NOTAG, "buildAsk")
+    for needle in ("batchRunOf(spool_id,nullptr)", "T(STR_BATCH_LABEL_ASK)", "T(STR_LABEL_ASK)"):
+        assert needle in body, f"src/{NOTAG}: buildAsk() does not use {needle}"
+
+    # 6. The location. The picker's end hands its choice to the rest of the run
+    # only when it wrote one, for the first spool still shown (else the picker
+    # wrote whatever took the screen); the question for a label is armed after
+    # it as before, and the rest is written a pass later, before the question.
+    where = f"src/{NOTAG}: locationPickerEnded()"
+    body = body_of(NOTAG, "locationPickerEnded")
+    cond = re.search(r"if\(([^{]*)\)\{s_rest_for=spool_id;s_rest_clear=cleared;s_rest_wait=true;\}", body)
+    assert cond, f"{where}: the rest of the run is not armed as one block under one condition"
+    assert "||" not in cond.group(1) and all(part in cond.group(1).split("&&") for part in (
+        "shownStill(spool_id)", "batchRunOf(spool_id,nullptr)>1",
+        "locationPickerChosen(s_rest_loc,sizeof(s_rest_loc),&cleared)")), \
+        f"{where}: the rest is armed without a written choice for the first spool still shown: {cond.group(1)}"
+    in_order(body, ["locationPickerChosen(", "s_rest_for=spool_id;",
+                    "s_ask_for=(shownStill(spool_id)&&labelPrinterReadiness()==LP_OK)?spool_id:0;",
+                    "s_ask_wait=s_ask_for!=0;"], where)
+    assert code_of(NOTAG).count("s_rest_for=spool_id;") == 1, f"src/{NOTAG}: the rest is armed in more than one place"
+    in_order(body_of(NOTAG, "writeRest"),
+             ["if(s_rest_wait){s_rest_wait=false;return;}", "constintid=s_rest_for;", "s_rest_for=0;",
+              "batchLocationToRest(id,s_rest_clear?nullptr:s_rest_loc);"], f"src/{NOTAG}: writeRest()")
+
+    # The picker's side: true only when the last end wrote a location (every
+    # request starts without, the write's answer decides), the name and
+    # whether it was "no location" from what it wrote.
+    where = f"src/{INFO}: locationPickerChosen()"
+    body = body_of(INFO, "locationPickerChosen")
+    in_order(body, ["if(!s_loc_chosen)returnfalse;", "loc_patch_name", "*cleared=loc_patch_name[0]=='';",
+                    "returntrue;"], where)
+    assert "s_loc_chosen=false;" in body_of(INFO, "requestLocationPicker"), \
+        f"src/{INFO}: a new request keeps the choice of the last picker"
+    patch, _ = block_after(body_of(INFO, "handleMoreInfoDeferredActions"), "if (loc_patch_pending) {", where)
+    written, _ = block_after(patch, "if (target > 0) {", where)
+    in_order(written, ["serverReachNote(backendPatchSpoolLocation(", "s_loc_chosen=backendWriteOk(code);"], where)
+    writers = sorted(name for name, start, end in cc.find_functions(source_of(INFO).code)
+                     if re.search(r"\bs_loc_chosen=", squeeze(source_of(INFO).code[start + 1:end])))
+    assert writers == ["handleMoreInfoDeferredActions", "requestLocationPicker"], \
+        f"src/{INFO}: s_loc_chosen is written by {writers}"
+
+    # The write to the rest: one loop from the second spool, "Location 2 of 5
+    # ..." before each call, the call through serverReachNote(), the stop at
+    # the first failure, the overlay down after the loop, and the spools left
+    # without in yellow, unless the Bambu chip hint stands.
+    where = f"src/{BATCH}: batchLocationToRest()"
+    body = body_of(BATCH, "batchLocationToRest")
+    loops = loops_of(body, where)
+    assert len(loops) == 1, f"{where}: {len(loops)} loops, expected one"
+    _, inner, end = loops[0]
+    assert "intat=1;" in body[:body.find("for(")], f"{where}: the loop does not start at the second spool"
+    in_order(inner, ["T(STR_BATCH_LOC_PROGRESS),at+1,n", "loadingOverlayShow(",
+                     "serverReachNote(backendPatchSpoolLocation(cfg_spoolman_base,ids[at],name,",
+                     "if(!backendWriteOk(code))break;"], where + ": the loop")
+    after = body[end + 1:]
+    unconditional_in(after, "loadingOverlayHide();", where + " after the loop")
+    in_order(after, ["if(at>=n)return;", 'runLeftOut(ids,at,n,STR_BATCH_LOC_MISSING,"");'], where + " after the loop")
+
+    # 7. The busy predicate covers the overview (armed; up is the card), the
+    # rest's location armed, and the labels running; closing the screens
+    # forgets an overview not yet shown, as it forgets the picker.
+    busy = body_of(NOTAG, "noTagAfterCreateBusy")
+    for needle in ("s_over_for!=0", "s_rest_for!=0", "batchLabelsBusy()"):
+        assert needle in busy, f"src/{NOTAG}: noTagAfterCreateBusy() does not cover {needle}"
+    assert body_of(BATCH, "batchLabelsBusy") == "returns_lr==LR_RUN;", \
+        f"src/{BATCH}: batchLabelsBusy() must be true while labels are being printed, and only then"
+    close = body_of(NOTAG, "closeNoTagLabelAsk")
+    for needle in ("s_over_for=0;", "s_over_wait=false;"):
+        assert needle in close, f"src/{NOTAG}: closeNoTagLabelAsk() does not do {needle}"
+
+    # 8. The print with data instead of the screen, and its result.
+    assert re.search(r"\bstatic\s+LabelPrintResult\s+printSpoolLabel\(", text_of(PRINTER)), \
+        f"src/{PRINTER}: printSpoolLabel() does not hand its result back"
+    assert body_of(PRINTER, "printSpoolLabel").endswith("returnresult;"), \
+        f"src/{PRINTER}: printSpoolLabel() does not end in return result"
+    assert body_of(PRINTER, "printerPrintSpoolData") == squeeze("printerOffsetFlush(); return printSpoolLabel(spool, false, kind);"), \
+        f"src/{PRINTER}: printerPrintSpoolData() is not the spool's label from the data handed in"
+
+    # 9. The labels. The start takes the first spool's data from the screen,
+    # once; from the sheet only when the sheet was the run's, and only when the
+    # sheet's own label went out. The tick waits for the print card to close,
+    # changes only the number, names the place on the card, prints, and stops
+    # at a result other than printed or sent with the rest's numbers in yellow.
+    where = f"src/{BATCH}: batchLabelsStart()"
+    body = body_of(BATCH, "batchLabelsStart")
+    in_order(body, ["constboolsheet=from>0;", "if(sheet&&s_lr!=LR_SHEET)return;", "labelSpoolFromScan(&d)",
+                    "batchRunOf(d.id,&ids)", "if(sheet&&!labelWentOut(printerLastLabelResult())){",
+                    'runLeftOut(ids,0,n,STR_BATCH_LABELS_MISSING,"");', "s_lr_data=d;", "s_lr_next=from;", "s_lr=LR_RUN;"], where)
+    assert body_of(BATCH, "labelWentOut") == squeeze(
+        "return text == labelPrintResultString(LP_OK) || text == labelPrintResultString(LP_NET_SENT);"), \
+        f"src/{BATCH}: labelWentOut() is not 'printed or sent' as the print's own verdict text"
+    where = f"src/{BATCH}: batchLabelsTick()"
+    body = body_of(BATCH, "batchLabelsTick")
+    in_order(body, ["if(s_lr==LR_SHEET){", "if(!show_print_sheet_pending&&!printSheetOpen()){", "labelsIdle();",
+                    "return;}", "if(s_lr!=LR_RUN||printCardOpen())return;", "s_lr_data.id=ids[s_lr_next];",
+                    "printCardSetStep(s_lr_next+1,n);",
+                    "constLabelPrintResultr=printerPrintSpoolData(s_lr_data,s_lr_kind);", "printCardSetStep(0,0);",
+                    "if(r!=LP_OK&&r!=LP_NET_SENT){", "labelsIdle();", 'runLeftOut(ids,s_lr_next,n,STR_BATCH_LABELS_MISSING,"");', "return;}",
+                    "if(++s_lr_next>=n)"], where)
+    assert body.count("printerPrintSpoolData(") == 1 and code_of(BATCH).count("printerPrintSpoolData(") == 1, \
+        f"src/{BATCH}: a label is printed elsewhere than in the tick"
+    # Both leave-outs, the location's and the labels', say which spools in one
+    # text, in the log and, unless the Bambu chip hint stands, in yellow.
+    in_order(body_of(BATCH, "runLeftOut"),
+             ["batchIdsText(ids+from,n-from,list,sizeof(list))", "logSDf(", "if(!noTagYellowLineAllowed(ids[0],",
+              "T(text_id),list", "statusMessageShow(msg,UI_COL_WARN);"], f"src/{BATCH}: runLeftOut()")
+    idle = body_of(BATCH, "labelsIdle")
+    assert "s_lr=LR_IDLE;" in idle and "printCardSetStep(0,0);" in idle, \
+        f"src/{BATCH}: labelsIdle() does not end the labels and take the place off the card"
+    assert "labelsIdle();" in body_of(BATCH, "batchLabelsForget"), f"src/{BATCH}: batchLabelsForget() does not end the labels"
+    in_order(body_of(BATCH, "batchLabelsAfterSheet"), ["if(n<2)return;", "s_lr=LR_SHEET;", "s_lr_first=first_id;",
+                                                       "printCardSetStep(1,n);"], f"src/{BATCH}: batchLabelsAfterSheet()")
+
+    # 10. The sheet: its print goes on with the rest; closed by its own buttons
+    # without printing, the rest goes; any other close the tick sees.
+    where = f"src/{SHEET}: printSheetTick()"
+    body = body_of(SHEET, "printSheetTick")
+    printing, _ = block_after(body, "if (print_sheet_print_pending) {", where)
+    in_order(printing, ["constLabelKindkind=s_kind;", "closePrintSheet();", "printerPrintLastLabel(kind);",
+                        "batchLabelsStart(kind,1);"], where)
+    for head in ("if (print_sheet_close_pending) {", "if (print_sheet_printer_pending) {"):
+        inner, _ = block_after(body, head, where)
+        in_order(inner, ["closePrintSheet();", "batchLabelsForget();"], f"{where}: {head}")
+    assert body_of(SHEET, "printSheetOpen") == "returns_scr!=nullptr;", f"src/{SHEET}: printSheetOpen() is not the sheet's own pointer"
+
+    # 11. The card: the place of the label in the run, only for two or more.
+    body = body_of(CARD, "printCardSetStep")
+    assert body == squeeze("s_step_i = i; s_step_n = n;"), f"src/{CARD}: printCardSetStep() does more than keep the place"
+    step, _ = block_after(body_of(CARD, "buildCard"), "if (s_step_n >= 2) {", f"src/{CARD}: buildCard()")
+    assert "T(STR_BATCH_LABEL_STEP),s_step_i,s_step_n" in step, f"src/{CARD}: the card's place is not STR_BATCH_LABEL_STEP"
+
+    # 12. The loop drives the labels, once a pass, beside the printer's own
+    # actions; the print runs from there and never from an event.
+    loop = body_of(LOOP, "appLoop")
+    assert loop.count("handlePrinterDeferredActions();batchLabelsTick();") == 1, \
+        f"src/{LOOP}: batchLabelsTick() does not run right after handlePrinterDeferredActions()"
+    assert callers_of("batchLabelsTick") == sorted([LOOP, BATCH, BATCH_H]), \
+        f"src/: batchLabelsTick() is called in {callers_of('batchLabelsTick')}"
+    assert callers_of("batchLabelsStart") == sorted([BATCH, BATCH_H, NOTAG, SHEET]), \
+        f"src/: batchLabelsStart() is called in {callers_of('batchLabelsStart')}"
+    assert callers_of("printerPrintSpoolData") == sorted([BATCH, PRINTER, PRINTER_H]), \
+        f"src/: printerPrintSpoolData() is called in {callers_of('printerPrintSpoolData')}"
+    for rel, needle in ((LOOP, "batchLabelsTick("), (BATCH, "printerPrintSpoolData(")):
+        source = source_of(rel)
+        for _, _, b0, b1 in cc.handlers(source):
+            assert needle not in squeeze(source.code[b0 + 1:b1]), f"src/{rel}: {needle}) in an event handler"
+    for rel in (LOOP, SHEET, NOTAG):
+        assert '#include "ui/batch_create.h"' in text_of(rel), f"src/{rel}: does not include ui/batch_create.h"
+
+    # 13. The texts: German in the plan's words.
+    tables = string_tables()
+    for sid, german, conv, spec, font, budget in (
+        ("STR_BATCH_OVERVIEW_ALL", "%d Spulen angelegt", 1, "%d", "20", 360),
+        ("STR_BATCH_OVERVIEW_SOME", "%d von %d angelegt", 2, "%d", "20", 360),
+        ("STR_BATCH_LOC_PROGRESS", "Lagerort %d von %d ...", 2, "%d", "16", 290),
+        ("STR_BATCH_LOC_MISSING", "Ohne Lagerort: %s", 1, "%s", "14", 269),
+        ("STR_BATCH_LABEL_ASK", "%d Etiketten drucken?", 1, "%d", "20", 360),
+        ("STR_BATCH_LABEL_STEP", "Etikett %d von %d", 2, "%d", "14", 150),
+        ("STR_BATCH_LABELS_MISSING", "Ohne Etikett: %s", 1, "%s", "14", 269),
+    ):
+        text_row(tables, sid, german, conv, spec)
+        budget_never(tables, sid, font, budget)
+
+
+PARTS = (part_card, part_loop, part_end)
 
 for part in PARTS:
     part()

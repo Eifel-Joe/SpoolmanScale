@@ -15,6 +15,7 @@
 #include "services/label_render.h"
 #include "services/label_thumb.h"
 #include "services/device_name.h"
+#include "ui/batch_create.h"
 #include "ui/more_info_screen.h"
 #include "ui/navigation.h"
 #include "ui/printer_screen.h"
@@ -361,6 +362,8 @@ void closePrintSheet() {
   s_waiting = false;
 }
 
+bool printSheetOpen() { return s_scr != nullptr; }
+
 // The picture again once what it waited for may be in.
 static void pollPreview() {
   if (!s_scr || !s_waiting || millis() - s_poll_ms < PS_POLL_MS) return;
@@ -383,6 +386,7 @@ void printSheetTick() {
   if (print_sheet_close_pending) {
     print_sheet_close_pending = false;
     closePrintSheet();
+    batchLabelsForget();   // closed without its print: a run's other labels go too
     s_reopen_more_info = true;
   }
   if (print_sheet_refresh_pending) {
@@ -395,10 +399,12 @@ void printSheetTick() {
     const LabelKind kind = s_kind;
     closePrintSheet();
     printerPrintLastLabel(kind);   // the spool the picture showed
+    batchLabelsStart(kind, 1);     // a run's other labels after it (batch_create.h)
   }
   if (print_sheet_printer_pending) {
     print_sheet_printer_pending = false;
     closePrintSheet();
+    batchLabelsForget();
     printerScreenFromSheet();
     show_printer_pending = true;
   }

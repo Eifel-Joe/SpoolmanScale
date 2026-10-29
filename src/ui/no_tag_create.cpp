@@ -78,17 +78,29 @@ const char* noTagEntryTitle() {
 
 // After the create: the location picker, then the question for a label. The
 // ending below only arms the picker; the picker, the card and its answers
-// follow the ending.
-enum LabelAnswer : uint8_t { LA_NONE = 0, LA_PRINT, LA_NO };
+// follow the ending. After a run of several spools the overview comes first,
+// and the location chosen goes to the others before the question.
+enum LabelAnswer : uint8_t { LA_NONE = 0, LA_PRINT, LA_NO, LA_NEXT };
+
+#define NTO_REASON_MAX 96                   // as BATCH_REASON_MAX in batch_create.cpp
 
 static lv_obj_t*   s_card     = nullptr;    // the scrim with the box on it
 static int         s_card_for = 0;          // the spool the card asks about
+static bool        s_card_over = false;     // the card is a run's overview, not the label question
 static LabelAnswer s_answer   = LA_NONE;    // parked by a button, taken by the tick
 static int         s_ask_for  = 0;          // armed when the picker ended: ask for this spool, 0: none
 static bool        s_ask_wait = false;      // the card is built a pass after it was armed
 static int         s_loc_for  = 0;          // armed by the ending: the picker for this spool, 0: none
 static bool        s_loc_wait = false;      // the picker is asked for a pass after it was armed
 static bool        s_chip_hint = false;     // the status line holds the Bambu chip hint
+static int         s_over_for  = 0;         // armed by a run's ending: the overview for this spool, 0: none
+static bool        s_over_wait = false;     // the overview is built a pass after it was armed
+static int         s_over_wanted = 0;       // the count the run was asked for
+static char        s_over_reason[NTO_REASON_MAX] = "";   // why it stopped, "" when all were made
+static int         s_rest_for  = 0;         // armed when the picker wrote: its location to the rest of the run
+static bool        s_rest_wait = false;     // ... a pass after the picker's way back
+static bool        s_rest_clear = false;    // ... it was "no location"
+static char        s_rest_loc[LOCATION_NAME_MAX] = "";
 
 // Whether the spool is the one on the screen, by its number and with no tag
 // on the pad: the only state in which a label printed "for the screen" is
@@ -139,16 +151,36 @@ void noTagCreateFinish(int new_spool_id, const char* vendor) {
          new_spool_id, bambu ? "Bambu note" : "plain note", s_loc_for ? "armed" : "not asked");
 }
 
-// For now the first spool goes the way of one (noTagCreateFinish()), the
-// location and the label included, and the green line says how many there
-// are; the log has every number and the reason of a stop.
+// Wurzel: a run of several spools ended in noTagCreateFinish() for the first,
+// whose picker and question for a label are about one spool: the others got
+// neither a shelf nor a label, and which numbers were made, or why the run
+// stopped, was only in the log.
+// Fix: the first spool is shown as after one create and the run is kept
+// (batchRunKeep()); the picker the ending armed becomes the overview, which
+// names every number and the reason of a stop, and whose "Next" arms the
+// picker for the first spool as the ending would have. The location chosen
+// there goes to the others once the picker has ended (locationPickerEnded()),
+// and the question for a label then asks for all of them. The overview is
+// armed exactly when the picker would have been: with the first spool on the
+// screen; otherwise the log has it all.
+// NOT-TO-DO: the overview after the picker: a shelf would be chosen before
+// the user learns which spools it is for, and after a stop how few they are.
+// See test_batch_flow.py (after the run).
 void noTagBatchFinish(const int* ids, int made, int wanted, const char* vendor, const char* reason) {
   if (!ids || made < 1) return;
   noTagCreateFinish(ids[0], vendor);
+  batchRunKeep(ids, made);
+  s_over_wanted = wanted;
+  snprintf(s_over_reason, sizeof(s_over_reason), "%s", reason ? reason : "");
+  s_over_for  = s_loc_for;
+  s_over_wait = s_loc_wait;
+  s_loc_for   = 0;
+  s_loc_wait  = false;
   char list[BATCH_IDS_TEXT_MAX];
   if (!batchIdsText(ids, made, list, sizeof(list))) list[0] = '\0';
-  logSDf("NoTag: run of %d made %d: %s%s%s", wanted, made, list,
-         (reason && reason[0]) ? ", stopped: " : "", reason ? reason : "");
+  logSDf("NoTag: run of %d made %d: %s%s%s, overview %s", wanted, made, list,
+         (reason && reason[0]) ? ", stopped: " : "", reason ? reason : "",
+         s_over_for ? "armed" : "not shown");
   if (made < 2) return;
   char msg[96];
   snprintf(msg, sizeof(msg), T(s_chip_hint ? STR_BATCH_CREATED_BAMBU : STR_BATCH_CREATED), made);
@@ -195,6 +227,7 @@ bool noTagLabelAskOpen() {
 void closeNoTagLabelAsk() {
   releaseScreen(&s_card);
   s_card_for = 0;
+  s_card_over = false;
   s_answer   = LA_NONE;
   s_ask_for  = 0;
   s_ask_wait = false;
@@ -202,6 +235,49 @@ void closeNoTagLabelAsk() {
   // already asked for is the picker's own (requestLocationPickerThen()).
   s_loc_for  = 0;
   s_loc_wait = false;
+  // So does an overview not yet built. The location for the rest of a run is
+  // no question: it was chosen, and is written whatever the screen shows.
+  s_over_for  = 0;
+  s_over_wait = false;
+}
+
+// The scrim over the screen with the box on it, h high, in the house look;
+// the scrim is s_card. Hands back the box.
+static lv_obj_t* cardBox(lv_obj_t* screen, lv_coord_t h) {
+  s_card = lv_obj_create(screen);
+  lv_obj_set_size(s_card, LV_HOR_RES, LV_VER_RES);
+  lv_obj_set_pos(s_card, 0, 0);
+  lv_obj_set_style_bg_color(s_card, lv_color_hex(UI_COL_SCRIM), 0);
+  lv_obj_set_style_bg_opa(s_card, UI_OPA_SCRIM, 0);
+  lv_obj_set_style_border_width(s_card, 0, 0);
+  lv_obj_set_style_radius(s_card, 0, 0);
+  lv_obj_set_style_pad_all(s_card, 0, 0);
+  lv_obj_clear_flag(s_card, LV_OBJ_FLAG_SCROLLABLE);
+
+  lv_obj_t* box = lv_obj_create(s_card);
+  lv_obj_set_size(box, UI_POPUP_W, h);
+  lv_obj_align(box, LV_ALIGN_CENTER, 0, 0);
+  lv_obj_set_style_bg_color(box, lv_color_hex(UI_COL_SURFACE), 0);
+  lv_obj_set_style_border_color(box, lv_color_hex(UI_COL_POPUP_BORDER), 0);
+  lv_obj_set_style_border_width(box, 2, 0);
+  lv_obj_set_style_radius(box, UI_RADIUS_BOX, 0);
+  lv_obj_set_style_pad_all(box, 0, 0);
+  lv_obj_clear_flag(box, LV_OBJ_FLAG_SCROLLABLE);
+  return box;
+}
+
+// A centred text of the card's text width at y from the box's top, wrapping.
+static lv_obj_t* cardText(lv_obj_t* box, const char* text, const lv_font_t* font, uint32_t color,
+                          lv_coord_t y) {
+  lv_obj_t* l = lv_label_create(box);
+  lv_label_set_text(l, text);
+  lv_obj_set_style_text_color(l, lv_color_hex(color), 0);
+  lv_obj_set_style_text_font(l, font, 0);
+  lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
+  lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+  lv_obj_set_width(l, UI_POPUP_W - UI_CARD_TEXT_PAD);
+  lv_obj_align(l, LV_ALIGN_TOP_MID, 0, y);
+  return l;
 }
 
 // One answer: "Print" in the house green, "No" quiet, as the other questions.
@@ -224,39 +300,19 @@ static lv_obj_t* askButton(lv_obj_t* box, int x, bool print, int text_id) {
 
 // "Print" is the "More info" -> "Print label" of the spool on the screen, and
 // that reads a setting from NVS the first time: read here, so that the print
-// the loop starts finds it cached (more_info_screen.cpp does the same).
+// the loop starts finds it cached (more_info_screen.cpp does the same). For
+// the first spool of a run the question names how many labels it prints.
 static void buildAsk(int spool_id) {
   closeNoTagLabelAsk();
   s_card_for = spool_id;
   labelPrinterAskFirst();
 
-  s_card = lv_obj_create(lv_scr_act());
-  lv_obj_set_size(s_card, LV_HOR_RES, LV_VER_RES);
-  lv_obj_set_pos(s_card, 0, 0);
-  lv_obj_set_style_bg_color(s_card, lv_color_hex(UI_COL_SCRIM), 0);
-  lv_obj_set_style_bg_opa(s_card, UI_OPA_SCRIM, 0);
-  lv_obj_set_style_border_width(s_card, 0, 0);
-  lv_obj_set_style_radius(s_card, 0, 0);
-  lv_obj_set_style_pad_all(s_card, 0, 0);
-  lv_obj_clear_flag(s_card, LV_OBJ_FLAG_SCROLLABLE);
-
-  lv_obj_t* box = lv_obj_create(s_card);
-  lv_obj_set_size(box, UI_POPUP_W, NTA_BOX_H);
-  lv_obj_align(box, LV_ALIGN_CENTER, 0, 0);
-  lv_obj_set_style_bg_color(box, lv_color_hex(UI_COL_SURFACE), 0);
-  lv_obj_set_style_border_color(box, lv_color_hex(UI_COL_POPUP_BORDER), 0);
-  lv_obj_set_style_border_width(box, 2, 0);
-  lv_obj_set_style_radius(box, UI_RADIUS_BOX, 0);
-  lv_obj_set_style_pad_all(box, 0, 0);
-  lv_obj_clear_flag(box, LV_OBJ_FLAG_SCROLLABLE);
-
-  lv_obj_t* title = lv_label_create(box);
-  lv_label_set_text(title, T(STR_LABEL_ASK));
-  lv_obj_set_style_text_color(title, lv_color_hex(UI_COL_INK), 0);
-  lv_obj_set_style_text_font(title, UI_FONT_HEADLINE, 0);
-  lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_set_width(title, UI_POPUP_W - UI_CARD_TEXT_PAD);
-  lv_obj_align(title, LV_ALIGN_TOP_MID, 0, NTA_TITLE_Y);
+  lv_obj_t* box = cardBox(lv_scr_act(), NTA_BOX_H);
+  const int run = batchRunOf(spool_id, nullptr);
+  char title[48];
+  if (run > 1) snprintf(title, sizeof(title), T(STR_BATCH_LABEL_ASK), run);
+  else         snprintf(title, sizeof(title), "%s", T(STR_LABEL_ASK));
+  cardText(box, title, UI_FONT_HEADLINE, UI_COL_INK, NTA_TITLE_Y);
 
   // The taps only park the answer: the print starts the Bluetooth stack or
   // the network and blocks for seconds, and the card cannot delete itself
@@ -270,14 +326,88 @@ static void buildAsk(int spool_id) {
   logSDf("NoTag: label question up for spool %d", spool_id);
 }
 
+// The overview of a run, in the house card's rows: the icon (a stop in
+// yellow), "5 made" or "3 of 5 made", every number as one text, under it the
+// reason of a stop in red, and "Next" across. The tap only parks it.
+#define NTO_REASON_GAP 6    // between the numbers and the reason under them
+
+static void buildOverview(int spool_id) {
+  const int* ids = nullptr;
+  const int made = batchRunOf(spool_id, &ids);
+  closeNoTagLabelAsk();
+  s_card_for  = spool_id;
+  s_card_over = true;
+  const bool stopped = made < s_over_wanted;
+
+  lv_obj_t* box = cardBox(lv_scr_act(), UI_CARD_H);
+  lv_obj_t* icon = lv_label_create(box);
+  lv_label_set_text(icon, stopped ? LV_SYMBOL_WARNING : LV_SYMBOL_OK);
+  lv_obj_set_style_text_color(icon, lv_color_hex(stopped ? UI_COL_WARN : UI_COL_GOOD), 0);
+  lv_obj_set_style_text_font(icon, UI_FONT_ICON, 0);
+  lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, UI_CARD_ICON_Y);
+
+  char title[64];
+  if (stopped) snprintf(title, sizeof(title), T(STR_BATCH_OVERVIEW_SOME), made, s_over_wanted);
+  else         snprintf(title, sizeof(title), T(STR_BATCH_OVERVIEW_ALL), made);
+  cardText(box, title, UI_FONT_HEADLINE, UI_COL_INK, UI_CARD_TITLE_Y);
+  char list[BATCH_IDS_TEXT_MAX];
+  if (!batchIdsText(ids, made, list, sizeof(list))) list[0] = '\0';
+  lv_obj_t* nums = cardText(box, list, UI_FONT_BODY, UI_COL_INK_2, UI_CARD_TEXT_Y);
+  if (s_over_reason[0]) {
+    lv_obj_t* why = cardText(box, s_over_reason, UI_FONT_BODY, UI_COL_BAD_TEXT, 0);
+    lv_obj_align_to(why, nums, LV_ALIGN_OUT_BOTTOM_MID, 0, NTO_REASON_GAP);
+  }
+
+  lv_obj_t* next = askButton(box, UI_CARD_ROW_X, true, STR_BTN_NEXT);
+  lv_obj_set_size(next, UI_POPUP_W - 2 * UI_CARD_ROW_X, UI_POPUP_BTN_H);
+  lv_obj_set_y(next, UI_CARD_ROW_Y);
+  lv_obj_add_event_cb(next, [](lv_event_t*) {
+    s_answer = LA_NEXT;
+  }, LV_EVENT_CLICKED, NULL);
+  logSDf("NoTag: overview up for spool %d, %d of %d made: %s", spool_id, made, s_over_wanted, list);
+}
+
+// A pass after the run's ending, as the picker would have come: the overview
+// for the first spool, still the one on the screen.
+static void askOverview() {
+  if (s_over_wait) { s_over_wait = false; return; }
+  const int id = s_over_for;
+  s_over_for = 0;
+  if (!shownStill(id)) {
+    logSDf("NoTag: overview for spool %d not shown, the screen changed", id);
+    return;
+  }
+  buildOverview(id);
+}
+
 // The picker has ended by itself, after its own way back to the main screen:
 // now the question for a label, under its own rules below. The label reads
 // the location off the screen, so it carries the one just chosen.
+// After a run, what the picker wrote to the first spool goes to the others
+// first: the picker keeps it (locationPickerChosen(), only a write that was
+// answered with success), and only for the first spool still on the screen;
+// a tag laid on meanwhile took the picker's write. Closed without a choice,
+// every spool keeps its own location.
 static void locationPickerEnded(int spool_id) {
+  bool cleared = false;
+  if (shownStill(spool_id) && batchRunOf(spool_id, nullptr) > 1 &&
+      locationPickerChosen(s_rest_loc, sizeof(s_rest_loc), &cleared)) {
+    s_rest_for = spool_id; s_rest_clear = cleared; s_rest_wait = true;
+  }
   s_ask_for  = (shownStill(spool_id) && labelPrinterReadiness() == LP_OK) ? spool_id : 0;
   s_ask_wait = s_ask_for != 0;
-  logSDf("NoTag: location picker for spool %d ended, label question %s",
-         spool_id, s_ask_for ? "armed" : "not asked");
+  logSDf("NoTag: location picker for spool %d ended, %slabel question %s", spool_id,
+         s_rest_for ? "location to the rest of the run, " : "", s_ask_for ? "armed" : "not asked");
+}
+
+// The location to the rest of the run, a pass after the picker's way back
+// (what it released goes back to the pool only after LVGL has run, and the
+// loading overlay is built anew). The question for a label waits behind it.
+static void writeRest() {
+  if (s_rest_wait) { s_rest_wait = false; return; }
+  const int id = s_rest_for;
+  s_rest_for = 0;
+  batchLocationToRest(id, s_rest_clear ? nullptr : s_rest_loc);
 }
 
 // Wurzel (V39): a spool made without a tag was never asked where it is
@@ -322,14 +452,26 @@ static void askLocation() {
 // read in more_info_screen.cpp), the question armed (s_ask_for, its pass of
 // delay included), the card up. False again once the last answer is taken,
 // or a navigation dropped the rest (closeNoTagLabelAsk(), hideMoreInfoOverlays()).
+// After a run three more: the overview armed (s_over_for; up, it is the
+// card), the location for the rest armed (s_rest_for), and its labels being
+// printed (batchLabelsBusy()); each of them ends by itself.
 // NOT-TO-DO: a flag of our own set when the picker is asked for and cleared
 // in locationPickerEnded(): a navigation or another request drops the waiter
 // without calling it, and the flag would hold the questions and the clock
 // for good.
-// See test_no_tag_finish.py.
+// See test_no_tag_finish.py and test_batch_flow.py (after the run).
 bool noTagAfterCreateBusy() {
   return s_loc_for != 0 || locationPickerThenPending(locationPickerEnded) ||
-         s_ask_for != 0 || noTagLabelAskOpen();
+         s_ask_for != 0 || noTagLabelAskOpen() ||
+         s_over_for != 0 || s_rest_for != 0 || batchLabelsBusy();
+}
+
+// "Print" for the first spool of a run: with the preview on, the sheet for
+// the first, whose own print goes on with the others; else every label in a
+// row, from the first.
+static void printRun(int first_id) {
+  if (labelPrinterAskFirst()) { batchLabelsAfterSheet(first_id); show_print_sheet_pending = true; }
+  else                        batchLabelsStart(LABEL_KIND_SPOOL, 0);
 }
 
 // Wurzel: the question is about the spool that was just made, and a label is
@@ -342,17 +484,24 @@ bool noTagAfterCreateBusy() {
 // picker's way back released there goes back to the pool only after LVGL has
 // run (print_sheet.cpp and confirm_popup.cpp wait a pass the same way). While
 // the picker is armed and not yet asked for, the question waits behind it.
+// A run's overview is the same card under the same rules; its "Next" arms the
+// picker for its spool. Behind the picker come the overview and the location
+// for the rest, each in the order of the way.
 // NOT-TO-DO: printing in the button's callback, or on the answer without
 // asking the screen again: the tap can be a pass old.
-// See test_no_tag_finish.py and test_no_tag_location.py.
+// See test_no_tag_finish.py, test_no_tag_location.py and test_batch_flow.py.
 void noTagLabelAskTick() {
   if (s_card) {
     const LabelAnswer answer = s_answer;
     if (answer == LA_NONE && shownStill(s_card_for)) return;
     const bool print = answer == LA_PRINT && shownStill(s_card_for);
-    logSDf("NoTag: label question for spool %d closed, %s", s_card_for,
-           print ? "print" : (answer == LA_NO ? "no" : "the screen changed"));
+    const bool next  = answer == LA_NEXT && shownStill(s_card_for);
+    const int  asked = s_card_for;
+    logSDf("NoTag: %s for spool %d closed, %s", s_card_over ? "overview" : "label question", asked,
+           next ? "next" : print ? "print" : (answer == LA_NO ? "no" : "the screen changed"));
     closeNoTagLabelAsk();
+    if (next) { s_loc_for = asked; s_loc_wait = true; return; }
+    if (print && batchRunOf(asked, nullptr) > 1) { printRun(asked); return; }
     if (print) {
       if (labelPrinterAskFirst()) show_print_sheet_pending = true;
       else                        print_spool_label_pending = true;
@@ -360,6 +509,8 @@ void noTagLabelAskTick() {
     return;
   }
   if (s_loc_for) { askLocation(); return; }
+  if (s_over_for) { askOverview(); return; }
+  if (s_rest_for) { writeRest(); return; }
   if (!s_ask_for) return;
   if (s_ask_wait) { s_ask_wait = false; return; }
   const int id = s_ask_for;

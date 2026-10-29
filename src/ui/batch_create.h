@@ -3,6 +3,8 @@
 #include <lvgl.h>
 #include <stddef.h>
 
+#include "services/label_layout.h"   // LabelKind
+
 // ============================================================
 //  SEVERAL IDENTICAL SPOOLS: THE COUNT ON THE CARDS
 //
@@ -96,3 +98,55 @@ void batchCopyCreate(int template_spool_id, int template_filament_id, const Spoo
 // for the finish. A price the server did not keep is said once at the end.
 void batchTagCreate(const TagCreateInput& in, TagFilamentPlan* plan, const TagSpoolValues& values,
                     const char* vendor);
+
+// ============================================================
+//  AFTER THE RUN: ONE OVERVIEW, ONE LOCATION, ALL LABELS
+//
+//  noTagBatchFinish() (no_tag_create.h) shows the first spool as after one
+//  create and keeps the run here. What follows asks once for all of them:
+//  the overview with every number, the location picker for the first, its
+//  choice written to the others (batchLocationToRest()), then "5 labels?"
+//  and every label one after another (batchLabels*()). Joerg: all labels at
+//  the end in one go, not each one started by hand at the scale.
+// ============================================================
+
+// Keeps the numbers of the spools a run made, in the order made (n of them,
+// at most BATCH_COUNT_MAX), until the next run. A run is known by its first
+// spool, which is the one on the screen after it.
+void batchRunKeep(const int* ids, int n);
+
+// How many spools the kept run has when first_id is its first, else 0; with
+// ids set, *ids points at the kept numbers (valid until the next keep).
+int batchRunOf(int first_id, const int** ids);
+
+// Writes the location the picker wrote to the run's first spool to each of
+// the others, one call each with "Location 2 of 5 ..." on the loading
+// overlay; name nullptr clears it, as "no location" did for the first. Stops
+// at the first write that fails and says which spools were left without,
+// in yellow. From the loop: it holds it for each call.
+void batchLocationToRest(int first_id, const char* name);
+
+// "Print" for a run with the preview on (labelPrinterAskFirst()): the sheet
+// that comes next is the first spool's, and its print goes on with the
+// others (batchLabelsStart(kind, 1)). The sheet closed without its print
+// drops them (batchLabelsForget(), or the tick sees it gone).
+void batchLabelsAfterSheet(int first_id);
+
+// The labels of the run whose first spool is on the screen, from place
+// `from` (0: all of them, 1: after the sheet printed the first) with the
+// layout `kind`. Takes the first spool's label data now (its location is the
+// one just chosen); each label changes only the number. From the sheet it
+// starts only when the sheet was the run's (batchLabelsAfterSheet()) and its
+// own label went out. Only flags: the prints run from batchLabelsTick().
+void batchLabelsStart(LabelKind kind, int from);
+
+// From the loop, once a pass: the next label once the print card of the one
+// before has closed; a result other than printed or sent stops the rest,
+// whose numbers go to the status line in yellow.
+void batchLabelsTick();
+
+// Drops the labels still to come (the sheet closed without its print).
+void batchLabelsForget();
+
+// Whether labels of a run are being printed (for noTagAfterCreateBusy()).
+bool batchLabelsBusy();

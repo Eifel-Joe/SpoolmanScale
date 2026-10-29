@@ -105,8 +105,8 @@ static LabelPrintResult spoolRaster(const LabelPrinterConfig& c, SpoolLabelData&
 // A spool's label under the print card. The card comes first, so the wait
 // for the dates or the server has something on screen. own_layout: the
 // scale's template even where a FilaMan preset is chosen.
-static void printSpoolLabel(SpoolLabelData spool, bool own_layout = false,
-                            LabelKind kind = LABEL_KIND_SPOOL) {
+static LabelPrintResult printSpoolLabel(SpoolLabelData spool, bool own_layout = false,
+                                        LabelKind kind = LABEL_KIND_SPOOL) {
   const LabelPrinterLink link = labelPrinterLink();
   const LabelPrinterConfig c = labelPrinterLoadConfig();
   const bool server = !own_layout && kind == LABEL_KIND_SPOOL && labelServerInUse();
@@ -130,6 +130,12 @@ static void printSpoolLabel(SpoolLabelData spool, bool own_layout = false,
   } else {
     printCardResult(result);
   }
+  return result;
+}
+
+LabelPrintResult printerPrintSpoolData(const SpoolLabelData& spool, LabelKind kind) {
+  printerOffsetFlush();
+  return printSpoolLabel(spool, false, kind);
 }
 
 void printerPrintPadLabel(LabelKind kind) {

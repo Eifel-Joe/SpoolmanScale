@@ -101,6 +101,7 @@
 #include "ui/confirm_popup.h"
 #include "ui/tare_entry.h"
 #include "ui/no_tag_create.h"   // noTagAfterCreateBusy()
+#include "ui/batch_create.h"    // batchLabelsTick()
 #include "ui/ble_devices_screen.h"
 #include "ui/bluetooth_screen.h"
 #include "ui/connection_screen.h"
@@ -814,6 +815,7 @@ void appLoop() {
   handleBluetoothDeferredActions();
   handleBleDevicesDeferredActions();
   handlePrinterDeferredActions();
+  batchLabelsTick();   // the labels of several spools, one per pass (batch_create.h)
   handleConfirmPopupDeferredActions();
   handleDriedDeferredAction();
   // Bringing an archived spool back. Out here rather than in the button's

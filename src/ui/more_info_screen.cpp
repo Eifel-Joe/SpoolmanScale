@@ -78,6 +78,8 @@ static bool unlink_erase_now = false;   // the erase was agreed to with the unli
 static char unlink_erase_uid[26] = "";  // ... and for this tag, as the question saw it
 static bool loc_patch_pending  = false;
 static char loc_patch_name[LOCATION_NAME_MAX] = "";   // empty: clear the location
+// The last end of the picker wrote loc_patch_name (locationPickerChosen()).
+static bool s_loc_chosen = false;
 
 // The spool the picker writes to when it is not the one on the pad, 0 while
 // the picker serves the pad as it always has. Set by
@@ -265,6 +267,7 @@ static void locEndedRun(const LocEnded& e) {
 void requestLocationPicker(bool from_popup) {
   g_loc_picker_from_popup = from_popup;
   g_loc_picker_by_tap = false;
+  s_loc_chosen = false;   // every way the picker can open comes through here
   s_loc_ended = LocEnded{};
   show_location_picker_pending = true;
 }
@@ -286,6 +289,18 @@ void requestLocationPickerThen(int spool_id, void (*ended)(int spool_id)) {
 // another request, so it says what the picker's own state cannot (see above).
 bool locationPickerThenPending(void (*ended)(int spool_id)) {
   return ended && s_loc_ended.fn == ended;
+}
+
+// Wurzel: the picker writes one spool and forgets the choice, and a run of
+// several spools wants it for the others (batch_create.h). Fix: its write's
+// answer is kept until the next request, and the name is what it wrote.
+// NOT-TO-DO: reading sm_location_name instead: it follows only a write to
+// the pad's spool, and is empty after "no location" and after a failure alike.
+bool locationPickerChosen(char* name, size_t cap, bool* cleared) {
+  if (!s_loc_chosen) return false;
+  if (name && cap) snprintf(name, cap, "%s", loc_patch_name);
+  if (cleared) *cleared = loc_patch_name[0] == '\0';
+  return true;
 }
 
 void tapLocationButton(bool from_popup) {
@@ -345,6 +360,7 @@ void handleMoreInfoDeferredActions() {
                                                  clear ? nullptr : loc_patch_name, 8000), true);
       logSDf("LOC: spool %d -> '%s', HTTP %d%s", target, loc_patch_name, code,
              on_pad ? "" : " (not on the pad)");
+      s_loc_chosen = backendWriteOk(code);
       if (backendWriteOk(code) && on_pad) {
         if (clear) {
           sm_location_id = 0;

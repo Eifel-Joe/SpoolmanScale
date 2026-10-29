@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stddef.h>
+
 void showMoreInfoScreen();
 void requestLocationPicker(bool from_popup);
 // The location button itself. Like requestLocationPicker(), but it opens the
@@ -22,6 +24,13 @@ void requestLocationPickerThen(int spool_id, void (*ended)(int spool_id));
 // Whether a requestLocationPickerThen() with this ended still waits: asked
 // for or up, not yet ended, not taken down by a navigation, not replaced.
 bool locationPickerThenPending(void (*ended)(int spool_id));
+// What the picker's last end wrote, read in its ended() callback: true when a
+// row or "no location" was chosen and the write was answered with success,
+// with the name in name (cap bytes) and cleared true for "no location"
+// (name empty); either may be null. False when it was closed without a
+// choice, not shown, or the write failed. A run of several spools copies it
+// to the others (batch_create.h).
+bool locationPickerChosen(char* name, size_t cap, bool* cleared);
 void handleMoreInfoDeferredActions();
 
 // Both More Info pickers, released from hideAllOverlays(). Without this a

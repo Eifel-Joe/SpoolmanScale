@@ -4521,6 +4521,28 @@ const char* const STRINGS[][3] = {
   { "Spule %d: ohne Antwort - Inventar prüfen",
     "Spool %d: no answer - check inventory",
     "Bobine %d : sans réponse - voir l'inventaire" },  // STR_BATCH_STOP_UNSURE
+  // Several identical spools in one go: after the run
+  { "%d Spulen angelegt",
+    "%d spools created",
+    "%d bobines créées" },  // STR_BATCH_OVERVIEW_ALL
+  { "%d von %d angelegt",
+    "%d of %d created",
+    "%d sur %d créées" },  // STR_BATCH_OVERVIEW_SOME
+  { "Lagerort %d von %d ...",
+    "Location %d of %d ...",
+    "Emplacement %d sur %d ..." },  // STR_BATCH_LOC_PROGRESS
+  { "Ohne Lagerort: %s",
+    "No location: %s",
+    "Sans emplacement : %s" },  // STR_BATCH_LOC_MISSING
+  { "%d Etiketten drucken?",
+    "Print %d labels?",
+    "Imprimer %d étiquettes ?" },  // STR_BATCH_LABEL_ASK
+  { "Etikett %d von %d",
+    "Label %d of %d",
+    "Étiquette %d sur %d" },  // STR_BATCH_LABEL_STEP
+  { "Ohne Etikett: %s",
+    "No label: %s",
+    "Sans étiquette : %s" },  // STR_BATCH_LABELS_MISSING
 };
 
 StringID tagWriteResultString(uint8_t code) {

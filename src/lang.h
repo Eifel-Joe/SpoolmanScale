@@ -2068,6 +2068,14 @@ enum StringID {
   STR_BATCH_CREATED_BAMBU,    // the same for Bambu Lab spools: the chips go on before the first AMS (%d: how many)
   STR_BATCH_STOP_FAILED,      // why the run stopped: the create failed (%d: the spool's place, %d: the HTTP code)
   STR_BATCH_STOP_UNSURE,      // why the run stopped: no answer, the spool may exist (%d: the spool's place)
+  // Several identical spools in one go: after the run (ui/no_tag_create.cpp, ui/batch_create.cpp, ui/print_card.cpp)
+  STR_BATCH_OVERVIEW_ALL,     // the overview's title when every spool was made (%d: how many)
+  STR_BATCH_OVERVIEW_SOME,    // the overview's title after a stop (%d: how many were made, %d: the count asked for)
+  STR_BATCH_LOC_PROGRESS,     // the loading overlay before each spool gets the chosen location (%d: its place, %d: how many)
+  STR_BATCH_LOC_MISSING,      // the status line when the location could not be written to some (%s: their numbers)
+  STR_BATCH_LABEL_ASK,        // the question for the labels of a run (%d: how many)
+  STR_BATCH_LABEL_STEP,       // the print card's corner while a run prints (%d: the label's place, %d: how many)
+  STR_BATCH_LABELS_MISSING,   // the status line when the labels stopped (%s: the numbers left without)
 
   STR_COUNT
 };

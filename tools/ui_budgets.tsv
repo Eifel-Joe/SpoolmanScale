@@ -531,6 +531,17 @@ STR_BATCH_CREATED	14	269	NEVER	src/ui/no_tag_create.cpp status line, one line (G
 STR_BATCH_CREATED_BAMBU	14	269	NEVER	src/ui/no_tag_create.cpp status line, one line (French 268 px, German 264 px, English 248 px)
 STR_BATCH_STOP_FAILED	16	360	NEVER	src/ui/no_tag_create.cpp the line of a stop, UI_POPUP_W - UI_CARD_TEXT_PAD (German 290 px)
 STR_BATCH_STOP_UNSURE	16	360	NEVER	src/ui/no_tag_create.cpp the line of a stop, UI_POPUP_W - UI_CARD_TEXT_PAD (French 344 px, German 340 px)
+# After the run: the overview's title and the label question's in the card's text width at 20, one line; "Location
+# 2 of 5 ..." on the loading overlay like STR_BATCH_PROGRESS; the yellow lines on lbl_status like STR_BATCH_CREATED,
+# measured with the %s (the numbers behind it end in dots there, the log has them all); the label's place in the
+# print card's top right corner, clear of the arc in the middle (400 - 12 - 150 = 238 > 222, the arc's right edge).
+STR_BATCH_OVERVIEW_ALL	20	360	NEVER	src/ui/no_tag_create.cpp the overview's title, UI_POPUP_W - UI_CARD_TEXT_PAD (German 205 px)
+STR_BATCH_OVERVIEW_SOME	20	360	NEVER	src/ui/no_tag_create.cpp the overview's title, UI_POPUP_W - UI_CARD_TEXT_PAD (German 207 px)
+STR_BATCH_LOC_PROGRESS	16	290	NEVER	src/ui/loading_overlay.cpp the overlay's line, 290 px, one line (French 221 px with the %d)
+STR_BATCH_LOC_MISSING	14	269	NEVER	src/ui/batch_create.cpp status line, one line (French 171 px with the %s)
+STR_BATCH_LABEL_ASK	20	360	NEVER	src/ui/no_tag_create.cpp title of the question, as STR_LABEL_ASK (French 257 px)
+STR_BATCH_LABEL_STEP	14	150	NEVER	src/ui/print_card.cpp top right corner of the card, clear of the arc (French 148 px with the %d)
+STR_BATCH_LABELS_MISSING	14	269	NEVER	src/ui/batch_create.cpp status line, one line (French 137 px with the %s)
 # The twin box over the card: title and text in the card's text width, two buttons of 184 px.
 STR_SORT_TWIN_TITLE	20	360	NEVER	src/ui/sort_twin_popup.cpp title, UI_POPUP_W - UI_CARD_TEXT_PAD
 STR_SORT_TWIN_TEXT	16	360	WRAP:3	src/ui/sort_twin_popup.cpp question, UI_POPUP_W - UI_CARD_TEXT_PAD, %s is a filament name

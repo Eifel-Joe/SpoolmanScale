@@ -39,6 +39,11 @@ void printCardResult(LabelPrintResult result, const char* detail = nullptr,
 
 bool printCardOpen();
 
+// The label's place in a run of several (batch_create.h): every card built
+// from now on shows "Label 2 of 5" in its top right corner; n below 2 shows
+// none, as before. Set before the print, back to (0, 0) after it.
+void printCardSetStep(int i, int n);
+
 // From appLoop(): closes the card when OK or the countdown asked for it,
 // never from the card's own callback.
 void printCardLoop();

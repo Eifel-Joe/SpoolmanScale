@@ -1,6 +1,7 @@
 #pragma once
 
 #include "services/label_layout.h"
+#include "services/label_render.h"   // SpoolLabelData, LabelPrintResult
 
 // ============================================================
 //  LABEL PRINTER
@@ -34,6 +35,11 @@ void printerPrintPadLabel(LabelKind kind);
 // The label of the last spool scanned, on the pad or not: what the print
 // sheet and the browser's editor showed. From the loop, like the one above.
 void printerPrintLastLabel(LabelKind kind);
+// A spool's label from data the caller holds, under the print card, and what
+// it came back with: for the labels of several spools in a row
+// (batch_create.h). Like any print it first closes the line a Brother still
+// holds for the label before. From the loop, like the two above.
+LabelPrintResult printerPrintSpoolData(const SpoolLabelData& spool, LabelKind kind);
 // The next build of the screen is entered from the print sheet: its back
 // button leads there instead of to the label printer screen.
 void printerScreenFromSheet();

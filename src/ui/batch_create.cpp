@@ -9,8 +9,11 @@
 #include "services/backend_api.h"
 #include "app/app_state.h"
 #include "ui/spool_flow_internal.h"
+#include "app/deferred_actions.h"   // show_print_sheet_pending
+#include "app/label_spool.h"
 #include "hardware/sd_logger.h"
 #include "services/batch_create_rules.h"
+#include "services/label_printer.h"
 #include "services/copy_bbs.h"
 #include "services/copy_rules.h"    // CopyMissing
 #include "services/server_reach.h"
@@ -22,6 +25,9 @@
 #include "ui/main_screen_helpers.h"
 #include "ui/no_tag_create.h"
 #include "ui/price_pad.h"
+#include "ui/print_card.h"
+#include "ui/print_sheet.h"
+#include "ui/printer_screen.h"
 #include "ui/tag_create_popup.h"
 #include "ui/theme.h"
 #include "lang.h"
@@ -273,3 +279,185 @@ void batchTagCreate(const TagCreateInput& in, TagFilamentPlan* plan, const TagSp
   noTagBatchFinish(ids, made, wanted, vendor, reason);
   if (price_lost && noTagYellowLineAllowed(ids[0], "price not saved", 0)) statusMessageShow(T(STR_TAGNEW_PRICE_LOST), UI_COL_WARN);
 }
+
+// ------------------------------------------------------------
+//  After the run (batch_create.h)
+// ------------------------------------------------------------
+
+static int s_run_ids[BATCH_COUNT_MAX] = {};
+static int s_run_n = 0;
+
+void batchRunKeep(const int* ids, int n) {
+  s_run_n = 0;
+  if (!ids || n < 1) return;
+  if (n > BATCH_COUNT_MAX) n = BATCH_COUNT_MAX;
+  for (int i = 0; i < n; i++) s_run_ids[i] = ids[i];
+  s_run_n = n;
+}
+
+int batchRunOf(int first_id, const int** ids) {
+  if (ids) *ids = s_run_ids;
+  return (first_id > 0 && s_run_n > 0 && s_run_ids[0] == first_id) ? s_run_n : 0;
+}
+
+// The spools from place `from` on were left without what `what` names for the
+// log ("no label for"): the log has their numbers, and so does the status
+// line in yellow (text_id, with a %s), unless the Bambu chip hint stands there.
+static void runLeftOut(const int* ids, int from, int n, int text_id, const char* what) {
+  char list[BATCH_IDS_TEXT_MAX];
+  if (!batchIdsText(ids + from, n - from, list, sizeof(list))) list[0] = '\0';
+  char lost[BATCH_IDS_TEXT_MAX + 24];
+  snprintf(lost, sizeof(lost), "%s %s", what, list);
+  logSDf("Batch: stopped, %s", lost);
+  if (!noTagYellowLineAllowed(ids[0], lost, 0)) return;
+  char msg[BATCH_IDS_TEXT_MAX + 32];
+  snprintf(msg, sizeof(msg), T(text_id), list);
+  statusMessageShow(msg, UI_COL_WARN);
+}
+
+// Wurzel: the picker writes the one spool it was opened for (the
+// loc_patch_pending branch of more_info_screen.cpp), and a run has several:
+// asked once per spool, the same shelf would be chosen five times.
+// Fix: the picker is asked for the first spool only, and what it wrote
+// (locationPickerChosen()) goes to each of the others here, one call each
+// like the picker's own. The first failure stops: every call after it would
+// wait out the same timeout on a server that is gone, and the spools left
+// without are named once.
+// NOT-TO-DO: the picker writing every spool of the run itself: it is the
+// original's and serves the pad, the AMS bays and "More info" as well.
+// See test_batch_flow.py (after the run).
+void batchLocationToRest(int first_id, const char* name) {
+  const int* ids = nullptr;
+  const int n = batchRunOf(first_id, &ids);
+  int at = 1;
+  for (; at < n; at++) {
+    char buf[48];
+    snprintf(buf, sizeof(buf), T(STR_BATCH_LOC_PROGRESS), at + 1, n);
+    loadingOverlayShow(buf);
+    const int code = serverReachNote(backendPatchSpoolLocation(cfg_spoolman_base, ids[at], name, 8000), true);
+    logSDf("Batch: location of spool %d (%d of %d) -> '%s', HTTP %d", ids[at], at + 1, n, name ? name : "", code);
+    if (!backendWriteOk(code)) break;
+  }
+  loadingOverlayHide();
+  if (at >= n) return;
+  runLeftOut(ids, at, n, STR_BATCH_LOC_MISSING, "no location on");
+}
+
+// The labels of a run, one after another.
+//   LR_SHEET  "Print" with the preview on: the sheet up next is the first's
+//   LR_RUN    printing; s_lr_next is the place of the next label
+enum LabelRun : uint8_t { LR_IDLE = 0, LR_SHEET, LR_RUN };
+
+static LabelRun       s_lr       = LR_IDLE;
+static int            s_lr_first = 0;                  // the run's first spool
+static int            s_lr_next  = 0;
+static LabelKind      s_lr_kind  = LABEL_KIND_SPOOL;
+static SpoolLabelData s_lr_data{};                     // the first's, taken at the start
+
+static void labelsIdle() {
+  s_lr = LR_IDLE;
+  printCardSetStep(0, 0);
+}
+
+// The sheet's own print, as printerLastLabelResult() keeps its verdict: the
+// result's text. Printed and sent each have a text of their own
+// (labelPrintResultString()), so the text says which it was.
+static bool labelWentOut(int text) {
+  return text == labelPrintResultString(LP_OK) || text == labelPrintResultString(LP_NET_SENT);
+}
+
+// Wurzel: with the preview on, the sheet prints the first label itself, and
+// every way out of it but its print button means "not now": back and the
+// printer row pass through the sheet's own branches, the X and any other
+// navigation through showMainScreen().
+// Fix: the sheet's print goes on with the rest (batchLabelsStart(kind, 1)),
+// its two own ways out drop them (batchLabelsForget()), and the tick drops
+// them once the sheet is gone without either.
+// NOT-TO-DO: dropping them in closePrintSheet(): the print button closes the
+// sheet before it prints. Nor counting the wait for the sheet as busy
+// (batchLabelsBusy()): a sheet a navigation closed would hold the questions
+// after a lift for good.
+void batchLabelsAfterSheet(int first_id) {
+  const int n = batchRunOf(first_id, nullptr);
+  if (n < 2) return;
+  s_lr       = LR_SHEET;
+  s_lr_first = first_id;
+  // The sheet's print is the run's first label: its card says so as well.
+  printCardSetStep(1, n);
+  logSDf("Batch: %d labels, the print sheet first for spool %d", n, first_id);
+}
+
+void batchLabelsStart(LabelKind kind, int from) {
+  const bool sheet = from > 0;
+  if (sheet && s_lr != LR_SHEET) return;   // a print from the sheet that is no run's
+  const int sheet_for = s_lr_first;
+  labelsIdle();
+  SpoolLabelData d{};
+  const int* ids = nullptr;
+  const int n = labelSpoolFromScan(&d) ? batchRunOf(d.id, &ids) : 0;
+  if (n < 2 || from >= n || (sheet && d.id != sheet_for)) {
+    logSDf("Batch: labels not started, spool %d on the screen heads no run (%d)", d.id, n);
+    return;
+  }
+  if (sheet && !labelWentOut(printerLastLabelResult())) {
+    runLeftOut(ids, 0, n, STR_BATCH_LABELS_MISSING, "no label for");
+    return;
+  }
+  s_lr_data  = d;
+  s_lr_first = d.id;
+  s_lr_kind  = kind;
+  s_lr_next  = from;
+  s_lr       = LR_RUN;
+  logSDf("Batch: labels %d to %d of the run of spool %d", from + 1, n, d.id);
+}
+
+// Wurzel: there is no print queue, a print holds the loop while it runs, and
+// its card stays up after it: 4 s for a printed label, 2 s for a Brother's
+// "sent", until OK for a failure. The next label printed under a card still
+// up would put two answers on one card; all of them in one pass would hold
+// the loop for every label.
+// Fix: one label per pass at most, from the loop, and only once the card of
+// the one before has closed (printCardOpen()). The Brother's held line is
+// closed by the next print itself (printAttemptStart() in printer_screen.cpp),
+// as for two prints by hand. Each label is the first spool's data taken at
+// the start with its own number; the dates and the QR code follow the number
+// in the print. A result other than printed or sent stops the rest: the next
+// would meet the same printer, and a card per label waiting for OK would ask
+// the same thing again and again.
+// NOT-TO-DO: reading the screen again for each label: a tag laid on during
+// the run takes the screen, and the labels left would carry its spool.
+// See test_batch_flow.py (after the run).
+void batchLabelsTick() {
+  if (s_lr == LR_SHEET) {
+    if (!show_print_sheet_pending && !printSheetOpen()) {
+      logSDf("Batch: the print sheet for spool %d closed without its print, no labels for the rest", s_lr_first);
+      labelsIdle();
+    }
+    return;
+  }
+  if (s_lr != LR_RUN || printCardOpen()) return;
+  const int* ids = nullptr;
+  const int n = batchRunOf(s_lr_first, &ids);
+  if (s_lr_next >= n) { labelsIdle(); return; }
+  s_lr_data.id = ids[s_lr_next];
+  printCardSetStep(s_lr_next + 1, n);
+  const LabelPrintResult r = printerPrintSpoolData(s_lr_data, s_lr_kind);
+  printCardSetStep(0, 0);
+  logSDf("Batch: label %d of %d, spool %d, result %d", s_lr_next + 1, n, s_lr_data.id, (int)r);
+  if (r != LP_OK && r != LP_NET_SENT) {
+    labelsIdle();
+    runLeftOut(ids, s_lr_next, n, STR_BATCH_LABELS_MISSING, "no label for");
+    return;
+  }
+  if (++s_lr_next >= n) {
+    labelsIdle();
+    logSDf("Batch: all %d labels of the run of spool %d out", n, s_lr_first);
+  }
+}
+
+void batchLabelsForget() {
+  if (s_lr != LR_IDLE) logSDf("Batch: the labels of the run of spool %d dropped", s_lr_first);
+  labelsIdle();
+}
+
+bool batchLabelsBusy() { return s_lr == LR_RUN; }
