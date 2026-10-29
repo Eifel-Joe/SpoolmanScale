@@ -664,6 +664,188 @@ static void caseObjectList() {
   }
 }
 
+// ---- R15 and R19: what the parser keeps and what it counts --------------------
+
+// The bytes of a struct hold the needle somewhere: a name that was meant to be
+// left out has not been written anywhere, not even past the end of an array.
+static bool bytesContain(const void* mem, size_t len, const char* needle) {
+  const char* p = (const char*)mem;
+  const size_t n = strlen(needle);
+  for (size_t i = 0; i + n <= len; i++) {
+    if (memcmp(p + i, needle, n) == 0) return true;
+  }
+  return false;
+}
+
+// R15: the name of a lane is written into "SET_SPOOL_ID LANE=<name>". A name with
+// a space, a ';', a line break, a tab or a byte beyond ASCII, or one that does not
+// fit the label (23 characters), would start another command or address another
+// lane. Such a lane is skipped, not cut: it is not stored, not asked, and not
+// counted (lane_count is the number of lanes the parser kept, however many
+// there are, see caseMoreThanKept).
+static void caseUnsafeLanes() {
+  WHAT("unsafe lane names: only the safe one is stored");
+  // One unsafe name comes before the good one, so that a skipped lane leaves no gap.
+  namesFrom("{\"objects\":[\"AFC\",\"print_stats\",\"AFC_stepper a b\",\"AFC_stepper lane1\","
+            "\"AFC_stepper a;b\",\"AFC_stepper a\\nb\",\"AFC_lane a\\tb\","
+            "\"AFC_stepper abcdefghijklmnopqrstuvwx\",\"AFC_stepper lane\\u00e4\","
+            "\"AFC_stepper \",\"AFC_lane \"]}");
+  CHECK(g_names.has_afc);
+  CHECK_INT(g_names.lane_count, 1);
+  CHECK_STR(g_names.lane_object[0], "AFC_stepper lane1");
+  for (int i = 1; i < COUNT(g_names.lane_object); i++) CHECK_INT(g_names.lane_object[i][0], 0);
+  const char* const unsafe[] = {"a b", "a;b", "a\nb", "a\tb", "abcdefghijklmnopqrstuvwx", "\xC3\xA4"};
+  for (int i = 0; i < COUNT(unsafe); i++) CHECK(!bytesContain(&g_names, sizeof(g_names), unsafe[i]));
+
+  WHAT("unsafe lane names: the query asks for the safe one only");
+  JsonDocument body;
+  moonrakerBuildQuery(g_names, body);
+  expectBodyIsObjects(body);
+  expectAsked(body, "AFC", "lanes current_load");
+  expectAsked(body, "AFC_stepper lane1", "spool_id material color unit tool_loaded");
+  expectNotAsked(body, "AFC_stepper a b");
+  expectNotAsked(body, "AFC_stepper a;b");
+  expectNotAsked(body, "AFC_stepper a\nb");
+  expectNotAsked(body, "AFC_lane a\tb");
+  expectNotAsked(body, "AFC_stepper abcdefghijklmnopqrstuvwx");
+  CHECK_INT(body.as<JsonVariantConst>()["objects"].size(), 3);     // AFC, lane1, print_stats
+  char wire[1024];
+  serializeJson(body, wire, sizeof(wire));
+  CHECK(strstr(wire, "lane1") != nullptr);
+  CHECK(strstr(wire, "a b") == nullptr);
+  CHECK(strstr(wire, "a;b") == nullptr);
+  CHECK(strstr(wire, "\\n") == nullptr);                           // an escaped line break
+  CHECK(strstr(wire, "\\t") == nullptr);
+  CHECK(strstr(wire, "uvwx") == nullptr);
+  CHECK(strstr(wire, "\xC3\xA4") == nullptr);
+
+  WHAT("unsafe lane names: an answer for them is not read, the command names the safe lane only");
+  CHECK(rawFrom("{\"AFC\":{\"lanes\":[\"lane1\"],\"current_load\":\"lane1\"},"
+                "\"AFC_stepper lane1\":{\"spool_id\":7,\"material\":\"PLA\",\"color\":\"#ff0000\",\"unit\":\"U1\",\"tool_loaded\":true},"
+                "\"AFC_stepper a;b\":{\"spool_id\":9,\"material\":\"PETG\",\"color\":\"00ff00\",\"unit\":\"U1\",\"tool_loaded\":false},"
+                "\"print_stats\":{\"state\":\"standby\"}}"));
+  CHECK(g_raw.has_afc);
+  CHECK_INT(g_raw.afc_count, 1);
+  CHECK_STR(g_raw.afc[0].label, "lane1");
+  CHECK_INT(g_raw.afc[0].spool_id, 7);
+  CHECK_INT(g_raw.afc[0].loaded, 1);
+  CHECK_STR(g_raw.afc[1].label, "");
+  CHECK_INT(g_raw.afc[1].spool_id, 0);
+  CHECK(!bytesContain(&g_raw, sizeof(g_raw), "a;b"));
+  CHECK(!bytesContain(&g_raw, sizeof(g_raw), "PETG"));
+  klipperBuild(g_raw, &g_facts);
+  CHECK_INT(g_facts.layout, KL_LAYOUT_AFC);
+  CHECK_INT(g_facts.field_count, 1);
+  static KlipperPlan plan;                                         // about 4 kB: not on the stack
+  CHECK(klipperPlanAssign(g_facts, 0, 12, &plan));
+  CHECK_STR(plan.set, "SET_SPOOL_ID LANE=lane1 SPOOL_ID=12");
+  CHECK_STR(plan.clear, "");
+
+  WHAT("lane names: 23 characters fit the label, 24 do not");
+  namesFrom("{\"objects\":[\"AFC\",\"AFC_stepper abcdefghijklmnopqrstuvw\",\"AFC_lane abcdefghijklmnopqrstuvwx\"]}");
+  CHECK_INT(g_names.lane_count, 1);
+  CHECK_STR(g_names.lane_object[0], "AFC_stepper abcdefghijklmnopqrstuvw");
+  CHECK(rawFrom("{\"AFC_stepper abcdefghijklmnopqrstuvw\":{\"spool_id\":3}}"));
+  CHECK_INT(g_raw.afc_count, 1);
+  CHECK_STR(g_raw.afc[0].label, "abcdefghijklmnopqrstuvw");        // whole, not cut
+  CHECK_INT(g_raw.afc[0].spool_id, 3);
+}
+
+// R19: the counts are the full number of lanes and tool macros found, saturating
+// at 255, and the arrays keep the first KL_RAW_MAX of them (24). Whoever reads
+// the arrays goes to min(count, KL_RAW_MAX): nothing beyond index 23 is stored,
+// asked or read, and the neighbours of an array stay as they were.
+static void caseMoreThanKept() {
+  WHAT("30 lanes and 30 tool macros: full counts, the first 24 kept");
+  std::string list = "{\"objects\":[\"AFC\",\"toolchanger\",\"print_stats\"";
+  for (int i = 0; i < 30; i++) {
+    list += ",\"AFC_stepper lane" + std::to_string(i + 1) + "\"";
+    list += ",\"gcode_macro T" + std::to_string(i) + "\"";
+  }
+  list += "]}";
+  namesFrom(list.c_str());
+  CHECK_INT(g_names.lane_count, 30);
+  CHECK_INT(g_names.macro_count, 30);
+  for (int i = 0; i < KL_RAW_MAX; i++) {
+    char lane[64];
+    char macro[16];
+    snprintf(lane, sizeof(lane), "AFC_stepper lane%d", i + 1);
+    snprintf(macro, sizeof(macro), "T%d", i);
+    CHECK_STR(g_names.lane_object[i], lane);
+    CHECK_INT(g_names.macro_tool[i], i);
+    CHECK_STR(g_names.macro_name[i], macro);
+  }
+  // The member behind lane_object, and the ones an overrun of macro_name would reach.
+  CHECK_STR(g_names.unknown_system, "");
+  CHECK(!bytesContain(&g_names, sizeof(g_names), "lane25"));
+  CHECK(!bytesContain(&g_names, sizeof(g_names), "lane30"));
+  CHECK(!bytesContain(&g_names, sizeof(g_names), "T24"));
+  CHECK(!bytesContain(&g_names, sizeof(g_names), "T29"));
+
+  WHAT("30 lanes and 30 tool macros: the query asks for the first 24 of each");
+  JsonDocument body;
+  moonrakerBuildQuery(g_names, body);
+  expectBodyIsObjects(body);
+  expectAsked(body, "AFC_stepper lane1", "spool_id");
+  expectAsked(body, "AFC_stepper lane24", "spool_id material color unit tool_loaded");
+  expectNotAsked(body, "AFC_stepper lane25");
+  expectNotAsked(body, "AFC_stepper lane30");
+  expectAskedFull(body, "gcode_macro T0");
+  expectAskedFull(body, "gcode_macro T23");
+  expectNotAsked(body, "gcode_macro T24");
+  expectNotAsked(body, "gcode_macro T29");
+  // AFC, toolchanger, print_stats, 24 lanes and 24 macros.
+  CHECK_INT(body.as<JsonVariantConst>()["objects"].size(), 51);
+
+  WHAT("30 lanes and 30 tool macros: the answer is read up to 24, the counts stay full");
+  std::string answer = "{\"toolchanger\":{\"tool_number\":3},\"print_stats\":{\"state\":\"standby\"}";
+  for (int i = 0; i < 30; i++) {
+    // The lanes past the 24th carry a material no slot may ever hold.
+    answer += ",\"AFC_stepper lane" + std::to_string(i + 1) + "\":{\"spool_id\":" + std::to_string(100 + i) +
+              ",\"material\":\"" + (i < KL_RAW_MAX ? "PLA" : "OVERFLOW") + "\",\"unit\":\"U\"}";
+    answer += ",\"gcode_macro T" + std::to_string(i) + "\":{\"spool_id\":" + std::to_string(300 + i) + "}";
+  }
+  answer += "}";
+  CHECK(rawFrom(answer.c_str()));
+  CHECK(g_raw.has_afc);
+  CHECK_INT(g_raw.afc_count, 30);
+  CHECK_INT(g_raw.tool_count, 30);
+  CHECK_INT(g_raw.active_tool, 3);
+  for (int i = 0; i < KL_RAW_MAX; i++) {
+    char lane[24];
+    snprintf(lane, sizeof(lane), "lane%d", i + 1);
+    CHECK_STR(g_raw.afc[i].label, lane);
+    CHECK_INT(g_raw.afc[i].spool_id, 100 + i);
+    CHECK_STR(g_raw.afc[i].material, "PLA");
+    CHECK_INT(g_raw.tool[i].number, i);
+    CHECK(g_raw.tool[i].has_var);
+    CHECK_INT(g_raw.tool[i].spool_id, 300 + i);
+  }
+  CHECK(!bytesContain(&g_raw, sizeof(g_raw), "OVERFLOW"));
+  CHECK(!bytesContain(&g_raw, sizeof(g_raw), "lane25"));
+  CHECK(!bytesContain(&g_raw, sizeof(g_raw), "lane30"));
+  CHECK(!bytesContain(&g_raw, sizeof(g_raw), "T24"));
+  CHECK(!bytesContain(&g_raw, sizeof(g_raw), "T29"));
+  klipperBuild(g_raw, &g_facts);
+  CHECK_INT(g_facts.layout, KL_LAYOUT_AFC);
+  CHECK_INT(g_facts.field_count, KL_FIELDS_MAX);
+  CHECK(g_facts.truncated);                                        // 30 lanes, 16 shown: only the full count says so
+
+  WHAT("300 lanes and 300 tool macros: the counts saturate at 255");
+  std::string many = "{\"objects\":[\"AFC\"";
+  for (int i = 0; i < 300; i++) {
+    many += ",\"AFC_stepper lane" + std::to_string(i + 1) + "\"";
+    many += ",\"gcode_macro T" + std::to_string(i) + "\"";
+  }
+  many += "]}";
+  namesFrom(many.c_str());
+  CHECK_INT(g_names.lane_count, 255);
+  CHECK_INT(g_names.macro_count, 255);
+  CHECK_STR(g_names.lane_object[KL_RAW_MAX - 1], "AFC_stepper lane24");
+  CHECK_STR(g_names.macro_name[KL_RAW_MAX - 1], "T23");
+  CHECK_STR(g_names.unknown_system, "");
+}
+
 static void caseQuery() {
   WHAT("query: the modes of Happy Hare, the gate of the bypass, colours with alpha");
   namesFrom("{\"objects\":[\"mmu\",\"print_stats\",\"virtual_sdcard\"]}");
@@ -806,6 +988,8 @@ int main(int argc, char** argv) {
   caseMacroAnswers();
   caseAnswerMakesNoSystem();
   caseObjectList();
+  caseUnsafeLanes();
+  caseMoreThanKept();
   caseQuery();
   caseServerAnswers();
   return 0;
