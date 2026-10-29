@@ -10,6 +10,7 @@ source = r'''
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <string>
 
 static const char* g_what = "";
 #define WHAT(s) (g_what = (s))
@@ -136,11 +137,13 @@ static void expectUnit(const KlipperFacts& f, int u, int first, int count, const
 }
 
 // Whatever the layout: the units cut the fields into runs of one to four, in
-// order and without a gap, a field's bay is its unit and its place in it, and
-// the field of a bay is the inverse of that; a bay that is not there gives -1.
+// order and without a gap, a printer has at most four of them (AMS_MAX_UNITS),
+// a field's bay is its unit and its place in it, and the field of a bay is the
+// inverse of that; a bay that is not there gives -1.
 static void expectConsistent(const KlipperFacts& f) {
   const int units = klipperUnitCount(f);
   CHECK(units >= 1);
+  CHECK(units <= 4);
   int next = 0;
   for (int u = 0; u < units; u++) {
     KlipperUnit k;
@@ -208,7 +211,7 @@ int main() {
   CHECK_INT(KL_LANE_MAX, 24);
   CHECK_INT(KL_MAT_MAX, 12);
   CHECK_INT(KL_COLOR_MAX, 10);
-  CHECK_INT(KL_SCRIPT_MAX, 256);
+  CHECK_INT(KL_SCRIPT_MAX, 2048);
   CHECK_INT(KL_STATE_MAX, 16);
   CHECK_INT(KL_E_PARSE, -2);
   CHECK_INT(KL_E_NOT_HELD, -40);
@@ -423,6 +426,56 @@ int main() {
     CHECK_INT(f.layout, KL_LAYOUT_AFC);
     CHECK_INT(klipperUnitCount(f), 1);
     expectUnit(f, 0, 0, 3, "AFC");
+    expectConsistent(f);
+  }
+
+  // A Klipper printer has at most four units (AMS_MAX_UNITS). Where the unit
+  // names would make more, the names are dropped: the fields go into groups of
+  // four in the order they are in, and every unit is called AFC.
+  WHAT("AFC, four units by name are four units");
+  {
+    const KlipperFacts f = build(mkAfcN(8, 2));      // Turtle_1 .. Turtle_4, two lanes each
+    CHECK_INT(f.field_count, 8);
+    CHECK_INT(klipperUnitCount(f), 4);
+    expectUnit(f, 0, 0, 2, "Turtle_1");
+    expectUnit(f, 1, 2, 2, "Turtle_2");
+    expectUnit(f, 2, 4, 2, "Turtle_3");
+    expectUnit(f, 3, 6, 2, "Turtle_4");
+    expectConsistent(f);
+  }
+
+  WHAT("AFC, six units of two lanes: more than four, so groups of four, all called AFC");
+  {
+    const KlipperFacts f = build(mkAfcN(12, 2));     // Turtle_1 .. Turtle_6
+    CHECK_INT(f.layout, KL_LAYOUT_AFC);
+    CHECK_INT(f.field_count, 12);
+    CHECK(!f.truncated);
+    CHECK_INT(klipperUnitCount(f), 3);
+    expectUnit(f, 0, 0, 4, "AFC");
+    expectUnit(f, 1, 4, 4, "AFC");
+    expectUnit(f, 2, 8, 4, "AFC");
+    expectConsistent(f);            // every one of the 12 fields: bay and back
+    // The fields themselves keep their lane and their own unit name.
+    CHECK_STR(f.field[0].label, "lane1");
+    CHECK_STR(f.field[11].label, "lane12");
+    uint8_t a = 0xEE, b = 0xEE;
+    CHECK(klipperFieldBay(f, 5, &a, &b));
+    CHECK_INT(a, 1);
+    CHECK_INT(b, 1);
+    CHECK(klipperFieldBay(f, 11, &a, &b));
+    CHECK_INT(a, 2);
+    CHECK_INT(b, 3);
+    CHECK_INT(klipperBayField(f, 2, 3), 11);
+    CHECK_INT(klipperBayField(f, 3, 0), -1);
+  }
+
+  WHAT("AFC, five units of two lanes: also more than four");
+  {
+    const KlipperFacts f = build(mkAfcN(10, 2));
+    CHECK_INT(klipperUnitCount(f), 3);
+    expectUnit(f, 0, 0, 4, "AFC");
+    expectUnit(f, 1, 4, 4, "AFC");
+    expectUnit(f, 2, 8, 2, "AFC");
     expectConsistent(f);
   }
 
@@ -691,6 +744,34 @@ int main() {
                "SET_GCODE_VARIABLE MACRO=T2 VARIABLE=spool_id VALUE=None\nSAVE_VARIABLE VARIABLE=t2__spool_id VALUE=None",
                "SET_GCODE_VARIABLE MACRO=T3 VARIABLE=spool_id VALUE=12\nSAVE_VARIABLE VARIABLE=t3__spool_id VALUE=12",
                false);
+  }
+
+  // Sixteen tools, fifteen of them hold the spool that goes into T0: the
+  // clearing is 15 pairs of lines (about 1.6 kB), and it all fits the script.
+  WHAT("the command for a tool, with fifteen others to clear");
+  {
+    ToolDef tools[16];
+    for (int i = 0; i < 16; i++) {
+      tools[i].number = i;
+      tools[i].has_var = true;
+      tools[i].spool = 12;
+    }
+    const KlipperFacts f = build(mkTools(tools, 16, 0, true));
+    CHECK_INT(f.layout, KL_LAYOUT_TOOLS);
+    CHECK_INT(f.field_count, 16);
+    std::string clear;
+    for (int i = 1; i < 16; i++) {
+      char pair[160];
+      snprintf(pair, sizeof(pair),
+               "SET_GCODE_VARIABLE MACRO=T%d VARIABLE=spool_id VALUE=None\nSAVE_VARIABLE VARIABLE=t%d__spool_id VALUE=None",
+               i, i);
+      if (i > 1) clear += "\n";
+      clear += pair;
+    }
+    CHECK(clear.size() > 1500 && clear.size() < (size_t)KL_SCRIPT_MAX);
+    expectPlan(f, 0, 12, clear.c_str(),
+               "SET_GCODE_VARIABLE MACRO=T0 VARIABLE=spool_id VALUE=12\nSAVE_VARIABLE VARIABLE=t0__spool_id VALUE=12",
+               true);
   }
 
   WHAT("the command for the one field");

@@ -207,7 +207,8 @@ SWITCHES = (("backendGetAmsState", r"\bklipperGetAmsState\s*\(", "klipperGetAmsS
             ("backendUnassignAmsSlot", r"\bnotSupported\s*\(", "notSupported()"),
             ("backendFindSpoolSlot", r"\bnotSupported\s*\(", "notSupported()"),
             ("backendFindBaySpool", r"\bnotSupported\s*\(", "notSupported()"),
-            ("backendFindUnitSpools", r"\bnotSupported\s*\(", "notSupported()"))
+            ("backendFindUnitSpools", r"\bnotSupported\s*\(", "notSupported()"),
+            ("backendFindPrinterSpools", r"\bnotSupported\s*\(", "notSupported()"))
 for name, answer, answer_text in SWITCHES:
     where = f"{WHERE}: {name}()"
     b = ks.body_of(BACKEND, name)
