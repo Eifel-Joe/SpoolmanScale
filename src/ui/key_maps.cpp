@@ -32,7 +32,6 @@ static_assert(sameSymbol(KEY_SYM_LEFT, LV_SYMBOL_LEFT), "KEY_SYM_LEFT is not LVG
 static_assert(sameSymbol(KEY_SYM_RIGHT, LV_SYMBOL_RIGHT), "KEY_SYM_RIGHT is not LVGL's");
 static_assert(sameSymbol(KEY_SYM_OK, LV_SYMBOL_OK), "KEY_SYM_OK is not LVGL's");
 
-#define KEY_LANGS  (KL_FR + 1)
 #define KEY_PAGES  (KP_ACCENTS + 1)
 
 // The mode LVGL keeps each page under, by KeyPage.
@@ -43,11 +42,20 @@ static const lv_keyboard_mode_t KEY_MODE[KEY_PAGES] = {
   LV_KEYBOARD_MODE_USER_1,       // KP_ACCENTS
 };
 
-// The control words of every layout: language, text or WiFi, page. Built the
+// The control words of the scale's language: text or WiFi, page. Built the
 // first time a page is set and kept, since LVGL reads them by pointer
-// whenever that page is shown. 3 x 2 x 4 x 48 words, 2304 bytes.
-static lv_btnmatrix_ctrl_t s_ctrl[KEY_LANGS][2][KEY_PAGES][KEY_LAYOUT_MAX_KEYS];
-static bool s_built[KEY_LANGS][2][KEY_PAGES];
+// whenever that page is shown. 2 x 4 x 48 words, 768 bytes of internal RAM.
+// One language is enough: g_lang is read once at boot (app_settings.cpp),
+// and both ways to change it (language_screen.cpp, setup_welcome_screen.cpp)
+// store the new one and restart.
+// NOT-TO-DO: a language changed without a restart would put the keys of the
+//   new language over the words built for the old one: widths and flags of
+//   another table, control keys without their flags, and no error at all. A
+//   switch made live has to clear s_built at the switch. Words for all three
+//   languages at once: 2304 bytes of internal RAM, about three quarters of
+//   them never written, where LVGL's own control maps are constants in flash.
+static lv_btnmatrix_ctrl_t s_ctrl[2][KEY_PAGES][KEY_LAYOUT_MAX_KEYS];
+static bool s_built[2][KEY_PAGES];
 
 // One key's control word, as LVGL's own maps write it (lv_keyboard.c 8.3.11,
 // lines 55 to 86). Its LV_KB_BTN() is defined in lv_keyboard.c alone, so the
@@ -123,10 +131,10 @@ void keyMapsApply(lv_obj_t* kb, bool wifi) {
              KEY_LAYOUT_MAX_KEYS);
       continue;
     }
-    lv_btnmatrix_ctrl_t* ctrl = s_ctrl[lang][set][p];
-    if (!s_built[lang][set][p]) {
+    lv_btnmatrix_ctrl_t* ctrl = s_ctrl[set][p];
+    if (!s_built[set][p]) {
       for (int i = 0; i < m.count; i++) ctrl[i] = keyCtrl(m.flags[i], m.widths[i]);
-      s_built[lang][set][p] = true;
+      s_built[set][p] = true;
     }
     // LVGL only reads the keys; its prototype takes them without the const.
     lv_keyboard_set_map(kb, KEY_MODE[p], const_cast<const char**>(m.keys), ctrl);
