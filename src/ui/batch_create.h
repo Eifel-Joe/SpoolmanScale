@@ -35,13 +35,14 @@ void batchCountReset();
 
 // Builds the count button on a create card; box is the card's box, UI_POPUP_W
 // wide. It reads "Anzahl 1", or the count typed in. A tap opens the price pad
-// with the count filled in. A valid answer is the count from then on, and
+// with an empty field. A valid answer is the count from then on, and
 // `changed` is called for the card to show it: the copy card builds itself
 // again, the card for a new spool puts the text on its create button. An
-// answer that is no whole number from BATCH_COUNT_MIN to BATCH_COUNT_MAX
-// changes nothing, and the button shows the range in place of the count. An
-// answer for a card that was closed meanwhile, or after the flag went off, is
-// dropped. The cards build it only in the flag.
+// emptied field keeps the count. Anything else typed that is no whole number
+// from BATCH_COUNT_MIN to BATCH_COUNT_MAX changes nothing, and the button
+// shows the range in place of the count. An answer for a card that was closed
+// meanwhile, or after the flag went off, is dropped. The cards build it only
+// in the flag.
 void batchCountChip(lv_obj_t* box, void (*changed)());
 
 // The text of the create button, written into buf (cap bytes; 32 hold it in

@@ -67,12 +67,14 @@ static bool chipStanding() {
 }
 
 // The pad's answer, from the loop (pricePadTick()); a cancelled pad does not
-// call. The count is a whole number in range (batchCountValid()). Anything
-// else, an emptied field (0) as well, takes nothing and puts the range on the
-// button, where the card has room for it; the card is not told. A valid count
-// is taken, shown on the button, and the card shows it on its create button.
+// call. An emptied field types nothing, as for the fill weight: the count
+// stays as it is. The count is a whole number in range (batchCountValid());
+// anything else typed takes nothing and puts the range on the button, where
+// the card has room for it, and the card is not told. A valid count is taken,
+// shown on the button, and the card shows it on its create button.
 static void countTyped(float typed) {
   if (!noTagMode() || !chipStanding()) return;
+  if (typed <= 0.0f) return;
   if (!batchCountValid(typed)) {
     logSDf("Batch: count %.2f is out of range, not taken", typed);
     chipText(T(STR_BATCH_COUNT_RANGE), UI_COL_WARN);
@@ -96,9 +98,20 @@ void batchCountChip(lv_obj_t* box, void (*changed)()) {
   lv_obj_set_style_border_color(btn, lv_color_hex(UI_COL_LINE), 0);
   lv_obj_set_style_radius(btn, UI_RADIUS_BTN, 0);
   lv_obj_set_style_shadow_width(btn, 0, 0);
+  // Wurzel: the price pad fills its field in with "%.2f", and then refuses
+  // another digit: opened with the count, it shows "1.00", and a 3 takes four
+  // presses of the delete key first.
+  // Fix: the pad opens empty, as for a fill weight nobody knows; the count
+  // stays on the button, and an emptied field keeps it (countTyped()).
+  // NOT-TO-DO: the house number pad (num_pad.h), which would show the count and
+  // replace it with the first digit: it answers inside its button's event,
+  // where num_pad.h allows nothing that deletes a screen, and a new count
+  // builds the copy card again; its close button also leaves the create for
+  // the main screen.
+  // See test_batch_flow.py (the card).
   lv_obj_add_event_cb(btn, [](lv_event_t*) {
     logSD("BTN: Card -> Count");
-    showPricePadInfo(batchCount(), STR_BATCH_COUNT_TITLE, STR_BATCH_COUNT_INFO, countTyped);
+    showPricePadInfo(0, STR_BATCH_COUNT_TITLE, STR_BATCH_COUNT_INFO, countTyped);
   }, LV_EVENT_CLICKED, NULL);
   s_chip_lbl = lv_label_create(btn);
   lv_obj_set_style_text_font(s_chip_lbl, UI_FONT_SMALL, 0);

@@ -128,8 +128,9 @@ def unconditional_in(body, needle, where):
 
 def part_card():
     """Both create cards get the count at their top right, only in the flag;
-    a tap opens the price pad; a valid answer is taken and the card shows it on
-    its create button, an invalid one changes nothing and shows the range. The
+    a tap opens the price pad with an empty field; an emptied field keeps the
+    count, a valid answer is taken and the card shows it on its create button,
+    anything else typed changes nothing and shows the range. The
     create button reads the count unless the card asks for something first
     ("Fill weight", "Density"). The flag puts the count back to one whenever
     it is set, and the texts are in the table, the French and the budgets."""
@@ -158,10 +159,13 @@ def part_card():
                    "s_changed=changed"):
         assert needle in chip, f"src/{BATCH}: batchCountChip() does not do {needle}"
 
-    # 3. The tap opens the price pad with the count filled in, under its own
-    # title and grey line; the answer goes to a function of this file.
-    pad = "showPricePadInfo(batchCount(),STR_BATCH_COUNT_TITLE,STR_BATCH_COUNT_INFO,"
-    tap = handler_of(BATCH, pad)
+    # 3. The tap opens the price pad with an empty field, under its own title
+    # and grey line: the pad fills a value in as "%.2f" and then refuses
+    # another digit, so the count filled in ("1.00") would have to be deleted
+    # before a 3 could be typed. The answer goes to a function of this file.
+    pad = "showPricePadInfo(0,STR_BATCH_COUNT_TITLE,STR_BATCH_COUNT_INFO,"
+    tap = handler_of(BATCH, "showPricePadInfo(")
+    assert pad in tap, f"src/{BATCH}: the tap does not open the price pad empty as {pad}...)"
     answer = re.search(re.escape(pad) + r"([A-Za-z_]\w*)\)", tap)
     assert answer, f"src/{BATCH}: the tap does not hand the pad's answer to a function"
     body = body_of(BATCH, answer.group(1))
@@ -170,6 +174,11 @@ def part_card():
     # card that was closed meanwhile reaches no create.
     assert "noTagMode()" in body[:body.find("batchCountValid(")], \
         f"{where}: takes a count without asking noTagMode() first"
+    # An emptied field (0) types nothing, as for the fill weight: the count
+    # stays, and the range is not shown for it.
+    emptied = re.search(r"\w+<=0(?:\.0f)?\)return;", body)
+    assert emptied and body.find(emptied.group(0)) < body.find("batchCountValid("), \
+        f"{where}: an emptied field (0) does not leave the count alone before the range is checked"
     # Invalid: the range on the button, nothing taken, the card not told.
     in_order(body, ["batchCountValid(", "STR_BATCH_COUNT_RANGE", "return;", "s_count=", "s_changed()"], where)
     refused = body[body.find("STR_BATCH_COUNT_RANGE"):]
