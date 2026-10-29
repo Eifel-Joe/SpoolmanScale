@@ -40,11 +40,17 @@ for text, name in (("STR_AMSV_ERR_NET", "no connection"), ("STR_AMSV_NO_AMS", "n
         assert len(args) >= 2, f"src/{VIEW}: the setStatus() for {name} does not say keep_chip"
 found = [args for _, args in ks.calls(fetch, "setStatusFmt") if "STR_AMSV_ERR_HTTP" in args[0]]
 assert found, f"src/{VIEW}: fetchAndDraw() has no setStatusFmt() for a failed fetch"
-# The failed fetch keeps the button too: either the call says so (a third
-# argument), or setStatusFmt() itself hands something other than false on to
-# statusRowPlain().
+# The failed fetch keeps the button too: either every call says so (a third
+# argument), or setStatusFmt() decides it itself, on purpose: what it hands on
+# to statusRowPlain() is neither false or 0 nor one of its own parameters (a
+# parameter with the default false would hide the button when the call leaves
+# it out).
+head = re.search(r"\bstatic\s+void\s+setStatusFmt\s*\(([^)]*)\)", view.code)
+assert head, f"src/{VIEW}: setStatusFmt() is not there"
+own = {re.findall(r"[A-Za-z_]\w*", p.split("=")[0])[-1] for p in head.group(1).split(",") if p.strip()}
 fmt = ks.calls(ks.body_of(VIEW, "setStatusFmt"), "statusRowPlain")
-fmt_keeps = bool(fmt) and bool(fmt[0][1]) and fmt[0][1][0] not in ("", "false")
+fmt_keeps = bool(fmt) and all(
+    call[1] and call[1][0].strip() not in ("", "false", "0") and call[1][0].strip() not in own for call in fmt)
 for args in found:
     assert len(args) >= 3 or fmt_keeps, \
         f"src/{VIEW}: a setStatusFmt(STR_AMSV_ERR_HTTP, ...) for a failed fetch does not keep the printer button"
