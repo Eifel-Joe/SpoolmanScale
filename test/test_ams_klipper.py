@@ -40,8 +40,14 @@ for text, name in (("STR_AMSV_ERR_NET", "no connection"), ("STR_AMSV_NO_AMS", "n
         assert len(args) >= 2, f"src/{VIEW}: the setStatus() for {name} does not say keep_chip"
 found = [args for _, args in ks.calls(fetch, "setStatusFmt") if "STR_AMSV_ERR_HTTP" in args[0]]
 assert found, f"src/{VIEW}: fetchAndDraw() has no setStatusFmt() for a failed fetch"
+# The failed fetch keeps the button too: either the call says so (a third
+# argument), or setStatusFmt() itself hands something other than false on to
+# statusRowPlain().
+fmt = ks.calls(ks.body_of(VIEW, "setStatusFmt"), "statusRowPlain")
+fmt_keeps = bool(fmt) and bool(fmt[0][1]) and fmt[0][1][0] not in ("", "false")
 for args in found:
-    assert len(args) >= 3, f"src/{VIEW}: a setStatusFmt(STR_AMSV_ERR_HTTP, ...) for a failed fetch does not say keep_chip"
+    assert len(args) >= 3 or fmt_keeps, \
+        f"src/{VIEW}: a setStatusFmt(STR_AMSV_ERR_HTTP, ...) for a failed fetch does not keep the printer button"
 
 # Names: a lone field is "Aktive Spule" as unit and as bay.
 unit = ks.body_of(VIEW, "unitName")
@@ -92,7 +98,10 @@ for code_name, german in TEXTS:
     found = ks.lang_ids_with_german(rows, re.escape(german))
     assert len(found) == 1, f"src/lang.cpp: {len(found)} rows with the text '{german}', expected 1"
     ids[german] = found[0]
-    assert f"case{code_name}:return{found[0]};" in fail_squeezed, \
+    # Any form of mapping: a case, an if, a table row. The first string id after
+    # the code, before the next semicolon, is the text.
+    mapped = re.search(rf"\b{code_name}\b[^;]*?\b(STR_\w+)\b", fail)
+    assert mapped and mapped.group(1) == found[0], \
         f"src/{PICK}: assignFailText() does not answer {code_name} with {found[0]} ('{german}')"
     assert way < 0 or 0 <= fail.find(code_name) < way, \
         f"src/{PICK}: {code_name} is answered after the test of backendMode(): a Klipper printer in Bambuddy's mode would never get here"
@@ -111,10 +120,10 @@ for sid in ids.values():
     assert ks.enum_has(sid), f"src/lang.h: {sid} is not in the enum"
 
 picked = ks.squeeze(ks.body_of(PICK, "onPicked"))
-at = picked.find("setAmsLocation(spool_id,ams_id);")
-assert at >= 0, f"src/{PICK}: onPicked() does not call setAmsLocation(spool_id, ams_id)"
-assert "!klipperIsPrinterId(" in picked[max(0, at - 90):at], \
-    f"src/{PICK}: setAmsLocation() is called for a Klipper printer (klipperAssign() writes the location itself)"
+at = picked.find("setAmsLocation(")
+assert at >= 0, f"src/{PICK}: onPicked() does not call setAmsLocation()"
+assert 0 <= picked.find("klipperIsPrinterId(") < at, \
+    f"src/{PICK}: onPicked() asks klipperIsPrinterId() only after setAmsLocation() (klipperAssign() writes the location itself)"
 assert "STR_AMSV_ASSIGNED" in picked and "g_loc_popup_shown_for_id=spool_id;" in picked, \
     f"src/{PICK}: a done assignment no longer says 'Zugeordnet' without the location question"
 

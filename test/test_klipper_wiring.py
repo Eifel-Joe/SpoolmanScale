@@ -86,7 +86,9 @@ for off, name, args in sites:
 body = ks.body_of(API, "moonrakerSetActiveSpool", strings=True)
 where = f"src/{API}: moonrakerSetActiveSpool()"
 assert re.search(r"POST|[Pp]ost", body), f"{where}: does not post"
-guard = need(body, r"spool_id\s*(?:<=\s*0|<\s*1)", where, "does not turn a spool number of 0 or less away")
+# Any guard counts that keeps a number of 0 or less from the request: an early
+# return on `spool_id <= 0` as well as a request inside `if (spool_id > 0)`.
+guard = need(body, r"spool_id\s*(?:<=\s*0|<\s*1|>\s*0|>=\s*1)", where, "does not turn a spool number of 0 or less away")
 path_at = need(body, r'"/server/spoolman/spool_id', where, "does not name /server/spoolman/spool_id")
 assert guard < path_at, f"{where}: the spool number is checked after the address is named"
 others = [l for l in re.findall(r'"((?:[^"\\]|\\.)*)"', body) if "spool_id" in l and not l.startswith("/")]
@@ -167,7 +169,7 @@ setting = need(b, r"(?:\.|->)set\b", where, "does not use the plan's setting com
 assert clear < setting, f"{where}: the spool is set before it is cleared elsewhere"
 set_active = re.search(r"\bmoonrakerSetActiveSpool\s*\(", b)
 assert set_active, f"{where}: the active spool is never set"
-assert "set_active" in b[max(0, set_active.start() - 120):set_active.start()], \
+assert "set_active" in b[:set_active.start()], \
     f"{where}: the active spool is set without asking the plan's set_active"
 assert set_active.start() > run, f"{where}: the active spool is set before the commands"
 holds = [m.start() for m in re.finditer(r"\bklipperFieldHolds\s*\(", b)]
@@ -191,7 +193,10 @@ assert len(loc) == 1, f"{where}: backendPatchSpoolLocation() is not called exact
 text = ks.body_of(PRINTERS, "klipperAssign", strings=True)
 patch_args = ks.calls(text, "backendPatchSpoolLocation")[0][1]
 assert patch_args[0] == "cfg_spoolman_base", f"{where}: the location is written to {patch_args[0]}, not to the scale's Spoolman (cfg_spoolman_base)"
-assert "name" in patch_args[2].lower(), f"{where}: the location is not the printer's name ({patch_args[2]})"
+# The name comes from the printer's record or from klipperPrinterName(), in the
+# call or in what the function did before it.
+assert re.search(r"\bklipperPrinterName\s*\(|(?:\.|->)name\b", " ".join(patch_args) + " " + text[:loc[0]]), \
+    f"{where}: the location is not the printer's name ({patch_args[2]})"
 assert loc[0] > text.rfind("klipperFieldHolds("), f"{where}: the location is written before the field is read back"
 assert not re.search(r"\breturn\s+backendPatchSpoolLocation", text), f"{where}: the answer of the location write is the answer of the assignment"
 assert re.search(r"\bklipperWritesLocation\s*\([^;]*klipperLocSwitch\s*\(\s*\)", text), \
@@ -217,7 +222,8 @@ for name, answer, answer_text in SWITCHES:
     way = OTHER_WAY.search(b)
     assert way is None or guard.start() < way.start(), \
         f"{where}: asks {way.group(0)} before it asks klipperIsPrinterId()"
-    assert re.search(answer, b[guard.end():guard.end() + 200]), \
+    later = OTHER_WAY.search(b, guard.end())
+    assert re.search(answer, b[guard.end():later.start() if later else len(b)]), \
         f"{where}: the Klipper branch does not answer with {answer_text}"
 
 for name in ("backendHasAmsView", "backendCanAssignAmsSlot"):

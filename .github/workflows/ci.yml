@@ -113,20 +113,6 @@ jobs:
         run: python3 test/test_weight_popup.py
       - name: Test print card
         run: python3 test/test_print_card.py
-      - name: Test Klipper rules
-        run: python3 test/test_klipper_rules.py
-      - name: Test Klipper store rules
-        run: python3 test/test_klipper_store_rules.py
-      - name: Test Klipper connection test rules
-        run: python3 test/test_klipper_test_rules.py
-      - name: Test Klipper store source
-        run: python3 test/test_klipper_store_src.py
-      - name: Test Klipper wiring
-        run: python3 test/test_klipper_wiring.py
-      - name: Test Klipper page
-        run: python3 test/test_klipper_page.py
-      - name: Test AMS Klipper
-        run: python3 test/test_ams_klipper.py
       - name: Test text fold
         run: python3 test/test_text_fold.py
       - name: Test list search
@@ -149,6 +135,20 @@ jobs:
         run: python3 test/test_label_fact_size.py
       - name: Test label fact styles
         run: python3 test/test_label_fact_styles.py
+      - name: Test Klipper rules
+        run: python3 test/test_klipper_rules.py
+      - name: Test Klipper store rules
+        run: python3 test/test_klipper_store_rules.py
+      - name: Test Klipper test rules
+        run: python3 test/test_klipper_test_rules.py
+      - name: Test Klipper store src
+        run: python3 test/test_klipper_store_src.py
+      - name: Test Klipper wiring
+        run: python3 test/test_klipper_wiring.py
+      - name: Test Klipper page
+        run: python3 test/test_klipper_page.py
+      - name: Test AMS Klipper
+        run: python3 test/test_ams_klipper.py
 
   build:
     name: Build ${{ matrix.env }}

@@ -479,6 +479,28 @@ int main() {
     expectConsistent(f);
   }
 
+  // Three units of five lanes: by name each makes 4+1, which is six units in
+  // all, and that is more than four. The count after the split is what counts.
+  WHAT("AFC, three units of five lanes: six units by name, so groups of four, all called AFC");
+  {
+    const KlipperFacts f = build(mkAfcN(15, 5));     // Turtle_1 .. Turtle_3, five lanes each
+    CHECK_INT(f.layout, KL_LAYOUT_AFC);
+    CHECK_INT(f.field_count, 15);
+    CHECK(!f.truncated);
+    CHECK_INT(klipperUnitCount(f), 4);
+    expectUnit(f, 0, 0, 4, "AFC");
+    expectUnit(f, 1, 4, 4, "AFC");
+    expectUnit(f, 2, 8, 4, "AFC");
+    expectUnit(f, 3, 12, 3, "AFC");
+    expectConsistent(f);            // every one of the 15 fields: bay and back
+    uint8_t a = 0xEE, b = 0xEE;
+    CHECK(klipperFieldBay(f, 14, &a, &b));
+    CHECK_INT(a, 3);
+    CHECK_INT(b, 2);
+    CHECK_INT(klipperBayField(f, 3, 2), 14);
+    CHECK_INT(klipperBayField(f, 3, 3), -1);
+  }
+
   WHAT("tools: T0 to T3 with the variable, T4 without");
   {
     const ToolDef tools[5] = {{0, true, 21}, {1, true, 22}, {2, true, 23}, {3, true, 24}, {4, false, 25}};

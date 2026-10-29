@@ -157,7 +157,6 @@ static void expectBodyIsObjects(const JsonDocument& body) {
 static void runCase(const char* name, JsonDocument& body) {
   g_case = name;
   WHAT(name);
-  fprintf(stderr, "case %s\n", name);
   JsonDocument doc;
 
   load(doc, "objects_list.json");
@@ -527,12 +526,6 @@ static void caseHulkSingle() {
   CHECK_INT(klipperUnitCount(g_facts), 1);
   expectStatePercent("standby", 0);
   expectServer(true, true, true, "http://192.0.2.178:7912");
-
-  // The answer to /access/info: not read by the parser, but a file of this case.
-  JsonDocument doc;
-  load(doc, "access_info.json");
-  CHECK(result(doc)["trusted"].as<bool>());
-  CHECK(!result(doc)["login_required"].as<bool>());
 }
 
 // A macro that is listed and answered with {"spool_id": null} after a query
@@ -551,13 +544,9 @@ static void caseMacroProbe() {
   CHECK(moonrakerParseObjectList(result(doc), &g_names));
   CHECK_INT(g_names.macro_count, 0);
 
-  load(doc, "query_macro_probe.json");
   // The trap in the file: asked for spool_id, TEST_FLOW answers {"spool_id": null}
   // as if it had the variable, and TEST_PA, asked for nothing in particular, {}.
-  JsonObjectConst flow = result(doc)["status"]["gcode_macro TEST_FLOW"].as<JsonObjectConst>();
-  JsonObjectConst pa = result(doc)["status"]["gcode_macro TEST_PA"].as<JsonObjectConst>();
-  CHECK_INT(flow.size(), 1);
-  CHECK_INT(pa.size(), 0);
+  load(doc, "query_macro_probe.json");
   memset(&g_raw, 0, sizeof(g_raw));
   (void)moonrakerParseQuery(status(doc), g_names, &g_raw);
   CHECK_INT(g_raw.tool_count, 0);

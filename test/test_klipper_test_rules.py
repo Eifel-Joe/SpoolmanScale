@@ -52,10 +52,10 @@ int main() {
   CHECK_INT(KS_OTHER, 2);
 
   WHAT("an address, the way it is compared");
-  expectAddr("http://192.168.10.178:7912", "http://192.168.10.178:7912");
-  expectAddr("192.168.10.178:7912/", "http://192.168.10.178:7912");
-  expectAddr("HTTP://192.168.10.178:7912/api", "http://192.168.10.178:7912");
-  expectAddr("http://192.168.10.178:7912/", "http://192.168.10.178:7912");
+  expectAddr("http://192.0.2.178:7912", "http://192.0.2.178:7912");
+  expectAddr("192.0.2.178:7912/", "http://192.0.2.178:7912");
+  expectAddr("HTTP://192.0.2.178:7912/api", "http://192.0.2.178:7912");
+  expectAddr("http://192.0.2.178:7912/", "http://192.0.2.178:7912");
   expectAddr("http://spoolman", "http://spoolman:80");
   expectAddr("spoolman", "http://spoolman:80");
   expectAddr("https://Spoolman.Local/", "https://spoolman.local:443");
@@ -65,29 +65,29 @@ int main() {
     CHECK(!klipperSpoolmanAddr("", out, sizeof(out)));
     CHECK(!klipperSpoolmanAddr("http://", out, sizeof(out)));
     // The result must fit with its terminator.
-    CHECK(!klipperSpoolmanAddr("http://192.168.10.178:7912", out, 8));
-    CHECK(klipperSpoolmanAddr("http://192.168.10.178:7912", out, 27));
-    CHECK(!klipperSpoolmanAddr("http://192.168.10.178:7912", out, 26));
+    CHECK(!klipperSpoolmanAddr("http://192.0.2.178:7912", out, 8));
+    CHECK(klipperSpoolmanAddr("http://192.0.2.178:7912", out, 24));
+    CHECK(!klipperSpoolmanAddr("http://192.0.2.178:7912", out, 23));
   }
 
   WHAT("the same address, however it was written");
-  CHECK(klipperSameAddr("http://192.168.10.178:7912", "192.168.10.178:7912/"));
-  CHECK(klipperSameAddr("http://192.168.10.178:7912", "HTTP://192.168.10.178:7912/api"));
-  CHECK(klipperSameAddr("192.168.10.178:7912/", "HTTP://192.168.10.178:7912/api"));
+  CHECK(klipperSameAddr("http://192.0.2.178:7912", "192.0.2.178:7912/"));
+  CHECK(klipperSameAddr("http://192.0.2.178:7912", "HTTP://192.0.2.178:7912/api"));
+  CHECK(klipperSameAddr("192.0.2.178:7912/", "HTTP://192.0.2.178:7912/api"));
   CHECK(klipperSameAddr("http://spoolman", "spoolman:80"));
   CHECK(klipperSameAddr("https://Spoolman.Local", "https://spoolman.local:443/"));
-  CHECK(!klipperSameAddr("http://192.168.10.178:7912", "http://192.168.10.178:7913"));
-  CHECK(!klipperSameAddr("http://192.168.10.178:7912", "http://192.168.10.179:7912"));
+  CHECK(!klipperSameAddr("http://192.0.2.178:7912", "http://192.0.2.178:7913"));
+  CHECK(!klipperSameAddr("http://192.0.2.178:7912", "http://192.0.2.179:7912"));
   CHECK(!klipperSameAddr("http://spoolman", "https://spoolman"));
   CHECK(!klipperSameAddr("http://spoolman", "http://spoolman:7912"));
   // The same machine under another name is not told apart by the address
   // alone, which is what the newest spool is for.
-  CHECK(!klipperSameAddr("http://spoolman:7912", "http://192.168.10.178:7912"));
+  CHECK(!klipperSameAddr("http://spoolman:7912", "http://192.0.2.178:7912"));
   // An address that is none is the same as nothing, not even as itself:
   // "same" opens assigning, so it is never said on nothing.
   CHECK(!klipperSameAddr("", ""));
-  CHECK(!klipperSameAddr("", "http://192.168.10.178:7912"));
-  CHECK(!klipperSameAddr("http://192.168.10.178:7912", ""));
+  CHECK(!klipperSameAddr("", "http://192.0.2.178:7912"));
+  CHECK(!klipperSameAddr("http://192.0.2.178:7912", ""));
 
   WHAT("the newest spool of each: the same database?");
   CHECK_INT(klipperSameNewest(0, "", 0, ""), KS_SAME);                  // both empty

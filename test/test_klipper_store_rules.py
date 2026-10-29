@@ -118,12 +118,12 @@ int main() {
 
   WHAT("the record, there and back");
   {
-    KlipperPrinterCfg c = mkCfg(100001, "Voron 2.4", "192.168.10.50", 7125);
+    KlipperPrinterCfg c = mkCfg(100001, "Voron 2.4", "192.0.2.50", 7125);
     setOutcome(&c, KT_OK, KL_LAYOUT_MMU, 8, KL_FLAG_TRUNCATED, 1793232000UL);
     char rec[KL_RECORD_MAX];
     memset(rec, 0xA5, sizeof(rec));
     CHECK(klipperRecordEncode(c, rec, sizeof(rec)));
-    CHECK_STR(rec, "1\t100001\tVoron 2.4\t192.168.10.50\t7125\t1\t3\t8\t2\t1793232000");
+    CHECK_STR(rec, "1\t100001\tVoron 2.4\t192.0.2.50\t7125\t1\t3\t8\t2\t1793232000");
     KlipperPrinterCfg back;
     CHECK(decode(rec, &back));
     expectSame(c, back);
@@ -161,17 +161,17 @@ int main() {
     const char* const bad[] = {
       "",
       "1",
-      "0\t100001\tVoron 2.4\t192.168.10.50\t7125\t1\t3\t8\t2\t1793232000",      // another version
-      "2\t100001\tVoron 2.4\t192.168.10.50\t7125\t1\t3\t8\t2\t1793232000",
-      "1\t100001\tVoron 2.4\t192.168.10.50\t7125\t1\t3\t8\t2",                  // the time is missing
-      "1\t100001\tVoron 2.4\t192.168.10.50\t7125",                              // everything after the port
+      "0\t100001\tVoron 2.4\t192.0.2.50\t7125\t1\t3\t8\t2\t1793232000",      // another version
+      "2\t100001\tVoron 2.4\t192.0.2.50\t7125\t1\t3\t8\t2\t1793232000",
+      "1\t100001\tVoron 2.4\t192.0.2.50\t7125\t1\t3\t8\t2",                  // the time is missing
+      "1\t100001\tVoron 2.4\t192.0.2.50\t7125",                              // everything after the port
       "1\t100001\tVoron 2.4",
-      "1\t99999\tVoron 2.4\t192.168.10.50\t7125\t1\t3\t8\t2\t1793232000",       // an id below the base
-      "1\t0\tVoron 2.4\t192.168.10.50\t7125\t1\t3\t8\t2\t1793232000",
-      "1\t100001\tVoron 2.4\t192.168.10.50\t0\t1\t3\t8\t2\t1793232000",         // port 0
-      "1\t100001\tVoron 2.4\t192.168.10.50\t65536\t1\t3\t8\t2\t1793232000",     // port past 65535
-      "1\t100001\tVoron 2.4\t192.168.10.50\tabc\t1\t3\t8\t2\t1793232000",       // no number
-      "1\t100001\t\t192.168.10.50\t7125\t1\t3\t8\t2\t1793232000",               // no name
+      "1\t99999\tVoron 2.4\t192.0.2.50\t7125\t1\t3\t8\t2\t1793232000",       // an id below the base
+      "1\t0\tVoron 2.4\t192.0.2.50\t7125\t1\t3\t8\t2\t1793232000",
+      "1\t100001\tVoron 2.4\t192.0.2.50\t0\t1\t3\t8\t2\t1793232000",         // port 0
+      "1\t100001\tVoron 2.4\t192.0.2.50\t65536\t1\t3\t8\t2\t1793232000",     // port past 65535
+      "1\t100001\tVoron 2.4\t192.0.2.50\tabc\t1\t3\t8\t2\t1793232000",       // no number
+      "1\t100001\t\t192.0.2.50\t7125\t1\t3\t8\t2\t1793232000",               // no name
       "1\t100001\tVoron 2.4\t\t7125\t1\t3\t8\t2\t1793232000",                   // no host
     };
     KlipperPrinterCfg out;
@@ -182,13 +182,13 @@ int main() {
       }
     }
     // The edges that are still records.
-    CHECK(decode("1\t100000\tVoron 2.4\t192.168.10.50\t1\t1\t3\t8\t2\t1793232000", &out));
+    CHECK(decode("1\t100000\tVoron 2.4\t192.0.2.50\t1\t1\t3\t8\t2\t1793232000", &out));
     CHECK_INT(out.id, 100000);
     CHECK_INT(out.port, 1);
-    CHECK(decode("1\t100001\tVoron 2.4\t192.168.10.50\t65535\t1\t3\t8\t2\t1793232000", &out));
+    CHECK(decode("1\t100001\tVoron 2.4\t192.0.2.50\t65535\t1\t3\t8\t2\t1793232000", &out));
     CHECK_INT(out.port, 65535);
     CHECK_STR(out.name, "Voron 2.4");
-    CHECK_STR(out.host, "192.168.10.50");
+    CHECK_STR(out.host, "192.0.2.50");
   }
 
   WHAT("the name: cleaned");
@@ -264,12 +264,12 @@ int main() {
   WHAT("the address");
   {
     char r[KL_HOST_MAX];
-    CHECK(hostClean("192.168.10.50", r));
-    CHECK_STR(r, "192.168.10.50");
-    CHECK(hostClean("  192.168.10.50  ", r));
-    CHECK_STR(r, "192.168.10.50");
-    CHECK(hostClean("http://192.168.10.50/", r));
-    CHECK_STR(r, "192.168.10.50");
+    CHECK(hostClean("192.0.2.50", r));
+    CHECK_STR(r, "192.0.2.50");
+    CHECK(hostClean("  192.0.2.50  ", r));
+    CHECK_STR(r, "192.0.2.50");
+    CHECK(hostClean("http://192.0.2.50/", r));
+    CHECK_STR(r, "192.0.2.50");
     CHECK(hostClean("http://voron.local//", r));
     CHECK_STR(r, "voron.local");
     CHECK(hostClean("voron.local/", r));
