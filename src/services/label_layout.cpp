@@ -23,7 +23,7 @@ static const uint32_t DEFAULT_FIELDS = (1u << (LF_BRAND + 1)) - 1;
 static const uint32_t FILAMENT_FIELDS =
     (1u << LF_VENDOR) | (1u << LF_MATERIAL) | (1u << LF_NAME) | (1u << LF_COLOR) |
     (1u << LF_ARTICLE) | (1u << LF_NET_WEIGHT) | (1u << LF_TEMPS) | (1u << LF_FREE_TEXT) |
-    (1u << LF_QR) | (1u << LF_BRAND) | (1u << LF_DRYING);
+    (1u << LF_QR) | (1u << LF_BRAND) | (1u << LF_DRYING) | (1u << LF_COLOR_RGB);
 static const uint32_t FILAMENT_DEFAULT_FIELDS =
     (1u << LF_VENDOR) | (1u << LF_MATERIAL) | (1u << LF_NAME) | (1u << LF_COLOR) |
     (1u << LF_TEMPS) | (1u << LF_QR);
@@ -136,7 +136,7 @@ uint32_t labelFactFields(uint8_t preset) {
   uint32_t m = (1u << LF_SPOOL_ID) | (1u << LF_COLOR) | (1u << LF_DATE) | (1u << LF_BRAND) |
                (1u << LF_ARTICLE) | (1u << LF_SPOOL_WEIGHT) | (1u << LF_NET_WEIGHT) |
                (1u << LF_TEMPS) | (1u << LF_LOCATION) | (1u << LF_DRIED) | (1u << LF_FREE_TEXT) |
-               (1u << LF_DRYING);
+               (1u << LF_DRYING) | (1u << LF_COLOR_RGB);
   // The compact arrangement sets the maker among the facts.
   if (preset == LABEL_PRESET_COMPACT) m |= 1u << LF_VENDOR;
   return m;

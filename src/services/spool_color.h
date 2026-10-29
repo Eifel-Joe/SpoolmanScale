@@ -56,6 +56,20 @@ bool spoolColorSeeThrough(const SpoolColor& c);
 // of a colour, and a colour filter must not hold them against a spool.
 bool spoolColorNamesHue(const SpoolColor& c);
 
+// A buffer that holds any colour as RGB: "255, 255, 255" and its terminator
+// are 14 bytes, two more are kept in hand.
+#define SPOOL_COLOR_RGB_TEXT_MAX 16
+
+// The colour as decimal red, green, blue for a label line, "242, 242, 232": it
+// is what is typed into Bambu Studio. Six or eight hex digits, the
+// '#' and the case as spoolColorParse() has them; of eight, the first six
+// count. True with the text in out. False, and out empty when it has room for
+// a byte, for no colour (null, empty), a text that is no hex colour, a clear
+// filament (alpha 00: the tag names no hue, and its zeros are not black) and a
+// buffer too small for the text and its terminator. Translucent keeps its hue
+// (F2F2E880 is 242, 242, 232): only clear has none.
+bool spoolColorRgbText(const char* hex, char* out, size_t cap);
+
 // "#RRGGBB" when opaque, "#RRGGBBAA" otherwise, empty when invalid.
 void spoolColorFormat(const SpoolColor& c, char* out, size_t out_size);
 

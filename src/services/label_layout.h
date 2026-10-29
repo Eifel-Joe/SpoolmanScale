@@ -43,6 +43,9 @@ enum LabelField : uint8_t {
   // The drying the filament wants, temperature and hours: the backend's
   // value, else the Bambu tag's. Off by default.
   LF_DRYING = 15,
+  // The colour as "RGB: 242, 242, 232", a line of its own right under the
+  // colour, to type into Bambu Studio. Off by default.
+  LF_COLOR_RGB = 16,
   LABEL_FIELD_COUNT
 };
 

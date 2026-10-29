@@ -205,6 +205,7 @@ STR_PRN_TEST	16	320	NEVER	src/ui/printer_screen.cpp makeListBtn title, text_w 32
 STR_PRN_FORGET	16	320	NEVER	src/ui/printer_screen.cpp makeListBtn title, text_w 320
 STR_BT_CARD_USE_PRINTER	18	170	NEVER	src/ui/ble_devices_screen.cpp card action button, 184 px wide
 STR_LBL_L_COLOR	16	120	NEVER	src/services/label_render.cpp fact caption on the label, 16 px
+STR_LBL_L_RGB	16	120	NEVER	src/services/label_render.cpp fact caption on the label, 16 px (measured: RGB 36 px, RVB 35 px; the whole line "RVB : 242, 242, 232" 148 px)
 
 # The print card (src/ui/print_card.cpp): 400 px box, text 360 px wide.
 STR_PRN_PH_RENDER	20	360	WRAP:2	src/ui/print_card.cpp busy title

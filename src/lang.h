@@ -2053,6 +2053,9 @@ enum StringID {
   // The search in the list of spool types (ui/spool_type_list.cpp)
   STR_SPT_FIND_KEY,           // the keyboard's title: the word the spool type names are searched for
   STR_SPT_FIND_NONE,          // across the list when no spool type holds the word (%s: the word)
+  // The colour as RGB on a label (services/label_facts.cpp, the label editor)
+  STR_LBL_L_RGB,              // the caption of the line "RGB: 242, 242, 232", 16 px on the label
+  STR_LBL_F_COLOR_RGB,        // the label editor's switch for that line
 
   STR_COUNT
 };

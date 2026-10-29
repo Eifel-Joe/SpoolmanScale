@@ -4487,6 +4487,8 @@ const char* const STRINGS[][3] = {
   { "Kein Spulentyp mit \"%s\"",
     "No spool type with \"%s\"",
     "Aucun type avec \"%s\"" },  // STR_SPT_FIND_NONE
+  { "RGB",           "RGB",           "RVB" },  // STR_LBL_L_RGB
+  { "Farbe als RGB", "Colour as RGB", "Couleur en RVB" },  // STR_LBL_F_COLOR_RGB
 };
 
 StringID tagWriteResultString(uint8_t code) {

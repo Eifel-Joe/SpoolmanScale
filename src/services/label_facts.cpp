@@ -6,6 +6,7 @@
 
 #include "lang.h"
 #include "services/backend.h"
+#include "services/spool_color.h"
 #include "services/text_util.h"
 
 static bool hasText(const char* s) { return s && s[0]; }
@@ -109,6 +110,7 @@ void labelSpoolFacts(const LabelLayout& layout, const SpoolLabelData& spool, int
   // that shows them is wrong a week later (Nikolai, 25.09.2026).
   char id[12];
   char color[sizeof(spool.color) + 1];
+  char rgb[SPOOL_COLOR_RGB_TEXT_MAX];
   snprintf(id, sizeof(id), "#%d", spool.id);
   snprintf(color, sizeof(color), isHex6(spool.color) ? "#%s" : "%s", spool.color);
   // The compact arrangement moves the maker down here, as the first fact.
@@ -118,6 +120,9 @@ void labelSpoolFacts(const LabelLayout& layout, const SpoolLabelData& spool, int
   if (labelLayoutHas(layout, LF_SPOOL_ID)) addFact(out, capacity, LabelFact{ backendName(), id });
   if (labelLayoutHas(layout, LF_COLOR) && spool.color[0])
     addFact(out, capacity, LabelFact{ T(STR_LBL_L_COLOR), color });
+  // A line of its own, right under the colour; none for a clear filament or a name.
+  if (labelLayoutHas(layout, LF_COLOR_RGB) && spoolColorRgbText(spool.color, rgb, sizeof(rgb)))
+    addFact(out, capacity, LabelFact{ T(STR_LBL_L_RGB), rgb });
   if (labelLayoutHas(layout, LF_ARTICLE) && spool.article[0])
     addFact(out, capacity, LabelFact{ T(STR_LBL_ARTICLE_NO_SHORT), spool.article });
   LabelFact date;
@@ -130,12 +135,16 @@ void labelFilamentFacts(const LabelLayout& layout, const SpoolLabelData& spool, 
                         LabelFactList* out) {
   *out = LabelFactList{};
   char color[sizeof(spool.color) + 1];
+  char rgb[SPOOL_COLOR_RGB_TEXT_MAX];
   snprintf(color, sizeof(color), isHex6(spool.color) ? "#%s" : "%s", spool.color);
   if (layout.preset == LABEL_PRESET_COMPACT && labelLayoutHas(layout, LF_VENDOR) &&
       spool.vendor[0])
     addFact(out, capacity, LabelFact{ nullptr, spool.vendor });
   if (labelLayoutHas(layout, LF_COLOR) && spool.color[0])
     addFact(out, capacity, LabelFact{ T(STR_LBL_L_COLOR), color });
+  // A line of its own, right under the colour; none for a clear filament or a name.
+  if (labelLayoutHas(layout, LF_COLOR_RGB) && spoolColorRgbText(spool.color, rgb, sizeof(rgb)))
+    addFact(out, capacity, LabelFact{ T(STR_LBL_L_RGB), rgb });
   if (labelLayoutHas(layout, LF_ARTICLE) && spool.article[0])
     addFact(out, capacity, LabelFact{ T(STR_LBL_ARTICLE_NO_SHORT), spool.article });
   // In the page's order, which is the order they give way in.
