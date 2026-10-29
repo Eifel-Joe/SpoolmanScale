@@ -27,6 +27,7 @@
 #include "services/tag_db_match.h"
 #include "services/tag_field.h"
 #include "services/user_options.h"
+#include "ui/batch_create.h"
 #include "ui/main_screen_helpers.h"
 #include "ui/no_tag_create.h"
 #include "ui/price_pad.h"
@@ -166,13 +167,17 @@ static int labelWeight() {
 //  The status line and the create button
 // ------------------------------------------------------------
 
-// The text on the left answer button: "Create", or "Density" / "Fill weight"
-// while the card asks for one of them. The label is the button's first child
-// (answerButton()).
+// The text on the left answer button: "Create" (with the count of a create
+// without a tag, batch_create.h), or "Density" / "Fill weight" while the card
+// asks for one of them. The label is the button's first child (answerButton()).
+// The id is kept, so that a new count can put the same text on again.
+static int s_ok_text = STR_COPY_CARD_CREATE;
 static void setOkText(int text_id) {
+  s_ok_text = text_id;
   if (!s_btn_ok) return;
   lv_obj_t* lbl = lv_obj_get_child(s_btn_ok, 0);
-  if (lbl) lv_label_set_text(lbl, T(text_id));
+  char caption[32];
+  if (lbl) lv_label_set_text(lbl, text_id == STR_COPY_CARD_CREATE ? batchCreateCaption(caption, sizeof(caption)) : T(text_id));
 }
 
 // button_free: the left button can be pressed, to create or to ask for the
@@ -496,6 +501,7 @@ static void onFill(float grams) {
 
 static void buildAnswers(lv_obj_t* box) {
   s_btn_ok = answerButton(box, UI_CARD_ROW_X, TCP_ANSWER_W, true, STR_COPY_CARD_CREATE);
+  setOkText(STR_COPY_CARD_CREATE);                 // with the count, from the first paint
   lv_obj_add_state(s_btn_ok, LV_STATE_DISABLED);   // until the lookup has answered
   lv_obj_add_event_cb(s_btn_ok, [](lv_event_t*) {
     if (s_job != TCP_IDLE) return;
@@ -547,6 +553,9 @@ static void buildCard() {
   buildIdentity(box);
   buildLines(box);
   buildAnswers(box);
+  // Without a tag, the count at the top right. A new one only puts the text on
+  // the left button again: after a lost answer it stays disabled.
+  if (noTagMode()) batchCountChip(box, []() { setOkText(s_ok_text); });
   s_job = TCP_PLAN;
 }
 

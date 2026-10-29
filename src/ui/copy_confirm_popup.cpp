@@ -15,6 +15,7 @@
 #include "services/no_tag_create_rules.h"   // the reading, the type list and the fill weight without a tag
 #include "services/spool_extras.h"
 #include "services/spool_types.h"   // spoolTypesActive()
+#include "ui/batch_create.h"        // the count of a create without a tag
 #include "ui/info_popup.h"
 #include "ui/no_tag_create.h"       // noTagMode()
 #include "ui/price_pad.h"
@@ -349,6 +350,8 @@ static void buildCopyCard() {
   lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_set_width(title, UI_POPUP_W - UI_CARD_TEXT_PAD);
   lv_obj_align(title, LV_ALIGN_TOP_MID, 0, UI_CARD_TITLE_Y);
+  // Without a tag, the count at the top right; a new one builds the card again.
+  if (noTagMode()) batchCountChip(box, buildCopyCard);
 
   // Line 1: the colour and the filament, as one centred group.
   lv_obj_t *row = lv_obj_create(box);
@@ -442,8 +445,11 @@ static void buildCopyCard() {
   const int row_y = UI_CARD_ROW_Y + grow;
   const int ans_w = s_copy_bbs ? COPY_CARD_ANSWER_W : UI_POPUP_BTN_W;
   lv_obj_t *btn_ok = copyAnswerButton(box, UI_CARD_ROW_X, row_y, ans_w, true);
-  // The label is the button's first child (copyAnswerButton()).
-  if (fill_missing) lv_label_set_text(lv_obj_get_child(btn_ok, 0), T(STR_NOTAG_FILL_BTN));
+  // The label is the button's first child (copyAnswerButton()); the count, if
+  // any, after the fill weight.
+  char caption[32];
+  lv_label_set_text(lv_obj_get_child(btn_ok, 0),
+                    fill_missing ? T(STR_NOTAG_FILL_BTN) : batchCreateCaption(caption, sizeof(caption)));
   lv_obj_add_event_cb(btn_ok, [](lv_event_t *e) {
     // No fill weight: the button asks for it on the price pad instead of
     // creating, and the answer comes back through copyFillTyped(). Nothing is

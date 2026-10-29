@@ -2056,6 +2056,12 @@ enum StringID {
   // The colour as RGB on a label (services/label_facts.cpp, the label editor)
   STR_LBL_L_RGB,              // the caption of the line "RGB: 242, 242, 232", 16 px on the label
   STR_LBL_F_COLOR_RGB,        // the label editor's switch for that line
+  // Several identical spools in one go: the count on the create cards (ui/batch_create.cpp)
+  STR_BATCH_COUNT_CHIP,       // the button at the top right of a create card without a tag (%d: the count)
+  STR_BATCH_COUNT_TITLE,      // the price pad's title when it asks for the count
+  STR_BATCH_COUNT_INFO,       // the grey line beside the price pad's keys when it asks for the count
+  STR_BATCH_COUNT_RANGE,      // the button's text after a count outside the range
+  STR_BATCH_CREATE_N,         // the create button for more than one spool (%d: the count)
 
   STR_COUNT
 };

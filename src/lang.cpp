@@ -4489,6 +4489,22 @@ const char* const STRINGS[][3] = {
     "Aucun type avec \"%s\"" },  // STR_SPT_FIND_NONE
   { "RGB",           "RGB",           "RVB" },  // STR_LBL_L_RGB
   { "Farbe als RGB", "Colour as RGB", "Couleur en RVB" },  // STR_LBL_F_COLOR_RGB
+  // Several identical spools in one go: the count on the create cards
+  { "Anzahl %d",
+    "Quantity %d",
+    "Quantité %d" },  // STR_BATCH_COUNT_CHIP
+  { "Anzahl gleicher Spulen",
+    "Number of identical spools",
+    "Nombre de bobines identiques" },  // STR_BATCH_COUNT_TITLE
+  { "1 bis 10 gleiche Spulen, jede mit eigener Nummer",
+    "1 to 10 identical spools, each with its own number",
+    "1 à 10 bobines identiques, chacune numérotée" },  // STR_BATCH_COUNT_INFO
+  { "1 bis 10",
+    "1 to 10",
+    "1 à 10" },  // STR_BATCH_COUNT_RANGE
+  { "%d anlegen",
+    "Create %d",
+    "Créer %d" },  // STR_BATCH_CREATE_N
 };
 
 StringID tagWriteResultString(uint8_t code) {

@@ -513,6 +513,16 @@ STR_NOTAG_FILL_RANGE	14	360	NEVER	src/ui/tag_create_popup.cpp status line, src/u
 STR_NOTAG_CREATED	14	269	NEVER	src/ui/no_tag_create.cpp status line, one line (French 197 px, German 219 px)
 STR_NOTAG_CREATED_BAMBU	14	269	NEVER	src/ui/no_tag_create.cpp status line, one line (French 259 px, German 247 px, English 236 px)
 STR_LABEL_ASK	20	360	NEVER	src/ui/no_tag_create.cpp title of the question, UI_POPUP_W - UI_CARD_TEXT_PAD, one line (French 221 px)
+# Several identical spools in one go (n10): the count at the top right of both create cards without a tag,
+# BATCH_CHIP_W 100 x 36 (ui/batch_create.cpp). Its text by the button rule, 100 - 8, measured with the %d as
+# written ("Quantité %d" 91 px, "Quantité 10" drawn 83 px); after a count out of range the same button shows
+# the range. With a count the create button is the left answer beside the price (140 px, -8 air), and the price
+# pad asks the count under its own title and grey line.
+STR_BATCH_COUNT_CHIP	14	92	NEVER	src/ui/batch_create.cpp count button at the card's top right, BATCH_CHIP_W - 8 (French 91 px, English 90 px with the %d)
+STR_BATCH_COUNT_RANGE	14	92	NEVER	src/ui/batch_create.cpp the count button after a count out of range, BATCH_CHIP_W - 8 (German 48 px)
+STR_BATCH_CREATE_N	18	132	NEVER	src/ui/tag_create_popup.cpp, src/ui/copy_confirm_popup.cpp left answer button beside the price button, -8 air (German 106 px with the %d)
+STR_BATCH_COUNT_TITLE	14	460	NEVER	src/ui/price_pad.cpp title above the keypad, the count (French 229 px)
+STR_BATCH_COUNT_INFO	12	168	WRAP:3	src/ui/price_pad.cpp right column, PP_COL_W, as STR_PRICE_PAD_INFO (two lines in all three)
 # The twin box over the card: title and text in the card's text width, two buttons of 184 px.
 STR_SORT_TWIN_TITLE	20	360	NEVER	src/ui/sort_twin_popup.cpp title, UI_POPUP_W - UI_CARD_TEXT_PAD
 STR_SORT_TWIN_TEXT	16	360	WRAP:3	src/ui/sort_twin_popup.cpp question, UI_POPUP_W - UI_CARD_TEXT_PAD, %s is a filament name

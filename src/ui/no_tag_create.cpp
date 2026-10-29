@@ -11,6 +11,7 @@
 #include "services/label_printer.h"
 #include "services/location_state.h"
 #include "services/no_tag_create_rules.h"
+#include "ui/batch_create.h"
 #include "ui/main_screen_helpers.h"
 #include "ui/more_info_screen.h"
 #include "ui/navigation.h"
@@ -23,7 +24,16 @@
 
 static bool s_no_tag = false;
 
+// Wurzel: a count typed on a card (batch_create.h) belongs to that one create,
+// and a cancel leaves the flag on (no_tag_create.h). The next "Create spool"
+// sets it on again, which is no change: reset on a change only, the old count
+// would make that many spools in the next create.
+// Fix: back to one whenever the flag is set. Every caller is a way into a
+// create or its end, none is on a card.
+// NOT-TO-DO: the reset after the early return below, on a change only.
+// See test_batch_flow.py (the card).
 void noTagModeSet(bool on) {
+  batchCountReset();
   if (on == s_no_tag) return;
   s_no_tag = on;
   // The reason is fixed by the value: on has one way in, off has several (a

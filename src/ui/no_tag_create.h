@@ -24,7 +24,8 @@
 // ============================================================
 
 // Sets the flag. Writes "NoTag: mode on|off" to the log when the value
-// changes, nothing when it is set to what it is.
+// changes, nothing when it is set to what it is. Every call, a change or not,
+// puts the count of several spools back to one (batch_create.h).
 void noTagModeSet(bool on);
 
 // Whether a create without a tag is under way.
