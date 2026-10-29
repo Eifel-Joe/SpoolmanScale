@@ -1,0 +1,9 @@
+{
+  "result": {
+    "eventtime": 4410.0,
+    "status": {
+      "print_stats": { "state": "printing" },
+      "virtual_sdcard": { "progress": 0.75 }
+    }
+  }
+}

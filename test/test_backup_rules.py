@@ -7,6 +7,7 @@ root = Path(__file__).parents[1]
 source = r'''
 #include "web/backup_rules.h"
 #include <cassert>
+#include <cstdio>
 #include <cstring>
 
 // The three groups, spelled out here on purpose: the production lists must
@@ -16,7 +17,11 @@ source = r'''
 static const char* const SECRETS[] = {
   "wifi_ssid", "wifi_pass", "filaman_key", "filaman_dev", "bb_key", "sm_secret", "sm_bind",
   "ams_src_key", "alt_fm_key", "alt_fm_dev", "alt_bb_key", "alt_sm_secret", "alt_sm_bind",
-  "alt_ams_key"
+  "alt_ams_key",
+  // All the keys of the Klipper printers' Moonraker access, in one entry
+  // (services/klipper_store.h): the one place a key is kept, the printers'
+  // own records (kl_p0 .. kl_p63) hold none.
+  "kl_keys"
 };
 static const char* const DEVICE[] = {
   "fw_ver", "fw_since", "upd_sha", "upd_ver",
@@ -27,7 +32,10 @@ static const char* const SETTINGS[] = {
   "cal_factor", "zero_offset", "mdns_host", "bb_host", "sm_user", "lang",
   "tag_mv27", "bright",
   "ams_src_host", "alt_sm_ip", "alt_fm_host", "alt_bb_host", "alt_sm_auth", "alt_sm_user",
-  "alt_ams_host", "alt_set_name"
+  "alt_ams_host", "alt_set_name",
+  // The Klipper printers: one record each (name, address, port, the last test)
+  // and the two numbers around them; no key in any of them.
+  "kl_p0", "kl_p63", "kl_next", "kl_loc"
 };
 
 // A key is at most BACKUP_KEY_MAX characters: 15 fit, 16 do not.
@@ -50,6 +58,22 @@ int main() {
     assert(backupKeyValid(k));
   }
   assert(backupKeyKind("unknown_key") == BACKUP_SETTING);
+
+  // Every record of a Klipper printer is a setting, and a legal NVS key: the
+  // names are spelled out in the list above for the two ends, and here for all.
+  // The list of keys is the one secret among them, and is not a printer's
+  // record whatever the number after the prefix.
+  for (int i = 0; i < 64; i++) {
+    char name[16];
+    snprintf(name, sizeof(name), "kl_p%d", i);
+    assert(backupKeyKind(name) == BACKUP_SETTING);
+    assert(backupKeyValid(name));
+    assert(backupKeyTravels(name, false));
+    assert(backupKeyTravels(name, true));
+  }
+  assert(backupKeyKind("kl_keys") == BACKUP_SECRET);
+  assert(!backupKeyTravels("kl_keys", false));
+  assert(backupKeyTravels("kl_keys", true));
 
   // A setting travels either way, a secret only when the file may carry
   // secrets, a device fact never.

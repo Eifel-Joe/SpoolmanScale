@@ -1,0 +1,1 @@
+{"result": {"eventtime": 3545258.981704601, "status": {"print_stats": {"state": "standby"}, "virtual_sdcard": {"progress": 0.0}, "toolhead": {"extruder": "extruder"}, "mmu": {"num_gates": null}, "AFC": {"lanes": null}, "toolchanger": {"tool_number": null}, "save_variables": {"variables": {}}}}}

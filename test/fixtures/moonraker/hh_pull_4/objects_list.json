@@ -1,0 +1,8 @@
+{
+  "result": {
+    "objects": [
+      "webhooks", "configfile", "mcu", "heaters", "extruder", "gcode_move", "toolhead",
+      "print_stats", "virtual_sdcard", "mmu_machine", "mmu"
+    ]
+  }
+}

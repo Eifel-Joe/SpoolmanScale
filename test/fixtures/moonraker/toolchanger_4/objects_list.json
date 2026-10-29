@@ -1,0 +1,12 @@
+{
+  "result": {
+    "objects": [
+      "webhooks", "configfile", "mcu", "heaters", "heater_bed",
+      "extruder", "extruder1", "extruder2", "extruder3",
+      "gcode_move", "toolhead", "print_stats", "virtual_sdcard", "save_variables",
+      "toolchanger", "tool T0", "tool T1", "tool T2", "tool T3",
+      "gcode_macro T0", "gcode_macro T1", "gcode_macro T2", "gcode_macro T3",
+      "gcode_macro SET_ACTIVE_SPOOL", "gcode_macro CLEAR_ACTIVE_SPOOL", "gcode_macro PRINT_START"
+    ]
+  }
+}

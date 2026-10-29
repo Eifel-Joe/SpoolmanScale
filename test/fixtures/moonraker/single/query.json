@@ -1,0 +1,9 @@
+{
+  "result": {
+    "eventtime": 990.0,
+    "status": {
+      "print_stats": { "state": "cancelled" },
+      "virtual_sdcard": { "progress": 0.123 }
+    }
+  }
+}

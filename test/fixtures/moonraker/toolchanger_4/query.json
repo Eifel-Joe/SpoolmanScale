@@ -1,0 +1,14 @@
+{
+  "result": {
+    "eventtime": 77.0,
+    "status": {
+      "toolchanger": { "tool_number": 1 },
+      "gcode_macro T0": { "spool_id": 21, "color": "ff0000" },
+      "gcode_macro T1": { "spool_id": 22, "color": "00ff00" },
+      "gcode_macro T2": { "spool_id": null, "color": "0000ff" },
+      "gcode_macro T3": { "spool_id": 24, "color": "ffff00" },
+      "print_stats": { "state": "complete" },
+      "virtual_sdcard": { "progress": 1.0 }
+    }
+  }
+}

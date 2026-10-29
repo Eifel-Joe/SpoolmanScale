@@ -1,0 +1,17 @@
+{
+  "result": {
+    "eventtime": 8123.456,
+    "status": {
+      "mmu": {
+        "num_gates": 8,
+        "gate_spool_id": [5, -1, 7, 12, -1, -1, 9, -1],
+        "gate_material": ["PLA", "", "PETG", "PLA", "", "", "ABS", ""],
+        "gate_color": ["FF0000", "", "#00FF00", "0000FF", "", "", "ff8800", ""],
+        "gate": 3,
+        "spoolman_support": "push"
+      },
+      "print_stats": { "state": "printing" },
+      "virtual_sdcard": { "progress": 0.4237 }
+    }
+  }
+}

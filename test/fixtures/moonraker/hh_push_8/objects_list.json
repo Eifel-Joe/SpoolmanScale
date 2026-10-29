@@ -1,0 +1,10 @@
+{
+  "result": {
+    "objects": [
+      "webhooks", "configfile", "mcu", "mcu mmu", "heaters", "heater_bed", "extruder",
+      "gcode_move", "toolhead", "pause_resume", "print_stats", "virtual_sdcard",
+      "mmu_machine", "mmu", "mmu_encoder mmu_encoder",
+      "gcode_macro PRINT_START", "gcode_macro PRINT_END"
+    ]
+  }
+}

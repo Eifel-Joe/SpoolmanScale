@@ -1,0 +1,13 @@
+{
+  "result": {
+    "objects": [
+      "webhooks", "configfile", "mcu", "heaters", "extruder", "gcode_move", "toolhead",
+      "print_stats", "virtual_sdcard",
+      "AFC", "AFC_BoxTurtle Turtle_1", "AFC_BoxTurtle Turtle_2",
+      "AFC_hub Turtle_1", "AFC_hub Turtle_2",
+      "AFC_stepper lane1", "AFC_stepper lane2", "AFC_stepper lane3", "AFC_stepper lane4",
+      "AFC_stepper lane5", "AFC_stepper lane6", "AFC_stepper lane7",
+      "gcode_macro PRINT_START"
+    ]
+  }
+}

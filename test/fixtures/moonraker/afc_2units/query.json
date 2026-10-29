@@ -1,0 +1,20 @@
+{
+  "result": {
+    "eventtime": 3301.25,
+    "status": {
+      "AFC": {
+        "lanes": ["lane1", "lane2", "lane3", "lane4", "lane5", "lane6", "lane7"],
+        "current_load": "lane2"
+      },
+      "AFC_stepper lane1": { "spool_id": 5, "material": "PLA", "color": "#FF0000", "unit": "Turtle_1", "tool_loaded": false },
+      "AFC_stepper lane2": { "spool_id": 12, "material": "PETG", "color": "#00FF00", "unit": "Turtle_1", "tool_loaded": true },
+      "AFC_stepper lane3": { "spool_id": null, "material": null, "color": "#000000", "unit": "Turtle_1", "tool_loaded": false },
+      "AFC_stepper lane4": { "spool_id": "", "material": "", "color": "", "unit": "Turtle_1", "tool_loaded": false },
+      "AFC_stepper lane5": { "spool_id": 31, "material": "ASA", "color": "#0000FF", "unit": "Turtle_2", "tool_loaded": false },
+      "AFC_stepper lane6": { "spool_id": 32, "material": "PLA", "color": "#FFFFFF", "unit": "Turtle_2", "tool_loaded": false },
+      "AFC_stepper lane7": { "spool_id": 33, "material": "TPU", "color": "#FFFF00", "unit": "Turtle_2", "tool_loaded": false },
+      "print_stats": { "state": "paused" },
+      "virtual_sdcard": { "progress": 0.5 }
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "result": {
+    "eventtime": 15.25,
+    "status": {
+      "gcode_macro T0": { "color": "00ff00" },
+      "gcode_macro T1": {},
+      "print_stats": { "state": "standby" },
+      "virtual_sdcard": { "progress": 0.0 }
+    }
+  }
+}

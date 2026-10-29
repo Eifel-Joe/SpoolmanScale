@@ -1,0 +1,16 @@
+{
+ "result": {
+  "config": {
+   "spoolman": {
+    "server": "http://192.0.2.178:7912",
+    "sync_rate": 5
+   }
+  },
+  "orig": {
+   "spoolman": {
+    "server": "http://192.0.2.178:7912",
+    "sync_rate": "5"
+   }
+  }
+ }
+}
