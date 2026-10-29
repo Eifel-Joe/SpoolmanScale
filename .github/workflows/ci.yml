@@ -131,6 +131,10 @@ jobs:
         run: python3 test/test_batch_create_rules.py
       - name: Test batch flow
         run: python3 test/test_batch_flow.py
+      - name: Test label fact size
+        run: python3 test/test_label_fact_size.py
+      - name: Test label fact styles
+        run: python3 test/test_label_fact_styles.py
 
   build:
     name: Build ${{ matrix.env }}
