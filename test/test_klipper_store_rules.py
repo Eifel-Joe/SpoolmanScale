@@ -281,6 +281,9 @@ int main() {
     CHECK(!hostClean("https://voron.local/", r));
     CHECK(!hostClean("a b", r));
     CHECK(!hostClean("voron/printer", r));
+    // The port is a field of its own, and an IPv6 form is not supported: a ':' is refused.
+    CHECK(!hostClean("192.0.2.50:7125", r));
+    CHECK(!hostClean("http://192.0.2.50:7125/", r));
     CHECK(!hostClean("", r));
     CHECK(!hostClean("   ", r));
     CHECK(!hostClean("http://", r));

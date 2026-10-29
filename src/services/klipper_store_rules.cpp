@@ -334,10 +334,13 @@ bool klipperHostClean(const char* in, char* out, size_t n) {
   const size_t len = (size_t)(end - begin);
   if (len == 0 || len >= cap) return false;
   // Anything up to and including the blank is refused, not only the blank:
-  // a tab in the host would split the record it is stored in.
+  // a tab in the host would split the record it is stored in. A ':' is
+  // refused too: the port is a field of its own (R16), so "host:7125" would
+  // become "host:7125:7125" when the address is put together, and an IPv6
+  // form is not supported.
   for (size_t i = 0; i < len; i++) {
     const unsigned char c = (unsigned char)begin[i];
-    if (c <= 0x20 || c == 0x7F || c == '/') return false;
+    if (c <= 0x20 || c == 0x7F || c == '/' || c == ':') return false;
   }
   memcpy(out, begin, len);
   out[len] = '\0';

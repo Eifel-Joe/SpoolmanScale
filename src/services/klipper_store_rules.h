@@ -107,9 +107,10 @@ bool klipperNameTaken(const char* name, const char* const* names, int count, int
 
 // A typed address as it is kept: blanks at both ends and a leading "http://"
 // dropped, slashes at the end dropped. False for "https://" (the scale talks
-// plain http to Moonraker), a blank, control character or "/" in the rest,
-// nothing at all, and a host that does not fit KL_HOST_MAX (or n). The port
-// is a field of its own, so none is read here.
+// plain http to Moonraker), a blank, control character, "/" or ":" in the
+// rest, nothing at all, and a host that does not fit KL_HOST_MAX (or n). The
+// port is a field of its own, so "host:7125" is refused, and so is an IPv6
+// form (it has colons).
 bool klipperHostClean(const char* in, char* out, size_t n);
 
 // An API key as it may be written: A-Z a-z 0-9 _ - only, at most KL_KEY_MAX
