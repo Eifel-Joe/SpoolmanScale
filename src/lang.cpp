@@ -4724,6 +4724,10 @@ const char* const STRINGS[][3] = {
   { "Drucker antwortet nicht",
     "Printer does not answer",
     "L'imprimante ne répond pas" },  // STR_AMSV_KL_STATUS_SILENT
+  // Downloads of the web pages when a backend shows them in a frame
+  { "Download im eingebetteten Fenster nicht möglich - die Waage direkt öffnen: http://{a}",
+    "Download not possible in an embedded window - open the scale directly: http://{a}",
+    "Téléchargement impossible dans une fenêtre intégrée - ouvrez directement la balance : http://{a}" },  // STR_W_DL_EMBEDDED
 };
 
 StringID tagWriteResultString(uint8_t code) {

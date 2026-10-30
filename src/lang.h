@@ -2134,6 +2134,9 @@ enum StringID {
   STR_AMSV_KL_ACCESS,         // an assignment: Moonraker turned the scale down (401, 403)
   STR_AMSV_KL_STATUS_SILENT,  // the status line: the printer does not answer (short: 314 px beside the chip)
 
+  // Downloads of the web pages when a backend shows them in a frame (web/web_static.cpp, web/web_shell.cpp)
+  STR_W_DL_EMBEDDED,          // the download window could not be opened; {a} is the scale's address
+
   STR_COUNT
 };
 

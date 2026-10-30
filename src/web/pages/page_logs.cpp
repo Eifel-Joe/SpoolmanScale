@@ -74,7 +74,10 @@ static String body() {
   h += T(STR_W_S_DEST_INT);
   h += F("</button><button class='btab' data-f='sd'>");
   h += T(STR_W_S_DEST_SD);
+  // dlm: where a download says that its window could not be opened (app.js,
+  // downloadStart). No height of its own while it is empty.
   h += F("</button></div><div id='lg'></div>"
+         "<div class='msg' id='dlm' style='min-height:0;margin-top:10px'></div>"
          "<div class='rows' style='margin-top:16px'><div class='row' id='darow'>"
          "<span class='k' id='dsum'></span>"
          "<span class='v'>"
@@ -208,8 +211,10 @@ static String body() {
          ".replace('{b}',d.int_max)+'</span>'"
          "+'<a href=\"/api/log?src=int\" target=\"_blank\">'"
          "+'<button class=\"quiet\">'+M.view+'</button></a>'"
-         "+'<a href=\"/api/log?src=int&dl=1\" download=\"spoolmanscale-internal.txt\">'"
-         "+'<button class=\"quiet\">'+M.dl+'</button></a>'"
+         // A button with a handler (dlLog), not a link: a link's download is
+         // dropped inside a backend's frame, see app.js downloadStart.
+         "+'<button class=\"quiet\" data-dl=\"/api/log?src=int&dl=1\" "
+         "data-dn=\"spoolmanscale-internal.txt\">'+M.dl+'</button>'"
          "+'<button class=\"danger\" data-cint=\"1\">'+M.del+'</button>'"
          "+'</span></div>';}"
          "function fileRow(f){"
@@ -218,12 +223,11 @@ static String body() {
          "+'<span class=\"sz\">'+kb(f.size)+'</span>'"
          "+'<a href=\"/api/log?file='+encodeURIComponent(f.name)+'\" target=\"_blank\">'"
          "+'<button class=\"quiet\">'+M.view+'</button></a>'"
-         // No target=_blank on this one: a new tab suppresses the download
-         // hint in some browsers. The download attribute and the header the
-         // route sends say the same thing twice, on purpose.
-         "+'<a href=\"/api/log?dl=1&file='+encodeURIComponent(f.name)"
-         "+'\" download=\"'+f.name+'\">'"
-         "+'<button class=\"quiet\">'+M.dl+'</button></a>'"
+         // Not opened in a new tab: a new tab suppresses the download hint in
+         // some browsers. The name the helper sets and the header the route
+         // sends say the same thing twice, on purpose.
+         "+'<button class=\"quiet\" data-dl=\"/api/log?dl=1&file='+encodeURIComponent(f.name)"
+         "+'\" data-dn=\"'+f.name+'\">'+M.dl+'</button>'"
          // The name rides in a data attribute and the handler is bound after
          // the rows exist. Threading it through an inline onclick quotes it
          // for C++, for a JS string, for an HTML attribute and for a JS call
@@ -266,6 +270,8 @@ static String body() {
          "?'<div class=\"note\"><b>'+M.nosd+'</b><br>'+M.nosdh+'</div>'"
          ":'<div class=\"note\">'+M.empty+'</div>';return;}"
          "c.innerHTML=html;"
+         "c.querySelectorAll('[data-dl]').forEach(b=>"
+         "b.onclick=()=>dlLog(b.dataset.dl,b.dataset.dn));"
          "c.querySelectorAll('[data-del]').forEach(b=>"
          "b.onclick=()=>delLog(b.dataset.del));"
          "c.querySelectorAll('[data-cint]').forEach(b=>b.onclick=clearInt);}"
@@ -273,6 +279,10 @@ static String body() {
          // closed gate answering 403 as text/plain is handled here.
          "function loadLogs(){return getJson('/api/logs').then(d=>{"
          "if(!d){say(M.err);return;}last=d;render();});}"
+         // The server URL goes to the helper as it is: a shut gate answers 403,
+         // which a browser reports as a failed download rather than saving the
+         // sentence as a log. Not embedded, it saves exactly as the link did.
+         "function dlLog(u,n){var h=downloadStart('dlm');if(h)downloadFinish(h,u,n);}"
          "function delLog(n){ask(M.ask,M.del,true).then(ok=>{if(ok)"
          "post('/api/deletelog?file='+encodeURIComponent(n),'').then(loadLogs);});}"
          "function clearInt(){ask(M.ask,M.del,true).then(ok=>{if(ok)"

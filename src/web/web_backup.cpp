@@ -374,18 +374,19 @@ String webBackupCard() {
          // Read once: the name has to match what was asked for, even if the
          // box changes while the file is on its way.
          "const s=$('bk-sec').checked;"
+         // The window first, before the fetch: inside a backend's frame the
+         // file is saved from a window of its own, and a window can only be
+         // opened while the click is still being handled (app.js, downloadStart).
+         // Every way out below that does not save closes it again.
+         "const h=downloadStart('bk-s');if(!h)return;"
          "fetch('/api/backup'+(s?'?secrets=1':''),{cache:'no-store'})"
          ".then(r=>r.ok?r.blob().then(b=>{"
-         "const a=document.createElement('a');a.href=URL.createObjectURL(b);"
-         "a.download='spoolmanscale-settings'+(s?'-secrets':'')+'.json';"
-         "document.body.appendChild(a);a.click();a.remove();"
-         // Not at once: a browser may still be reading the blob for the save.
-         "setTimeout(()=>URL.revokeObjectURL(a.href),10000);})"
+         "downloadFinish(h,b,'spoolmanscale-settings'+(s?'-secrets':'')+'.json');})"
          // A fault on the scale answers with JSON, a shut gate with its own
          // sentence, which says what to switch on.
-         ":r.text().then(t=>{let j=null;try{j=JSON.parse(t)}catch(e){}"
+         ":r.text().then(t=>{downloadAbort(h);let j=null;try{j=JSON.parse(t)}catch(e){}"
          "flash('bk-s',(j||!t)?WS.err:t,true,6000)}))"
-         ".catch(()=>flash('bk-s',WS.err,true,6000));});"
+         ".catch(()=>{downloadAbort(h);flash('bk-s',WS.err,true,6000)});});"
          "$('bk-up').addEventListener('click',async()=>{"
          "const f=$('bk-f').files[0];if(!f)return;"
          "let t;try{t=await f.text()}catch(e){flash('bk-s',BK.bad,true,6000);return}"
