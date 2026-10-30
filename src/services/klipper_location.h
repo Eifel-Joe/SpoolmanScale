@@ -26,7 +26,10 @@
 // before the commands (0, or spool_id itself, for none); it is read from
 // Spoolman and gets klipperRestoreFor(). When the field cannot be made or the
 // PATCH with it fails, the location is written alone and the displaced spool's
-// location is only cleared, and only while it is the printer's name.
+// location is only cleared, and only while it is the printer's name. When
+// spool_id cannot be read or its old location does not fit, the location is
+// written alone too, but the displaced spool still gets its old one back.
+// When Spoolman does not answer the first read at all, nothing more is sent.
 // True when spool_id's location was written (with or without the old one).
 // Each failure is one "KLIPPER:" line in the log and nothing else: the
 // assignment has succeeded already.

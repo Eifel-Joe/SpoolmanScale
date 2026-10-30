@@ -86,11 +86,23 @@ void loadNames(LocWork* w) {
   }
 }
 
+// How the assigned spool's write came out: the location alone and what the
+// displaced spool gets are decided on it.
+enum PlaceAns : uint8_t {
+  PA_PLACED = 0,   // location and old location in one PATCH
+  PA_UNREAD,       // not read, or its old location does not fit: the field untried
+  PA_NO_FIELD,     // the field could not be made, or the PATCH with it failed
+  PA_GONE,         // Spoolman did not answer the read at all
+};
+
 // The spool's location and its remembered one as Spoolman has them now, read
 // fresh rather than trusted from the scale's memory: GET /api/v1/spool/<id>,
-// only these two kept. 200, the code of the request, or -2 for a location that
-// does not fit. A remembered value that is no JSON text counts as none.
-int readPlace(const char* base, int spool_id, LocWork* w) {
+// only these two kept. 200, the code of the request, or -2 for an answer that
+// does not parse or a location that does not fit. *gone (when asked): no
+// answer at all, a code <= 0 of the request itself; spoolmanGetJson() answers
+// -2 for a parse error too, and that Spoolman is there. A remembered value
+// that cannot be read counts as none.
+int readPlace(const char* base, int spool_id, LocWork* w, bool* gone) {
   w->location[0] = '\0';
   w->prev[0] = '\0';
   char path[32];
@@ -100,7 +112,9 @@ int readPlace(const char* base, int spool_id, LocWork* w) {
   filter["extra"][KL_PREV_LOC_KEY] = true;
   SpiRamAllocator alloc;
   JsonDocument doc(&alloc);
-  const int code = spoolmanGetJson(base, path, doc, KL_LOC_MS, &filter);
+  DeserializationError err = DeserializationError::Ok;
+  const int code = spoolmanGetJson(base, path, doc, KL_LOC_MS, &filter, &err);
+  if (gone) *gone = code <= 0 && !err;
   if (code != 200) return code;
   if (!copyWhole(w->location, sizeof(w->location), doc["location"] | "")) {
     logSDf("KLIPPER: the location of spool %d is longer than %d bytes", spool_id, KL_LOC_MAX - 1);
@@ -108,7 +122,8 @@ int readPlace(const char* base, int spool_id, LocWork* w) {
   }
   const char* text = doc["extra"][KL_PREV_LOC_KEY] | "";
   if (text[0] && !klipperExtraValue(text, w->prev, sizeof(w->prev))) {
-    logSDf("KLIPPER: the old location of spool %d in Spoolman is no JSON text, taken as none", spool_id);
+    logSDf("KLIPPER: the old location of spool %d in Spoolman is no JSON text or longer than %d bytes, taken as none",
+           spool_id, KL_LOC_MAX - 1);
   }
   return 200;
 }
@@ -158,51 +173,59 @@ int patchPlace(const char* base, int spool_id, const String& payload) {
   const int code = spoolmanPatchSpool(base, spool_id, payload, KL_LOC_MS);
   if (code != 400) return code;
   const int made = makeField(base);
-  logSDf("KLIPPER: Spoolman had no field 'scale_prev_location', made: HTTP %d", made);
-  if (made != 200 && made != 201) return code;
+  const bool again = made == 200 || made == 201;
+  logSDf("KLIPPER: write of spool %d refused (HTTP 400), field 'scale_prev_location' created: HTTP %d, %s",
+         spool_id, made, again ? "sent once more" : "not sent again");
+  if (!again) return code;
   return spoolmanPatchSpool(base, spool_id, payload, KL_LOC_MS);
 }
 
 // The assigned spool: location = the printer's name and, in the same PATCH,
-// what it remembers. True when that PATCH took.
-bool placeWithPrev(const char* base, int spool_id, const char* printer_name, LocWork* w) {
-  const int read = readPlace(base, spool_id, w);
+// what it remembers.
+PlaceAns placeWithPrev(const char* base, int spool_id, const char* printer_name, LocWork* w) {
+  bool gone = false;
+  const int read = readPlace(base, spool_id, w, &gone);
+  if (gone) {
+    logSDf("KLIPPER: Spoolman did not answer for spool %d (%d): nothing more sent, no location written, "
+           "the displaced spool not asked", spool_id, read);
+    return PA_GONE;
+  }
   if (read != 200) {
     logSDf("KLIPPER: spool %d not read from Spoolman (%d), its old location is not remembered", spool_id, read);
-    return false;
+    return PA_UNREAD;
   }
   loadNames(w);
   const KlipperNames printers = {w->name_of, w->name_count};
   if (!klipperPrevToRemember(w->location, w->prev, printers, w->remember, sizeof(w->remember)) ||
       !klipperExtraText(w->remember, w->text, sizeof(w->text))) {
     logSDf("KLIPPER: the old location of spool %d does not fit the extra field", spool_id);
-    return false;
+    return PA_UNREAD;
   }
   const int code = patchPlace(base, spool_id, placeBody(printer_name, w->text));
   if (!backendWriteOk(code)) {
     logSDf("KLIPPER: location of spool %d with its old one not written, HTTP %d", spool_id, code);
-    return false;
+    return PA_NO_FIELD;
   }
   logSDf("KLIPPER: location of spool %d -> '%s' (was '%s' remembered)", spool_id, printer_name, w->remember);
-  return true;
+  return PA_PLACED;
 }
 
-// The spool that stood in the field before the commands. extra_ok false: the
+// The spool that stood in the field before the commands. field_ok false: the
 // field did not work for the assigned spool, so nothing is given back and the
 // location is only cleared, on its own, while it is the printer's name.
-void giveBack(const char* base, int spool_id, const char* printer_name, bool extra_ok, LocWork* w) {
-  const int read = readPlace(base, spool_id, w);
+void giveBack(const char* base, int spool_id, const char* printer_name, bool field_ok, LocWork* w) {
+  const int read = readPlace(base, spool_id, w, nullptr);
   if (read != 200) {
     logSDf("KLIPPER: displaced spool %d not read from Spoolman (%d), its location stays", spool_id, read);
     return;
   }
-  const KlipperRestoreAct act = klipperRestoreFor(w->location, printer_name, extra_ok ? w->prev : "");
+  const KlipperRestoreAct act = klipperRestoreFor(w->location, printer_name, field_ok ? w->prev : "");
   if (act == KR_NONE) {
     logSDf("KLIPPER: displaced spool %d is at '%s', not at '%s': left as it is", spool_id,
            w->location, printer_name);
     return;
   }
-  if (extra_ok) {
+  if (field_ok) {
     const int code = patchPlace(base, spool_id, placeBody(act == KR_RESTORE ? w->prev : nullptr, nullptr));
     if (backendWriteOk(code)) {
       if (act == KR_CLEAR) {
@@ -242,20 +265,31 @@ bool klipperLocationAssigned(int spool_id, int displaced_id, const char* printer
   }
   const LocBlock block;
   LocWork* w = block.get();
-  bool extra_ok = false;
+  PlaceAns ans = PA_UNREAD;   // no memory: the field untried, the location goes alone
   if (w) {
-    extra_ok = placeWithPrev(base, spool_id, printer_name, w);
+    ans = placeWithPrev(base, spool_id, printer_name, w);
   } else {
     logSD("KLIPPER: no memory to remember the old location");
   }
-  bool placed = extra_ok;
+  // Root: with Spoolman gone, the new spool's read, the location alone and the
+  //   displaced spool's read each waited out KL_LOC_MS: the screen stood 15-24 s.
+  // Fix: no answer at all to the first request ends the call (logged there).
+  // NOT-TO-DO: taking any code <= 0 as gone: -2 is also an answer that did not
+  //   parse (readPlace()), and that Spoolman takes the location alone.
+  if (ans == PA_GONE) return false;
+  bool placed = ans == PA_PLACED;
   if (!placed) {
     const int code = spoolmanPatchSpoolLocation(base, spool_id, printer_name, KL_LOC_MS);
     logSDf("KLIPPER: location of spool %d -> '%s' alone, HTTP %d", spool_id, printer_name, code);
     placed = backendWriteOk(code);
   }
+  // Root: a new spool that was not read (or whose old location did not fit)
+  //   counted as a field that does not work: the displaced spool was only
+  //   cleared, and its remembered "Regal" was lost.
+  // Fix: only PA_NO_FIELD (the field's POST or the PATCH with it failed) clears alone.
+  // NOT-TO-DO: leaving the displaced spool alone then: it would keep the printer's name.
   if (w && displaced_id > 0 && displaced_id != spool_id) {
-    giveBack(base, displaced_id, printer_name, extra_ok, w);
+    giveBack(base, displaced_id, printer_name, ans != PA_NO_FIELD, w);
   }
   return placed;
 }

@@ -1,4 +1,4 @@
-"""Read the source tree without a compiler and check how the Klipper printers are wired into the AMS backend (services/moonraker_api.cpp, services/klipper_printers.cpp, services/backend_api.cpp): Moonraker is reached with plain http and the key in the header, with only the calls the design names and a POST of the active spool only with a spool; the commands for a printer are worded in one place; the printer list carries the Klipper printers even when Bambuddy does not answer; a Klipper number never reaches a call that is Bambuddy's or the AMS source's; and an assignment is refused for another Spoolman before any command, is read back, and is read back once more; after it (V50, services/klipper_location.cpp) the spool's location becomes the printer's name directly in the scale's Spoolman, with the old location remembered in the extra field scale_prev_location, and the spool that stood in the field before gets its remembered location back."""
+"""Read the source tree without a compiler and check how the Klipper printers are wired into the AMS backend (services/moonraker_api.cpp, services/klipper_printers.cpp, services/backend_api.cpp): Moonraker is reached with plain http and the key in the header, with only the calls the design names and a POST of the active spool only with a spool; the commands for a printer are worded in one place; the printer list carries the Klipper printers even when Bambuddy does not answer; a Klipper number never reaches a call that is Bambuddy's or the AMS source's; and an assignment is refused for another Spoolman before any command, is read back, and is read back once more; after it (V50, services/klipper_location.cpp) the spool's location becomes the printer's name directly in the scale's Spoolman, with the old location remembered in the extra field scale_prev_location, and the spool that stood in the field before gets its remembered location back; a Spoolman that does not answer the first read is asked nothing more, and only a field that does not work leaves the displaced spool only cleared."""
 import re
 
 import klipper_src as ks
@@ -395,5 +395,66 @@ assert any(args and "HTTP %d" in args[0] for _, args in ks.calls(loc_text, "logS
 for fn in ("logSDf", "logSD"):
     for _, args in ks.calls(loc_text, fn):
         assert args and re.match(r'"(?:\[verbose\] )?KLIPPER: ', args[0]), f"{WHERE}: a log line is not a 'KLIPPER: ' line ({args[0] if args else ''})"
+
+# 8. V50 after its review. Spoolman that does not answer at all costs one
+# request, not three: a code <= 0 of the new spool's read itself (an answer that
+# does not parse is an answer; spoolmanGetJson() says so through its sixth
+# argument) ends the call on the read's own verdict, before the location alone
+# and before the displaced spool, with one KLIPPER: line that says so. And only
+# a field that does not work (its POST failed, or the PATCH with it) leaves the
+# displaced spool only cleared: a new spool that could not be read, or whose
+# old location does not fit, never tried the field, so it is answered with
+# another value than a failed PATCH, and the displaced spool still gets
+# klipperRestoreFor() unless the answer is exactly that of a failed PATCH:
+#   giveBack(base, displaced_id, printer_name, ans != <failed PATCH>, w);
+loc_funcs = ks.cc.find_functions(loc_src.code)
+readers = [n for n, a, z in loc_funcs if ks.calls(loc_src.code[a:z], "spoolmanGetJson")]
+assert len(readers) == 1, f"{WHERE}: not exactly one function that reads a spool from Spoolman ({readers})"
+reader = readers[0]
+rd = ks.body_of(LOCATION, reader)
+gets = ks.calls(rd, "spoolmanGetJson")
+assert len(gets) == 1 and len(gets[0][1]) == 6, \
+    f"{WHERE}: {reader}() does not take the parse error of spoolmanGetJson() (its sixth argument): an answer that does not parse would count as no answer"
+err = gets[0][1][5].lstrip("&").strip()
+assert any(re.search(r"(?:<=\s*0|<\s*1)\b", s) and re.search(rf"\b{re.escape(err)}\b", s) for s in re.split(r"[;{}]", rd)), \
+    f"{WHERE}: {reader}() does not tell no answer (a code <= 0 of the request) from an answer that does not parse ({err})"
+
+lb = ks.body_of(LOCATION, "klipperLocationAssigned")
+lwhere = f"{WHERE}: klipperLocationAssigned()"
+users = [n for n, a, z in loc_funcs if n != reader and ks.calls(loc_src.code[a:z], reader)]
+reads = sorted((at, n) for n in users for at, _ in ks.calls(lb, n))
+assert reads, f"{lwhere}: does not read the new spool"
+first_read, place = reads[0]
+pb = ks.body_of(LOCATION, place)
+written = ks.calls(pb, retry[0])
+assert written, f"{WHERE}: {place}() does not write the new spool through {retry[0]}()"
+rets = [(m.start(), m.group(1).strip()) for m in re.finditer(r"\breturn\b([^;]*);", pb)]
+before = {v for at, v in rets if at < written[0][0]}
+after_patch = [v for at, v in rets if at > written[0][0]]
+assert before and after_patch, f"{WHERE}: {place}() does not answer both before and after its PATCH"
+failed_patch = after_patch[0]
+assert failed_patch not in before, \
+    f"{WHERE}: {place}() answers a new spool that was not read (or whose old location does not fit) like a field that does not work ({failed_patch}): the displaced spool would lose its old location"
+
+alone = ks.calls(lb, "spoolmanPatchSpoolLocation")
+assert len(alone) == 1, f"{lwhere}: the location alone is not written in exactly one place"
+gives = [(at, args) for n in users for at, args in ks.calls(lb, n) if any(re.search(r"\bdisplaced_id\b", a) for a in args)]
+assert len(gives) == 1, f"{lwhere}: the displaced spool is not handled in exactly one place"
+gap = lb[first_read:min(alone[0][0], gives[0][0])]
+exits = re.findall(r"\bif\s*\(([^;{}]*)\)\s*(?:\{[^{}]*)?\breturn\b", gap)
+verdicts = [v for v in before if re.fullmatch(r"[A-Za-z_]\w*", v) and v not in ("true", "false")]
+assert any(re.search(rf"\b{v}\b", c) for c in exits for v in verdicts), \
+    f"{lwhere}: a new spool that Spoolman did not answer for still leads to the location alone and to the displaced spool (up to three waits of KL_LOC_MS)"
+assert any(lit.startswith("KLIPPER: ") and re.search(r"(?i)\bdid not answer\b|\bno answer\b", lit) for lit in loc_lits), \
+    f"{WHERE}: no KLIPPER: line says that Spoolman did not answer"
+
+flags = [a for a in gives[0][1] if a not in (base.group(1), "printer_name", "w") and not re.search(r"\bdisplaced_id\b", a)]
+assert len(flags) == 1, f"{lwhere}: the displaced spool is not handed one flag for the field ({gives[0][1]})"
+flag = flags[0]
+if re.fullmatch(r"[A-Za-z_]\w*", flag):
+    sets = list(re.finditer(rf"\b{flag}\s*=(?!=)\s*([^;]*);", lb[:gives[0][0]]))
+    flag = sets[-1].group(1) if sets else flag
+assert re.search(rf"!=\s*{re.escape(failed_patch)}\b|\b{re.escape(failed_patch)}\s*!=", flag), \
+    f"{lwhere}: the displaced spool is only cleared for more than a field that does not work ({flag}): it would lose its old location"
 
 print("test_klipper_wiring: ok")
