@@ -2146,6 +2146,9 @@ enum StringID {
   // The old location of a spool in a Klipper printer (services/klipper_location.cpp, V50)
   STR_KL_PREV_LOC_FIELD,      // the name of the spool's extra field in Spoolman that remembers it
 
+  // Downloads of the web pages when a backend shows them in a frame (web/web_static.cpp, web/web_shell.cpp)
+  STR_W_DL_EMBEDDED,          // the download window could not be opened; {a} is the scale's address
+
   STR_COUNT
 };
 

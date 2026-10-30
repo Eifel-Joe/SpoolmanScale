@@ -122,8 +122,13 @@ String screenshotCard() {
          "post('/api/screenshot','').then(function(r){"
          "if(!r.ok){shSay(SH.fail);return;}return shLoad();})"
          ".finally(function(){b.disabled=false;b.textContent=SH.take;});}"
-         "function shSave(id){var p=shPng[id];if(!p)return;var a=document.createElement('a');"
-         "a.href=p.url;a.download=p.name;document.body.appendChild(a);a.click();a.remove();}"
+         // The Blob, not p.url: that object URL belongs to this frame and feeds
+         // the <img>; a window of its own, which is where the file is saved
+         // inside a backend's frame, cannot read it (app.js, downloadFinish).
+         // h is the window of "save all"; a single picture opens its own.
+         "function shSave(id,h){var p=shPng[id];if(!p)return;"
+         "h=h||downloadStart('sht');if(!h)return;"
+         "downloadFinish(h,p.blob,p.name);}"
          // The clipboard takes an image only in a secure context, and the scale
          // speaks plain http: there the picture's own "Copy image" menu still
          // works, so the hint points to it instead of failing quietly.
@@ -135,8 +140,12 @@ String screenshotCard() {
          "setTimeout(function(){shCopyLook(b,ICO.cp,SH.copy,false);},SH.copiedMs);}).catch(hint);}"
          "function shCopyLook(b,ico,label,ok){b.classList.toggle('ok',ok);b.innerHTML=shIco(ico);"
          "b.title=label;b.setAttribute('aria-label',label);}"
-         "function shSaveAll(){shIds.forEach(function(id,i){"
-         "setTimeout(function(){shSave(id);},i*SH.gap);});}"
+         // One window for all of them, opened here while the click is being
+         // handled: opening a window consumes the click, so one per picture
+         // would have every window after the first blocked.
+         "function shSaveAll(){var h=downloadStart('sht');if(!h)return;"
+         "shIds.forEach(function(id,i){"
+         "setTimeout(function(){shSave(id,h);},i*SH.gap);});}"
          "function shDrop(q){post('/api/screenshot/drop?'+q,'').then(shLoad);}"
          "shEl('shb').addEventListener('click',shTake);"
          "shEl('sha').insertAdjacentHTML('afterbegin',shIco(ICO.dl));"

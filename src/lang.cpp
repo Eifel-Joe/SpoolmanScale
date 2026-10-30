@@ -4733,6 +4733,10 @@ const char* const STRINGS[][3] = {
   // The old location of a spool in a Klipper printer (services/klipper_location.cpp, V50)
   { "Lagerort vor dem Drucker", "Location before the printer",
     "Emplacement avant l'imprimante" },  // STR_KL_PREV_LOC_FIELD
+  // Downloads of the web pages when a backend shows them in a frame
+  { "Download im eingebetteten Fenster nicht möglich - die Waage direkt öffnen: http://{a}",
+    "Download not possible in an embedded window - open the scale directly: http://{a}",
+    "Téléchargement impossible dans une fenêtre intégrée - ouvrez directement la balance : http://{a}" },  // STR_W_DL_EMBEDDED
 };
 
 StringID tagWriteResultString(uint8_t code) {

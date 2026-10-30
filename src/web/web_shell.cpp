@@ -136,12 +136,16 @@ String webShellAssets() {
   // page's own script runs at the end of the body.
   h += F("'><script src='/app.js?v=");
   h += webStaticVersion();
-  // The two buttons of ask(), on every page: app.js is cached across
-  // languages, so its own words stay English fallbacks.
+  // The two buttons of ask() and the sentence of a download whose window
+  // could not be opened (downloadStart()), on every page: app.js is cached
+  // across languages, so its own words stay English fallbacks. {a} in the
+  // sentence is the scale's address, put in by the page.
   h += F("'></script><script>WS.yes=");
   h += jsStr(T(STR_CONFIRM));
   h += F(";WS.no=");
   h += jsStr(T(STR_CANCEL));
+  h += F(";WS.dl=");
+  h += jsStr(T(STR_W_DL_EMBEDDED));
   h += F(";</script>");
   return h;
 }

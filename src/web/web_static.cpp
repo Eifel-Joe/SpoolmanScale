@@ -387,7 +387,8 @@ const char* webStaticVersion() { return FW_VERSION; }
 // language it is set to, and this file is cached across both - so the strings
 // stay in the page and are assigned into WS.
 static const char APP_JS[] PROGMEM =
-  "var WS={ok:'OK',err:'Error',yes:'OK',no:'Cancel'};\n"
+  "var WS={ok:'OK',err:'Error',yes:'OK',no:'Cancel',"
+  "dl:'Download not possible in an embedded window - open the scale directly: http://{a}'};\n"
 
   "function $(i){return document.getElementById(i);}\n"
 
@@ -431,6 +432,67 @@ static const char APP_JS[] PROGMEM =
   "function getJson(u){"
   "return fetch(u,{cache:'no-store'}).then(function(r){"
   "if(!r.ok)throw 0;return r.json();}).catch(function(){return null;});}\n"
+
+  // Downloads: the one place that saves a file for the page.
+  //
+  // Wurzel: Bambuddy shows the scale in an iframe whose sandbox grants
+  //   allow-popups and allow-popups-to-escape-sandbox but not allow-downloads,
+  //   and a browser drops every download that starts inside such a frame:
+  //   no file, no entry in the list, no error - while the scale's log says
+  //   "downloaded" (acceptance of v0.8.6-beta.8; maziggy/bambuddy
+  //   ExternalLinkPage.tsx:48).
+  // Fix: in a frame the click opens a small window of its own, which carries
+  //   no sandbox, and the anchor is clicked there. Outside a frame nothing
+  //   changes. downloadStart() runs first, inside the click handler;
+  //   downloadFinish() saves once the data is there; downloadAbort() closes
+  //   the window when the data does not come. A handle is {emb, w, id, t};
+  //   downloadStart() answers null when the window was refused, with the
+  //   sentence already on the page in element id.
+  // NOT-TO-DO: no window.open() after a fetch or an await - the click is spent
+  //   and the popup blocked. No object URL made in the frame and handed to the
+  //   window - blob URLs are partitioned by the top-level site and the window
+  //   cannot read it; the window makes its own from the Blob. No window per
+  //   file in "save all" - opening one consumes the click, the second is
+  //   blocked; one handle serves them all. No `download` or click outside
+  //   these functions, and no asking the frame whether it is sandboxed - it
+  //   cannot be read from inside, so a frame always takes the window.
+  // See test_download_embedded.py
+  "function downloadEmbedded(){"
+  "try{return window.self!==window.top;}catch(e){return true;}}\n"
+
+  "function downloadNo(id){"
+  "flash(id,WS.dl.replace('{a}',location.host),true,8000);}\n"
+
+  "function downloadAbort(h){"
+  "if(!h||!h.w)return;"
+  "clearTimeout(h.t);try{h.w.close();}catch(e){}h.w=null;}\n"
+
+  // Opened without a URL, so that it stays the empty page of this origin and
+  // the frame can write to it; a navigation would make it a page of its own.
+  // Closed on its own after a minute when nothing arrives.
+  "function downloadStart(id){"
+  "var h={emb:downloadEmbedded(),w:null,id:id,t:0};"
+  "if(!h.emb)return h;"
+  "try{h.w=window.open('','_blank','popup=yes,width=360,height=120');}catch(e){}"
+  "if(!h.w||h.w.closed){h.w=null;downloadNo(id);return null;}"
+  "h.t=setTimeout(function(){downloadAbort(h);},60000);"
+  "return h;}\n"
+
+  // src is a Blob or a URL of the scale. In the window it is the window that
+  // makes the object URL. A few seconds after the last file the window goes;
+  // a browser that asks about several files keeps asking in it until then.
+  "function downloadFinish(h,src,name){"
+  "var win=h.emb?h.w:window;if(!win)return;"
+  "var isUrl=typeof src==='string',u=null;"
+  "try{"
+  "u=isUrl?new URL(src,location.href).href:win.URL.createObjectURL(src);"
+  "var d=win.document,a=d.createElement('a');a.href=u;a.download=name;"
+  "(d.body||d.documentElement).appendChild(a);a.click();a.remove();"
+  "}catch(e){if(!h.emb)throw e;downloadAbort(h);downloadNo(h.id);return;}"
+  "if(h.emb){clearTimeout(h.t);h.t=setTimeout(function(){downloadAbort(h);},5000);}"
+  // Not at once: a browser may still be reading the blob for the save. In the
+  // window it goes with the window.
+  "else if(!isUrl)setTimeout(function(){URL.revokeObjectURL(u);},10000);}\n"
 
   // A yes/no question in the page's own look, resolving true or false.
   // confirm() drew the browser's box at the top of the window, and inside a
