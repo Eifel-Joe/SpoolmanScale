@@ -1,6 +1,6 @@
 """Read the source tree without a compiler and check the window "Choose printer" (beta.9, V47): the printer chip of the AMS window opens a window with one button per printer in two columns (name above, kind under it: the Bambu model, or Klipper with its layout), a magnifier that is always there, the tick on the current printer and "Cancel" in the style of the original, instead of stepping to the next printer. The window shows the list the AMS window has loaded and asks for nothing; the AMS window stays under it, hidden, so that the countdown of its "Cancel" stands; the chip stays when the chosen printer does not load.
 
-Each check names the shape of code it expects in a comment above it. The checks run in the order of the tasks that make them pass (A, B: the model of a Bambu printer; C to G and J: the window and its texts; H, I: the AMS window; K: the chip that stays, which beta.8 has already), and the script stops at the first one that fails."""
+Each check names the shape of code it expects in a comment above it. The checks run in the order of the tasks that make them pass (A, B: the model of a Bambu printer; C to G and J: the window and its texts; H, I: the AMS window; K: the chip that stays, which beta.8 has already; L: the CI steps; M: the redraw of the weights after the window, from the final review), and the script stops at the first one that fails."""
 import re
 import sys
 from pathlib import Path
@@ -819,7 +819,58 @@ def check_l():
         ".github/workflows/ci.yml: 'Test printer pick rules' and then 'Test printer list' do not come after 'Test AMS Klipper'"
 
 
-CHECKS = (check_a, check_b, check_c, check_d, check_e, check_f, check_g, check_j, check_h, check_i, check_k, check_l)
+# ---------------------------------------------------------------------------
+#  M: the redraw of the weights after the window (final review of beta.9)
+# ---------------------------------------------------------------------------
+
+# M: closePrinterList() only marks the window's objects for deletion
+# (releaseScreen(), the next timer pass frees them). So the pass in which
+# printerListTick() closes the window ends right there, before the redraw a
+# window held back (on a WT32 whose window was cut for memory, the tiles would
+# find the pool still full and the grid would stay half built):
+#   const bool was_open = isPrinterListOpen();   (any name, set before the tick)
+#   printerListTick();
+#   if (was_open && !isPrinterListOpen()) return;   (the next statement)
+# And a redraw held back by the window belongs to the printer before: picked()
+# clears it on the way of another printer only (behind the comparison of the
+# id, the same printer keeps it), so it cannot fire over the new grid:
+#   s_weights_redraw = false;
+def check_m():
+    deferred = body_of(AV, "handleAmsViewDeferredActions")
+    where = f"src/{AV}: handleAmsViewDeferredActions()"
+    ticks = calls_in(deferred, "printerListTick")
+    assert len(ticks) == 1, f"{where}: printerListTick() is not called exactly once"
+    at = ticks[0][0]
+    remembered = list(re.finditer(r"(?:^|[;{}])(?:const)?bool(\w+)=isPrinterListOpen\(\);", deferred[:at]))
+    assert remembered, f"{where}: does not remember whether the window was open before printerListTick()"
+    was = remembered[-1].group(1)
+    assert not re.search(NOT_ID + was + r"=(?!=)", deferred[remembered[-1].end():at]), \
+        f"{where}: '{was}' is set again between the question and printerListTick()"
+    after = re.match(r"printerListTick\(\);if\(([^;{}]*)\)(?:return;|\{return;\})", deferred[at:])
+    assert after, f"{where}: the statement after printerListTick() is not an if (...) return; for a window it closed"
+    parts = set(after.group(1).split("&&"))
+    assert parts == {was, "!isPrinterListOpen()"}, \
+        f"{where}: the pass does not end exactly when the window was open and is closed now (if ({after.group(1)}))"
+    redraws = [m.start() for m in re.finditer(NOT_ID + r"if\(s_weights_redraw", deferred)]
+    assert redraws and at < redraws[-1], f"{where}: printerListTick() does not come before the redraw of the weights"
+
+    opens = calls_in(deferred, "showPrinterList")
+    assert opens and len(opens[0][1]) == 4, f"{where}: showPrinterList() is not called with four arguments"
+    picked = opens[0][1][2]
+    ps = params_of(AV, picked)
+    assert len(ps) == 1, f"src/{AV}: {picked}() does not take the printer id and nothing else"
+    pid = ps[0]
+    body = body_of(AV, picked)
+    same = rf"(?<![\w]){pid}(?:==|!=)s_printer_id(?![\w])|(?<![\w])s_printer_id(?:==|!=){pid}(?![\w])"
+    clears = [m.start() for m in re.finditer(NOT_ID + r"s_weights_redraw=false;", body)]
+    assert clears, f"src/{AV}: {picked}() does not clear s_weights_redraw: the old printer's redraw would fire over the new grid"
+    for p in clears:
+        assert mentions(guards(body, p) + early_exits(body, p), body, same), \
+            f"src/{AV}: {picked}() clears s_weights_redraw for the same printer too (it keeps its redraw)"
+
+
+CHECKS = (check_a, check_b, check_c, check_d, check_e, check_f, check_g, check_j, check_h, check_i, check_k, check_l,
+          check_m)
 
 if __name__ == "__main__":
     for check in CHECKS:

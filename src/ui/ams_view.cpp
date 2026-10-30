@@ -125,8 +125,9 @@ static AmsSlotState s_state;
 
 static bool s_build_pending = false;
 static bool s_fetch_pending = false;
-// Weights came in while the detail card stood over the grid. Drawn as soon
-// as the card is gone; without this they would wait for the next fetch.
+// Weights came in while the detail card or the window "Choose printer" stood
+// over the grid. Drawn as soon as it is gone; without this they would wait
+// for the next fetch.
 static bool s_weights_redraw = false;
 // A weights start was refused only because the task of the printer before was
 // still busy. Made up by the loop once the task is idle (startWeights()).
@@ -856,9 +857,11 @@ static void amsvPrinterLeft() {
 // A printer was tapped, the current one included: that one asks for nothing.
 // Another goes through s_fetch_pending to fetchAndDraw() like every switch: that
 // path collects or makes up the weights of the printer before (startWeights()).
+// A redraw the window held back is that printer's; the fetch draws the grid.
 static void amsvPrinterPicked(int id) {
   if (s_scr) lv_obj_clear_flag(s_scr, LV_OBJ_FLAG_HIDDEN);
   if (id == s_printer_id) return;
+  s_weights_redraw = false;
   s_printer_id = id;
   prefsPutInt(AMSV_NVS_PRINTER, s_printer_id);
   const AmsPrinter* p = chosenPrinter();
@@ -1458,8 +1461,18 @@ void handleAmsViewDeferredActions() {
   }
 
   // The window "Choose printer": its search and its parked tap. Its answer
-  // (amsvPrinterPicked/-Left) comes once it has closed; a switch is fetched below.
+  // (amsvPrinterPicked/-Left) comes once it has closed; a switch is fetched below,
+  // one pass later.
+  // Root: the close only marks the window's objects for deletion (releaseScreen()),
+  //   and a redraw it held back ran in the same pass: on a WT32 whose window was
+  //   cut for memory, buildTile() found the pool still full, the grid said "full"
+  //   and the chip was gone until a reload.
+  // Fix: a pass that closed the window ends here; the next one finds it freed.
+  // NOT-TO-DO: deleting the window at once in closePrinterList(): the header's
+  //   close button reaches it from inside its own event. See test_printer_list.py, M.
+  const bool list_was_open = isPrinterListOpen();
   printerListTick();
+  if (list_was_open && !isPrinterListOpen()) return;
 
   // Last, and a pass after the close: this is the one that talks to the
   // server. The callback sees (-1, -1) when the page was closed without an
