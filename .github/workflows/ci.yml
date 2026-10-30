@@ -149,6 +149,8 @@ jobs:
         run: python3 test/test_klipper_page.py
       - name: Test AMS Klipper
         run: python3 test/test_ams_klipper.py
+      - name: Test AMS weights owed
+        run: python3 test/test_ams_weights_owed.py
 
   build:
     name: Build ${{ matrix.env }}
