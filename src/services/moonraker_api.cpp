@@ -100,8 +100,8 @@ int readAnswer(BackendHttp& http, const Payload& p) {
 }
 
 // One request: plain http, the key in the header, the limits of KL_*_MS, and
-// every answer in the log with its code. The key is not an argument of any log
-// line in this file.
+// every answer in the log with its code (a read that worked at verbose level
+// only, see the end). The key is not an argument of any log line in this file.
 int exchange(const Target& t, const char* verb, const char* path, const Payload& p) {
   char url[KL_HOST_MAX + 96];
   snprintf(url, sizeof(url), "http://%s:%u%s", t.cfg->host, static_cast<unsigned>(t.cfg->port), path);
@@ -114,7 +114,14 @@ int exchange(const Target& t, const char* verb, const char* path, const Payload&
   } else {
     http.setConnectTimeout(KL_CONNECT_MS);
     http.setTimeout(KL_ANSWER_MS);
-    if (t.key && t.key[0] && keyFitsHeader(t.key)) http.addHeader("X-Api-Key", t.key);
+    if (t.key && t.key[0]) {
+      if (keyFitsHeader(t.key)) {
+        http.addHeader("X-Api-Key", t.key);
+      } else {
+        // The printer will answer 401; this line says why.
+        logSDf("KLIPPER: key of %s not sent, it holds control characters", t.cfg->name);
+      }
+    }
     if (p.body) {
       http.addHeader("Content-Type", "application/json");
       code = http.POST(const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(p.body)), p.len);
@@ -128,8 +135,23 @@ int exchange(const Target& t, const char* verb, const char* path, const Payload&
     }
     http.end();
   }
-  logSDf("KLIPPER: %s http://%s:%u%s -> %d %s", verb, t.cfg->host,
-         static_cast<unsigned>(t.cfg->port), path, code, refusal);
+  // Root: one refresh of the AMS view reads a printer three times, and the view
+  // refreshes while it is open; a line per read filled the log with answers
+  // nobody looks at (review I1).
+  // Fix: a read that worked is a verbose line. Everything else stays at the
+  // normal level: every POST (it changes or asks for something), a refusal, a
+  // reply that did not parse, a connection that failed.
+  // NOT-TO-DO: dropping the line of a good read altogether; at verbose level
+  // it is the only trace of what the scale asked the printer.
+  if (!p.body && code == 200) {
+    if (sd_verbose) {
+      logSDf("[verbose] KLIPPER: %s http://%s:%u%s -> %d", verb, t.cfg->host,
+             static_cast<unsigned>(t.cfg->port), path, code);
+    }
+  } else {
+    logSDf("KLIPPER: %s http://%s:%u%s -> %d %s", verb, t.cfg->host,
+           static_cast<unsigned>(t.cfg->port), path, code, refusal);
+  }
   return code;
 }
 
@@ -152,6 +174,17 @@ char* jsonText(const JsonDocument& doc, size_t* len) {
 
 int postJson(const Target& t, const char* path, const JsonDocument& body,
              JsonDocument* answer) {
+  // Root: a pool that ran out while a body was built leaves a body with
+  // something missing, and the printer takes it without complaint: a query
+  // with fewer objects reads as a printer with fewer systems, a proxy request
+  // without its query asks for the wrong spool (review of Task 3, M5).
+  // Fix: here, so that every POST is covered: an overflowed body is not sent.
+  // NOT-TO-DO: sending what fits, or checking at each caller: a new caller
+  // forgets it.
+  if (body.overflowed()) {
+    logSD("KLIPPER: a request did not fit in memory, not sent");
+    return -1;
+  }
   size_t len = 0;
   char* text = jsonText(body, &len);
   if (!text) {
@@ -191,16 +224,7 @@ int readObjectNames(const Target& t, KlipperObjectNames* names) {
 int readStatus(const Target& t, const KlipperObjectNames& names, KlipperRaw* raw) {
   SpiRamAllocator alloc;
   JsonDocument body(&alloc);
-  moonrakerBuildQuery(names, body);
-  // Root: a pool that ran out while the query was built leaves a query with
-  // fewer objects in it, and the printer answers it without complaint: the
-  // result is a printer that seems to have fewer systems, or none.
-  // Fix: an overflowed body is not sent (review of Task 3, M5).
-  // NOT-TO-DO: sending what fits.
-  if (body.overflowed()) {
-    logSD("KLIPPER: the query for the printer did not fit in memory, not sent");
-    return KL_E_PARSE;
-  }
+  moonrakerBuildQuery(names, body);   // an overflowed body is refused by postJson()
   JsonDocument answer(&alloc);
   const int code = postJson(t, "/printer/objects/query", body, &answer);
   if (code != 200) return code;
@@ -215,8 +239,11 @@ int readStatus(const Target& t, const KlipperObjectNames& names, KlipperRaw* raw
 // The HTTP code of the request; *spool_id is the active spool on 200, else 0.
 int readActiveSpool(const Target& t, int* spool_id) {
   *spool_id = 0;
-  JsonDocument answer;
-  const int code = getJson(t, "/server/spoolman/spool_id", &answer);
+  SpiRamAllocator alloc;
+  JsonDocument filter;
+  filter["result"]["spool_id"] = true;
+  JsonDocument answer(&alloc);
+  const int code = getJson(t, "/server/spoolman/spool_id", &answer, &filter);
   if (code == 200) *spool_id = moonrakerParseActiveSpool(resultOf(answer));
   return code;
 }
@@ -368,11 +395,7 @@ int moonrakerRunScript(const KlipperPrinterCfg& c, const char* key, const char* 
   if (!script || !script[0]) return -1;
   SpiRamAllocator alloc;
   JsonDocument body(&alloc);
-  body["script"] = script;
-  if (body.overflowed()) {
-    logSD("KLIPPER: no memory for a script");
-    return -1;
-  }
+  body["script"] = script;   // an overflowed body is refused by postJson()
   // The commands are worded in klipper_rules.cpp and cleaned by the parser;
   // the log shows them on one line so that a refused or swallowed one can be
   // found in it.
@@ -394,7 +417,8 @@ int moonrakerSetActiveSpool(const KlipperPrinterCfg& c, const char* key, int spo
   // NOT-TO-DO: using this call to take a spool away. It is for a spool that
   // is going in; the printer's own macros clear it when a tool is unloaded.
   if (spool_id <= 0) return -1;
-  JsonDocument body;
+  SpiRamAllocator alloc;
+  JsonDocument body(&alloc);
   body["spool_id"] = spool_id;
   const Target t = {&c, key};
   return postJson(t, "/server/spoolman/spool_id", body, nullptr);

@@ -125,7 +125,7 @@ void klipperAppendPrinters(AmsPrinterList& out) {
     dst.online = cfg.last.test != KT_UNREACHABLE;
     dst.kind = AMS_PRINTER_KLIPPER;
     dst.layout = (cfg.last.layout <= KL_LAYOUT_AFC) ? cfg.last.layout : KL_LAYOUT_NONE;   // R18
-    dst.bays = cfg.last.fields;
+    dst.bays = (cfg.last.fields <= KL_FIELDS_MAX) ? cfg.last.fields : KL_FIELDS_MAX;   // R18
     out.count++;
   }
 }
@@ -175,9 +175,13 @@ int klipperGetAmsState(int printer_id, AmsSlotState& out) {
     }
     out.unit_count++;
   }
-  logSDf("KLIPPER: %s, layout %d, %d field(s) in %d unit(s), state '%s'", link.cfg.name,
-         static_cast<int>(f->layout), static_cast<int>(f->field_count),
-         static_cast<int>(out.unit_count), out.state);
+  // Verbose: the view refreshes while it is open, and the three reads behind it
+  // are verbose lines as well (moonraker_api.cpp exchange()).
+  if (sd_verbose) {
+    logSDf("[verbose] KLIPPER: %s, layout %d, %d field(s) in %d unit(s), state '%s'",
+           link.cfg.name, static_cast<int>(f->layout), static_cast<int>(f->field_count),
+           static_cast<int>(out.unit_count), out.state);
+  }
   return 200;
 }
 
@@ -197,6 +201,18 @@ int klipperAssign(int spool_id, int printer_id, int ams_id, int tray_id) {
     logSDf("KLIPPER: %s talks to another Spoolman, spool %d not sent", link.cfg.name, spool_id);
     return KL_E_OTHER_SPOOLMAN;
   }
+  // R30: the same for a printer that was never tested (or whose address
+  // changed since, which resets the stored test). Nothing says yet that it
+  // talks to this Spoolman, and "unknown" is not "same".
+  // NOT-TO-DO: running the test here: it asks two servers several things and
+  // the page already runs it after every save.
+  if (link.cfg.last.test == KT_NONE) {
+    logSDf("KLIPPER: %s was never tested, spool %d not sent", link.cfg.name, spool_id);
+    return KL_E_NOT_TESTED;
+  }
+  // A number that wraps into a real bay when it is cut to a byte (256 is bay 0)
+  // is refused before the printer is asked anything.
+  if (ams_id < 0 || ams_id > 255 || tray_id < 0 || tray_id > 255) return KL_E_NO_FIELD;
 
   const WorkBlock work;
   AssignWork* w = work.get();
@@ -209,11 +225,15 @@ int klipperAssign(int spool_id, int printer_id, int ams_id, int tray_id) {
   // or a spool moved since the view drew it.
   int code = moonrakerFetchFacts(link.cfg, link.key, &w->before);
   if (code != 200) return code;
-  if (ams_id < 0 || ams_id > 255 || tray_id < 0 || tray_id > 255) return KL_E_NO_FIELD;
   const int field = klipperBayField(w->before, static_cast<uint8_t>(ams_id),
                                     static_cast<uint8_t>(tray_id));
-  if (field < 0 || !klipperPlanAssign(w->before, static_cast<uint8_t>(field), spool_id, &w->plan)) {
-    logSDf("KLIPPER: %s has no bay %d/%d for spool %d", link.cfg.name, ams_id, tray_id, spool_id);
+  if (field < 0) {
+    logSDf("KLIPPER: %s has no bay %d/%d", link.cfg.name, ams_id, tray_id);
+    return KL_E_NO_FIELD;
+  }
+  if (!klipperPlanAssign(w->before, static_cast<uint8_t>(field), spool_id, &w->plan)) {
+    logSDf("KLIPPER: %s: no commands for spool %d in bay %d/%d (script too long, or the lane has no usable name)",
+           link.cfg.name, spool_id, ams_id, tray_id);
     return KL_E_NO_FIELD;
   }
 

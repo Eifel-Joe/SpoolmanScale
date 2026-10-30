@@ -56,6 +56,8 @@ int klipperGetAmsState(int printer_id, AmsSlotState& out);
 // 200 only when a second read of the printer shows the field holds it.
 //   KL_E_OTHER_SPOOLMAN  the stored test says the printer talks to another
 //                        Spoolman: no command is sent
+//   KL_E_NOT_TESTED      the printer's connection test never ran (or its address
+//                        changed since): no command is sent
 //   KL_E_NO_PRINTER      KL_E_NO_FIELD   no such printer, no such bay
 //   KL_E_NOT_HELD        the commands ran, the printer does not hold the spool
 //   other                the code of the request that failed

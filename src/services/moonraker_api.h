@@ -19,7 +19,9 @@
 //  Plain http only, to the address and port the user stored; the key, if there
 //  is one, goes in the header X-Api-Key and nowhere else (not in an address,
 //  not in the log). Time limits: KL_CONNECT_MS to connect, KL_ANSWER_MS for the
-//  answer. Every answer is logged with its code ("KLIPPER: GET http://... -> 200").
+//  answer. Every answer is logged with its code ("KLIPPER: POST http://... -> 200");
+//  a GET that worked only at verbose level ("[verbose] KLIPPER: GET ... -> 200"),
+//  because the AMS view reads a printer three times per refresh.
 //
 //  Every function returns the HTTP status code of the request that decided it,
 //  with these that predate any request:

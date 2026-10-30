@@ -1460,7 +1460,7 @@ int backendListPrinters(AmsPrinterList& out, uint32_t timeout_ms) {
       if (spoolmanHasAmsSource()) {
         code = amsSourceListPrinters(out, timeout_ms);
       } else {
-        out = AmsPrinterList{};
+        memset(&out, 0, sizeof(out));
         code = notSupported("ListPrinters");
       }
       break;
@@ -1474,7 +1474,10 @@ int backendListPrinters(AmsPrinterList& out, uint32_t timeout_ms) {
   // view would show the error and drop them.
   if (klipperHasPrinters()) {
     if (code != 200) {
-      logSDf("KLIPPER: the printer list of the backend failed (%d), the stored printers alone", code);
+      // Spoolman alone has no printer list at all: that is no failure to log.
+      if (code != BACKEND_NOT_SUPPORTED) {
+        logSDf("KLIPPER: the printer list of the backend failed (%d), the stored printers alone", code);
+      }
       memset(&out, 0, sizeof(out));
     }
     klipperAppendPrinters(out);

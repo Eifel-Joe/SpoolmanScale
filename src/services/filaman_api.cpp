@@ -2025,7 +2025,7 @@ int filamanGetAmsState(const char* base_url, const char* api_key, int printer_id
 
 int filamanListPrinters(const char* base_url, const char* api_key,
                         AmsPrinterList& out, uint32_t timeout_ms) {
-  out = AmsPrinterList{};
+  memset(&out, 0, sizeof(out));   // not "= AmsPrinterList{}": no 2.3 kB temporary on the stack
   if (!hasBaseUrl(base_url)) return -1;
 
   JsonDocument filter;

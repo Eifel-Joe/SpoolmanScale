@@ -161,6 +161,15 @@ assert other < run and refuse < run, f"{where}: a command can be sent before ano
 fetch = need(b, r"\bmoonrakerFetchFacts\s*\(", where, "does not fetch the facts")
 plan = need(b, r"\bklipperPlanAssign\s*\(", where, "does not plan the assignment")
 assert other < fetch < plan < run, f"{where}: the order is not other Spoolman, facts, plan, command"
+# R30: a printer whose connection test never ran is refused the same way, before
+# any request (the facts are one) and so before any command. A bay number that
+# is cut to a byte (256 is bay 0) is refused before the printer is asked too.
+untested = need(b, r"\bKT_NONE\b", where, "does not look for a printer that was never tested (KT_NONE)")
+refuse_untested = need(b, r"\bKL_E_NOT_TESTED\b", where, "does not answer KL_E_NOT_TESTED")
+assert untested < fetch and refuse_untested < fetch and untested < run and refuse_untested < run, \
+    f"{where}: a printer that was never tested is asked something or sent a command before it is refused"
+bay_range = need(b, r"ams_id\s*>\s*255", where, "does not range-check the bay number")
+assert bay_range < fetch, f"{where}: the bay number is range-checked after the printer was read"
 need(b, r"\bklipperBayField\s*\(", where, "does not turn the bay into a field")
 need(b, r"\bKL_E_NO_FIELD\b", where, "does not answer KL_E_NO_FIELD for a bay that is not there")
 need(b, r"\bKL_E_NO_PRINTER\b", where, "does not answer KL_E_NO_PRINTER for a printer that is not there")
