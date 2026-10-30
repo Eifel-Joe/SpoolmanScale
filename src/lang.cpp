@@ -4705,7 +4705,7 @@ const char* const STRINGS[][3] = {
     "Bobine active" },  // STR_AMSV_UNIT_KL_ACTIVE
   { "nur die ersten 16 Felder",
     "first 16 fields only",
-    "16 premiers champs" },  // STR_AMSV_KL_FIRST16
+    "seulement les 16 premiers champs" },  // STR_AMSV_KL_FIRST16
   { "Drucker hat die Spule nicht übernommen",
     "The printer did not take the spool",
     "L'imprimante n'a pas pris la bobine" },  // STR_AMSV_KL_NOT_HELD

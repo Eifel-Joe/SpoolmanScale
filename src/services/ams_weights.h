@@ -29,7 +29,8 @@
 //  no assignment list to read, the spool's record gives the grams.
 //  The record also gives the colour and the material, which the
 //  loop takes into the fields that have none (the printer reports
-//  neither for a tool or for its one active spool).
+//  neither for a tool or for its one active spool). Only for a
+//  Klipper printer: the other printers keep what they report.
 // ============================================================
 
 // Four units of four bays plus the external holder.
@@ -45,8 +46,8 @@ struct AmsWeightItem {
   int16_t grams;     // AMS_REMAIN_NA when the record has none
   uint8_t ams_id;
   uint8_t tray_id;
-  // The spool's record: invalid and empty when it was not read. The loop takes
-  // them only into a bay that has none of its own.
+  // The spool's record, for a Klipper field only: invalid and empty when it was
+  // not read. The loop takes them only into a bay that has none of its own.
   SpoolColor color;
   char       name[AMS_NAME_MAX];   // the material
 };

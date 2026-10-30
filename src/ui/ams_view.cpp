@@ -180,15 +180,15 @@ void requestAmsView(AmsViewMode mode, AmsPickCb cb, const char* headline) {
   s_cb   = cb;
   s_headline[0] = '\0';
   if (headline) snprintf(s_headline, sizeof(s_headline), "%s", headline);
-  // Re-read on every opening. One request more per visit, and in exchange a
-  // backend switch, a renamed printer or a removed one can never leave a
-  // stale name on the line - this screen is opened rarely enough that the
-  // trade is not close.
   if (!s_printers) {
     void* mem = heap_caps_calloc(1, sizeof(AmsPrinterList), MALLOC_CAP_SPIRAM);
     if (!mem) mem = calloc(1, sizeof(AmsPrinterList));   // no PSRAM on this board, or it is full
     s_printers = static_cast<AmsPrinterList*>(mem);
   }
+  // Re-read on every opening. One request more per visit, and in exchange a
+  // backend switch, a renamed printer or a removed one can never leave a
+  // stale name on the line - this screen is opened rarely enough that the
+  // trade is not close.
   if (s_printers) s_printers->count = 0;
   // A fresh question. An answer parked by an earlier page must not be handed
   // to this one's callback.
@@ -341,6 +341,16 @@ static void statusRowPlain(bool keep_chip) {
     lv_obj_set_x(s_status, AMSV_MARGIN);
     lv_obj_set_width(s_status, AMSV_STATUS_W);
   }
+}
+
+// A message that keeps the chip is shown under a chip that names the printer
+// that was chosen; the grid of the printer before must not stay under it. The
+// state goes with it: a weights result of the same printer that is still on its
+// way would otherwise draw the old tiles again (applyWeights() finds no bay).
+static void dropGrid() {
+  if (s_body) lv_obj_clean(s_body);
+  s_state.unit_count = 0;
+  s_weights_redraw = false;
 }
 
 static void setStatus(const char* text, bool keep_chip = false) {
@@ -1006,6 +1016,7 @@ static void fetchAndDraw() {
   // The messages below keep the printer chip where there are several printers:
   // a Klipper printer that is switched off must not hold the page on itself.
   if (!wifi_ok) {
+    if (s_printers->count > 1) dropGrid();
     setStatus(T(STR_AMSV_ERR_NET), s_printers->count > 1);
     return;
   }
@@ -1044,7 +1055,21 @@ static void fetchAndDraw() {
   if (!klipperIsPrinterId(s_printer_id)) code = serverReachNote(code, true);
   if (!s_scr) return;
   if (code != 200) {
-    setStatusFmt(STR_AMSV_ERR_HTTP, code, s_printers->count > 1);
+    if (s_printers->count > 1) dropGrid();
+    if (klipperIsPrinterId(s_printer_id)) {
+      // Root: "Server antwortet -1" for a Voron that is switched off blames a
+      // server that is fine, and says nothing about what to do (spec 8 Z:
+      // "das Fenster meldet keine Verbindung"). -1, -2, -11, KL_E_PARSE and
+      // the 5xx of a Klipper that is not ready are all "the printer does not
+      // answer"; only 401 and 403 say Moonraker turned the scale down.
+      // Fix: a Klipper printer gets the texts of the bay picker (R35).
+      // NOT-TO-DO: the same split in a table shared with assignFailText():
+      // that one knows the assignment's own codes, this one only reads.
+      const int text = (code == 401 || code == 403) ? STR_AMSV_KL_ACCESS : STR_AMSV_KL_NO_ANSWER;
+      setStatus(T(text), s_printers->count > 1);
+    } else {
+      setStatusFmt(STR_AMSV_ERR_HTTP, code, s_printers->count > 1);
+    }
     return;
   }
 
@@ -1098,7 +1123,7 @@ static void fetchAndDraw() {
     // A Klipper printer with more fields than the scale shows (KL_FIELDS_MAX):
     // the grid is cut, and the line says so behind the state.
     if (klipperIsPrinterId(s_printer_id) && klipperTruncated(s_printer_id)) {
-      char note[32];
+      char note[48];
       copyT(note, sizeof(note), STR_AMSV_KL_FIRST16);
       if (what[0]) strncat(what, " - ", sizeof(what) - strlen(what) - 1);
       strncat(what, note, sizeof(what) - strlen(what) - 1);
@@ -1136,6 +1161,7 @@ static void fetchAndDraw() {
 static bool applyWeights(const AmsWeightsResult& r) {
   if (r.printer_id != s_printer_id) return false;   // the user switched printers
   bool changed = false;
+  const bool klipper = klipperIsPrinterId(s_printer_id);
   for (uint8_t i = 0; i < r.count; i++) {
     const AmsWeightItem& it = r.item[i];
     for (uint8_t u = 0; u < s_state.unit_count; u++) {
@@ -1148,9 +1174,11 @@ static bool applyWeights(const AmsWeightsResult& r) {
           tray.remain_g = it.grams;
           changed = true;
         }
-        // Colour and material only where the bay has none: what the printer
-        // reports (a tag, Happy Hare, AFC) stays, the spool's record fills the
-        // gap (a Klipper tool or the one active spool reports neither).
+        // Colour and material only for a Klipper printer, and only where the
+        // bay has none: what the printer reports (Happy Hare, AFC) stays, the
+        // spool's record fills the gap (a tool or the one active spool reports
+        // neither). A Bambu bay keeps what it reports, grams only.
+        if (!klipper) continue;
         if (!tray.color.valid && it.color.valid) {
           tray.color = it.color;
           changed = true;

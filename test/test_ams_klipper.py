@@ -91,6 +91,36 @@ for rel, name, wrapped in ((VIEW, "fetchAndDraw", "backendGetAmsState("), (PICK,
     assert re.search(r"if \(!\w*[kK]lipper\w*(?:\([^()]*\))?\) \w+ = serverReachNote\(", body), \
         f"src/{rel}: {name}() notes the answer of a Klipper printer with serverReachNote() (R27)"
 
+# R35: a Klipper printer that does not answer says so in the words of the bay
+# picker ("Keine Antwort - bitte am Drucker prüfen", "Zugang verweigert"), not
+# "Server antwortet -1"; the failed fetch of another printer keeps its text.
+tail = fetch[fetch.index("backendGetAmsState("):]
+branch = re.search(r"if \(klipperIsPrinterId\([^()]*\)\) \{([^{}]*)\} else \{([^{}]*)\}", tail)
+assert branch, f"src/{VIEW}: the failed fetch of a Klipper printer has no branch of its own (R35)"
+for sid in ("STR_AMSV_KL_NO_ANSWER", "STR_AMSV_KL_ACCESS"):
+    assert sid in branch.group(1), f"src/{VIEW}: a Klipper printer that fails does not say {sid}"
+assert "STR_AMSV_ERR_HTTP" not in branch.group(1) and "STR_AMSV_ERR_HTTP" in branch.group(2), \
+    f"src/{VIEW}: a Klipper printer that fails still gets STR_AMSV_ERR_HTTP, or the others lost it"
+
+# A failed fetch that keeps the chip drops the grid of the printer before: the
+# chip names the printer that was chosen.
+assert 0 <= fetch.find("dropGrid()") < fetch.find("STR_AMSV_ERR_NET"), \
+    f"src/{VIEW}: fetchAndDraw() leaves the old grid under a chip that kept after 'no network'"
+assert 0 <= tail.find("dropGrid()") < branch.start(), \
+    f"src/{VIEW}: fetchAndDraw() leaves the old grid under a chip that kept after a failed fetch"
+
+# R34: the spool's colour and material go into Klipper fields only, and the
+# detail keeps the bay's own colour apart from the spool's.
+assert re.search(r"\bSpoolColor\s+spool_color\s*;", ks.code_of("services/spool_detail.h")), \
+    "src/services/spool_detail.h: AmsSpoolDetail has no 'SpoolColor spool_color;'"
+detail = ks.body_of("services/backend_api.cpp", "backendGetSpoolDetail", strings=True)
+assert "&out.spool_color" in detail and "&out.color" not in detail, \
+    "src/services/backend_api.cpp: backendGetSpoolDetail() must fill spool_color and leave color alone"
+assert "klipperIsPrinterId(" in applied, f"src/{VIEW}: applyWeights() fills colour and material for every printer"
+task_body = ks.body_of(WEIGHTS, "amsWeightsTask")
+assert "det.spool_color" in task_body and "det.color" not in task_body and "klipperIsPrinterId(s_res.printer_id)" in task_body, \
+    f"src/{WEIGHTS}: amsWeightsTask() must hand on det.spool_color, for a Klipper printer only"
+
 # 2. The header: a printer of the Klipper kind is there without asking a network.
 presence = ks.source_of(PRESENCE)
 assert not re.search(r"\bAmsPrinterList\s+s_printers\b", ks.collapse(presence.code)), \

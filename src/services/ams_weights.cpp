@@ -90,10 +90,13 @@ static void amsWeightsTask(void* arg) {
           const long g = lroundf(det.remaining_g);
           if (g >= 0 && g <= INT16_MAX) grams = (int16_t)g;
         }
-        // The record's colour and material go along; the view decides whether
-        // the bay needs them (applyWeights()).
-        out.color = det.color;
-        utf8Cut(det.material, sizeof(out.name) - 1, out.name, sizeof(out.name));
+        // The record's colour and material go along for a Klipper field only:
+        // its printer reports neither for a tool or the one active spool. A
+        // Bambu bay keeps what its printer reports, grams only.
+        if (klipperIsPrinterId(s_res.printer_id)) {
+          out.color = det.spool_color;
+          utf8Cut(det.material, sizeof(out.name) - 1, out.name, sizeof(out.name));
+        }
       }
     }
 

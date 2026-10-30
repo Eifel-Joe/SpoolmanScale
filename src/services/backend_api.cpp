@@ -1662,10 +1662,9 @@ int backendGetSpoolDetail(int spool_id, AmsSpoolDetail& out, uint32_t timeout_ms
   // a caption of its own, not a word stuck onto another field.
   keepStr(fil["material"], out.material, sizeof(out.material));
 
-  // The colour only for a bay that has none: the printer's own (a tag) wins,
-  // the spool's record fills the gap - a Klipper tool or the one active spool
-  // reports no colour, and the weights task takes this one into the grid.
-  if (!out.color.valid) spoolColorParse(fil["color_hex"] | "", &out.color);
+  // The spool's own colour, next to the bay's (out.color stays what the bay
+  // reports): the weights task hands it to a Klipper field that has none.
+  spoolColorParse(fil["color_hex"] | "", &out.spool_color);
 
   // A tag of any kind counts: the card says whether this spool can be found
   // by holding it against the scale, not which field holds the binding. So
