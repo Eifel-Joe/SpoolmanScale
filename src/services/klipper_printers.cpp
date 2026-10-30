@@ -9,6 +9,7 @@
 #include "services/backend.h"
 #include "services/backend_api.h"
 #include "services/bambuddy_api.h"
+#include "services/klipper_location.h"
 #include "services/klipper_store.h"
 #include "services/moonraker_api.h"
 #include "services/spool_color.h"
@@ -243,6 +244,13 @@ int klipperAssign(int spool_id, int printer_id, int ams_id, int tray_id) {
            link.cfg.name, spool_id, ams_id, tray_id);
     return KL_E_NO_FIELD;
   }
+  // V50: the spool that stands in the target field now is the one this
+  // assignment displaces. Taken from the facts before the commands, which
+  // change it; the one field of a single extruder is the active spool. The
+  // clearing lines below move the NEW spool off other fields of this printer;
+  // it stays in the printer, so that is no displacement.
+  const int displaced = w->before.layout == KL_LAYOUT_SINGLE ? w->before.active_spool
+                                                              : w->before.field[field].spool_id;
 
   // The spool leaves the other fields first (it sits in one place), then goes
   // into this one; for a tool that is the active one the printer's active
@@ -286,13 +294,18 @@ int klipperAssign(int spool_id, int printer_id, int ams_id, int tray_id) {
   logSDf("KLIPPER: spool %d is in %s, bay %d/%d", spool_id, link.cfg.name, ams_id, tray_id);
 
   // The spool's place in Spoolman is the printer's name, unless Happy Hare
-  // writes it itself. The answer only goes to the log: the spool is in the
-  // printer either way. The location the scale shows for the parked spool is
-  // kept in step, as ams_pick.cpp setAmsLocation() does it.
+  // writes it itself (push, pull) or the switch is off. The answers only go to
+  // the log: the spool is in the printer either way. The location the scale
+  // shows for the parked spool is kept in step, as ams_pick.cpp
+  // setAmsLocation() does it.
+  // Root (V50): a spool displaced from its field kept the printer's name and
+  //   lost where it had come from (beta.8 acceptance, spool 18 at "Hulk").
+  // Fix: klipper_location.cpp remembers the old location in Spoolman in the
+  //   same PATCH and gives it back to the displaced spool.
+  // NOT-TO-DO: backendPatchSpoolLocation(): in Bambuddy mode it is the proxy,
+  //   which carries no extra field; the unit writes to klipperScaleSpoolman().
   if (klipperWritesLocation(w->after, klipperLocSwitch())) {
-    const int where = backendPatchSpoolLocation(cfg_spoolman_base, spool_id, link.cfg.name, 8000);
-    logSDf("KLIPPER: location of spool %d -> '%s', HTTP %d", spool_id, link.cfg.name, where);
-    if (backendWriteOk(where) && sm_found && sm_id == spool_id) {
+    if (klipperLocationAssigned(spool_id, displaced, link.cfg.name) && sm_found && sm_id == spool_id) {
       snprintf(sm_location_name, sizeof(sm_location_name), "%s", link.cfg.name);
       sm_location_id = 0;
     }

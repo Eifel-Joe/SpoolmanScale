@@ -4730,6 +4730,9 @@ const char* const STRINGS[][3] = {
   { "Klipper, %d Werkzeuge",   "Klipper, %d tools",      "Klipper, %d outils" },  // STR_PRL_TOOLS
   { "Klipper, MMU, %d Fächer", "Klipper, MMU, %d slots", "Klipper, MMU, %d emplacements" },  // STR_PRL_MMU
   { "Klipper, AFC, %d Fächer", "Klipper, AFC, %d slots", "Klipper, AFC, %d emplacements" },  // STR_PRL_AFC
+  // The old location of a spool in a Klipper printer (services/klipper_location.cpp, V50)
+  { "Lagerort vor dem Drucker", "Location before the printer",
+    "Emplacement avant l'imprimante" },  // STR_KL_PREV_LOC_FIELD
 };
 
 StringID tagWriteResultString(uint8_t code) {

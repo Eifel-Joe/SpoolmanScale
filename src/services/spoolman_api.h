@@ -159,4 +159,9 @@ int spoolmanPatchSpoolPrice(const char* base_url, int spool_id, float price, uin
 int spoolmanPatchFilamentSpoolWeight(const char* base_url, int filament_id, float spool_weight, uint32_t timeout_ms = 5000);
 int spoolmanPatchVendorEmptySpoolWeight(const char* base_url, int vendor_id, float spool_weight, uint32_t timeout_ms = 5000);
 int spoolmanPatchSpoolLocation(const char* base_url, int spool_id, const char* location_name = nullptr, uint32_t timeout_ms = 8000);
+// PATCH of one spool with a JSON body the caller built, for a write that must
+// be one request: the location of a spool in a Klipper printer and the extra
+// field that remembers its old one land together or not at all (V50,
+// klipper_location.cpp; Spoolman checks the whole body before it writes).
+int spoolmanPatchSpool(const char* base_url, int spool_id, const String& body, uint32_t timeout_ms = 8000);
 int spoolmanPatchSpoolLastDried(const char* base_url, int spool_id, const char* iso_datetime, uint32_t timeout_ms = 5000);

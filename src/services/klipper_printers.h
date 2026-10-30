@@ -62,8 +62,10 @@ int klipperGetAmsState(int printer_id, AmsSlotState& out);
 //   KL_E_NOT_HELD        the commands ran, the printer does not hold the spool
 //   other                the code of the request that failed
 // After a 200 the spool's location becomes the printer's name, when the
-// setting is on and the printer does not write it itself; the answer of that
-// write goes to the log and changes nothing.
+// setting is on and the printer does not write it itself; its old location is
+// remembered in Spoolman and the spool that stood in the field before gets
+// its own back (V50, klipper_location.h). The answers of those writes go to
+// the log and change nothing.
 int klipperAssign(int spool_id, int printer_id, int ams_id, int tray_id);
 
 // The name of a bay as the printer calls it (Happy Hare "MMU 3", an AFC lane's

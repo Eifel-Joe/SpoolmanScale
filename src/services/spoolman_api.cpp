@@ -654,6 +654,11 @@ int spoolmanPatchSpoolLocation(const char* base_url, int spool_id, const char* l
   return patchJson(String(base_url) + "/api/v1/spool/" + spool_id, payload, timeout_ms);
 }
 
+int spoolmanPatchSpool(const char* base_url, int spool_id, const String& body, uint32_t timeout_ms) {
+  if (!hasBaseUrl(base_url) || spool_id <= 0 || body.length() == 0) return -1;
+  return patchJson(String(base_url) + "/api/v1/spool/" + spool_id, body, timeout_ms);
+}
+
 int spoolmanPatchSpoolLastDried(const char* base_url, int spool_id, const char* iso_datetime, uint32_t timeout_ms) {
   if (!hasBaseUrl(base_url) || spool_id <= 0 || !iso_datetime || !iso_datetime[0]) return -1;
   JsonDocument body;
