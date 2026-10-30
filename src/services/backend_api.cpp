@@ -19,6 +19,7 @@
 #include "services/filaman_filament_db.h"
 #include "services/filaman_labels.h"
 #include "services/http_progress.h"
+#include "services/klipper_printers.h"
 #include "services/last_dried.h"
 #include "services/list_limits.h"
 #include "services/device_name.h"
@@ -1424,6 +1425,7 @@ static bool spoolmanHasAmsSource() {
 }
 
 bool backendHasAmsView() {
+  if (klipperHasPrinters()) return true;
   switch (backendMode()) {
     case BACKEND_FILAMAN:
     case BACKEND_BAMBUDDY: return backendIsConfigured();
@@ -1432,7 +1434,8 @@ bool backendHasAmsView() {
 }
 
 bool backendCanAssignAmsSlot() {
-  return (backendMode() == BACKEND_BAMBUDDY && backendIsConfigured()) ||
+  return klipperHasPrinters() ||
+         (backendMode() == BACKEND_BAMBUDDY && backendIsConfigured()) ||
          (spoolmanHasAmsSource() && amsSourceCanAssign());
 }
 
@@ -1442,23 +1445,48 @@ bool backendCanTakeOutOfAms() {
 
 int backendListPrinters(AmsPrinterList& out, uint32_t timeout_ms) {
   HttpStallTime stall(__func__);   // the loop stands still for this call
+  int code = BACKEND_NOT_SUPPORTED;
   switch (backendMode()) {
     case BACKEND_FILAMAN:
-      return filamanListPrinters(backendBaseUrl(), filamanApiKey(), out, timeout_ms);
+      code = filamanListPrinters(backendBaseUrl(), filamanApiKey(), out, timeout_ms);
+      break;
     case BACKEND_BAMBUDDY:
-      return bbListPrinters(backendBaseUrl(), bambuddyApiKey(), out, timeout_ms);
+      code = bbListPrinters(backendBaseUrl(), bambuddyApiKey(), out, timeout_ms);
+      break;
     default:
       // Spoolman keeps filament, not printers. location is free text about
       // shelves and nothing an AMS bay may be mapped onto; the printers come
       // from an AMS source, where one is set up.
-      if (spoolmanHasAmsSource()) return amsSourceListPrinters(out, timeout_ms);
-      out = AmsPrinterList{};
-      return notSupported("ListPrinters");
+      if (spoolmanHasAmsSource()) {
+        code = amsSourceListPrinters(out, timeout_ms);
+      } else {
+        out = AmsPrinterList{};
+        code = notSupported("ListPrinters");
+      }
+      break;
   }
+  // Root: the Klipper printers live on the scale and need no server. A list
+  // that returned the backend's failure straight away took them down with it,
+  // and the picker stood at "no connection" while three of them were stored.
+  // Fix: the answer is kept, the stored printers are added behind it, and the
+  // list is a success as soon as it holds a printer.
+  // NOT-TO-DO: returning a backend error code with printers in the list; the
+  // view would show the error and drop them.
+  if (klipperHasPrinters()) {
+    if (code != 200) {
+      logSDf("KLIPPER: the printer list of the backend failed (%d), the stored printers alone", code);
+      memset(&out, 0, sizeof(out));
+    }
+    klipperAppendPrinters(out);
+    if (out.count > 0) code = 200;
+  }
+  return code;
 }
 
 int backendGetAmsState(int printer_id, AmsSlotState& out, uint32_t timeout_ms) {
   HttpStallTime stall(__func__);   // the loop stands still for this call
+  // A Klipper printer is read by its own code, with its own time limits.
+  if (klipperIsPrinterId(printer_id)) return klipperGetAmsState(printer_id, out);
   switch (backendMode()) {
     case BACKEND_FILAMAN:
       return filamanGetAmsState(backendBaseUrl(), filamanApiKey(), printer_id,
@@ -1476,6 +1504,7 @@ int backendGetAmsState(int printer_id, AmsSlotState& out, uint32_t timeout_ms) {
 int backendAssignAmsSlot(int spool_id, int printer_id, int ams_id, int tray_id,
                          uint32_t timeout_ms) {
   HttpStallTime stall(__func__);   // the loop stands still for this call
+  if (klipperIsPrinterId(printer_id)) return klipperAssign(spool_id, printer_id, ams_id, tray_id);
   if (spoolmanHasAmsSource()) {
     return amsSourceAssign(spool_id, printer_id, ams_id, tray_id, timeout_ms);
   }
@@ -1494,6 +1523,8 @@ int backendAssignAmsSlot(int spool_id, int printer_id, int ams_id, int tray_id,
 int backendUnassignAmsSlot(int spool_id, int printer_id, int ams_id, int tray_id,
                            uint32_t timeout_ms) {
   HttpStallTime stall(__func__);   // the loop stands still for this call
+  // A Klipper number never reaches the Bambuddy or AMS source way below.
+  if (klipperIsPrinterId(printer_id)) return notSupported("UnassignAmsSlot");
   if (spoolmanHasAmsSource()) {
     return amsSourceUnassign(printer_id, ams_id, tray_id, timeout_ms);
   }
@@ -1507,6 +1538,7 @@ int backendFindSpoolSlot(int spool_id, int printer_id, int* out_ams,
   HttpStallTime stall(__func__);   // the loop stands still for this call
   if (out_ams)  *out_ams  = -1;
   if (out_tray) *out_tray = -1;
+  if (klipperIsPrinterId(printer_id)) return notSupported("FindSpoolSlot");
   if (backendMode() != BACKEND_BAMBUDDY) return notSupported("FindSpoolSlot");
   return bbFindSpoolSlot(backendBaseUrl(), bambuddyApiKey(), spool_id, printer_id,
                          out_ams, out_tray, timeout_ms);
@@ -1515,6 +1547,7 @@ int backendFindSpoolSlot(int spool_id, int printer_id, int* out_ams,
 int backendFindBaySpool(int printer_id, int ams_id, int tray_id,
                         uint32_t timeout_ms) {
   HttpStallTime stall(__func__);   // the loop stands still for this call
+  if (klipperIsPrinterId(printer_id)) return notSupported("FindBaySpool");
   if (backendMode() != BACKEND_BAMBUDDY) return notSupported("FindBaySpool");
   return bbFindBaySpool(backendBaseUrl(), bambuddyApiKey(), printer_id,
                         ams_id, tray_id, timeout_ms);
@@ -1524,6 +1557,7 @@ int backendFindPrinterSpools(int printer_id, AmsSlotSpool* out, uint8_t max,
                              uint8_t* out_count, uint32_t timeout_ms) {
   HttpStallTime stall(__func__);   // the loop stands still for this call
   if (out_count) *out_count = 0;
+  if (klipperIsPrinterId(printer_id)) return notSupported("FindPrinterSpools");
   if (backendMode() != BACKEND_BAMBUDDY) return notSupported("FindPrinterSpools");
   return bbFindPrinterSpools(backendBaseUrl(), bambuddyApiKey(), printer_id,
                              out, max, out_count, timeout_ms);
@@ -1535,6 +1569,7 @@ int backendFindUnitSpools(int printer_id, int ams_id, int* out_by_tray,
   if (out_by_tray) {
     for (uint8_t i = 0; i < n; i++) out_by_tray[i] = 0;
   }
+  if (klipperIsPrinterId(printer_id)) return notSupported("FindUnitSpools");
   if (backendMode() != BACKEND_BAMBUDDY) return notSupported("FindUnitSpools");
   return bbFindUnitSpools(backendBaseUrl(), bambuddyApiKey(), printer_id,
                           ams_id, out_by_tray, n, timeout_ms);
