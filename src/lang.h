@@ -2134,6 +2134,16 @@ enum StringID {
   STR_AMSV_KL_ACCESS,         // an assignment: Moonraker turned the scale down (401, 403)
   STR_AMSV_KL_STATUS_SILENT,  // the status line: the printer does not answer (short: 314 px beside the chip)
 
+  // The window "Choose printer" over the AMS view (ui/printer_list.cpp)
+  STR_PRL_TITLE,              // the header's title, beside the search head
+  STR_PRL_FIND_KEY,           // the keyboard's title: the word the printers are searched for
+  STR_PRL_FIND_NONE,          // across the list when no printer holds the word (%s: the word)
+  STR_PRL_MORE,               // last line when the list was cut for memory: the magnifier finds the rest
+  STR_PRL_KLIPPER,            // a button's kind: a Klipper printer with one tool, or none counted
+  STR_PRL_TOOLS,              // a button's kind: a Klipper tool changer (%d: the tools)
+  STR_PRL_MMU,                // a button's kind: a Klipper printer with Happy Hare (%d: the slots)
+  STR_PRL_AFC,                // a button's kind: a Klipper printer with AFC (%d: the slots)
+
   STR_COUNT
 };
 

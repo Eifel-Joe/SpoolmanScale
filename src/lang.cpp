@@ -4724,6 +4724,17 @@ const char* const STRINGS[][3] = {
   { "Drucker antwortet nicht",
     "Printer does not answer",
     "L'imprimante ne répond pas" },  // STR_AMSV_KL_STATUS_SILENT
+  // The window "Choose printer" over the AMS view (ui/printer_list.cpp)
+  { "Drucker wählen",          "Choose printer",         "Choisir l'imprimante" },  // STR_PRL_TITLE
+  { "Drucker suchen",          "Find a printer",         "Chercher une imprimante" },  // STR_PRL_FIND_KEY
+  { "Kein Drucker mit \"%s\"", "No printer with \"%s\"", "Aucune imprimante avec \"%s\"" },  // STR_PRL_FIND_NONE
+  { "Nicht alle Drucker passen - mit der Lupe suchen",
+    "Not all printers fit - search with the magnifier",
+    "Toutes les imprimantes ne tiennent pas - chercher avec la loupe" },  // STR_PRL_MORE
+  { "Klipper",                 "Klipper",                "Klipper" },  // STR_PRL_KLIPPER
+  { "Klipper, %d Werkzeuge",   "Klipper, %d tools",      "Klipper, %d outils" },  // STR_PRL_TOOLS
+  { "Klipper, MMU, %d Fächer", "Klipper, MMU, %d slots", "Klipper, MMU, %d emplacements" },  // STR_PRL_MMU
+  { "Klipper, AFC, %d Fächer", "Klipper, AFC, %d slots", "Klipper, AFC, %d emplacements" },  // STR_PRL_AFC
 };
 
 StringID tagWriteResultString(uint8_t code) {

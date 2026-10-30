@@ -625,6 +625,20 @@ STR_COLOUR_FIND_NONE	14	452	WRAP:2	src/ui/colour_search.cpp colourSearchNone, ca
 STR_SPT_FIND_KEY	18	460	NEVER	src/ui/sort_entry_keys.cpp sortKeysShow title, 480 - 2 * SORT_KEYS_SIDE (10), opened by colourSearchTick
 STR_SPT_FIND_NONE	14	456	WRAP:2	src/ui/colour_search.cpp colourSearchNone, caption across the list (STL_ROW_W), %s the word
 
+# --- the window "Choose printer" over the AMS view (ui/printer_list.cpp, V47) ---------------------------------
+# The title beside the search head, as STR_SPT_TITLE; the keyboard and the caption for no match as the list of
+# spool types (PRL_ROW_W 456, %s the word); the line of a list cut for memory across the list body.
+STR_PRL_TITLE	18	228	NEVER	src/ui/printer_list.cpp sub header title, narrowed by the search head (colourSearchTitle): 480 - 2 * (44 + 2 * 4) - (CS_CHIP_W 140 + CS_SEP 8) with a word
+STR_PRL_FIND_KEY	18	460	NEVER	src/ui/sort_entry_keys.cpp sortKeysShow title, 480 - 2 * SORT_KEYS_SIDE (10), opened by colourSearchTick
+STR_PRL_FIND_NONE	14	456	WRAP:2	src/ui/colour_search.cpp colourSearchNone, caption across the list (PRL_ROW_W), %s the word
+STR_PRL_MORE	14	456	WRAP:2	src/ui/printer_list.cpp prlNoteRow, the last line across the list (PRL_ROW_W)
+# The kind under a printer's name, one line of font 12 in a button of 224: 224 - 2 * PRL_CELL_PAD (10) = 204.
+# %d is the number of tools or slots; "Klipper, MMU, 12 emplacements" is 191 px.
+STR_PRL_KLIPPER	12	204	NEVER	src/ui/printer_list.cpp prlPrinterBtn, the kind under the name, PRL_ART_W
+STR_PRL_TOOLS	12	204	NEVER	src/ui/printer_list.cpp prlPrinterBtn, the kind under the name, PRL_ART_W
+STR_PRL_MMU	12	204	NEVER	src/ui/printer_list.cpp prlPrinterBtn, the kind under the name, PRL_ART_W
+STR_PRL_AFC	12	204	NEVER	src/ui/printer_list.cpp prlPrinterBtn, the kind under the name, PRL_ART_W
+
 # --- the tiles of the unknown spool's card, with "Enter filament" as a fourth (unknown_spool_popup.cpp) ---
 # Four tiles to a row are (UNK_ROW_W 412 - 3 * UNK_GAP 8) / 4 = 97 px, and the German
 # "Verknüpfen" is 97 px in the body font (16), the whole tile: a row of four sets the
