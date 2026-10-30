@@ -2077,6 +2077,53 @@ enum StringID {
   STR_BATCH_LABEL_STEP,       // the print card's corner while a run prints (%d: the label's place, %d: how many)
   STR_BATCH_LABELS_MISSING,   // the status line when the labels stopped (%s: the numbers left without)
 
+  // The Klipper page in the browser (web/pages/page_klipper.cpp)
+  STR_W_NAV_KLIPPER,          // the tab
+  STR_W_KL_C_PRINTERS,        // the list card's title
+  STR_W_KL_INTRO,             // what a printer needs: Moonraker with [spoolman], trusted or a key
+  STR_W_KL_NONE,              // the list while no printer is stored
+  STR_W_KL_ROOM,              // the line under the list (%d: how many more printers fit)
+  STR_W_KL_FULL,              // the same line when none fits, and the refusal of a save for lack of room (printers or keys)
+  STR_W_KL_ADD,               // the form's title for a new printer
+  STR_W_KL_EDIT,              // the form's title for a printer being changed
+  STR_W_KL_CHANGE,            // the list's button that opens a printer in the form
+  STR_W_KL_NAME_HINT,         // under the name field
+  STR_W_KL_HOST_HINT,         // under the address field
+  STR_W_KL_PORT,              // the port field's label
+  STR_W_KL_KEY_HINT,          // under the key field
+  STR_W_KL_KEY_DEL,           // the checkbox that takes a stored key away
+  STR_W_KL_KEY_SET,           // a printer has a key (in the list, and in the empty key field)
+  STR_W_KL_TEST,              // the list's button that runs the connection test
+  STR_W_KL_TESTING,           // the message while a test runs
+  STR_W_KL_TESTED,            // when the last test ran (%s: the date)
+  STR_W_KL_DELETE_ASK,        // the question before a printer is deleted (%s: its name)
+  STR_W_KL_BUSY,              // a test could not start
+  STR_W_KL_LOC,               // the switch for the location
+  STR_W_KL_LOC_HINT,          // under that switch
+  STR_W_KL_E_NAME,            // save refused: nothing left of the name
+  STR_W_KL_E_TAKEN,           // save refused: another printer has this name
+  STR_W_KL_E_HOST,            // save refused: no usable address
+  STR_W_KL_E_PORT,            // save refused: the port is no number up to 65535
+  STR_W_KL_E_KEY,             // save refused: characters a key may not have
+  STR_W_KL_E_GONE,            // no printer with that number
+  STR_W_KL_E_WRITE,           // the settings memory did not take the write
+  STR_W_KL_T_NONE,            // never tested
+  STR_W_KL_T_OK,              // test: all well (%s: what the printer has, see STR_W_KL_L_*)
+  STR_W_KL_T_UNREACHABLE,     // test: Moonraker does not answer
+  STR_W_KL_T_ACCESS,          // test: Moonraker answers but does not trust the scale
+  STR_W_KL_T_KLIPPY,          // test: Klipper is not ready (%s: its state)
+  STR_W_KL_T_NO_SPOOLMAN,     // test: no [spoolman] section in Moonraker
+  STR_W_KL_T_SM_OFFLINE,      // test: [spoolman] is there, Moonraker is not connected
+  STR_W_KL_T_OTHER,           // test: the printer talks to another Spoolman (%s: the scale's own address)
+  STR_W_KL_T_BAD_ANSWER,      // test: an answer that is none (%s: the HTTP code)
+  STR_W_KL_L_MMU,             // layout: Happy Hare (%d: the bays)
+  STR_W_KL_L_AFC,             // layout: AFC (%d: the bays)
+  STR_W_KL_L_TOOLS,           // layout: tool changer (%d: the tools)
+  STR_W_KL_L_SINGLE,          // layout: the one extruder
+  STR_W_KL_L_UNKNOWN,         // layout: a system the scale cannot drive (%s: its name)
+  STR_W_KL_N_NOVAR,           // hint: tool macros without a spool_id variable
+  STR_W_KL_N_TRUNC,           // hint: more fields than the scale shows
+
   STR_COUNT
 };
 

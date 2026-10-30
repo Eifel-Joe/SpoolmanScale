@@ -144,8 +144,12 @@ for name, text in saves:
     assert ok, f"src/{PAGE}: {name}() saves and does not start the test afterwards"
 deletes = pieces_with("/api/klipper/delete")
 assert deletes, f"src/{PAGE}: the script never deletes"
+# The question is ask() of /app.js, the house form of every page (page_backend,
+# page_logs, page_tags): confirm() draws the browser's box at the top of the
+# window, and inside a backend's frame it names the scale's address as an
+# "embedded page". Either one counts.
 for name, text in deletes:
-    assert "confirm(" in text, f"src/{PAGE}: {name}() deletes without asking (confirm())"
+    assert re.search(r"\b(?:ask|confirm)\s*\(", text), f"src/{PAGE}: {name}() deletes without asking (ask() or confirm())"
 
 # 6. Every verdict of the test, and what the printer has, in words in all three languages.
 TEXTS = {

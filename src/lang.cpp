@@ -4543,6 +4543,162 @@ const char* const STRINGS[][3] = {
   { "Ohne Etikett: %s",
     "No label: %s",
     "Sans étiquette : %s" },  // STR_BATCH_LABELS_MISSING
+  // The Klipper page in the browser (web/pages/page_klipper.cpp)
+  { "Klipper",
+    "Klipper",
+    "Klipper" },  // STR_W_NAV_KLIPPER
+  { "Klipper-Drucker",
+    "Klipper printers",
+    "Imprimantes Klipper" },  // STR_W_KL_C_PRINTERS
+  { "Die Waage ordnet Spulen den Fächern oder Werkzeugen eines "
+    "Klipper-Druckers zu. Moonraker braucht dafür einen Abschnitt [spoolman] "
+    "mit demselben Spoolman wie die Waage. Außerdem muss Moonraker der Waage "
+    "vertrauen: ihre Adresse unter trusted_clients eintragen oder hier einen "
+    "API-Schlüssel angeben.",
+    "The scale assigns spools to the bays or tools of a Klipper printer. For "
+    "that, Moonraker needs a [spoolman] section pointing to the same Spoolman "
+    "as the scale. Moonraker must also trust the scale: add its address under "
+    "trusted_clients or enter an API key here.",
+    "La balance affecte des bobines aux bacs ou aux outils d'une imprimante Klipper. Pour cela, Moonraker a besoin d'une section [spoolman] pointant vers le même Spoolman que la balance. Moonraker doit aussi faire confiance à la balance : ajoutez son adresse sous trusted_clients ou indiquez ici une clé d'API." },  // STR_W_KL_INTRO
+  { "Noch kein Drucker eingetragen.",
+    "No printer added yet.",
+    "Aucune imprimante ajoutée pour l'instant." },  // STR_W_KL_NONE
+  { "Platz für noch %d Drucker",
+    "Room for %d more printer(s)",
+    "Place pour %d imprimante(s) de plus" },  // STR_W_KL_ROOM
+  { "Kein Platz mehr für weitere Drucker",
+    "No room for more printers",
+    "Plus de place pour d'autres imprimantes" },  // STR_W_KL_FULL
+  { "Drucker hinzufügen",
+    "Add printer",
+    "Ajouter une imprimante" },  // STR_W_KL_ADD
+  { "Drucker ändern",
+    "Change printer",
+    "Modifier l'imprimante" },  // STR_W_KL_EDIT
+  { "Ändern",
+    "Change",
+    "Modifier" },  // STR_W_KL_CHANGE
+  { "Höchstens 23 Zeichen, Umlaute zählen doppelt. Der Name ist auch der "
+    "Lagerort der Spulen in Spoolman.",
+    "At most 23 characters, umlauts and accents count double. The name is "
+    "also the spools' location in Spoolman.",
+    "23 caractères au plus, les lettres accentuées comptent double. Le nom sert aussi d'emplacement des bobines dans Spoolman." },  // STR_W_KL_NAME_HINT
+  { "IP-Adresse oder Rechnername, ohne http:// und ohne Port.",
+    "IP address or host name, without http:// and without a port.",
+    "Adresse IP ou nom d'hôte, sans http:// et sans port." },  // STR_W_KL_HOST_HINT
+  { "Port",
+    "Port",
+    "Port" },  // STR_W_KL_PORT
+  { "Nur nötig, wenn Moonraker der Waage nicht vertraut. Leer lassen: der "
+    "gespeicherte Schlüssel bleibt.",
+    "Only needed if Moonraker does not trust the scale. Leave empty to keep "
+    "the stored key.",
+    "Nécessaire seulement si Moonraker ne fait pas confiance à la balance. Laissez vide pour garder la clé enregistrée." },  // STR_W_KL_KEY_HINT
+  { "Schlüssel löschen",
+    "Delete key",
+    "Supprimer la clé" },  // STR_W_KL_KEY_DEL
+  { "Schlüssel gesetzt",
+    "Key set",
+    "Clé définie" },  // STR_W_KL_KEY_SET
+  { "Verbindung testen",
+    "Test connection",
+    "Tester la connexion" },  // STR_W_KL_TEST
+  { "Teste ...",
+    "Testing ...",
+    "Test en cours ..." },  // STR_W_KL_TESTING
+  { "Getestet: %s",
+    "Tested: %s",
+    "Testé : %s" },  // STR_W_KL_TESTED
+  { "Drucker %s aus der Waage löschen? Am Drucker selbst ändert sich nichts.",
+    "Delete printer %s from the scale? Nothing changes on the printer itself.",
+    "Supprimer l'imprimante %s de la balance ? Rien ne change sur l'imprimante elle-même." },  // STR_W_KL_DELETE_ASK
+  { "Die Waage ist beschäftigt - gleich noch einmal versuchen",
+    "The scale is busy - try again in a moment",
+    "La balance est occupée - réessayez dans un instant" },  // STR_W_KL_BUSY
+  { "Lagerort = Druckername",
+    "Location = printer name",
+    "Emplacement = nom de l'imprimante" },  // STR_W_KL_LOC
+  { "Nach dem Zuordnen setzt die Waage den Lagerort der Spule in Spoolman auf "
+    "den Namen des Druckers. Happy Hare im Modus push oder pull schreibt ihn "
+    "selbst.",
+    "After assigning, the scale sets the spool's location in Spoolman to the "
+    "printer's name. Happy Hare in push or pull mode writes it itself.",
+    "Après l'affectation, la balance met l'emplacement de la bobine dans Spoolman au nom de l'imprimante. Happy Hare en mode push ou pull l'écrit lui-même." },  // STR_W_KL_LOC_HINT
+  { "Name fehlt",
+    "The name is missing",
+    "Le nom manque" },  // STR_W_KL_E_NAME
+  { "Diesen Namen hat schon ein anderer Drucker",
+    "Another printer already has this name",
+    "Une autre imprimante porte déjà ce nom" },  // STR_W_KL_E_TAKEN
+  { "Adresse ungültig - nur Rechnername oder IP, ohne http:// und ohne Port",
+    "Invalid address - host name or IP only, without http:// and without a "
+    "port",
+    "Adresse non valide - nom d'hôte ou IP seulement, sans http:// ni port" },  // STR_W_KL_E_HOST
+  { "Port ungültig - Ziffern von 0 bis 65535 (0 = 7125)",
+    "Invalid port - digits from 0 to 65535 (0 = 7125)",
+    "Port non valide - chiffres de 0 à 65535 (0 = 7125)" },  // STR_W_KL_E_PORT
+  { "Schlüssel ungültig - nur Buchstaben, Ziffern, _ und -, höchstens 47 "
+    "Zeichen",
+    "Invalid key - letters, digits, _ and - only, at most 47 characters",
+    "Clé non valide - lettres, chiffres, _ et - seulement, 47 caractères au plus" },  // STR_W_KL_E_KEY
+  { "Drucker nicht gefunden",
+    "Printer not found",
+    "Imprimante introuvable" },  // STR_W_KL_E_GONE
+  { "Speichern fehlgeschlagen",
+    "Saving failed",
+    "Échec de l'enregistrement" },  // STR_W_KL_E_WRITE
+  { "Noch nicht getestet",
+    "Not tested yet",
+    "Pas encore testé" },  // STR_W_KL_T_NONE
+  { "Verbunden: %s, Spoolman verbunden, derselbe Spoolman",
+    "Connected: %s, Spoolman connected, same Spoolman",
+    "Connecté : %s, Spoolman connecté, même Spoolman" },  // STR_W_KL_T_OK
+  { "Nicht erreichbar - Adresse und Port prüfen",
+    "Not reachable - check address and port",
+    "Injoignable - vérifier l'adresse et le port" },  // STR_W_KL_T_UNREACHABLE
+  { "Zugang verweigert - Adresse der Waage in Moonraker als vertraut "
+    "eintragen (trusted_clients) oder API-Schlüssel angeben",
+    "Access denied - add the scale's address in Moonraker as trusted "
+    "(trusted_clients) or enter an API key",
+    "Accès refusé - déclarer l'adresse de la balance comme de confiance dans Moonraker (trusted_clients) ou indiquer une clé d'API" },  // STR_W_KL_T_ACCESS
+  { "Klipper nicht bereit (%s)",
+    "Klipper not ready (%s)",
+    "Klipper pas prêt (%s)" },  // STR_W_KL_T_KLIPPY
+  { "Spoolman ist in Moonraker nicht eingerichtet ([spoolman])",
+    "Spoolman is not set up in Moonraker ([spoolman])",
+    "Spoolman n'est pas configuré dans Moonraker ([spoolman])" },  // STR_W_KL_T_NO_SPOOLMAN
+  { "Spoolman eingerichtet, aber nicht verbunden",
+    "Spoolman set up, but not connected",
+    "Spoolman configuré, mais pas connecté" },  // STR_W_KL_T_SM_OFFLINE
+  { "Anderer Spoolman als die Waage (%s) - Zuordnen gesperrt",
+    "Another Spoolman than the scale's (%s) - assigning blocked",
+    "Autre Spoolman que celui de la balance (%s) - affectation bloquée" },  // STR_W_KL_T_OTHER
+  { "Unerwartete Antwort (HTTP %s)",
+    "Unexpected answer (HTTP %s)",
+    "Réponse inattendue (HTTP %s)" },  // STR_W_KL_T_BAD_ANSWER
+  { "Happy Hare, %d Fächer",
+    "Happy Hare, %d bays",
+    "Happy Hare, %d bacs" },  // STR_W_KL_L_MMU
+  { "AFC, %d Fächer",
+    "AFC, %d bays",
+    "AFC, %d bacs" },  // STR_W_KL_L_AFC
+  { "Werkzeugwechsler, %d Werkzeuge",
+    "Toolchanger, %d tools",
+    "Changeur d'outils, %d outils" },  // STR_W_KL_L_TOOLS
+  { "ein Extruder",
+    "one extruder",
+    "un extrudeur" },  // STR_W_KL_L_SINGLE
+  { "unbekanntes System %s, ein Feld",
+    "unknown system %s, one field",
+    "système inconnu %s, un champ" },  // STR_W_KL_L_UNKNOWN
+  { "Werkzeug-Makros ohne Variable spool_id - nur die aktive Spule (Anleitung "
+    "von Mainsail oder Fluidd)",
+    "Tool macros without a spool_id variable - the active spool only (see the "
+    "Mainsail or Fluidd guide)",
+    "Macros d'outil sans variable spool_id - seulement la bobine active (voir le guide de Mainsail ou Fluidd)" },  // STR_W_KL_N_NOVAR
+  { "mehr als 16 Felder - die ersten 16",
+    "more than 16 fields - the first 16",
+    "plus de 16 champs - les 16 premiers" },  // STR_W_KL_N_TRUNC
 };
 
 StringID tagWriteResultString(uint8_t code) {

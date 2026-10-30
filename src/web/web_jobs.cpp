@@ -2,6 +2,7 @@
 
 #include <ArduinoJson.h>
 #include <string.h>
+#include <time.h>
 
 #include "app/app_state.h"
 #include "services/backend.h"
@@ -10,6 +11,7 @@
 #include "services/backend_job_rules.h"
 #include "bambu/bambu_catalog.h"
 #include "services/github_release.h"
+#include "services/moonraker_api.h"
 #include "services/update_check.h"
 #include "web/web_net_probe.h"
 #include "web/web_shell.h"
@@ -44,8 +46,14 @@ struct SpiRamAllocator : ArduinoJson::Allocator {
 
 static volatile WebJobState s_state = WJS_IDLE;
 static WebJobResult         s_res;
-static char                 s_arg[160] = "";   // a release tag, or the backend address for the probe
+static char                 s_arg[160] = "";   // a release tag, or the backend address for the probe,
+                                               // or the scale's Spoolman address for the Klipper test
 static bool                 s_flag    = false;
+// The Klipper test reads this copy of the printer and its key, and the Spoolman
+// address in s_arg: all three are made on the loop task before the job starts,
+// so the job never reaches into the store (R3).
+static KlipperPrinterCfg    s_kl_cfg;
+static char                 s_kl_key[KL_KEY_MAX] = "";
 static unsigned long        s_done_ms = 0;
 // The gates of the "postponed" line and of the "task creation failed" line,
 // one each. Every kind of job starts from the loop task (the web handlers and
@@ -137,6 +145,48 @@ static void runBambuCatalog() {
   snprintf(s_res.pub, sizeof(s_res.pub), "%s", s_arg);
 }
 
+// Unix seconds, or 0 while the clock has not been set (it starts in 1970, and
+// no scale ran before 2024).
+static uint32_t unixNow() {
+  const time_t now = time(nullptr);
+  return now >= 1704067200 ? (uint32_t)now : 0;   // 2024-01-01 00:00:00 UTC
+}
+
+// The read-only test of one Klipper printer: the probe runs on the copy, the
+// verdict and what the printer has are left in the result for the handler that
+// collects it. Nothing here touches the store or the settings.
+static void runKlipperTest() {
+  KlipperProbe probe = {};
+  // A KlipperFacts is 1.4 kB: kept off the task's stack with the other
+  // working memory of the Moonraker client.
+  KlipperFacts* facts = static_cast<KlipperFacts*>(moonrakerAlloc(sizeof(KlipperFacts)));
+  moonrakerProbe(s_kl_cfg, s_kl_key, s_arg, &probe, facts);
+
+  KlipperTestOutcome o = {};
+  o.test = klipperTestVerdict(probe);
+  s_res.kl_unknown[0] = '\0';
+  // What the printer has is stored for every verdict that came after Klipper
+  // was ready; the facts are zero before that.
+  if (facts) {
+    o.layout = facts->layout;
+    o.fields = facts->field_count;
+    if (facts->tools_without_var) o.flags |= KL_FLAG_TOOLS_WITHOUT_VAR;
+    if (facts->truncated)         o.flags |= KL_FLAG_TRUNCATED;
+    snprintf(s_res.kl_unknown, sizeof(s_res.kl_unknown), "%s", facts->unknown_system);
+  }
+  o.at = unixNow();
+  s_res.kl = o;
+  s_res.kl_id = s_kl_cfg.id;
+  snprintf(s_res.kl_state, sizeof(s_res.kl_state), "%s", probe.klippy_state);
+  s_res.code = probe.access_code > 0 ? probe.info_code : probe.access_code;
+  s_res.ok = probe.access_code > 0;
+  moonrakerFree(facts);
+
+  // The copy of the key does not outlive the test.
+  volatile char* wipe = s_kl_key;
+  for (size_t i = 0; i < sizeof(s_kl_key); i++) wipe[i] = 0;
+}
+
 static void webJobTask(void* arg) {
   (void)arg;
   switch (s_res.kind) {
@@ -146,6 +196,7 @@ static void webJobTask(void* arg) {
     case WJ_GH_NOTES:  runGhNotes();  break;
     case WJ_BAMBU_CATALOG: runBambuCatalog(); break;
     case WJ_NET_PROBE: netProbeRun(s_arg, s_res.body); s_res.ok = true; break;
+    case WJ_KLIPPER_TEST: runKlipperTest(); break;
     default: break;
   }
   Serial.printf("[webjob] kind %d done, ok=%d code=%d, stack left %u\n",
@@ -161,14 +212,16 @@ static void webJobTask(void* arg) {
 
 // Which kinds talk to GitHub (the release check, its notes, BambuStudio's
 // colour table), always https: everything but the host test, the spool list
-// and the net probe, which go to the backend. Decided here and nowhere else,
+// and the net probe, which go to the backend, and the Klipper test, which goes
+// to Moonraker over plain http. Decided here and nowhere else,
 // because two things hang on it: the floor the job starts at
 // (webJobMinHeap) and what it waits for (webJobStart).
 static bool webJobTalksToGithub(WebJobKind kind) {
   switch (kind) {
     case WJ_HOST_TEST:
     case WJ_SPOOLS:
-    case WJ_NET_PROBE: return false;
+    case WJ_NET_PROBE:
+    case WJ_KLIPPER_TEST: return false;
     default:           return true;
   }
 }
@@ -176,9 +229,12 @@ static bool webJobTalksToGithub(WebJobKind kind) {
 // The floor of a job follows the address it talks to, which its kind decides:
 // GitHub (see above) or the backend, the active one for the host test and the
 // spool list, the address it is handed for the net probe (the backend's
-// again, see web_net_probe.cpp). The floors are in backend_job_rules.h.
+// again, see web_net_probe.cpp). The Klipper test talks plain http to
+// Moonraker and to the scale's own Spoolman, which is its arg and may be
+// https. The floors are in backend_job_rules.h.
 static uint32_t webJobMinHeap(WebJobKind kind, const char* arg) {
   if (webJobTalksToGithub(kind)) return backendJobMinHeap("https://api.github.com");
+  if (kind == WJ_KLIPPER_TEST) return backendJobMinHeapBoth("http://", arg);
   return backendJobMinHeap(kind == WJ_NET_PROBE ? arg : backendBaseUrl());
 }
 
@@ -223,6 +279,10 @@ bool webJobStart(WebJobKind kind, const char* arg, bool flag) {
   s_res.sha[0] = '\0';
   s_res.pub[0] = '\0';
   s_res.body   = "";
+  s_res.kl_id  = 0;
+  s_res.kl     = KlipperTestOutcome{};
+  s_res.kl_state[0]   = '\0';
+  s_res.kl_unknown[0] = '\0';
   s_arg[0] = '\0';
   if (arg) { strncpy(s_arg, arg, sizeof(s_arg) - 1); s_arg[sizeof(s_arg) - 1] = '\0'; }
   s_flag = flag;
@@ -245,6 +305,13 @@ bool webJobStart(WebJobKind kind, const char* arg, bool flag) {
   // Started: what was refused or failed before is over, the next one gets a line.
   logGateReset(&s_start_gate);
   logGateReset(&s_create_gate);
+  return true;
+}
+
+bool webJobSetKlipperInput(const KlipperPrinterCfg& cfg, const char* key) {
+  if (s_state != WJS_IDLE) return false;
+  s_kl_cfg = cfg;
+  snprintf(s_kl_key, sizeof(s_kl_key), "%s", key ? key : "");
   return true;
 }
 
