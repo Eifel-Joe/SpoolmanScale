@@ -608,11 +608,6 @@ const char* const STRINGS[][3] = {
   { "bereitet vor",
     "preparing",
     "en préparation" },  // STR_AMSV_STATE_PREPARE
-  // Which of several printers is on screen. Same in both languages, but
-  // it goes through T() so a language that numbers differently can change it.
-  { "%d/%d",
-    "%d/%d",
-    "%d/%d" },  // STR_AMSV_PRN_OF
   { "%s -> in welches Fach?",
     "%s -> into which bay?",
     "%s -> dans quel bac ?" },  // STR_AMSV_PICK_HEAD

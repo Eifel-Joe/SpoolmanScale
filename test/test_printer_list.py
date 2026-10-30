@@ -799,9 +799,12 @@ def check_k():
 
 
 # ---------------------------------------------------------------------------
-#  L: the two tests run in the house-rules job of the CI (the steps follow 'Test AMS Klipper')
+#  L: the two tests run in the house-rules job of the CI (behind 'Test AMS Klipper')
 # ---------------------------------------------------------------------------
 
+# L: both steps are there with their run: lines, "Test printer pick rules"
+# before "Test printer list" (the rule before the window that uses it), both
+# somewhere behind "Test AMS Klipper". Other steps may stand between them.
 def check_l():
     ci = (root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
     steps = re.findall(r"- name: (Test [^\n]*)\n\s+run: ([^\n]*)", ci)
@@ -810,9 +813,10 @@ def check_l():
         assert name in names, f".github/workflows/ci.yml: the step '{name}' is not there"
         assert dict(steps)[name].strip() == f"python3 test/{script}", \
             f".github/workflows/ci.yml: the step '{name}' does not run python3 test/{script}"
-    assert names.index("Test printer pick rules") == names.index("Test AMS Klipper") + 1 and \
-        names.index("Test printer list") == names.index("Test printer pick rules") + 1, \
-        ".github/workflows/ci.yml: the printer steps do not follow 'Test AMS Klipper'"
+    assert "Test AMS Klipper" in names, ".github/workflows/ci.yml: the step 'Test AMS Klipper' is not there"
+    klipper, rules, window = (names.index(n) for n in ("Test AMS Klipper", "Test printer pick rules", "Test printer list"))
+    assert klipper < rules < window, \
+        ".github/workflows/ci.yml: 'Test printer pick rules' and then 'Test printer list' do not come after 'Test AMS Klipper'"
 
 
 CHECKS = (check_a, check_b, check_c, check_d, check_e, check_f, check_g, check_j, check_h, check_i, check_k, check_l)

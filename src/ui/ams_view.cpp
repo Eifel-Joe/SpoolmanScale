@@ -19,6 +19,7 @@
 #include "ui/ams_detail_popup.h"
 #include "ui/loading_overlay.h"
 #include "ui/navigation.h"
+#include "ui/printer_list.h"
 #include "ui/theme.h"
 #include "ui/ui_common.h"
 
@@ -41,7 +42,7 @@
 #define AMSV_BODY_TOP     40
 #define AMSV_HEADLINE_H   24
 // The status row: the printer's name, as a chip when there is more than one
-// printer to step through, and what the printer is doing beside it. The row
+// printer to choose from, and what the printer is doing beside it. The row
 // has the whole width since the reload chip moved up into the header - it
 // used to share this row, which squeezed the printer into 12 px of text that
 // was hard to read and, with two printers, did not look like the switch it is.
@@ -138,11 +139,13 @@ static bool s_close_pending = false;
 // (BSS) should not carry for a page that is open now and then. Made on the
 // first opening and never freed, so the pointer never dangles.
 static AmsPrinterList* s_printers = nullptr;
-static uint8_t s_printer_idx = 0;
 static bool s_pick_pending  = false;
 static int  s_pick_ams      = -1;
 static int  s_pick_tray     = -1;
 static int  s_printer_id    = 0;
+// The printer chip was tapped. The window "Choose printer" is a screen of its
+// own (ui/printer_list.h), so the loop opens it, not the tap.
+static bool s_list_pending  = false;
 // A bay was tapped for its detail card. Carried like every other answer:
 // parked here, acted on from the loop, because the fetch behind it blocks.
 static bool s_detail_pending = false;
@@ -191,7 +194,9 @@ void requestAmsView(AmsViewMode mode, AmsPickCb cb, const char* headline) {
   // Re-read on every opening. One request more per visit, and in exchange a
   // backend switch, a renamed printer or a removed one can never leave a
   // stale name on the line - this screen is opened rarely enough that the
-  // trade is not close.
+  // trade is not close. The window "Choose printer" is closed first: it reads
+  // this list while it is open, and its buttons would point into an emptied one.
+  closePrinterList();
   if (s_printers) s_printers->count = 0;
   // A fresh question. An answer parked by an earlier page must not be handed
   // to this one's callback.
@@ -207,6 +212,7 @@ void requestAmsView(AmsViewMode mode, AmsPickCb cb, const char* headline) {
   s_detail_pending = false;
   s_detail_ams     = -1;
   s_detail_tray    = -1;
+  s_list_pending   = false;
   s_return_to_scale_menu = false;
   s_build_pending = true;
 }
@@ -226,8 +232,10 @@ const char* amsViewPrinterName() { return s_state.valid ? s_state.printer : ""; 
 // parent is the kind of leftover that writes into freed memory later.
 static void closeAmsView() {
   // The card sits on lv_scr_act(), not inside the page, so freeing the page
-  // would leave it standing over whatever comes next.
+  // would leave it standing over whatever comes next. The window "Choose
+  // printer" as well, and it reads the page's list of printers.
   closeAmsDetailPopup();
+  closePrinterList();
   s_weights_owed = false;   // nothing left to draw the grams on
   releaseScreen(&s_scr);
   s_body     = nullptr;
@@ -242,6 +250,8 @@ static void closeAmsView() {
 
 void hideAmsViewOverlays() {
   closeAmsDetailPopup();
+  // The X of the window "Choose printer" goes through showMainScreen() to here.
+  closePrinterList();
   if (s_scr) lv_obj_add_flag(s_scr, LV_OBJ_FLAG_HIDDEN);
 }
 
@@ -298,16 +308,25 @@ static void applyRowDrop() {
   }
 }
 
-// The printer chip: "2/3  Name" at the left of the row, sized to the name, and
-// the status label to its right. Shared by the drawn state and by a message
-// that keeps the chip (statusRowPlain); the caller sets the status text. The
-// callback of the chip is attached once, in buildScreen().
+// The chosen printer in the list, or nullptr. Looked up by its id: that is
+// what the window hands back and what the memory keeps.
+static const AmsPrinter* chosenPrinter() {
+  if (!s_printers) return nullptr;
+  for (uint8_t i = 0; i < s_printers->count; i++) {
+    if (s_printers->p[i].id == s_printer_id) return &s_printers->p[i];
+  }
+  return nullptr;
+}
+
+// The printer chip: the name and an arrow down at the left of the row, sized
+// to the text, and the status label to its right. The arrow says that a tap
+// opens a choice (the window "Choose printer"). Shared by the drawn state and
+// by a message that keeps the chip (statusRowPlain); the caller sets the
+// status text. The callback of the chip is attached once, in buildScreen().
 static void showPrinterChip(const char* printer) {
   applyRowDrop();
-  char fmt[12], n[12], name[48];
-  copyT(fmt, sizeof(fmt), STR_AMSV_PRN_OF);
-  snprintf(n, sizeof(n), fmt, (int)s_printer_idx + 1, (int)s_printers->count);
-  snprintf(name, sizeof(name), "%s  %s", n, printer);
+  char name[AMS_PRINTER_NAME_MAX + 4];   // the name, a blank, the arrow's 3 bytes
+  snprintf(name, sizeof(name), "%s " LV_SYMBOL_DOWN, printer);
   lv_label_set_text(s_printer_lbl, name);
   // Sized to the name. A name of the user's choosing can be long; the chip
   // stops where the status would have no room left, and the label inside
@@ -328,16 +347,16 @@ static void showPrinterChip(const char* printer) {
 
 // keep_chip: a message that does not mean the printer is gone (no connection,
 // no AMS, a failed fetch) leaves the chip where it is, with the name of the
-// printer that was chosen: it is the way to the next printer. A printer that
-// does not answer must not hold the page on itself. Only with several
-// printers, since on one the chip does not exist.
+// printer that was chosen: it is the way to the window that chooses another.
+// A printer that does not answer must not hold the page on itself. Only with
+// several printers, since on one the chip does not exist.
 static void statusRowPlain(bool keep_chip) {
   applyRowDrop();
-  if (keep_chip && s_printer_btn && s_printer_lbl && s_status && s_printers &&
-      s_printer_idx < s_printers->count) {
-    // The name from the list, not from s_state: after a failed fetch that holds
-    // the previous printer, or nothing.
-    showPrinterChip(s_printers->p[s_printer_idx].name);
+  // The name from the list, not from s_state: after a failed fetch that holds
+  // the previous printer, or nothing.
+  const AmsPrinter* chosen = chosenPrinter();
+  if (keep_chip && chosen && s_printer_btn && s_printer_lbl && s_status) {
+    showPrinterChip(chosen->name);
     return;
   }
   if (s_printer_btn) lv_obj_add_flag(s_printer_btn, LV_OBJ_FLAG_HIDDEN);
@@ -823,15 +842,27 @@ static void reloadCb(lv_event_t* e) {
   s_fetch_pending = true;
 }
 
-// Steps to the next printer. Only reachable when there is more than one, so
-// there is no wrap-around to explain on a single printer setup.
-static void nextPrinterCb(lv_event_t* e) {
-  if (s_printers->count < 2 || s_fetch_pending) return;
-  s_printer_idx = (uint8_t)((s_printer_idx + 1) % s_printers->count);
-  s_printer_id  = s_printers->p[s_printer_idx].id;
+// The chip asks for the window "Choose printer"; the loop opens it.
+static void printerChipCb(lv_event_t* e) {
+  s_list_pending = true;
+}
+
+// The window's answers, from printerListTick() once it has closed. The page
+// was hidden for it and comes back in both, before anything else.
+static void amsvPrinterLeft() {
+  if (s_scr) lv_obj_clear_flag(s_scr, LV_OBJ_FLAG_HIDDEN);
+}
+
+// A printer was tapped, the current one included: that one asks for nothing.
+// Another goes through s_fetch_pending to fetchAndDraw() like every switch: that
+// path collects or makes up the weights of the printer before (startWeights()).
+static void amsvPrinterPicked(int id) {
+  if (s_scr) lv_obj_clear_flag(s_scr, LV_OBJ_FLAG_HIDDEN);
+  if (id == s_printer_id) return;
+  s_printer_id = id;
   prefsPutInt(AMSV_NVS_PRINTER, s_printer_id);
-  logSDf("AMSVIEW: switched to printer %d \"%s\"", s_printer_id,
-         s_printers->p[s_printer_idx].name);
+  const AmsPrinter* p = chosenPrinter();
+  logSDf("AMSVIEW: switched to printer %d \"%s\"", s_printer_id, p ? p->name : "");
   s_fetch_pending = true;
 }
 
@@ -910,9 +941,8 @@ static void buildScreen() {
     lv_obj_set_ext_click_area(s_printer_btn, AMSV_STATUS_EXT_CLICK);
     lv_obj_add_flag(s_printer_btn, LV_OBJ_FLAG_HIDDEN);
     // Attached once, here, and not where the text is written: a redraw runs
-    // that path again, and a second callback on the same object would step
-    // two printers per tap.
-    lv_obj_add_event_cb(s_printer_btn, nextPrinterCb, LV_EVENT_CLICKED, nullptr);
+    // that path again and would stack one callback on another per draw.
+    lv_obj_add_event_cb(s_printer_btn, printerChipCb, LV_EVENT_CLICKED, nullptr);
     s_printer_lbl = lv_label_create(s_printer_btn);
     if (s_printer_lbl) {
       lv_label_set_text(s_printer_lbl, "");
@@ -1046,11 +1076,10 @@ static void fetchAndDraw() {
     // removed silently falls back to the first rather than showing an error
     // about a machine the user has already forgotten about.
     const int stored = prefsGetInt(AMSV_NVS_PRINTER, 0);
-    s_printer_idx = 0;
+    s_printer_id = s_printers->p[0].id;
     for (uint8_t i = 0; i < s_printers->count; i++) {
-      if (s_printers->p[i].id == stored) { s_printer_idx = i; break; }
+      if (s_printers->p[i].id == stored) { s_printer_id = stored; break; }
     }
-    s_printer_id = s_printers->p[s_printer_idx].id;
   }
 
   int code = backendGetAmsState(s_printer_id, s_state, 8000);
@@ -1139,10 +1168,10 @@ static void fetchAndDraw() {
     }
 
     // With two or more printers the name is the switch, and looks like one:
-    // the same chip as "reload", holding "2/3  P1S" so it also says where in
-    // the list the next tap goes. The status stands beside it in plain text.
-    // On one printer there is nothing to step through, so the line is text
-    // only - a chip that does nothing would be a promise the page cannot keep.
+    // the same chip as "reload", the name with an arrow down, and a tap opens
+    // the window "Choose printer". The status stands beside it in plain text.
+    // On one printer there is nothing to choose, so the line is text only -
+    // a chip that does nothing would be a promise the page cannot keep.
     const bool switchable = (s_printers->count > 1);
     if (switchable && s_printer_btn && s_printer_lbl && s_status) {
       showPrinterChip(s_state.printer);
@@ -1428,6 +1457,10 @@ void handleAmsViewDeferredActions() {
     return;
   }
 
+  // The window "Choose printer": its search and its parked tap. Its answer
+  // (amsvPrinterPicked/-Left) comes once it has closed; a switch is fetched below.
+  printerListTick();
+
   // Last, and a pass after the close: this is the one that talks to the
   // server. The callback sees (-1, -1) when the page was closed without an
   // answer, and it is the callback that knows what that means for its note.
@@ -1479,11 +1512,25 @@ void handleAmsViewDeferredActions() {
     return;
   }
 
+  // The chip asked for the window. Behind the fetch, so a reload tapped in the
+  // same pass is drawn first. The page is hidden under the window, not freed:
+  // a question and its Cancel stand, and tickPickCountdown() restarts the clock
+  // while the page is hidden, so the question cannot run out behind the window.
+  if (s_list_pending) {
+    s_list_pending = false;
+    if (s_scr && !lv_obj_has_flag(s_scr, LV_OBJ_FLAG_HIDDEN) &&
+        s_printers && s_printers->count > 1) {
+      lv_obj_add_flag(s_scr, LV_OBJ_FLAG_HIDDEN);
+      showPrinterList(s_printers, s_printer_id, amsvPrinterPicked, amsvPrinterLeft);
+    }
+    return;
+  }
+
   if (tickPickCountdown()) return;
 
   // The weights that came in behind the first frame. Redrawn only with the
-  // page really in front: rebuilding the tiles under an open detail card
-  // would hold two sets of them in the pool at once for nothing.
+  // page really in front: rebuilding the tiles under an open detail card or
+  // the window "Choose printer" would hold two sets in the pool for nothing.
   collectWeights();
   // The start a switch could not make because the task was busy (startWeights()),
   // made up behind the fetch branch, so for a printer that is drawn. The flag is
@@ -1494,7 +1541,7 @@ void handleAmsViewDeferredActions() {
       logSDf("AMSWEIGHTS: start for printer %d made up after a busy task", s_printer_id);
     }
   }
-  if (s_weights_redraw && !isAmsDetailPopupOpen()) {
+  if (s_weights_redraw && !isAmsDetailPopupOpen() && !isPrinterListOpen()) {
     s_weights_redraw = false;
     if (s_scr) layoutGrid(s_state);
   }
