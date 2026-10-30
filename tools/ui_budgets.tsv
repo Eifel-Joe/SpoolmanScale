@@ -170,6 +170,21 @@ STR_AMSD_DRIED_Q	20	360	NEVER	src/ui/ams_detail_popup.cpp:198 360 px wrapped que
 # gate keeps French from ever being wider than the German, 154 px.
 STR_AMSD_WRITE_FAIL	12	154	NEVER	src/ui/ams_detail_popup.cpp:815 caption at the right of the note line, German 154 px
 
+# --- Klipper printers in the AMS view ------------------------------------------
+# "Bobine active" is wider than "Aktive Spule" and "Active spool" at every size,
+# so each place that draws it has its real width. One row per widget: the unit
+# header (f12, x=8, a Klipper unit has no climate text on its right, so the row
+# is free up to AMSV_MARGIN_R), unitName() (the same word, f12) and the bay's
+# name, which is the card's title (f16, ams_detail_popup.cpp:561, 464 - 2 x
+# (10 + 44 + 10) = 336 px with no status chip, and FilaMan alone has one).
+STR_AMSV_UNIT_KL_ACTIVE	12	456	NEVER	src/ui/ams_view.cpp:560 unit header title at x=8, nothing to its right, 480 - 8 - 16
+STR_AMSV_UNIT_KL_ACTIVE	12	456	NEVER	src/ui/ams_view.cpp:1175 unitName(), the unit header's word
+STR_AMSV_UNIT_KL_ACTIVE	16	336	NEVER	src/ui/ams_view.cpp:1193 bayName(), the card's title (ams_detail_popup.cpp:561) between the two mirrored 64 px margins
+# Behind the printer's state in the status line, one line that ends in dots
+# (LV_LABEL_LONG_DOT, ams_view.cpp:1102): not gated, the line is cut with dots
+# for a long printer name. 456 is the whole row without the printer chip.
+STR_AMSV_KL_FIRST16	16	456	DOT	src/ui/ams_view.cpp:1102 behind the state in the status line, 480 - 8 - 16
+
 # --- captions that used to be literals ----------------------------------------
 # German and English still show the literal they had; the budgets guard the
 # French. Info rows: label at INFO_ROW_LABEL_X 28, value at 172, -8 air.

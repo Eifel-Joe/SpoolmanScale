@@ -8,7 +8,9 @@
 #include "services/backend_api.h"
 #include "services/backend_job_rules.h"
 #include "services/dried_batch.h"
+#include "services/klipper_printers.h"
 #include "services/spool_detail.h"
+#include "services/text_util.h"
 
 // The numbers the other workers run with, and for the same reasons. The heap
 // floor for the stack is not a number here: 50000 at https, 40000 at http
@@ -32,19 +34,30 @@ static LogGate                  s_create_gate;
 
 static void amsWeightsTask(void* arg) {
   (void)arg;
-  // One request for the whole printer: which spool sits in which bay.
   AmsSlotSpool assigned[AMS_WEIGHTS_MAX];
   uint8_t assigned_count = 0;
-  const int code = backendFindPrinterSpools(s_res.printer_id, assigned,
-                                            AMS_WEIGHTS_MAX, &assigned_count,
-                                            AMS_WEIGHTS_TIMEOUT_MS);
-  if (code != 200) {
-    logSDf("AMSWEIGHTS: assignments of printer %d not read, HTTP %d",
-           s_res.printer_id, code);
-    __sync_synchronize();
-    s_state = AWS_DONE;
-    vTaskDelete(NULL);
-    return;
+  if (klipperIsPrinterId(s_res.printer_id)) {
+    // A Klipper printer names the spool of every field in its own answer, which
+    // amsWeightsStart() took the bays from; Bambuddy's assignment list knows
+    // nothing of it and is not asked with a Klipper number.
+    for (uint8_t i = 0; i < s_bay_count; i++) {
+      assigned[i] = s_bay[i];
+      assigned[i].grams = AMS_REMAIN_NA;
+    }
+    assigned_count = s_bay_count;
+  } else {
+    // One request for the whole printer: which spool sits in which bay.
+    const int code = backendFindPrinterSpools(s_res.printer_id, assigned,
+                                              AMS_WEIGHTS_MAX, &assigned_count,
+                                              AMS_WEIGHTS_TIMEOUT_MS);
+    if (code != 200) {
+      logSDf("AMSWEIGHTS: assignments of printer %d not read, HTTP %d",
+             s_res.printer_id, code);
+      __sync_synchronize();
+      s_state = AWS_DONE;
+      vTaskDelete(NULL);
+      return;
+    }
   }
 
   // Then the record behind each bay. Only the bays the view asked about, so
@@ -61,6 +74,7 @@ static void amsWeightsTask(void* arg) {
     }
     if (spool_id <= 0) continue;
 
+    AmsWeightItem& out = s_res.item[s_res.count];
     // Only where the list did not bring the weight along: that is the mode
     // that keeps the inventory on a Spoolman server, where an assignment is
     // an id and nothing more.
@@ -69,15 +83,20 @@ static void amsWeightsTask(void* arg) {
       det.remaining_g = SD_WEIGHT_NA;
       det.total_g     = SD_WEIGHT_NA;
       const int detail_code = backendGetSpoolDetail(spool_id, det, AMS_WEIGHTS_TIMEOUT_MS);
-      if (detail_code == 200 && det.found && det.remaining_g >= 0.0f) {
-        // Held as grams, like the AMS answer's own figure. A spool heavier
-        // than the field can hold is left unknown rather than wrapped.
-        const long g = lroundf(det.remaining_g);
-        if (g >= 0 && g <= INT16_MAX) grams = (int16_t)g;
+      if (detail_code == 200 && det.found) {
+        if (det.remaining_g >= 0.0f) {
+          // Held as grams, like the AMS answer's own figure. A spool heavier
+          // than the field can hold is left unknown rather than wrapped.
+          const long g = lroundf(det.remaining_g);
+          if (g >= 0 && g <= INT16_MAX) grams = (int16_t)g;
+        }
+        // The record's colour and material go along; the view decides whether
+        // the bay needs them (applyWeights()).
+        out.color = det.color;
+        utf8Cut(det.material, sizeof(out.name) - 1, out.name, sizeof(out.name));
       }
     }
 
-    AmsWeightItem& out = s_res.item[s_res.count];
     out.ams_id  = s_bay[i].ams_id;
     out.tray_id = s_bay[i].tray_id;
     out.grams   = grams;
@@ -100,8 +119,9 @@ bool amsWeightsStart(int printer_id, const AmsSlotState& st) {
   // the drying batch is the one the user is waiting for.
   if (driedBatchBusy()) return false;
   // BamBuddy's assignment list is where the grams live. An AMS source sends
-  // them in its own answer, and FilaMan has no list to read.
-  if (!backendIsBamBuddy() || !backendCanAssignAmsSlot()) return false;
+  // them in its own answer, and FilaMan has no list to read. A Klipper printer
+  // names its spools itself and the record gives the grams, in either mode.
+  if (!klipperIsPrinterId(printer_id) && (!backendIsBamBuddy() || !backendCanAssignAmsSlot())) return false;
 
   s_bay_count = 0;
   for (uint8_t u = 0; u < st.unit_count && s_bay_count < AMS_WEIGHTS_MAX; u++) {
@@ -138,7 +158,10 @@ bool amsWeightsStart(int printer_id, const AmsSlotState& st) {
     return false;
   }
 
-  s_res = AmsWeightsResult{};
+  // memset, not "= AmsWeightsResult{}": the result is about 600 bytes since
+  // the items carry a colour and a name, and a temporary of that size does not
+  // belong on the loop task's stack.
+  memset(&s_res, 0, sizeof(s_res));
   s_res.printer_id = printer_id;
 
   s_state = AWS_RUNNING;

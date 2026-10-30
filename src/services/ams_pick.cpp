@@ -8,6 +8,7 @@
 #include "services/auto_weight_state.h"
 #include "services/backend.h"
 #include "services/backend_api.h"
+#include "services/klipper_printers.h"
 #include "services/server_reach.h"
 #include "services/location_state.h"
 #include "services/user_options.h"
@@ -136,9 +137,31 @@ static void setAmsLocation(int spool_id, int ams_id) {
   }
 }
 
-// What an AMS source's answer means to the user. The contract names these
-// codes; BamBuddy's own answers keep the one message they always had.
-static int assignFailText(int code) {
+// What a refused or failed assignment says. A Klipper printer is told by its
+// own codes (klipper_rules.h), then by the ones Moonraker and the transport
+// give; they come first, before the test of the backend's mode below: a
+// Klipper printer is assigned in Bambuddy's mode as well as in Spoolman's, and
+// its codes mean nothing to either. Then what an AMS source's answer means: the
+// contract names these codes; BamBuddy's own answers keep the one message they
+// always had.
+static int assignFailText(int code, bool klipper) {
+  if (klipper) {
+    switch (code) {
+      case KL_E_NOT_HELD:       return STR_AMSV_KL_NOT_HELD;
+      case KL_E_OTHER_SPOOLMAN: return STR_AMSV_KL_OTHER_SM;
+      case KL_E_NOT_TESTED:     return STR_AMSV_KL_NOT_TESTED;
+      case 401:
+      case 403:                 return STR_AMSV_KL_ACCESS;
+      case KL_E_NO_FIELD:
+      case KL_E_NO_PRINTER:     return STR_AMSV_ASSIGN_FAIL;
+      default: break;
+    }
+    // No transport (-1, -2 and the other client codes, KL_E_PARSE among them:
+    // an answer that cannot be read is no answer), a timeout, or Klipper not
+    // ready behind a Moonraker that does answer.
+    if (code <= 0 || code == 408 || code == 503 || code == 504) return STR_AMSV_KL_NO_ANSWER;
+    return STR_AMSV_ASSIGN_FAIL;
+  }
   if (backendMode() != BACKEND_SPOOLMAN) return STR_AMSV_ASSIGN_FAIL;
   switch (code) {
     case 403: return STR_AMSV_ERR_READONLY;
@@ -185,20 +208,33 @@ static void onPicked(int ams_id, int tray_id) {
     return;
   }
 
+  // A Klipper printer: its spool numbers are Spoolman's, its bays are fields of
+  // the printer, and what it answers is not a verdict on Bambuddy or Spoolman.
+  const bool klipper = klipperIsPrinterId(printer_id);
+
   // Where it sits now, so the result can say "moved" rather than "assigned"
   // when it was already somewhere. A failure here is not fatal: it only
-  // costs the nicer wording.
+  // costs the nicer wording. Not for a Klipper printer: Bambuddy's assignment
+  // list knows nothing of it, and the wording stays "assigned".
   int was_ams = -1, was_tray = -1;
-  backendFindSpoolSlot(spool_id, printer_id, &was_ams, &was_tray, 6000);
+  if (!klipper) backendFindSpoolSlot(spool_id, printer_id, &was_ams, &was_tray, 6000);
 
-  const int code = serverReachNote(backendAssignAmsSlot(spool_id, printer_id, ams_id, tray_id, 8000), true);
+  int code = backendAssignAmsSlot(spool_id, printer_id, ams_id, tray_id, 8000);
+  // Root: serverReachNote() marks Bambuddy or Spoolman as down for -1, -11 or
+  // 503, which a Klipper printer that is switched off answers just the same;
+  // the banner would blame two servers that are fine (R27, test_ams_klipper.py).
+  // NOT-TO-DO: noting it and taking the banner back later.
+  if (!klipper) code = serverReachNote(code, true);
   amsPickDropPending();
 
   if (code == 200) {
     const bool moved = (was_ams >= 0 && (was_ams != ams_id || was_tray != tray_id));
     logSDf("AMSPICK: spool %d -> printer %d bay %d/%d (%s)",
            spool_id, printer_id, ams_id, tray_id, moved ? "moved" : "new");
-    setAmsLocation(spool_id, ams_id);
+    // klipperAssign() sets the location itself (the printer's name, when the
+    // setting is on and Happy Hare does not write it): a second write here
+    // would put the AMS source's "<printer> AMS 1" over it.
+    if (!klipper) setAmsLocation(spool_id, ams_id);
     showInfoPopup(STR_AMSV_TITLE, moved ? STR_AMSV_MOVED : STR_AMSV_ASSIGNED,
                   INFO_DONE);
     // A spool going into the printer does not also need the storage location
@@ -209,7 +245,7 @@ static void onPicked(int ams_id, int tray_id) {
     // string ids so the handler can still read them after the caller's
     // buffers are gone, and a number cannot ride along in one.
     logSDf("AMSPICK: assignment of spool %d failed, HTTP %d", spool_id, code);
-    showInfoPopup(STR_AMSV_TITLE, assignFailText(code), INFO_WARN);
+    showInfoPopup(STR_AMSV_TITLE, assignFailText(code, klipper), INFO_WARN);
   }
 }
 

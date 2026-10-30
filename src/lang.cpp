@@ -4699,6 +4699,28 @@ const char* const STRINGS[][3] = {
   { "mehr als 16 Felder - die ersten 16",
     "more than 16 fields - the first 16",
     "plus de 16 champs - les 16 premiers" },  // STR_W_KL_N_TRUNC
+  // The Klipper printers in the AMS view and the bay picker (ui/ams_view.cpp, services/ams_pick.cpp)
+  { "Aktive Spule",
+    "Active spool",
+    "Bobine active" },  // STR_AMSV_UNIT_KL_ACTIVE
+  { "nur die ersten 16 Felder",
+    "first 16 fields only",
+    "16 premiers champs" },  // STR_AMSV_KL_FIRST16
+  { "Drucker hat die Spule nicht übernommen",
+    "The printer did not take the spool",
+    "L'imprimante n'a pas pris la bobine" },  // STR_AMSV_KL_NOT_HELD
+  { "Anderer Spoolman - Zuordnen gesperrt",
+    "Another Spoolman - assigning blocked",
+    "Autre Spoolman - affectation bloquée" },  // STR_AMSV_KL_OTHER_SM
+  { "Erst die Verbindung testen (Weboberfläche, Klipper)",
+    "Test the connection first (web interface, Klipper)",
+    "Testez d'abord la connexion (interface web, Klipper)" },  // STR_AMSV_KL_NOT_TESTED
+  { "Keine Antwort - bitte am Drucker prüfen",
+    "No answer - please check the printer",
+    "Pas de réponse - vérifiez l'imprimante" },  // STR_AMSV_KL_NO_ANSWER
+  { "Zugang verweigert",
+    "Access denied",
+    "Accès refusé" },  // STR_AMSV_KL_ACCESS
 };
 
 StringID tagWriteResultString(uint8_t code) {

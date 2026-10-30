@@ -2124,6 +2124,15 @@ enum StringID {
   STR_W_KL_N_NOVAR,           // hint: tool macros without a spool_id variable
   STR_W_KL_N_TRUNC,           // hint: more fields than the scale shows
 
+  // The Klipper printers in the AMS view and the bay picker (ui/ams_view.cpp, services/ams_pick.cpp)
+  STR_AMSV_UNIT_KL_ACTIVE,    // the unit and the bay of a printer with only its one active spool
+  STR_AMSV_KL_FIRST16,        // the status line: the printer has more fields than the scale shows
+  STR_AMSV_KL_NOT_HELD,       // an assignment: the commands ran, the printer does not hold the spool
+  STR_AMSV_KL_OTHER_SM,       // an assignment: the printer talks to another Spoolman
+  STR_AMSV_KL_NOT_TESTED,     // an assignment: the connection test never ran
+  STR_AMSV_KL_NO_ANSWER,      // an assignment: the printer gave no answer
+  STR_AMSV_KL_ACCESS,         // an assignment: Moonraker turned the scale down (401, 403)
+
   STR_COUNT
 };
 

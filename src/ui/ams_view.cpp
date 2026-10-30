@@ -1,7 +1,9 @@
 #include "ams_view.h"
 
 #include <Arduino.h>
+#include <esp_heap_caps.h>
 #include <lvgl.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "app_config.h"
@@ -11,6 +13,7 @@
 #include "services/ams_weights.h"
 #include "services/backend_api.h"
 #include "services/http_progress.h"
+#include "services/klipper_printers.h"
 #include "services/server_reach.h"
 #include "services/prefs_store.h"
 #include "ui/ams_detail_popup.h"
@@ -127,7 +130,11 @@ static bool s_weights_redraw = false;
 static bool s_close_pending = false;
 // The printers, fetched once and kept: their names are what the status line
 // shows, and asking again on every redraw would double the cost of a reload.
-static AmsPrinterList s_printers;
+// In the PSRAM: the list holds AMS_MAX_PRINTERS (64) printers, the Bambu ones
+// and the stored Klipper printers together, about 2.3 kB that the internal RAM
+// (BSS) should not carry for a page that is open now and then. Made on the
+// first opening and never freed, so the pointer never dangles.
+static AmsPrinterList* s_printers = nullptr;
 static uint8_t s_printer_idx = 0;
 static bool s_pick_pending  = false;
 static int  s_pick_ams      = -1;
@@ -177,7 +184,12 @@ void requestAmsView(AmsViewMode mode, AmsPickCb cb, const char* headline) {
   // backend switch, a renamed printer or a removed one can never leave a
   // stale name on the line - this screen is opened rarely enough that the
   // trade is not close.
-  s_printers.count = 0;
+  if (!s_printers) {
+    void* mem = heap_caps_calloc(1, sizeof(AmsPrinterList), MALLOC_CAP_SPIRAM);
+    if (!mem) mem = calloc(1, sizeof(AmsPrinterList));   // no PSRAM on this board, or it is full
+    s_printers = static_cast<AmsPrinterList*>(mem);
+  }
+  if (s_printers) s_printers->count = 0;
   // A fresh question. An answer parked by an earlier page must not be handed
   // to this one's callback.
   s_pick_pending = false;
@@ -268,7 +280,7 @@ void destroyAmsView() {
 // Keyed on the printer count rather than on the chip's visibility, so a
 // reload - which lays the row plain while it loads - does not bounce the
 // grid up and down by eight pixels every time.
-static int rowDrop() { return (s_printers.count > 1) ? AMSV_CHIP_AIR : 0; }
+static int rowDrop() { return (s_printers && s_printers->count > 1) ? AMSV_CHIP_AIR : 0; }
 
 static void applyRowDrop() {
   const int drop   = rowDrop();
@@ -282,8 +294,48 @@ static void applyRowDrop() {
   }
 }
 
-static void statusRowPlain() {
+// The printer chip: "2/3  Name" at the left of the row, sized to the name, and
+// the status label to its right. Shared by the drawn state and by a message
+// that keeps the chip (statusRowPlain); the caller sets the status text. The
+// callback of the chip is attached once, in buildScreen().
+static void showPrinterChip(const char* printer) {
   applyRowDrop();
+  char fmt[12], n[12], name[48];
+  copyT(fmt, sizeof(fmt), STR_AMSV_PRN_OF);
+  snprintf(n, sizeof(n), fmt, (int)s_printer_idx + 1, (int)s_printers->count);
+  snprintf(name, sizeof(name), "%s  %s", n, printer);
+  lv_label_set_text(s_printer_lbl, name);
+  // Sized to the name. A name of the user's choosing can be long; the chip
+  // stops where the status would have no room left, and the label inside
+  // cuts with dots.
+  lv_coord_t w = lv_txt_get_width(name, (uint32_t)strlen(name), UI_FONT_BODY,
+                                  0, LV_TEXT_FLAG_NONE) + 2 * AMSV_CHIP_PAD_X;
+  const lv_coord_t w_max = AMSV_STATUS_W - AMSV_CHIP_GAP - AMSV_STATUS_MIN_W;
+  if (w > w_max) w = w_max;
+  lv_obj_set_width(s_printer_btn, w);
+  lv_obj_set_size(s_printer_lbl, w - 2 * AMSV_CHIP_PAD_X + AMSV_CHIP_TXT_SLACK,
+                  lv_font_get_line_height(UI_FONT_BODY));
+  lv_obj_clear_flag(s_printer_btn, LV_OBJ_FLAG_HIDDEN);
+
+  const int x = AMSV_MARGIN + w + AMSV_CHIP_GAP;
+  lv_obj_set_x(s_status, x);
+  lv_obj_set_width(s_status, 480 - AMSV_MARGIN_R - x);
+}
+
+// keep_chip: a message that does not mean the printer is gone (no connection,
+// no AMS, a failed fetch) leaves the chip where it is, with the name of the
+// printer that was chosen: it is the way to the next printer. A printer that
+// does not answer must not hold the page on itself. Only with several
+// printers, since on one the chip does not exist.
+static void statusRowPlain(bool keep_chip) {
+  applyRowDrop();
+  if (keep_chip && s_printer_btn && s_printer_lbl && s_status && s_printers &&
+      s_printer_idx < s_printers->count) {
+    // The name from the list, not from s_state: after a failed fetch that holds
+    // the previous printer, or nothing.
+    showPrinterChip(s_printers->p[s_printer_idx].name);
+    return;
+  }
   if (s_printer_btn) lv_obj_add_flag(s_printer_btn, LV_OBJ_FLAG_HIDDEN);
   if (s_status) {
     lv_obj_set_x(s_status, AMSV_MARGIN);
@@ -291,19 +343,19 @@ static void statusRowPlain() {
   }
 }
 
-static void setStatus(const char* text) {
+static void setStatus(const char* text, bool keep_chip = false) {
   if (!s_status) return;
-  statusRowPlain();
-  char buf[64];
+  statusRowPlain(keep_chip);
+  char buf[96];
   strncpy(buf, text ? text : "", sizeof(buf) - 1);
   buf[sizeof(buf) - 1] = '\0';
   lv_label_set_text(s_status, buf);
   lv_obj_clear_flag(s_status, LV_OBJ_FLAG_HIDDEN);
 }
 
-static void setStatusFmt(int str_id, int value) {
+static void setStatusFmt(int str_id, int value, bool keep_chip = false) {
   if (!s_status) return;
-  statusRowPlain();
+  statusRowPlain(keep_chip);
   char fmt[48], buf[64];
   copyT(fmt, sizeof(fmt), str_id);
   snprintf(buf, sizeof(buf), fmt, value);
@@ -504,6 +556,8 @@ static void buildUnitHeader(lv_obj_t* parent, const AmsSlotUnit& unit,
   if (unit.label[0]) {
     strncpy(title, unit.label, sizeof(title) - 1);
     title[sizeof(title) - 1] = '\0';
+  } else if (unit.model == AMS_MODEL_KLIPPER) {
+    copyT(title, sizeof(title), STR_AMSV_UNIT_KL_ACTIVE);   // the one active spool
   } else if (unit.is_ext) {
     copyT(title, sizeof(title), STR_AMSV_UNIT_EXT);
   } else {
@@ -758,12 +812,12 @@ static void reloadCb(lv_event_t* e) {
 // Steps to the next printer. Only reachable when there is more than one, so
 // there is no wrap-around to explain on a single printer setup.
 static void nextPrinterCb(lv_event_t* e) {
-  if (s_printers.count < 2 || s_fetch_pending) return;
-  s_printer_idx = (uint8_t)((s_printer_idx + 1) % s_printers.count);
-  s_printer_id  = s_printers.p[s_printer_idx].id;
+  if (s_printers->count < 2 || s_fetch_pending) return;
+  s_printer_idx = (uint8_t)((s_printer_idx + 1) % s_printers->count);
+  s_printer_id  = s_printers->p[s_printer_idx].id;
   prefsPutInt(AMSV_NVS_PRINTER, s_printer_id);
   logSDf("AMSVIEW: switched to printer %d \"%s\"", s_printer_id,
-         s_printers.p[s_printer_idx].name);
+         s_printers->p[s_printer_idx].name);
   s_fetch_pending = true;
 }
 
@@ -943,19 +997,27 @@ static void fetchAndDraw() {
   }
   if (!s_scr) return;
 
-  if (!wifi_ok) {
-    setStatus(T(STR_AMSV_ERR_NET));
+  // The list could not be made (no PSRAM, and the internal heap is full).
+  if (!s_printers) {
+    setStatus(T(STR_AMSV_ERR_FULL));
     return;
   }
 
-  if (s_printers.count == 0) {
-    int code = serverReachNote(backendListPrinters(s_printers, 8000), true);
+  // The messages below keep the printer chip where there are several printers:
+  // a Klipper printer that is switched off must not hold the page on itself.
+  if (!wifi_ok) {
+    setStatus(T(STR_AMSV_ERR_NET), s_printers->count > 1);
+    return;
+  }
+
+  if (s_printers->count == 0) {
+    int code = serverReachNote(backendListPrinters(*s_printers, 8000), true);
     if (!s_scr) return;
     if (code != 200) {
-      setStatusFmt(STR_AMSV_ERR_HTTP, code);
+      setStatusFmt(STR_AMSV_ERR_HTTP, code, s_printers->count > 1);
       return;
     }
-    if (s_printers.count == 0) {
+    if (s_printers->count == 0) {
       setStatus(T(STR_AMSV_NO_PRINTER));
       return;
     }
@@ -965,16 +1027,24 @@ static void fetchAndDraw() {
     // about a machine the user has already forgotten about.
     const int stored = prefsGetInt(AMSV_NVS_PRINTER, 0);
     s_printer_idx = 0;
-    for (uint8_t i = 0; i < s_printers.count; i++) {
-      if (s_printers.p[i].id == stored) { s_printer_idx = i; break; }
+    for (uint8_t i = 0; i < s_printers->count; i++) {
+      if (s_printers->p[i].id == stored) { s_printer_idx = i; break; }
     }
-    s_printer_id = s_printers.p[s_printer_idx].id;
+    s_printer_id = s_printers->p[s_printer_idx].id;
   }
 
-  int code = serverReachNote(backendGetAmsState(s_printer_id, s_state, 8000), true);
+  int code = backendGetAmsState(s_printer_id, s_state, 8000);
+  // Root: serverReachNote() marks Bambuddy or Spoolman as down for -1, -11 or
+  // 503. A Klipper printer that is switched off answers exactly that, and it
+  // has nothing to do with those servers: the "no connection" banner would
+  // blame them for a Voron that is simply off.
+  // Fix: the answer of a Klipper printer is not noted.
+  // NOT-TO-DO: noting it and filtering the banner later; the server would
+  // already be marked unreachable by then (R27, see test_ams_klipper.py).
+  if (!klipperIsPrinterId(s_printer_id)) code = serverReachNote(code, true);
   if (!s_scr) return;
   if (code != 200) {
-    setStatusFmt(STR_AMSV_ERR_HTTP, code);
+    setStatusFmt(STR_AMSV_ERR_HTTP, code, s_printers->count > 1);
     return;
   }
 
@@ -983,7 +1053,7 @@ static void fetchAndDraw() {
   if (s_body) lv_obj_clean(s_body);
 
   if (s_state.unit_count == 0) {
-    setStatus(T(STR_AMSV_NO_AMS));
+    setStatus(T(STR_AMSV_NO_AMS), s_printers->count > 1);
     return;
   }
 
@@ -993,7 +1063,7 @@ static void fetchAndDraw() {
   {
     // What the printer is doing, without its name: offline, a job, a state,
     // or nothing at all.
-    char what[48] = "";
+    char what[64] = "";
     const PrinterActivity act = printerActivity(s_state.state);
     if (!s_state.connected) {
       // An offline printer still has a last known state worth showing, so
@@ -1025,38 +1095,27 @@ static void fetchAndDraw() {
       snprintf(what, sizeof(what), "%s", s_state.state);
     }
 
+    // A Klipper printer with more fields than the scale shows (KL_FIELDS_MAX):
+    // the grid is cut, and the line says so behind the state.
+    if (klipperIsPrinterId(s_printer_id) && klipperTruncated(s_printer_id)) {
+      char note[32];
+      copyT(note, sizeof(note), STR_AMSV_KL_FIRST16);
+      if (what[0]) strncat(what, " - ", sizeof(what) - strlen(what) - 1);
+      strncat(what, note, sizeof(what) - strlen(what) - 1);
+    }
+
     // With two or more printers the name is the switch, and looks like one:
     // the same chip as "reload", holding "2/3  P1S" so it also says where in
     // the list the next tap goes. The status stands beside it in plain text.
     // On one printer there is nothing to step through, so the line is text
     // only - a chip that does nothing would be a promise the page cannot keep.
-    const bool switchable = (s_printers.count > 1);
+    const bool switchable = (s_printers->count > 1);
     if (switchable && s_printer_btn && s_printer_lbl && s_status) {
-      applyRowDrop();
-      char fmt[12], n[12], name[48];
-      copyT(fmt, sizeof(fmt), STR_AMSV_PRN_OF);
-      snprintf(n, sizeof(n), fmt, (int)s_printer_idx + 1, (int)s_printers.count);
-      snprintf(name, sizeof(name), "%s  %s", n, s_state.printer);
-      lv_label_set_text(s_printer_lbl, name);
-      // Sized to the name. A name of the user's choosing can be long; the chip
-      // stops where the status would have no room left, and the label inside
-      // cuts with dots.
-      lv_coord_t w = lv_txt_get_width(name, (uint32_t)strlen(name), UI_FONT_BODY,
-                                      0, LV_TEXT_FLAG_NONE) + 2 * AMSV_CHIP_PAD_X;
-      const lv_coord_t w_max = AMSV_STATUS_W - AMSV_CHIP_GAP - AMSV_STATUS_MIN_W;
-      if (w > w_max) w = w_max;
-      lv_obj_set_width(s_printer_btn, w);
-      lv_obj_set_size(s_printer_lbl, w - 2 * AMSV_CHIP_PAD_X + AMSV_CHIP_TXT_SLACK,
-                      lv_font_get_line_height(UI_FONT_BODY));
-      lv_obj_clear_flag(s_printer_btn, LV_OBJ_FLAG_HIDDEN);
-
-      const int x = AMSV_MARGIN + w + AMSV_CHIP_GAP;
-      lv_obj_set_x(s_status, x);
-      lv_obj_set_width(s_status, 480 - AMSV_MARGIN_R - x);
+      showPrinterChip(s_state.printer);
       lv_label_set_text(s_status, what);
       lv_obj_clear_flag(s_status, LV_OBJ_FLAG_HIDDEN);
     } else {
-      char line[80];
+      char line[96];
       if (what[0]) snprintf(line, sizeof(line), "%s - %s", s_state.printer, what);
       else         snprintf(line, sizeof(line), "%s", s_state.printer);
       setStatus(line);
@@ -1078,16 +1137,28 @@ static bool applyWeights(const AmsWeightsResult& r) {
   if (r.printer_id != s_printer_id) return false;   // the user switched printers
   bool changed = false;
   for (uint8_t i = 0; i < r.count; i++) {
-    if (r.item[i].grams < 0) continue;
+    const AmsWeightItem& it = r.item[i];
     for (uint8_t u = 0; u < s_state.unit_count; u++) {
       AmsSlotUnit& unit = s_state.unit[u];
-      if (unit.ams_id != r.item[i].ams_id) continue;
+      if (unit.ams_id != it.ams_id) continue;
       for (uint8_t t = 0; t < unit.tray_count; t++) {
         AmsSlotTray& tray = unit.tray[t];
-        if (tray.tray_id != r.item[i].tray_id || !tray.exists) continue;
-        if (tray.remain_g == r.item[i].grams) continue;
-        tray.remain_g = r.item[i].grams;
-        changed = true;
+        if (tray.tray_id != it.tray_id || !tray.exists) continue;
+        if (it.grams >= 0 && tray.remain_g != it.grams) {
+          tray.remain_g = it.grams;
+          changed = true;
+        }
+        // Colour and material only where the bay has none: what the printer
+        // reports (a tag, Happy Hare, AFC) stays, the spool's record fills the
+        // gap (a Klipper tool or the one active spool reports neither).
+        if (!tray.color.valid && it.color.valid) {
+          tray.color = it.color;
+          changed = true;
+        }
+        if (!tray.name[0] && it.name[0]) {
+          snprintf(tray.name, sizeof(tray.name), "%s", it.name);
+          changed = true;
+        }
       }
     }
   }
@@ -1100,6 +1171,8 @@ static bool applyWeights(const AmsWeightsResult& r) {
 static void unitName(const AmsSlotUnit& unit, char* out, size_t n) {
   if (unit.label[0]) {
     snprintf(out, n, "%s", unit.label);
+  } else if (unit.model == AMS_MODEL_KLIPPER) {
+    copyT(out, n, STR_AMSV_UNIT_KL_ACTIVE);   // the one active spool: no name from the printer
   } else if (unit.is_ext) {
     copyT(out, n, STR_AMSV_UNIT_EXT);
   } else {
@@ -1110,9 +1183,17 @@ static void unitName(const AmsSlotUnit& unit, char* out, size_t n) {
   }
 }
 
-// The bay's own name: the unit's, and the bay counted from one.
+// The bay's own name: the unit's, and the bay counted from one. A Klipper
+// field is called what the printer calls it ("MMU 3", a lane, "T1"); the one
+// active spool has no name of its own.
 static void bayName(const AmsSlotUnit& unit, const AmsSlotTray& tray,
                     char* out, size_t n) {
+  if (klipperIsPrinterId(s_printer_id)) {
+    if (!klipperFieldName(s_printer_id, unit.ams_id, tray.tray_id, out, n)) {
+      copyT(out, n, STR_AMSV_UNIT_KL_ACTIVE);
+    }
+    return;
+  }
   char unit_name[SD_UNIT_NAME_MAX];
   unitName(unit, unit_name, sizeof(unit_name));
 
@@ -1167,7 +1248,10 @@ static void openDetail(int ams_id, int tray_id) {
 
   // FilaMan names the spool per bay in the same answer the grid was drawn
   // from, so there is nothing to look up. BamBuddy does not, and its
-  // assignment list is the only place the pair is resolved.
+  // assignment list is the only place the pair is resolved. A Klipper field
+  // names its spool itself and has no Bambuddy assignment to look up: its
+  // number must not reach those calls.
+  const bool klipper = klipperIsPrinterId(s_printer_id);
   int spool_id = det.spool_id;
   if (amsUnitOffersDriedAll(*unit) && backendCanPatchLastDried()) {
     // An AMS 2 Pro: the card may offer to record a drying for the whole
@@ -1179,7 +1263,7 @@ static void openDetail(int ams_id, int tray_id) {
     for (uint8_t t = 0; t < unit->tray_count; t++) {
       if (unit->tray[t].exists && unit->tray[t].spool_id <= 0) need = true;
     }
-    if (need && s_printer_id > 0) {
+    if (need && s_printer_id > 0 && !klipper) {
       backendFindUnitSpools(s_printer_id, ams_id, by_tray, AMS_MAX_TRAYS);
     }
     for (uint8_t t = 0; t < unit->tray_count; t++) {
@@ -1202,7 +1286,7 @@ static void openDetail(int ams_id, int tray_id) {
     unitName(*unit, us.name, sizeof(us.name));
     us.printer_id = s_printer_id;
     us.ams_id     = (uint8_t)ams_id;
-  } else if (spool_id <= 0 && s_printer_id > 0) {
+  } else if (spool_id <= 0 && s_printer_id > 0 && !klipper) {
     int found = backendFindBaySpool(s_printer_id, ams_id, tray_id);
     if (found > 0) {
       spool_id = found;

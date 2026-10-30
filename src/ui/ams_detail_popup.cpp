@@ -17,6 +17,7 @@
 #include "services/server_reach.h"
 #include "services/dried_batch.h"
 #include "services/filaman_api.h"
+#include "services/klipper_printers.h"
 #include "services/time_service.h"
 #include "services/user_options.h"
 #include "services/wifi_manager.h"
@@ -425,9 +426,12 @@ static void driedCellCb(lv_event_t* e) {
 
 // Taking a spool out of the AMS: release the bay, then ask for a shelf. Only
 // where the backend can release a bay, and only for a bay with a spool on
-// file - an empty bay has nothing to take out.
+// file - an empty bay has nothing to take out. Never for a field of a Klipper
+// printer: the printer, or its web interface, takes a spool out (the scale only
+// puts one in), and backendCanTakeOutOfAms() answers for the backend, not for
+// the printer on the page.
 static bool canTakeOut(const AmsSpoolDetail& d) {
-  return canEdit(d) && backendCanTakeOutOfAms();
+  return canEdit(d) && backendCanTakeOutOfAms() && !klipperIsPrinterId(amsViewPrinterId());
 }
 
 static void locationCellCb(lv_event_t* e) {

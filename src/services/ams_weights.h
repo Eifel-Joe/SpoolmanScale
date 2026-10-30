@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 #include "services/ams_slots.h"
+#include "services/spool_color.h"
 
 // ============================================================
 //  AMS WEIGHTS
@@ -22,6 +23,13 @@
 //  grams in afterwards, on a task of its own: same shape as the
 //  drying batch, core 0, below the loop, one at a time. The loop
 //  takes the result and redraws.
+//
+//  A Klipper printer names the spool of each field itself, in its
+//  own answer, in both modes (Bambuddy's and Spoolman's): there is
+//  no assignment list to read, the spool's record gives the grams.
+//  The record also gives the colour and the material, which the
+//  loop takes into the fields that have none (the printer reports
+//  neither for a tool or for its one active spool).
 // ============================================================
 
 // Four units of four bays plus the external holder.
@@ -37,6 +45,10 @@ struct AmsWeightItem {
   int16_t grams;     // AMS_REMAIN_NA when the record has none
   uint8_t ams_id;
   uint8_t tray_id;
+  // The spool's record: invalid and empty when it was not read. The loop takes
+  // them only into a bay that has none of its own.
+  SpoolColor color;
+  char       name[AMS_NAME_MAX];   // the material
 };
 
 struct AmsWeightsResult {

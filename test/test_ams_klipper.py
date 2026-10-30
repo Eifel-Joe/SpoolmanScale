@@ -79,6 +79,18 @@ applied = ks.body_of(VIEW, "applyWeights")
 assert re.search(r"\bcolor\.valid\b", applied) and re.search(r"\bname\[0\]", applied), \
     f"src/{VIEW}: applyWeights() does not take colour and name only into the fields that have none"
 
+# R27: what a Klipper printer answers (-1, -11, 503 when it is switched off) is
+# no verdict on Bambuddy or Spoolman, so it never goes through serverReachNote():
+# the call that reads or assigns is not wrapped in it, and the note is skipped
+# for a Klipper number.
+for rel, name, wrapped in ((VIEW, "fetchAndDraw", "backendGetAmsState("), (PICK, "onPicked", "backendAssignAmsSlot(")):
+    body = ks.body_of(rel, name)
+    assert wrapped in body, f"src/{rel}: {name}() no longer calls {wrapped}"
+    for a, b in ks.call_spans(body, "serverReachNote"):
+        assert wrapped not in body[a:b], f"src/{rel}: {name}() hands {wrapped} to serverReachNote() for every printer"
+    assert re.search(r"if \(!\w*[kK]lipper\w*(?:\([^()]*\))?\) \w+ = serverReachNote\(", body), \
+        f"src/{rel}: {name}() notes the answer of a Klipper printer with serverReachNote() (R27)"
+
 # 2. The header: a printer of the Klipper kind is there without asking a network.
 presence = ks.source_of(PRESENCE)
 assert not re.search(r"\bAmsPrinterList\s+s_printers\b", ks.collapse(presence.code)), \

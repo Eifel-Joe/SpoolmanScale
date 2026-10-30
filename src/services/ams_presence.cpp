@@ -1,11 +1,14 @@
 #include "ams_presence.h"
 
 #include <Arduino.h>
+#include <esp_heap_caps.h>
+#include <stdlib.h>
 
 #include "app/app_state.h"
 #include "hardware/sd_logger.h"
 #include "services/ams_slots.h"
 #include "services/backend_api.h"
+#include "services/klipper_printers.h"
 #include "ui/ams_view.h"
 #include "ui/header_status.h"
 #include "ui/main_screen_helpers.h"
@@ -18,10 +21,30 @@ bool          s_has_ams    = false;
 int           s_printer_id = 0;
 unsigned long s_last_ms    = 0;
 
-// In BSS, not on the loop task's stack: together they are close to two
-// kilobytes, and ams_slots.h asks for exactly this.
-AmsPrinterList s_printers;
-AmsSlotState   s_state;
+// In BSS, not on the loop task's stack: it is close to two kilobytes, and
+// ams_slots.h asks for exactly this.
+AmsSlotState s_state;
+
+// Records an answer, and says whether it is the first one or differs from the
+// last (the header is repainted then, and the answer is logged).
+bool presenceChanged(bool has_unit) {
+  const bool changed = (!s_known || s_has_ams != has_unit);
+  s_known   = true;
+  s_has_ams = has_unit;
+  return changed;
+}
+
+// The answer lands about twenty seconds after boot, long after the header
+// was built and hid the chip for want of one, and nothing repaints that row
+// on a schedule: updateHeaderStatus() hangs on events - a reachability flip,
+// a way back from another screen - so the chip stayed away until one of them
+// happened to fire. Only on a change, so this is silent every five minutes.
+// Both functions test their own object pointers, and this runs on the loop
+// task, which is the one allowed to touch LVGL.
+void repaintHeader() {
+  updateAmsAffordance();
+  layoutHeaderChips();
+}
 
 }  // namespace
 
@@ -45,6 +68,21 @@ void amsPresenceTick() {
   // the touch panel for their whole timeout. The question comes first.
   if (uiModalWaiting()) return;
 
+  // Klipper printers stored on the scale: the AMS view has something to show
+  // for sure (every field of a printer is a bay), and no server has to be
+  // asked. The answer is given here, before any network call and without the
+  // timer below, so the chip is there as soon as the first printer is stored.
+  // The branch also keeps the lookup below away from a Klipper number: the
+  // list of printers can start with one when Bambuddy's list is missing, and
+  // backendGetAmsState() would send it to the wrong kind of server.
+  if (klipperHasPrinters()) {
+    if (presenceChanged(true)) {
+      logSD("AMS: Klipper printers are stored, so the AMS view is offered");
+      repaintHeader();
+    }
+    return;
+  }
+
   const unsigned long now = millis();
   if (s_last_ms == 0) {
     // First pass after boot or after a forget: ask AMS_PRESENCE_FIRST_MS from
@@ -60,12 +98,29 @@ void amsPresenceTick() {
   // removes a printer, not on a timer, and looking it up again every time
   // would double the cost of this check.
   if (s_printer_id <= 0) {
-    const int code = backendListPrinters(s_printers, 5000);
-    if (code != 200 || s_printers.count == 0) {
+    // The list of up to AMS_MAX_PRINTERS printers is made for this one lookup,
+    // in the PSRAM, and given back: five minutes apart, it is not worth the
+    // internal RAM it would occupy in between.
+    void* mem = heap_caps_calloc(1, sizeof(AmsPrinterList), MALLOC_CAP_SPIRAM);
+    if (!mem) mem = calloc(1, sizeof(AmsPrinterList));   // no PSRAM on this board, or it is full
+    AmsPrinterList* list = static_cast<AmsPrinterList*>(mem);
+    if (!list) {
+      logSD("[verbose] AMS: no memory for the list of printers");
+      return;
+    }
+    const int code = backendListPrinters(*list, 5000);
+    int first = 0;
+    for (uint8_t i = 0; code == 200 && i < list->count && first == 0; i++) {
+      // Never a Klipper number (klipperHasPrinters() was false above, but the
+      // answer is not allowed to depend on that staying so).
+      if (!klipperIsPrinterId(list->p[i].id)) first = list->p[i].id;
+    }
+    heap_caps_free(list);
+    if (first <= 0) {
       logSDf("[verbose] AMS: no printer to ask about (HTTP %d)", code);
       return;
     }
-    s_printer_id = s_printers.p[0].id;
+    s_printer_id = first;
   }
 
   AmsSlotState& st = s_state;
@@ -85,25 +140,10 @@ void amsPresenceTick() {
     if (!st.unit[u].is_ext) { has_unit = true; break; }
   }
 
-  const bool changed = (!s_known || s_has_ams != has_unit);
-
   // Logged on the first answer and on a change, not every five minutes.
-  if (changed) {
+  if (presenceChanged(has_unit)) {
     logSDf("AMS: printer %d %s an AMS", s_printer_id,
            has_unit ? "has" : "has no");
-  }
-  s_known   = true;
-  s_has_ams = has_unit;
-
-  // The answer lands about twenty seconds after boot, long after the header
-  // was built and hid the chip for want of one, and nothing repaints that row
-  // on a schedule: updateHeaderStatus() hangs on events - a reachability flip,
-  // a way back from another screen - so the chip stayed away until one of them
-  // happened to fire. Only on a change, so this is silent every five minutes.
-  // Both functions test their own object pointers, and this runs on the loop
-  // task, which is the one allowed to touch LVGL.
-  if (changed) {
-    updateAmsAffordance();
-    layoutHeaderChips();
+    repaintHeader();
   }
 }
