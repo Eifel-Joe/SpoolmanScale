@@ -149,6 +149,10 @@ jobs:
         run: python3 test/test_klipper_page.py
       - name: Test AMS Klipper
         run: python3 test/test_ams_klipper.py
+      - name: Test printer pick rules
+        run: python3 test/test_printer_pick_rules.py
+      - name: Test printer list
+        run: python3 test/test_printer_list.py
 
   build:
     name: Build ${{ matrix.env }}
