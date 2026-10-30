@@ -1,4 +1,4 @@
-"""Read the source tree without a compiler and check how the Klipper printers are wired into the AMS backend (services/moonraker_api.cpp, services/klipper_printers.cpp, services/backend_api.cpp): Moonraker is reached with plain http and the key in the header, with only the calls the design names and a POST of the active spool only with a spool; the commands for a printer are worded in one place; the printer list carries the Klipper printers even when Bambuddy does not answer; a Klipper number never reaches a call that is Bambuddy's or the AMS source's; and an assignment is refused for another Spoolman before any command, is read back, and is read back once more."""
+"""Read the source tree without a compiler and check how the Klipper printers are wired into the AMS backend (services/moonraker_api.cpp, services/klipper_printers.cpp, services/backend_api.cpp): Moonraker is reached with plain http and the key in the header, with only the calls the design names and a POST of the active spool only with a spool; the commands for a printer are worded in one place; the printer list carries the Klipper printers even when Bambuddy does not answer; a Klipper number never reaches a call that is Bambuddy's or the AMS source's; and an assignment is refused for another Spoolman before any command, is read back, and is read back once more; after it (V50, services/klipper_location.cpp) the spool's location becomes the printer's name directly in the scale's Spoolman, with the old location remembered in the extra field scale_prev_location, and the spool that stood in the field before gets its remembered location back."""
 import re
 
 import klipper_src as ks
@@ -8,8 +8,12 @@ API_H = "services/moonraker_api.h"
 PRINTERS = "services/klipper_printers.cpp"
 PRINTERS_H = "services/klipper_printers.h"
 BACKEND = "services/backend_api.cpp"
+LOCATION = "services/klipper_location.cpp"
+LOCATION_H = "services/klipper_location.h"
+LOC_RULES_H = "services/klipper_location_rules.h"
 
 ks.assert_ci_step("test_klipper_wiring.py")
+ks.assert_ci_step("test_klipper_location_rules.py")
 
 
 def first(body, pattern):
@@ -111,7 +115,7 @@ for name in fallback:
         f"src/{API}: {name}() does not handle the '@' of an address with a login"
 
 # The key is never written to the log, in any of the files that handle it.
-for rel in (API, PRINTERS):
+for rel in (API, PRINTERS, LOCATION):
     found, leaks = ks.log_leaks(rel)
     assert found >= 1, f"src/{rel}: no log call found, this check would pass on nothing"
     assert not leaks, f"src/{rel}: a log line carries a key: {leaks}"
@@ -141,7 +145,7 @@ for name in ("klipperAvailable", "klipperScaleSpoolman", "klipperIsPrinterId", "
 printers_code = ks.source_of(PRINTERS).code
 for call in re.findall(r"\bbb[A-Z]\w*(?=\s*\()", printers_code) + re.findall(r"\bbb[A-Z]\w*(?=\s*\()", api_code):
     assert call in ("bbInventoryMode", "bbSpoolmanUrl"), \
-        f"the Klipper files call {call}(): Bambuddy gets no new call, only the location through backendPatchSpoolLocation()"
+        f"the Klipper files call {call}(): Bambuddy gets no call, the location goes directly to the scale's Spoolman (V50)"
 
 b = ks.body_of(PRINTERS, "klipperAvailable")
 for token in ("bbInventoryMode", "BB_INV_SPOOLMAN", "bbSpoolmanUrl"):
@@ -219,22 +223,54 @@ if "1000" not in arg:
 assert re.search(r"\bmoonrakerFetchFacts\s*\(", between), f"{where}: the second read-back does not fetch the facts again"
 assert "KL_E_NOT_HELD" in b[holds[1]:], f"{where}: a field that does not hold the spool is not answered with KL_E_NOT_HELD"
 assert re.search(r"\b200\b", b[holds[0]:]), f"{where}: no 200 once the field holds the spool"
-# The location comes last and only into the log.
-loc = [pos for pos, _ in ks.calls(ks.body_of(PRINTERS, "klipperAssign", strings=True), "backendPatchSpoolLocation")]
-assert len(loc) == 1, f"{where}: backendPatchSpoolLocation() is not called exactly once"
-text = ks.body_of(PRINTERS, "klipperAssign", strings=True)
-patch_args = ks.calls(text, "backendPatchSpoolLocation")[0][1]
-assert patch_args[0] == "cfg_spoolman_base", f"{where}: the location is written to {patch_args[0]}, not to the scale's Spoolman (cfg_spoolman_base)"
-# The name comes from the printer's record or from klipperPrinterName(), in the
-# call or in what the function did before it.
-assert re.search(r"\bklipperPrinterName\s*\(|(?:\.|->)name\b", " ".join(patch_args) + " " + text[:loc[0]]), \
-    f"{where}: the location is not the printer's name ({patch_args[2]})"
-assert loc[0] > text.rfind("klipperFieldHolds("), f"{where}: the location is written before the field is read back"
-assert not re.search(r"\breturn\s+backendPatchSpoolLocation", text), f"{where}: the answer of the location write is the answer of the assignment"
-assert re.search(r"\bklipperWritesLocation\s*\([^;]*klipperLocSwitch\s*\(\s*\)", text), \
-    f"{where}: the location is not asked of klipperWritesLocation(..., klipperLocSwitch())"
-assert "logSD" in text[loc[0]:], f"{where}: the answer of the location write is not logged"
-assert "sm_location_name" in ks.source_of(PRINTERS).code, f"src/{PRINTERS}: sm_location_name is not kept in step with the location"
+# The location comes last, after the read-back said yes, and only into the log.
+# V50: it is no longer backendPatchSpoolLocation() (the Bambuddy proxy carries
+# no extra field), but the location unit, which writes the printer's name and
+# the remembered old location in one PATCH directly to the scale's Spoolman and
+# gives the displaced spool its old location back.
+assert not ks.calls(b, "backendPatchSpoolLocation"), \
+    f"{where}: the location still goes through backendPatchSpoolLocation(), not directly to the scale's Spoolman (V50)"
+unit = ks.calls(b, "klipperLocationAssigned")
+assert len(unit) == 1, f"{where}: klipperLocationAssigned() is not called exactly once"
+unit_at, unit_args = unit[0]
+assert unit_at > b.rfind("klipperFieldHolds(") and unit_at > b.rfind("KL_E_NOT_HELD"), \
+    f"{where}: the location unit is called before the read-back proved the spool is held"
+assert not re.search(r"\breturn\b[^;]*\bklipperLocationAssigned\s*\(", b), \
+    f"{where}: the answer of the location unit is the answer of the assignment"
+after_unit = re.search(r"\breturn\b([^;]*);", b[unit_at:])
+assert after_unit and after_unit.group(1).strip() == "200", \
+    f"{where}: the first return after the location unit is not 'return 200;' (a failed location write must not fail the assignment)"
+# Happy Hare in push and pull writes the location itself, and the switch can
+# turn it off: the unit is called inside if (klipperWritesLocation(..., klipperLocSwitch())) { }.
+gate = re.search(r"\bif\s*\(\s*klipperWritesLocation\s*\([^;{]*?\bklipperLocSwitch\s*\(\s*\)\s*\)\s*\)\s*\{", b)
+assert gate, f"{where}: the location is not asked of if (klipperWritesLocation(..., klipperLocSwitch())) {{"
+gate_end = ks.cc.match_close(b, gate.end() - 1, ks.cc._BRACES, "{")
+assert gate.end() <= unit_at < gate_end, \
+    f"{where}: the location unit is called outside the block of klipperWritesLocation() (Happy Hare in push/pull would get a second writer)"
+assert len(unit_args) == 3, f"{where}: klipperLocationAssigned() does not take the spool, the displaced spool and the printer's name"
+assert unit_args[0] == "spool_id", f"{where}: klipperLocationAssigned() is not given the assigned spool ({unit_args[0]})"
+assert re.search(r"\bklipperPrinterName\s*\(|(?:\.|->)name\b", unit_args[2]), \
+    f"{where}: the location is not the printer's name ({unit_args[2]})"
+# The displaced spool is the one that stood in the target field BEFORE the
+# commands, from the facts read before the first moonrakerRunScript(); for the
+# one field of a single extruder it is the printer's active spool.
+displaced = unit_args[1]
+assert re.fullmatch(r"[A-Za-z_]\w*", displaced), \
+    f"{where}: the displaced spool is handed as '{displaced}', not as a name that is set from the facts before"
+set_at = re.search(rf"\b{displaced}\s*=(?!=)\s*([^;]*);", b)
+assert set_at, f"{where}: '{displaced}' (the displaced spool) is not set in klipperAssign()"
+assert set_at.start() < run, f"{where}: the displaced spool is read after the first command, not from the facts before"
+expr = set_at.group(1)
+assert re.search(r"(?:\.|->)before\b", expr) and not re.search(r"(?:\.|->)after\b", expr), \
+    f"{where}: the displaced spool does not come from the facts before the commands ({expr})"
+assert re.search(r"\.field\s*\[\s*field\s*\]\s*\.\s*spool_id\b", expr), \
+    f"{where}: the displaced spool is not the spool of the target field ({expr})"
+assert "KL_LAYOUT_SINGLE" in expr and re.search(r"\.active_spool\b", expr), \
+    f"{where}: for the one field of a single extruder the displaced spool is not the active spool ({expr})"
+sm_loc = b.find("sm_location_name", unit_at)
+assert gate.end() <= sm_loc < gate_end, f"{where}: sm_location_name is not kept in step with the location the unit wrote"
+assert re.search(r"\bif\s*\(\s*klipperLocationAssigned\s*\(", b), \
+    f"{where}: sm_location_name does not follow the answer of klipperLocationAssigned()"
 
 # 6. backend_api.cpp: the switches.
 WHERE = f"src/{BACKEND}"
@@ -273,5 +309,91 @@ assert append > lists[0].start(), f"{where}: the Klipper printers are added befo
 assert "return" not in b[lists[-1].start():append], \
     f"{where}: there is a return between the other list and the Klipper printers: a failed list would skip them"
 assert re.search(r"\b200\b", b[append:]), f"{where}: no 200 when only Klipper printers are there"
+
+# 7. V50: the old location in Spoolman (services/klipper_location.cpp). The
+# rules are host-tested (test_klipper_location_rules.py); here the device part:
+# where it writes, the one retry after a 400, and the fallback.
+WHERE = f"src/{LOCATION}"
+loc_h = ks.code_of(LOCATION_H)
+assert re.search(r"\bbool\s+klipperLocationAssigned\s*\(\s*int\s+\w+\s*,\s*int\s+\w+\s*,\s*const\s+char\s*\*\s*\w+\s*\)", loc_h), \
+    f"src/{LOCATION_H}: bool klipperLocationAssigned(int, int, const char*) is not declared"
+rules_h = ks.code_of(LOC_RULES_H)
+for name in ("klipperPrevToRemember", "klipperRestoreFor", "klipperExtraText", "klipperExtraValue"):
+    assert re.search(rf"\b{name}\s*\(", rules_h), f"src/{LOC_RULES_H}: {name}() is not declared"
+assert re.search(r'#define\s+KL_PREV_LOC_KEY\s+"scale_prev_location"', ks.source_of(LOC_RULES_H).code_str), \
+    f"src/{LOC_RULES_H}: KL_PREV_LOC_KEY is not \"scale_prev_location\""
+
+loc_src = ks.source_of(LOCATION)
+loc_code = ks.collapse(loc_src.code)
+loc_text = ks.collapse(loc_src.code_str)
+# Directly to the scale's Spoolman, in both modes: never the backend's location
+# write (in Bambuddy mode that is the proxy, which drops the extra field), never Bambuddy.
+base = re.search(r"\b(\w+)\s*=\s*klipperScaleSpoolman\s*\(\s*\)", loc_code)
+assert base, f"{WHERE}: the Spoolman address is not taken from klipperScaleSpoolman()"
+for banned in ("backendPatchSpoolLocation", "cfg_spoolman_base", "backendBaseUrl", "backendMode"):
+    assert not re.search(rf"\b{banned}\b", loc_code), f"{WHERE}: uses {banned} (the location goes directly to klipperScaleSpoolman())"
+assert not re.search(r"\bbb[A-Z]\w*\s*\(", loc_code), f"{WHERE}: calls Bambuddy"
+SM_CALLS = ("spoolmanGetJson", "spoolmanPostJson", "spoolmanPatchSpool", "spoolmanPatchSpoolLocation")
+sent = 0
+for name in SM_CALLS:
+    for _, args in ks.calls(loc_code, name):
+        sent += 1
+        assert args and args[0] == base.group(1), \
+            f"{WHERE}: {name}() goes to '{args[0] if args else ''}', not to the address of klipperScaleSpoolman() ('{base.group(1)}')"
+assert sent >= 4, f"{WHERE}: fewer Spoolman requests than read, PATCH, field and fallback"
+assert ks.calls(loc_code, "spoolmanGetJson"), f"{WHERE}: the spool is not read from Spoolman before it is written"
+assert ks.calls(loc_code, "spoolmanPatchSpoolLocation"), f"{WHERE}: no fallback that writes the location alone"
+for token in ("klipperPrevToRemember(", "klipperRestoreFor(", "klipperExtraText(", "klipperExtraValue(",
+              "klipperStoreAt(", "klipperStoreCount(", "KL_PREV_LOC_KEY", "KR_RESTORE", "KR_CLEAR"):
+    assert token in loc_code, f"{WHERE}: does not use {token}"
+assert re.search(r"\bdisplaced_id\s*>\s*0\b", loc_code) and re.search(r"\bdisplaced_id\s*!=\s*spool_id\b", loc_code), \
+    f"{WHERE}: the displaced spool is not checked to be > 0 and another than the assigned one"
+assert "SpiRamAllocator" in loc_code or "MALLOC_CAP_SPIRAM" in loc_code or "moonrakerAlloc(" in loc_code, \
+    f"{WHERE}: the JSON documents are not put in the PSRAM"
+# Location and remembered location go in ONE PATCH: the body that carries the
+# location carries the extra field too.
+loc_lits = ks.literals_of(LOCATION)
+for lit in ("location", "extra"):
+    assert lit in loc_lits, f"{WHERE}: the PATCH body has no \"{lit}\""
+funcs = ks.cc.find_functions(loc_src.code)
+bodies = {n: loc_src.code_str[a + 1:z] for n, a, z in funcs}
+builders = [n for n, body in bodies.items() if '"location"' in body]
+assert builders and all('"extra"' in bodies[n] and "KL_PREV_LOC_KEY" in bodies[n] for n in builders), \
+    f"{WHERE}: a body with the location is built without the extra field ({builders})"
+# A 400 (Spoolman does not know the field) makes the field with a POST of
+# /api/v1/field/spool/scale_prev_location and tries the PATCH exactly once more.
+retry = [n for n, a, z in funcs if re.search(r"\b400\b", loc_src.code[a:z])]
+assert len(retry) == 1, f"{WHERE}: not exactly one function that answers a 400 ({retry})"
+rb = ks.body_of(LOCATION, retry[0], strings=True)
+rwhere = f"{WHERE}: {retry[0]}()"
+patches = ks.calls(rb, "spoolmanPatchSpool")
+assert len(patches) == 2, f"{rwhere}: not one PATCH and exactly one retry ({len(patches)} PATCH calls)"
+assert not re.search(r"\b(?:for|while|do|goto)\b", ks.body_of(LOCATION, retry[0])), f"{rwhere}: retries in a loop"
+at400 = re.search(r"\b400\b", rb).start()
+assert patches[0][0] < at400 < patches[1][0], f"{rwhere}: the retry is not made on the answer 400"
+between = rb[at400:patches[1][0]]
+posts = [args for _, args in ks.calls(between, "spoolmanPostJson")]
+for n in bodies:
+    if n != retry[0] and re.search(rf"\b{n}\s*\(", between):
+        posts += [args for _, args in ks.calls(ks.body_of(LOCATION, n, strings=True), "spoolmanPostJson")]
+FIELD_PATH = r'"/api/v1/field/spool/"\s*KL_PREV_LOC_KEY|"/api/v1/field/spool/scale_prev_location"'
+assert any(len(a) > 1 and re.fullmatch(FIELD_PATH, a[1]) for a in posts), \
+    f"{rwhere}: the 400 does not lead to a POST of /api/v1/field/spool/scale_prev_location before the retry"
+assert re.search(r"\b20[01]\b", between), f"{rwhere}: the retry does not wait for the field to be made (200/201)"
+# The field: text, named with the scale's text in the language that is set.
+assert "T(STR_KL_PREV_LOC_FIELD)" in ks.squeeze(loc_code), f"{WHERE}: the field is not named T(STR_KL_PREV_LOC_FIELD)"
+assert "field_type" in loc_lits and "text" in loc_lits, f"{WHERE}: the field is not made as field_type \"text\""
+rows = ks.lang_rows()
+ks.assert_row_complete(rows, "STR_KL_PREV_LOC_FIELD", "src/lang.cpp")
+assert ks.enum_has("STR_KL_PREV_LOC_FIELD"), "src/lang.h: STR_KL_PREV_LOC_FIELD is not in the enum"
+assert rows["STR_KL_PREV_LOC_FIELD"][:2] == ["Lagerort vor dem Drucker", "Location before the printer"], \
+    f"src/lang.cpp: STR_KL_PREV_LOC_FIELD is {rows['STR_KL_PREV_LOC_FIELD'][:2]}"
+# The answers of the writes go to the log (the unit logs them now, not
+# klipperAssign()), and every line of the log is a KLIPPER: line.
+assert any(args and "HTTP %d" in args[0] for _, args in ks.calls(loc_text, "logSDf")), \
+    f"{WHERE}: the answer of a location write is not logged"
+for fn in ("logSDf", "logSD"):
+    for _, args in ks.calls(loc_text, fn):
+        assert args and re.match(r'"(?:\[verbose\] )?KLIPPER: ', args[0]), f"{WHERE}: a log line is not a 'KLIPPER: ' line ({args[0] if args else ''})"
 
 print("test_klipper_wiring: ok")
