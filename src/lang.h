@@ -2148,6 +2148,7 @@ enum StringID {
 
   // Downloads of the web pages when a backend shows them in a frame (web/web_static.cpp, web/web_shell.cpp)
   STR_W_DL_EMBEDDED,          // the download window could not be opened; {a} is the scale's address
+  STR_W_DL_SAVE,              // a link in the window that holds several downloads; {n} is the file name
 
   STR_COUNT
 };

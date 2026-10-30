@@ -142,8 +142,11 @@ String screenshotCard() {
          "b.title=label;b.setAttribute('aria-label',label);}"
          // One window for all of them, opened here while the click is being
          // handled: opening a window consumes the click, so one per picture
-         // would have every window after the first blocked.
-         "function shSaveAll(){var h=downloadStart('sht');if(!h)return;"
+         // would have every window after the first blocked. Told how many
+         // follow: with several, the window lists them as links to click, one
+         // each, because a script cannot click more than the first for the user
+         // (app.js, downloadStart).
+         "function shSaveAll(){var h=downloadStart('sht',shIds.length);if(!h)return;"
          "shIds.forEach(function(id,i){"
          "setTimeout(function(){shSave(id,h);},i*SH.gap);});}"
          "function shDrop(q){post('/api/screenshot/drop?'+q,'').then(shLoad);}"

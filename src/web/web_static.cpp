@@ -388,7 +388,8 @@ const char* webStaticVersion() { return FW_VERSION; }
 // stay in the page and are assigned into WS.
 static const char APP_JS[] PROGMEM =
   "var WS={ok:'OK',err:'Error',yes:'OK',no:'Cancel',"
-  "dl:'Download not possible in an embedded window - open the scale directly: http://{a}'};\n"
+  "dl:'Download not possible in an embedded window - open the scale directly: http://{a}',"
+  "dls:'Download: {n}'};\n"
 
   "function $(i){return document.getElementById(i);}\n"
 
@@ -441,21 +442,30 @@ static const char APP_JS[] PROGMEM =
   //   no file, no entry in the list, no error - while the scale's log says
   //   "downloaded" (acceptance of v0.8.6-beta.8; maziggy/bambuddy
   //   ExternalLinkPage.tsx:48).
+  //   A second root, found in review: a click that a script makes in that
+  //   window has no user activation of its own, and Chromium allows the first
+  //   scripted download of a page and prompts or blocks the rest.
   // Fix: in a frame the click opens a small window of its own, which carries
   //   no sandbox, and the anchor is clicked there. Outside a frame nothing
   //   changes. downloadStart() runs first, inside the click handler;
   //   downloadFinish() saves once the data is there; downloadAbort() closes
-  //   the window when the data does not come. A handle is {emb, w, id, t};
-  //   downloadStart() answers null when the window was refused, with the
-  //   sentence already on the page in element id.
+  //   the window when the data does not come. A handle is
+  //   {emb, w, id, t, list, k}; downloadStart() answers null when the window
+  //   was refused, with the sentence already on the page in element id.
+  //   One file: clicked by script, the window closes itself. Several
+  //   (downloadStart(id, n) with n > 1, list): the window gets one real link
+  //   per file, so every save is the user's own click, and it stays open until
+  //   the user closes it.
   // NOT-TO-DO: no window.open() after a fetch or an await - the click is spent
   //   and the popup blocked. No object URL made in the frame and handed to the
   //   window - blob URLs are partitioned by the top-level site and the window
   //   cannot read it; the window makes its own from the Blob. No window per
   //   file in "save all" - opening one consumes the click, the second is
-  //   blocked; one handle serves them all. No `download` or click outside
-  //   these functions, and no asking the frame whether it is sandboxed - it
-  //   cannot be read from inside, so a frame always takes the window.
+  //   blocked; one handle serves them all. No scripted click for the second
+  //   file on - it would not arrive. No self-closing list - the user is still
+  //   clicking. No `download` or click outside these functions, and no asking
+  //   the frame whether it is sandboxed - it cannot be read from inside, so a
+  //   frame always takes the window.
   // See test_download_embedded.py
   "function downloadEmbedded(){"
   "try{return window.self!==window.top;}catch(e){return true;}}\n"
@@ -469,26 +479,38 @@ static const char APP_JS[] PROGMEM =
 
   // Opened without a URL, so that it stays the empty page of this origin and
   // the frame can write to it; a navigation would make it a page of its own.
-  // Closed on its own after a minute when nothing arrives.
-  "function downloadStart(id){"
-  "var h={emb:downloadEmbedded(),w:null,id:id,t:0};"
+  // Closed on its own after a minute when nothing arrives, unless it is to
+  // hold a list of links: that one stays for the user. n is how many files
+  // are to follow; a window for a list is taller.
+  "function downloadStart(id,n){"
+  "var h={emb:downloadEmbedded(),w:null,id:id,t:0,list:false,k:0};"
   "if(!h.emb)return h;"
-  "try{h.w=window.open('','_blank','popup=yes,width=360,height=120');}catch(e){}"
+  "h.list=n>1;"
+  "try{h.w=window.open('','_blank',h.list?'popup=yes,width=420,height='+Math.min(110+n*34,460)"
+  ":'popup=yes,width=360,height=120');}catch(e){}"
   "if(!h.w||h.w.closed){h.w=null;downloadNo(id);return null;}"
-  "h.t=setTimeout(function(){downloadAbort(h);},60000);"
+  "if(!h.list)h.t=setTimeout(function(){downloadAbort(h);},60000);"
   "return h;}\n"
 
   // src is a Blob or a URL of the scale. In the window it is the window that
-  // makes the object URL. A few seconds after the last file the window goes;
-  // a browser that asks about several files keeps asking in it until then.
+  // makes the object URL. A window the user has closed since says so like a
+  // refused one. One file is clicked and the window goes a few seconds later;
+  // for a list every file becomes a link in it, and nothing closes it.
   "function downloadFinish(h,src,name){"
   "var win=h.emb?h.w:window;if(!win)return;"
+  "if(h.emb&&win.closed){downloadAbort(h);downloadNo(h.id);return;}"
   "var isUrl=typeof src==='string',u=null;"
   "try{"
   "u=isUrl?new URL(src,location.href).href:win.URL.createObjectURL(src);"
-  "var d=win.document,a=d.createElement('a');a.href=u;a.download=name;"
-  "(d.body||d.documentElement).appendChild(a);a.click();a.remove();"
+  "var d=win.document,a=d.createElement('a'),box=d.body||d.documentElement;"
+  "a.href=u;a.download=name;"
+  "if(h.list){"
+  "if(!h.k++)box.style.cssText='font:15px sans-serif;margin:14px';"
+  "a.textContent=WS.dls.replace('{n}',name);a.style.cssText='display:block;margin:0 0 10px';"
+  "box.appendChild(a);"
+  "}else{box.appendChild(a);a.click();a.remove();}"
   "}catch(e){if(!h.emb)throw e;downloadAbort(h);downloadNo(h.id);return;}"
+  "if(h.list)return;"
   "if(h.emb){clearTimeout(h.t);h.t=setTimeout(function(){downloadAbort(h);},5000);}"
   // Not at once: a browser may still be reading the blob for the save. In the
   // window it goes with the window.
