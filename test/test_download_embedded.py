@@ -1,6 +1,8 @@
 """Read the web sources without a compiler and check that every download of the scale's pages also works when the pages sit in a sandboxed frame. Bambuddy shows an external page in an iframe whose sandbox lacks allow-downloads, and a browser drops every download that starts inside such a frame, with no file, no entry in the download list and no error: the scale's log said "settings backup downloaded" three times and nothing arrived (acceptance of v0.8.6-beta.8). The frame does grant allow-popups and allow-popups-to-escape-sandbox, so a window opened by the click is free of the sandbox and may download.
 
-The checks: one helper in /app.js decides "embedded" inside a try, opens its window with window.open() as the first thing it does (a popup needs the user's click, so before any fetch or await), and is the only place that sets a download name or clicks a download anchor; the three download sites (settings backup, screenshots, logs) go through it; the backup opens the window before it fetches and closes it on every error; "save all" opens one window for all pictures (a window consumes the click that opened it); an object URL is made in the window that uses it (a URL made in the frame is partitioned away from the popup); the message for a blocked window exists in German, English and French and reaches every page."""
+The checks: one helper in /app.js decides "embedded" inside a try, opens its window with window.open() as the first thing it does (a popup needs the user's click, so before any fetch or await), and is the only place that sets a download name or clicks a download anchor; the three download sites (settings backup, screenshots, logs) go through it; the backup opens the window before it fetches and closes it on every error; "save all" opens one window for all pictures (a window consumes the click that opened it); an object URL is made in the window that uses it (a URL made in the frame is partitioned away from the popup); the message for a blocked window exists in German, English and French and reaches every page.
+
+Several files for one window (round 1 of the review): the popup has no click of its own, so Chromium allows the first scripted download and prompts or blocks the rest. With more than one file the helper does not click by script; it writes one real download link per file into the window, labelled in the page's language, so each user click carries its own activation, and the window stays open until the user closes it. One file keeps the automatic click and the automatic close. A window the user closed before the data arrived says so with the same sentence as a blocked one."""
 import re
 
 import klipper_src as ks
@@ -8,6 +10,7 @@ import check_web_js as cw
 
 WEB = ks.src / "web"
 SID = "STR_W_DL_EMBEDDED"
+SID_SAVE = "STR_W_DL_SAVE"
 
 ks.assert_ci_step("test_download_embedded.py")
 
@@ -97,6 +100,13 @@ if start:
          "that the window could not be opened")
     need("return null" in body,
          "src/web/web_static.cpp: downloadStart() does not answer null when the window was refused")
+    # More than one file: the handle says so (list mode) and the window is not
+    # given the minute after which it closes itself; the user may still be clicking.
+    need(re.search(r"function\s+downloadStart\s*\(\s*\w+\s*,\s*\w+\s*\)", appjs) is not None
+         and re.search(r"\blist\s*:", body) is not None,
+         "src/web/web_static.cpp: downloadStart(id, n) does not take the number of files and note a list mode in the handle")
+    need(re.search(r"if\s*\(\s*!\s*h\.list\s*\)\s*h\.t\s*=\s*setTimeout\(", body) is not None,
+         "src/web/web_static.cpp: downloadStart() arms the self-closing timer for a window that holds a list of links")
 
 if finish:
     body = finish[2]
@@ -109,6 +119,30 @@ if finish:
          "src/web/web_static.cpp: downloadFinish() makes an object URL in the frame's own window; the popup cannot read it")
     need(re.search(r"\.download\s*=", body) and ".click()" in body,
          "src/web/web_static.cpp: downloadFinish() does not set the name and click the anchor")
+    # A window the user closed: the same sentence as for a blocked one, before
+    # anything is made in it.
+    closed_at, made_at = body.find(".closed"), body.find("createObjectURL(")
+    need(0 <= closed_at < made_at and "downloadNo(" in body[closed_at:made_at],
+         "src/web/web_static.cpp: downloadFinish() does not check win.closed (and say downloadNo) before it uses the window")
+    # Several files: a real link per file, labelled, no script click; the click
+    # stays in the other branch. The window then stays: nothing re-arms the close timer.
+    # (js_close skips string literals: the label holds a '{n}' of its own.)
+    branch = re.search(r"if\s*\(\s*h\.list\s*\)\s*\{", body)
+    first = second = ""
+    if branch:
+        end = js_close(body, branch.end() - 1)
+        first = body[branch.end():end]
+        other = re.match(r"\s*else\s*\{", body[end + 1:])
+        if other:
+            start_at = end + 1 + other.end() - 1
+            second = body[start_at + 1:js_close(body, start_at)]
+    need(branch and ".click()" not in first and ".click()" in second,
+         "src/web/web_static.cpp: downloadFinish() clicks by script when it holds several files; only the single file may be clicked")
+    need("WS.dls" in body and "textContent" in body,
+         "src/web/web_static.cpp: downloadFinish() does not label the links of a list with WS.dls")
+    early = re.search(r"if\s*\(\s*h\.list\s*\)\s*return\s*;", body)
+    need(early is not None and body.find("setTimeout(") > early.start(),
+         "src/web/web_static.cpp: downloadFinish() arms the self-closing timer for a window that holds a list of links")
 
 # The helper is the only place that sets a download name or clicks an anchor.
 rest = appjs
@@ -144,7 +178,7 @@ for rel in SITES:
     if rel != "web/web_backup.cpp":
         page = emitted("web/pages/page_logs.cpp") + emitted("web/web_screenshot.cpp")
     for m in re.finditer(r"\bdownloadStart\(([^)]*)\)", text):
-        arg = m.group(1).strip().strip("'\"")
+        arg = m.group(1).split(",")[0].strip().strip("'\"")
         need(re.fullmatch(r"\w[\w-]*", arg) and re.search(rf"id=['\"]{re.escape(arg)}['\"]", page),
              f"src/{rel}: downloadStart({m.group(1)}) names no element of the page for its message")
 
@@ -182,6 +216,9 @@ if "shSaveAll" in shf:
     loop = min([i for i in (body.find("forEach("), body.find("setTimeout(")) if i >= 0] or [len(body)])
     need(0 <= first < loop,
          "src/web/web_screenshot.cpp: shSaveAll() does not open its one window before it starts the pictures")
+    args = [c for _, c in ks.calls(body, "downloadStart")]
+    need(args and all(len(c) == 2 and "shIds.length" in c[1] for c in args),
+         "src/web/web_screenshot.cpp: shSaveAll() does not tell downloadStart() how many pictures follow (shIds.length)")
 
 # Logs: a button and a handler instead of a link; both stores keep their download.
 lg = emitted("web/pages/page_logs.cpp")
@@ -205,10 +242,26 @@ else:
         need(cell.count("{a}") == 1 and "http://{a}" in cell,
              f"src/lang.cpp: the {lang} text of {SID} does not end in the address, http://{{a}}, once")
 
-# Every page gets it, next to the two words of ask(): app.js is cached across languages.
+# The label of a link in the list: German "Speichern: {n}", the file name where {n} stands.
+if not ks.enum_has(SID_SAVE):
+    problems.append(f"src/lang.h: {SID_SAVE} is not in the string enum")
+elif SID_SAVE not in rows:
+    problems.append(f"src/lang.cpp: {SID_SAVE} has no row")
+else:
+    try:
+        ks.assert_row_complete(rows, SID_SAVE, "src/lang.cpp")
+    except AssertionError as e:
+        problems.append(str(e))
+    for lang, cell in zip(("German", "English", "French"), rows[SID_SAVE]):
+        need(cell.count("{n}") == 1,
+             f"src/lang.cpp: the {lang} text of {SID_SAVE} does not hold the file name, {{n}}, once")
+
+# Every page gets them, next to the two words of ask(): app.js is cached across languages.
 assets = ks.body_of("web/web_shell.cpp", "webShellAssets", strings=True)
 need("WS.dl=" in assets and f"jsStr(T({SID}))" in assets,
      f"src/web/web_shell.cpp: webShellAssets() does not assign WS.dl from {SID} on every page")
+need("WS.dls=" in assets and f"jsStr(T({SID_SAVE}))" in assets,
+     f"src/web/web_shell.cpp: webShellAssets() does not assign WS.dls from {SID_SAVE} on every page")
 
 assert not problems, "\n" + "\n".join(f"  - {p}" for p in problems)
 print("test_download_embedded: ok")
