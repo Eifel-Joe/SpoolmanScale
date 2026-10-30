@@ -3946,9 +3946,9 @@ const char* const STRINGS[][3] = {
   { "Per ID geladen - kein Tag",
     "Loaded by ID - no tag",
     "Chargée par ID - sans tag" },  // STR_ID_SPOOL_STATUS
-  { "An: nach dem Wiegen einer bekannten Spule fragt die Waage beim Abheben, in welches AMS-Fach sie geht, und meldet das der AMS-Quelle. Die trägt die Spule in Spoolman bei diesem Fach ein.\n\nDie AMS-Quelle konfiguriert das Fach dabei über MQTT am Drucker mit - Material, Farbe und Temperaturen. Das ist gewollt, aber es wirkt auf den Drucker, nicht nur auf die Datenbank.",
-    "On: after a known spool has been weighed, the scale asks on removal which AMS bay it goes into and reports that to the AMS source, which records the spool in Spoolman for that bay.\n\nThe AMS source also configures the bay on the printer over MQTT while doing so - material, colour and temperatures. That is intended, but it acts on the printer, not only on the database.",
-    "Activé : après la pesée d'une bobine connue, la balance demande au retrait dans quel bac AMS elle va, et le transmet à la source AMS, qui l'enregistre dans Spoolman pour ce bac.\n\nLa source AMS configure aussi ce bac sur l'imprimante par MQTT : matériau, couleur, températures. C'est voulu, mais cela agit sur l'imprimante, pas seulement sur la base." },  // STR_SMAMS_ASK_INFO
+  { "An: nach dem Wiegen einer bekannten Spule fragt die Waage beim Abheben, in welches Fach sie geht.\n\nBeim AMS meldet sie das der AMS-Quelle, die die Spule in Spoolman einträgt und das Fach über MQTT am Drucker mitkonfiguriert - Material, Farbe und Temperaturen. Bei einem Klipper-Drucker setzt die Waage die Spule selbst über Moonraker. Das ist gewollt, wirkt aber auf den Drucker, nicht nur auf die Datenbank.",
+    "On: after a known spool has been weighed, the scale asks on removal which bay it goes into.\n\nFor an AMS it reports that to the AMS source, which records the spool in Spoolman and also configures the bay on the printer over MQTT - material, colour and temperatures. For a Klipper printer the scale sets the spool itself through Moonraker. That is intended, but it acts on the printer, not only on the database.",
+    "Activé : après la pesée d'une bobine connue, la balance demande au retrait dans quel bac elle va.\n\nPour un AMS, elle le transmet à la source AMS, qui enregistre la bobine dans Spoolman et configure aussi le bac sur l'imprimante par MQTT : matériau, couleur, températures. Pour une imprimante Klipper, la balance règle la bobine via Moonraker. C'est voulu, mais cela agit sur l'imprimante, pas seulement sur la base." },  // STR_SMAMS_ASK_INFO
   { "AMS-Quelle", "AMS source", "Source AMS" },  // STR_W_C_AMS_SOURCE
   { "Spoolman kennt keine Drucker. Die AMS-Ansicht braucht deshalb einen zweiten Server, der den Drucker mithört und in dieselbe Spoolman-Datenbank bucht, zum Beispiel OpenSpoolman. Leer lassen schaltet die AMS-Ansicht ab.",
     "Spoolman knows no printers. The AMS view therefore needs a second server that listens to the printer and books into the same Spoolman database, OpenSpoolman for example. Leave it empty to switch the AMS view off.",
@@ -4721,6 +4721,9 @@ const char* const STRINGS[][3] = {
   { "Zugang verweigert",
     "Access denied",
     "Accès refusé" },  // STR_AMSV_KL_ACCESS
+  { "Drucker antwortet nicht",
+    "Printer does not answer",
+    "L'imprimante ne répond pas" },  // STR_AMSV_KL_STATUS_SILENT
 };
 
 StringID tagWriteResultString(uint8_t code) {

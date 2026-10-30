@@ -91,14 +91,19 @@ for rel, name, wrapped in ((VIEW, "fetchAndDraw", "backendGetAmsState("), (PICK,
     assert re.search(r"if \(!\w*[kK]lipper\w*(?:\([^()]*\))?\) \w+ = serverReachNote\(", body), \
         f"src/{rel}: {name}() notes the answer of a Klipper printer with serverReachNote() (R27)"
 
-# R35: a Klipper printer that does not answer says so in the words of the bay
-# picker ("Keine Antwort - bitte am Drucker prüfen", "Zugang verweigert"), not
-# "Server antwortet -1"; the failed fetch of another printer keeps its text.
+# R35: a Klipper printer that does not answer says so in words, not "Server
+# antwortet -1"; the failed fetch of another printer keeps its text. M5: the
+# status label beside the printer chip is 314 px wide, and the picker's "Keine
+# Antwort - bitte am Drucker prüfen" (330 px) is cut there: the status line has
+# a short text of its own (STR_AMSV_KL_STATUS_SILENT), the picker keeps the long
+# one. "Zugang verweigert" is short enough for both.
 tail = fetch[fetch.index("backendGetAmsState("):]
 branch = re.search(r"if \(klipperIsPrinterId\([^()]*\)\) \{([^{}]*)\} else \{([^{}]*)\}", tail)
 assert branch, f"src/{VIEW}: the failed fetch of a Klipper printer has no branch of its own (R35)"
-for sid in ("STR_AMSV_KL_NO_ANSWER", "STR_AMSV_KL_ACCESS"):
+for sid in ("STR_AMSV_KL_STATUS_SILENT", "STR_AMSV_KL_ACCESS"):
     assert sid in branch.group(1), f"src/{VIEW}: a Klipper printer that fails does not say {sid}"
+assert "STR_AMSV_KL_NO_ANSWER" not in branch.group(1), \
+    f"src/{VIEW}: the status line says the picker's long no-answer text, which is cut beside the printer chip (M5)"
 assert "STR_AMSV_ERR_HTTP" not in branch.group(1) and "STR_AMSV_ERR_HTTP" in branch.group(2), \
     f"src/{VIEW}: a Klipper printer that fails still gets STR_AMSV_ERR_HTTP, or the others lost it"
 
@@ -201,14 +206,35 @@ assert 0 <= guard < find, \
 assert "!klipperIsPrinterId(" in ks.body_of(POPUP, "canTakeOut"), \
     f"src/{POPUP}: canTakeOut() offers 'Herausnehmen' for a Klipper printer's field"
 
+# 5b. The switch for the bay question after weighing (sm_ams_ask, with the
+# location switch beside it) is shown where a Klipper printer is stored too:
+# the scale sets its spool through Moonraker, and in Spoolman mode with only
+# Klipper printers there is no AMS source. Hidden, the question never came.
+# The text of the switch names the printers as well as the AMS source.
+REGISTRY = "services/settings_registry.cpp"
+applies = ks.body_of(REGISTRY, "appliesSmAmsAsk")
+assert "klipperHasPrinters(" in applies and "amsSourceConfigured(" in applies, \
+    f"src/{REGISTRY}: appliesSmAmsAsk() does not show the switch for a stored Klipper printer as well as for an AMS source"
+assert re.search(r'^#include\s+"services/klipper_printers\.h"', (ks.src / REGISTRY).read_text(encoding="utf-8"), re.M), \
+    f"src/{REGISTRY}: services/klipper_printers.h is not included for klipperHasPrinters()"
+ks.assert_row_complete(rows, "STR_SMAMS_ASK_INFO", "src/lang.cpp")
+for cell in rows["STR_SMAMS_ASK_INFO"]:
+    assert "Klipper" in cell, f"src/lang.cpp: STR_SMAMS_ASK_INFO does not name Klipper: '{cell[:60]}'"
+
 # 6. The two texts of the view, in three languages, with their widths.
 budgets = (ks.root / "tools" / "ui_budgets.tsv").read_text(encoding="utf-8")
-for sid, german in (("STR_AMSV_UNIT_KL_ACTIVE", "Aktive Spule"), ("STR_AMSV_KL_FIRST16", "nur die ersten 16 Felder")):
+for sid, german in (("STR_AMSV_UNIT_KL_ACTIVE", "Aktive Spule"), ("STR_AMSV_KL_FIRST16", "nur die ersten 16 Felder"),
+                    ("STR_AMSV_KL_STATUS_SILENT", "Drucker antwortet nicht")):
     assert sid in rows, f"src/lang.cpp: {sid} has no row"
     assert rows[sid][0] == german, f"src/lang.cpp: {sid} reads '{rows[sid][0]}', expected '{german}'"
     ks.assert_row_complete(rows, sid, "src/lang.cpp")
     assert ks.enum_has(sid), f"src/lang.h: {sid} is not in the enum"
     assert re.search(rf"^{sid}\t\d+\t\d+\t(?:NEVER|DOT|WRAP:\d+)\t", budgets, re.M), \
         f"tools/ui_budgets.tsv: no width budget for {sid}"
+
+# M5: the status label beside the printer chip has 314 px, gated: all three
+# languages of the short text must fit it (fit_check --gate).
+assert re.search(r"^STR_AMSV_KL_STATUS_SILENT\t16\t314\tNEVER\t", budgets, re.M), \
+    "tools/ui_budgets.tsv: STR_AMSV_KL_STATUS_SILENT has no gated 314 px budget at font 16"
 
 print("test_ams_klipper: ok")

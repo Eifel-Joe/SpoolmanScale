@@ -46,7 +46,7 @@
 #define KL_E_OTHER_SPOOLMAN  (-41)   // the printer talks to another Spoolman
 #define KL_E_NO_FIELD        (-42)
 #define KL_E_NO_PRINTER      (-43)
-#define KL_E_NOT_TESTED      (-44)   // the printer's connection test was never run (R30)
+#define KL_E_NOT_TESTED      (-44)   // the printer has no passed connection test: never run, or any verdict but OK (R30, R36)
 
 // The layout is stored with the printer's last test: the numbers are fixed.
 enum KlipperLayout : uint8_t {

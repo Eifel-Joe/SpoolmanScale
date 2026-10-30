@@ -324,15 +324,35 @@ void newestOnScale(const char* scale_spoolman, int* id, char* registered, size_t
   moonrakerParseNewestSpool(answer.as<JsonVariantConst>(), id, registered, n);
 }
 
+// Moonraker's text of its Spoolman address for the words of a verdict, where the
+// rules refuse to normalise it (klipperSpoolmanAddr gives false for a login).
+// Root: Moonraker writes the address as it was typed, and that may be
+// "http://user:pass@host:7912". The text goes onto the page and into the log on
+// the SD card, where a password has no business.
+// Fix: everything up to and including the LAST '@' is cut; "?" when nothing
+// is left behind it.
+// NOT-TO-DO: cutting at the authority (the first '/') only: a password with an
+// unescaped '/' in it would keep its tail in the text.
+void copyAddressWithoutLogin(char* dst, size_t n, const char* raw) {
+  const char* at = strrchr(raw, '@');
+  if (!at) {
+    copyText(dst, n, raw);
+    return;
+  }
+  copyText(dst, n, at + 1);
+  if (dst[0] == '\0') copyText(dst, n, "?");
+}
+
 // Whether the printer's Spoolman is the scale's: the address first, and only
 // where the two differ (a name against an address) the newest spool of both.
 void probeSameSpoolman(const Target& t, const char* scale_spoolman, KlipperProbe* probe) {
   char theirs[128] = "";
   const bool read = readSpoolmanAddress(t, theirs, sizeof(theirs));
   // The printer's address is kept for the verdict's words: normalised, or as
-  // Moonraker writes it where the rules refuse it (the rules leave "" then).
+  // Moonraker writes it where the rules refuse it (the rules leave "" then),
+  // without a login in front of the host.
   if (read && !klipperSpoolmanAddr(theirs, probe->spoolman, sizeof(probe->spoolman))) {
-    copyText(probe->spoolman, sizeof(probe->spoolman), theirs);
+    copyAddressWithoutLogin(probe->spoolman, sizeof(probe->spoolman), theirs);
   }
   probe->addr_same = read && klipperSameAddr(theirs, scale_spoolman);
   if (probe->addr_same) return;

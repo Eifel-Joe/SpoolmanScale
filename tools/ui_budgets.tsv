@@ -184,13 +184,16 @@ STR_AMSV_UNIT_KL_ACTIVE	16	336	NEVER	src/ui/ams_view.cpp:1221 bayName(), the car
 # (LV_LABEL_LONG_DOT, ams_view.cpp:1127): not gated, the line is cut with dots
 # for a long printer name. 456 is the whole row without the printer chip.
 STR_AMSV_KL_FIRST16	16	456	DOT	src/ui/ams_view.cpp:1127 behind the state in the status line, 480 - 8 - 16
-# A Klipper printer that does not answer says so in the words of the bay picker
-# (ams_view.cpp:1068), in the status label beside the printer chip: beside
-# "2/3  Voron 2.4" (108 px + 2 x 12 pad = 132) that is 480 - 16 - (8 + 132 + 10)
-# = 314 px, and the label ends in dots (LV_LABEL_LONG_DOT). German
-# "Keine Antwort - bitte am Drucker prüfen" is 330 px, so it loses its last
-# word there and the words that matter come first. Not gated.
-STR_AMSV_KL_NO_ANSWER	16	314	DOT	src/ui/ams_view.cpp:1068 status label beside the printer chip
+# A Klipper printer that does not answer says so in the status label beside the
+# printer chip (ams_view.cpp:1068): beside "2/3  Voron 2.4" (108 px + 2 x 12
+# pad = 132) that is 480 - 16 - (8 + 132 + 10) = 314 px, and the label ends in
+# dots (LV_LABEL_LONG_DOT). The bay picker's own "Keine Antwort - bitte am
+# Drucker prüfen" (STR_AMSV_KL_NO_ANSWER, 330 px) was cut there, so the status
+# line has a short text of its own, measured with fit_check --measure 16: German
+# 198 px, English 194 px, French 231 px. Gated, the three must fit. The long
+# one stays in the picker's info popup, which wraps and needs no row.
+STR_AMSV_KL_STATUS_SILENT	16	314	NEVER	src/ui/ams_view.cpp:1068 status label beside the printer chip
+# "Zugang verweigert" (157 px) is short enough for the same label. Not gated.
 STR_AMSV_KL_ACCESS	16	314	DOT	src/ui/ams_view.cpp:1068 status label beside the printer chip
 
 # --- captions that used to be literals ----------------------------------------

@@ -201,13 +201,20 @@ int klipperAssign(int spool_id, int printer_id, int ams_id, int tray_id) {
     logSDf("KLIPPER: %s talks to another Spoolman, spool %d not sent", link.cfg.name, spool_id);
     return KL_E_OTHER_SPOOLMAN;
   }
-  // R30: the same for a printer that was never tested (or whose address
-  // changed since, which resets the stored test). Nothing says yet that it
-  // talks to this Spoolman, and "unknown" is not "same".
-  // NOT-TO-DO: running the test here: it asks two servers several things and
+  // R30, R36: the same for every printer whose stored test is not KT_OK. A
+  // printer that was never tested (or whose address changed since, which resets
+  // the stored test) has no verdict at all; one that was saved while it was off
+  // has UNREACHABLE, ACCESS, KLIPPY, NO_SPOOLMAN, SM_OFFLINE or BAD_ANSWER, and
+  // each of them stops the probe BEFORE the Spoolman comparison. None of them
+  // says the printer talks to this Spoolman, and "unknown" is not "same": it
+  // could be switched on later with another Spoolman behind it and take the
+  // scale's spool numbers as its own.
+  // NOT-TO-DO: a list of the refused verdicts: the next one added to the enum
+  // would pass. Running the test here: it asks two servers several things and
   // the page already runs it after every save.
-  if (link.cfg.last.test == KT_NONE) {
-    logSDf("KLIPPER: %s was never tested, spool %d not sent", link.cfg.name, spool_id);
+  if (link.cfg.last.test != KT_OK) {
+    logSDf("KLIPPER: %s has no passed connection test (%d), spool %d not sent",
+           link.cfg.name, static_cast<int>(link.cfg.last.test), spool_id);
     return KL_E_NOT_TESTED;
   }
   // A number that wraps into a real bay when it is cut to a byte (256 is bay 0)

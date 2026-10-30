@@ -1062,10 +1062,10 @@ static void fetchAndDraw() {
       // "das Fenster meldet keine Verbindung"). -1, -2, -11, KL_E_PARSE and
       // the 5xx of a Klipper that is not ready are all "the printer does not
       // answer"; only 401 and 403 say Moonraker turned the scale down.
-      // Fix: a Klipper printer gets the texts of the bay picker (R35).
+      // Fix: a Klipper printer gets words of the bay picker (R35); no answer in a short form (M5).
       // NOT-TO-DO: the same split in a table shared with assignFailText():
       // that one knows the assignment's own codes, this one only reads.
-      const int text = (code == 401 || code == 403) ? STR_AMSV_KL_ACCESS : STR_AMSV_KL_NO_ANSWER;
+      const int text = (code == 401 || code == 403) ? STR_AMSV_KL_ACCESS : STR_AMSV_KL_STATUS_SILENT;
       setStatus(T(text), s_printers->count > 1);
     } else {
       setStatusFmt(STR_AMSV_ERR_HTTP, code, s_printers->count > 1);

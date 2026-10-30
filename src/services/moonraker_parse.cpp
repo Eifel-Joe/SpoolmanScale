@@ -111,12 +111,21 @@ int8_t percentOf(double fraction) {
 //  The list of objects
 // ------------------------------------------------------------
 
-// "T5" and "t5" are the tool 5: 5. Everything else that starts with a T
-// ("T0_PREPARE", "TURN_OFF_HEATERS", a bare "T") is no tool: -1. At most four
-// digits, so a number always fits the int16_t it is kept in.
+// Root (R37): the commands name a tool macro as MACRO=T<n> and the saved
+// variable as t<n>__spool_id, both written from the number (klipper_rules.cpp).
+// A macro the parser took for tool 1 but that is spelled "t1" or "T01" would be
+// addressed as T1, which is another macro, or none.
+// Fix: "T5" is the tool 5: 5, "T0" the tool 0. The T is upper case, as in
+// Mainsail's `gcode_macro T\d+`, and the digits have no leading zero (stricter
+// than that pattern on purpose). Everything else that starts with a T ("t5",
+// "T01", "T0_PREPARE", "TURN_OFF_HEATERS", a bare "T") is no tool: -1. At most
+// four digits, so a number always fits the int16_t it is kept in.
+// NOT-TO-DO: keeping the printer's spelling and writing the commands with it:
+// the commands the scale may send are a fixed list.
 int toolNumberOf(const char* macro) {
-  if (macro[0] != 'T' && macro[0] != 't') return -1;
+  if (macro[0] != 'T') return -1;
   const char* d = macro + 1;
+  if (d[0] == '0' && d[1] != '\0') return -1;   // "T01", "T00": T0 alone is the tool 0
   int len = 0;
   int number = 0;
   for (; d[len] >= '0' && d[len] <= '9'; len++) {

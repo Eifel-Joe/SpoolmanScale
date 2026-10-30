@@ -12,6 +12,7 @@
 #include "services/ams_assign.h"
 #include "services/ams_source.h"
 #include "services/backend.h"
+#include "services/klipper_printers.h"
 #include "services/prefs_store.h"
 #include "services/tag_field.h"
 #include "services/user_options.h"
@@ -76,8 +77,11 @@ static bool bbDriedOptOk(uint8_t value) {
   return (bbInventoryMode() == BB_INV_SPOOLMAN) && bbSpoolmanUrl()[0];
 }
 
-// The bay picker on Spoolman needs somewhere to send the answer.
-static bool appliesSmAmsAsk() { return amsSourceConfigured(); }
+// The bay picker on Spoolman needs somewhere to send the answer: an AMS
+// source, or a Klipper printer (the scale sets its spool through Moonraker, no
+// AMS source is involved). With only Klipper printers stored the switch would
+// otherwise stay hidden, and the question after weighing never came.
+static bool appliesSmAmsAsk() { return amsSourceConfigured() || klipperHasPrinters(); }
 
 static const uint16_t OPT_BB_DRIED[] = {
   STR_BB_DRIED_OFF, STR_BB_DRIED_SPOOLMAN, STR_BB_DRIED_NOTE
@@ -131,9 +135,10 @@ const SettingDesc SETTINGS[] = {
     0, 0, nullptr,
     appliesCardUids, nullptr, nullptr, OPEN_NONE, nullptr, false },
 
-  // The bay picker after weighing, through the AMS source. Only once one is
-  // set up; same name and subtitle as BamBuddy's row, its own explanation,
-  // because a different server acts on the printer here.
+  // The bay picker after weighing, through the AMS source or a Klipper
+  // printer. Only once one is set up; same name and subtitle as BamBuddy's
+  // row, its own explanation, because a different server acts on the printer
+  // here.
   { "sm_ams_ask", SET_BOOL, SC_SPOOLMAN, &g_sm_ams_pick_ask,
     STR_BBAMS_ASK, STR_BBAMS_ASK_SUB, STR_SMAMS_ASK_INFO, LV_SYMBOL_SHUFFLE,
     0, 0, nullptr,

@@ -218,6 +218,7 @@ int main() {
   CHECK_INT(KL_E_OTHER_SPOOLMAN, -41);
   CHECK_INT(KL_E_NO_FIELD, -42);
   CHECK_INT(KL_E_NO_PRINTER, -43);
+  CHECK_INT(KL_E_NOT_TESTED, -44);
   // The layout is stored with a printer's last test, so its numbers are fixed.
   CHECK_INT(KL_LAYOUT_NONE, 0);
   CHECK_INT(KL_LAYOUT_SINGLE, 1);

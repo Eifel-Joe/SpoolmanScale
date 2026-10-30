@@ -609,16 +609,20 @@ static void caseAnswerMakesNoSystem() {
 static void caseObjectList() {
   WHAT("object list: lanes, macros, and what only looks like them");
   namesFrom("{\"objects\":[\"AFC\",\"AFC_BoxTurtle Turtle_1\",\"AFC_hub Turtle_1\",\"AFC_lane lane1\","
-            "\"AFC_lane lane2\",\"gcode_macro t5\",\"gcode_macro T10\",\"gcode_macro T0_PREPARE\","
-            "\"gcode_macro TURN_OFF_HEATERS\",\"gcode_macro T\",\"gcode_macro _T1\",\"tool T7\"]}");
+            "\"AFC_lane lane2\",\"gcode_macro T0\",\"gcode_macro t5\",\"gcode_macro T01\",\"gcode_macro T10\","
+            "\"gcode_macro T0_PREPARE\",\"gcode_macro TURN_OFF_HEATERS\",\"gcode_macro T\",\"gcode_macro _T1\","
+            "\"tool T7\"]}");
   CHECK(g_names.has_afc);
   CHECK_INT(g_names.lane_count, 2);
   CHECK_STR(g_names.lane_object[0], "AFC_lane lane1");
   CHECK_STR(g_names.lane_object[1], "AFC_lane lane2");
-  // T<n> and t<n>, the name as it stands; nothing else that starts with a T.
+  // R37: T<n> only, an upper-case T and the digits of the number without a
+  // leading zero (T0 itself is a tool). "t5" and "T01" are macros of their own:
+  // the commands name MACRO=T<n>, never t5 or T01. Nothing else that starts
+  // with a T.
   CHECK_INT(g_names.macro_count, 2);
-  CHECK_INT(g_names.macro_tool[0], 5);
-  CHECK_STR(g_names.macro_name[0], "t5");
+  CHECK_INT(g_names.macro_tool[0], 0);
+  CHECK_STR(g_names.macro_name[0], "T0");
   CHECK_INT(g_names.macro_tool[1], 10);
   CHECK_STR(g_names.macro_name[1], "T10");
   CHECK(!g_names.has_mmu);

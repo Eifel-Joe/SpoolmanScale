@@ -97,6 +97,19 @@ body = ks.body_of(API, "moonrakerRunScript", strings=True)
 assert any("script" in l and not l.startswith("/") for l in re.findall(r'"((?:[^"\\]|\\.)*)"', body)), \
     f"src/{API}: moonrakerRunScript() does not send {{\"script\": ...}}"
 
+# M1: where the rules refuse Moonraker's Spoolman address, the text goes to the
+# page and the SD log as Moonraker has it, and that may be "user:pass@host".
+# The copy into the probe goes through a function that handles the '@' (cuts
+# the login off), not through a plain copy of the raw text.
+same = ks.body_of(API, "probeSameSpoolman", strings=True)
+fallback = [name for name in re.findall(r"\b(\w+)\s*\(\s*probe->spoolman\b", same) if name != "sizeof"]
+assert fallback, f"src/{API}: probeSameSpoolman() no longer keeps the printer's Spoolman address in the probe"
+for name in fallback:
+    assert name not in ("copyText", "strcpy", "strncpy", "snprintf", "memcpy", "strlcpy"), \
+        f"src/{API}: probeSameSpoolman() copies Moonraker's raw Spoolman address with {name}() (a login 'user:pass@' would reach the page and the log)"
+    assert "'@'" in ks.body_of(API, name, strings=True), \
+        f"src/{API}: {name}() does not handle the '@' of an address with a login"
+
 # The key is never written to the log, in any of the files that handle it.
 for rel in (API, PRINTERS):
     found, leaks = ks.log_leaks(rel)
@@ -161,13 +174,23 @@ assert other < run and refuse < run, f"{where}: a command can be sent before ano
 fetch = need(b, r"\bmoonrakerFetchFacts\s*\(", where, "does not fetch the facts")
 plan = need(b, r"\bklipperPlanAssign\s*\(", where, "does not plan the assignment")
 assert other < fetch < plan < run, f"{where}: the order is not other Spoolman, facts, plan, command"
-# R30: a printer whose connection test never ran is refused the same way, before
-# any request (the facts are one) and so before any command. A bay number that
-# is cut to a byte (256 is bay 0) is refused before the printer is asked too.
-untested = need(b, r"\bKT_NONE\b", where, "does not look for a printer that was never tested (KT_NONE)")
+# R30, R36: only a printer whose stored test is KT_OK passes. KT_OTHER_SPOOLMAN
+# keeps its own answer above; every other verdict (KT_NONE, and a printer saved
+# while it was off: KT_UNREACHABLE, KT_ACCESS, KT_KLIPPY, KT_NO_SPOOLMAN,
+# KT_SM_OFFLINE, KT_BAD_ANSWER, which stop the probe before the Spoolman
+# comparison) is refused with KL_E_NOT_TESTED, before any request (the facts
+# are one) and so before any command. The gate is "not KT_OK", not a list of
+# the refused verdicts: a list lets the next verdict added to the enum through.
+# A bay number that is cut to a byte (256 is bay 0) is refused before the
+# printer is asked too.
+untested = need(b, r"!=\s*KT_OK\b", where, "does not refuse every stored verdict but KT_OK")
 refuse_untested = need(b, r"\bKL_E_NOT_TESTED\b", where, "does not answer KL_E_NOT_TESTED")
 assert untested < fetch and refuse_untested < fetch and untested < run and refuse_untested < run, \
-    f"{where}: a printer that was never tested is asked something or sent a command before it is refused"
+    f"{where}: a printer without a passed test is asked something or sent a command before it is refused"
+assert other < untested and refuse < untested, \
+    f"{where}: KL_E_OTHER_SPOOLMAN is decided after the general refusal, which would turn it into KL_E_NOT_TESTED"
+assert not re.search(r"==\s*KT_NONE\b", b), \
+    f"{where}: the refusal names KT_NONE alone: a printer saved while it was off passes it (R36)"
 bay_range = need(b, r"ams_id\s*>\s*255", where, "does not range-check the bay number")
 assert bay_range < fetch, f"{where}: the bay number is range-checked after the printer was read"
 need(b, r"\bklipperBayField\s*\(", where, "does not turn the bay into a field")

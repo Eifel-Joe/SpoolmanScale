@@ -43,8 +43,9 @@
 // kept in the arrays. Whoever indexes macro_tool, macro_name or lane_object
 // goes to min(count, KL_RAW_MAX), never to the count.
 //
-//   macro_tool/name  gcode_macro T<n> or t<n>: the number, and the name as the
-//                    printer spells it ("T1" or "t1")
+//   macro_tool/name  gcode_macro T<n>: the number, and the name ("T1"); an
+//                    upper-case T and no leading zero (R37), so "t1" and "T01"
+//                    are no tool macros
 //   lane_object      the whole object name of an AFC lane ("AFC_stepper lane1"
 //                    or "AFC_lane lane1"), the key of the query
 //   unknown_system   a system we cannot drive ("box" of the Creality CFS,

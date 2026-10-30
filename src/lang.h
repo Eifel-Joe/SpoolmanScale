@@ -2129,9 +2129,10 @@ enum StringID {
   STR_AMSV_KL_FIRST16,        // the status line: the printer has more fields than the scale shows
   STR_AMSV_KL_NOT_HELD,       // an assignment: the commands ran, the printer does not hold the spool
   STR_AMSV_KL_OTHER_SM,       // an assignment: the printer talks to another Spoolman
-  STR_AMSV_KL_NOT_TESTED,     // an assignment: the connection test never ran
+  STR_AMSV_KL_NOT_TESTED,     // an assignment: the printer has no passed connection test
   STR_AMSV_KL_NO_ANSWER,      // an assignment: the printer gave no answer
   STR_AMSV_KL_ACCESS,         // an assignment: Moonraker turned the scale down (401, 403)
+  STR_AMSV_KL_STATUS_SILENT,  // the status line: the printer does not answer (short: 314 px beside the chip)
 
   STR_COUNT
 };

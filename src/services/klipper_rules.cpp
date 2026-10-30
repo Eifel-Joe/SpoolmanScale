@@ -237,13 +237,14 @@ bool laneLine(Text* t, const KlipperField& lane, int spool_id) {
   return true;
 }
 
-// Root: the parser keeps a tool macro's name as the object list spells it
-//   (T1 or t1), but the commands the printer is allowed to receive are fixed
-//   (global constraints): MACRO=T<n> and the saved variable t<n>__spool_id.
+// Root: the commands the printer is allowed to receive are fixed (global
+//   constraints): MACRO=T<n> and the saved variable t<n>__spool_id.
 // Fix: both names are written from the field's number, whatever the label
-//   says.
-// NOT-TO-DO: using the field's label. A macro spelled t1 would be addressed
-//   as t1, a command nobody agreed to send.
+//   says. The parser takes only "T<n>" (upper case, no leading zero, R37) as
+//   a tool macro, so the label and the written name agree.
+// NOT-TO-DO: using the field's label: should the parser ever take another
+//   spelling, a macro spelled t1 would be addressed as t1, a command nobody
+//   agreed to send.
 // `spool_id` 0 writes None.
 void toolLines(Text* t, const KlipperFacts& f, int number, int spool_id) {
   textAdd(t, "SET_GCODE_VARIABLE MACRO=T");
