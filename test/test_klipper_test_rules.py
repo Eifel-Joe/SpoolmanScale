@@ -19,13 +19,23 @@ static const char* g_what = "";
 #define CHECK_STR(a, b) do { const char* x_ = (a); const char* y_ = (b); \
   if (strcmp(x_, y_) != 0) { fprintf(stderr, "FAIL [%s] line %d: %s is \"%s\", expected \"%s\"\n", g_what, __LINE__, #a, x_, y_); abort(); } } while (0)
 
+// The state text of a probe, at most what its array holds and always
+// terminated, the length checked by hand: no snprintf("%s") whose output the
+// compiler could take for a truncation (-Werror=format-truncation).
+static void setState(KlipperProbe* p, const char* state) {
+  const size_t len = strlen(state);
+  const size_t take = len < sizeof(p->klippy_state) - 1 ? len : sizeof(p->klippy_state) - 1;
+  memcpy(p->klippy_state, state, take);
+  p->klippy_state[take] = '\0';
+}
+
 // The probe of a good test, built with the numbers as plain ints. Each case
 // below turns one thing of it, or two, to see which the verdict names.
 static KlipperProbe good() {
   KlipperProbe p{};
   p.access_code = 200;
   p.info_code = 200;
-  snprintf(p.klippy_state, sizeof(p.klippy_state), "%s", "ready");
+  setState(&p, "ready");
   p.has_spoolman = true;
   p.status_code = 200;
   p.sm_connected = true;
@@ -131,7 +141,7 @@ int main() {
     p.sm_connected = false;
     p.addr_same = false;
     p.newest = KS_OTHER;
-    snprintf(p.klippy_state, sizeof(p.klippy_state), "%s", "error");
+    setState(&p, "error");
     CHECK_INT(klipperTestVerdict(p), KT_UNREACHABLE);
     // Any answer at all is "reachable": the next steps judge it.
     p = good();
@@ -150,7 +160,7 @@ int main() {
     CHECK_INT(klipperTestVerdict(p), KT_ACCESS);
     // Before the printer's state is looked at, and before Spoolman.
     p.has_spoolman = false;
-    snprintf(p.klippy_state, sizeof(p.klippy_state), "%s", "startup");
+    setState(&p, "startup");
     CHECK_INT(klipperTestVerdict(p), KT_ACCESS);
     const int other[4] = {0, 404, 500, 302};
     for (int i = 0; i < COUNT(other); i++) {
@@ -169,7 +179,7 @@ int main() {
     const char* const states[5] = {"startup", "error", "shutdown", "disconnected", ""};
     for (int i = 0; i < COUNT(states); i++) {
       KlipperProbe p = good();
-      snprintf(p.klippy_state, sizeof(p.klippy_state), "%s", states[i]);
+      setState(&p, states[i]);
       CHECK_INT(klipperTestVerdict(p), KT_KLIPPY);
       // Ahead of Spoolman.
       p.has_spoolman = false;

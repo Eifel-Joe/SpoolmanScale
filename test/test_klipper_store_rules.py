@@ -21,13 +21,23 @@ static const char* g_what = "";
 #define CHECK_STR(a, b) do { const char* x_ = (a); const char* y_ = (b); \
   if (strcmp(x_, y_) != 0) { fprintf(stderr, "FAIL [%s] line %d: %s is \"%s\", expected \"%s\"\n", g_what, __LINE__, #a, x_, y_); abort(); } } while (0)
 
+// At most cap - 1 bytes of src, always terminated; the length is checked by
+// hand. An snprintf("%s") of an array that is larger than the destination is
+// a truncation the compiler can prove (-Werror=format-truncation).
+static void copyText(char* dst, size_t cap, const char* src) {
+  const size_t len = strlen(src);
+  const size_t take = len < cap - 1 ? len : cap - 1;
+  memcpy(dst, src, take);
+  dst[take] = '\0';
+}
+
 // The printers are built by these, with the numbers as plain ints, so that no
 // brace initialisation narrows and no field is left out.
 static KlipperPrinterCfg mkCfg(unsigned id, const char* name, const char* host, int port) {
   KlipperPrinterCfg c{};
   c.id = (uint32_t)id;
-  snprintf(c.name, sizeof(c.name), "%s", name);
-  snprintf(c.host, sizeof(c.host), "%s", host);
+  copyText(c.name, sizeof(c.name), name);
+  copyText(c.host, sizeof(c.host), host);
   c.port = (uint16_t)port;
   return c;
 }
@@ -83,7 +93,11 @@ static bool cleaned(CleanFn fn, const char* in, size_t n, char* result) {
   const bool ok = fn(in, mem, n);
   for (size_t k = n; k < sizeof(mem); k++) CHECK(mem[k] == 0x7E);
   if (ok) CHECK(memchr(mem, 0, n) != nullptr);
-  snprintf(result, KL_HOST_MAX, "%s", ok ? mem : "");
+  if (ok) {
+    copyText(result, KL_HOST_MAX, mem);
+  } else {
+    result[0] = '\0';
+  }
   return ok;
 }
 
