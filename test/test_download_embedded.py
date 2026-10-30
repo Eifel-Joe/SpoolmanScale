@@ -2,7 +2,7 @@
 
 The checks: one helper in /app.js decides "embedded" inside a try, opens its window with window.open() as the first thing it does (a popup needs the user's click, so before any fetch or await), and is the only place that sets a download name or clicks a download anchor; the three download sites (settings backup, screenshots, logs) go through it; the backup opens the window before it fetches and closes it on every error; "save all" opens one window for all pictures (a window consumes the click that opened it); an object URL is made in the window that uses it (a URL made in the frame is partitioned away from the popup); the message for a blocked window exists in German, English and French and reaches every page.
 
-Several files for one window (round 1 of the review): the popup has no click of its own, so Chromium allows the first scripted download and prompts or blocks the rest. With more than one file the helper does not click by script; it writes one real download link per file into the window, labelled in the page's language, so each user click carries its own activation, and the window stays open until the user closes it. One file keeps the automatic click and the automatic close. A window the user closed before the data arrived says so with the same sentence as a blocked one."""
+Several files for one window (round 1 of the review): the popup has no click of its own, so Chromium allows the first scripted download and prompts or blocks the rest. With more than one file the helper does not click by script; it writes one real download link per file into the window, labelled in the page's language, so each user click carries its own activation, and the window stays open until the user closes it. One file keeps the automatic click, but the window no longer closes itself after it (acceptance of v0.8.6-beta.9): Edge shows its download bubble in that window, and a window that went five seconds after the click took the bubble with it, so the user saw no sign of the saved file. It now stays with a line naming the saved file and a Close button. A window the user closed before the data arrived says so with the same sentence as a blocked one."""
 import re
 
 import klipper_src as ks
@@ -11,6 +11,7 @@ import check_web_js as cw
 WEB = ks.src / "web"
 SID = "STR_W_DL_EMBEDDED"
 SID_SAVE = "STR_W_DL_SAVE"
+SID_SAVED = "STR_W_DL_SAVED"
 
 ks.assert_ci_step("test_download_embedded.py")
 
@@ -141,8 +142,22 @@ if finish:
     need("WS.dls" in body and "textContent" in body,
          "src/web/web_static.cpp: downloadFinish() does not label the links of a list with WS.dls")
     early = re.search(r"if\s*\(\s*h\.list\s*\)\s*return\s*;", body)
-    need(early is not None and body.find("setTimeout(") > early.start(),
-         "src/web/web_static.cpp: downloadFinish() arms the self-closing timer for a window that holds a list of links")
+    need(early is not None,
+         "src/web/web_static.cpp: downloadFinish() does not leave the list window alone after adding a link")
+    # One file (acceptance of v0.8.6-beta.9): the window stays after the click,
+    # because Edge shows its download bubble in it and the bubble went with a
+    # window that closed itself. So: no self-closing timer in downloadFinish(),
+    # the minute's timer of downloadStart() stopped, and the window says what
+    # was saved (WS.dlok, the file name for {n}) with a Close button (WS.cls).
+    need(re.search(r"setTimeout\(\s*function\s*\(\s*\)\s*\{\s*downloadAbort\(", body) is None,
+         "src/web/web_static.cpp: downloadFinish() still closes the window of a single file by itself; "
+         "the browser's download bubble goes with it")
+    need(re.search(r"clearTimeout\(\s*h\.t\s*\)", body) is not None,
+         "src/web/web_static.cpp: downloadFinish() does not stop the minute's timer of downloadStart(); "
+         "the window of a single file would still close after a minute")
+    need("WS.dlok" in second and "{n}" in second and "WS.cls" in second and ".close()" in second,
+         "src/web/web_static.cpp: the window of a single file does not say what was saved (WS.dlok with {n}) "
+         "and offer a Close button (WS.cls) that closes it")
 
 # The helper is the only place that sets a download name or clicks an anchor.
 rest = appjs
@@ -256,12 +271,30 @@ else:
         need(cell.count("{n}") == 1,
              f"src/lang.cpp: the {lang} text of {SID_SAVE} does not hold the file name, {{n}}, once")
 
+# The line in the window of a single file: German "Gespeichert: {n}".
+if not ks.enum_has(SID_SAVED):
+    problems.append(f"src/lang.h: {SID_SAVED} is not in the string enum")
+elif SID_SAVED not in rows:
+    problems.append(f"src/lang.cpp: {SID_SAVED} has no row")
+else:
+    try:
+        ks.assert_row_complete(rows, SID_SAVED, "src/lang.cpp")
+    except AssertionError as e:
+        problems.append(str(e))
+    for lang, cell in zip(("German", "English", "French"), rows[SID_SAVED]):
+        need(cell.count("{n}") == 1,
+             f"src/lang.cpp: the {lang} text of {SID_SAVED} does not hold the file name, {{n}}, once")
+
 # Every page gets them, next to the two words of ask(): app.js is cached across languages.
 assets = ks.body_of("web/web_shell.cpp", "webShellAssets", strings=True)
 need("WS.dl=" in assets and f"jsStr(T({SID}))" in assets,
      f"src/web/web_shell.cpp: webShellAssets() does not assign WS.dl from {SID} on every page")
 need("WS.dls=" in assets and f"jsStr(T({SID_SAVE}))" in assets,
      f"src/web/web_shell.cpp: webShellAssets() does not assign WS.dls from {SID_SAVE} on every page")
+need("WS.dlok=" in assets and f"jsStr(T({SID_SAVED}))" in assets,
+     f"src/web/web_shell.cpp: webShellAssets() does not assign WS.dlok from {SID_SAVED} on every page")
+need("WS.cls=" in assets and "jsStr(T(STR_BT_CLOSE))" in assets,
+     "src/web/web_shell.cpp: webShellAssets() does not assign WS.cls from STR_BT_CLOSE on every page")
 
 assert not problems, "\n" + "\n".join(f"  - {p}" for p in problems)
 print("test_download_embedded: ok")
