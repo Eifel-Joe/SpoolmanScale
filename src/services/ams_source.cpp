@@ -176,7 +176,7 @@ static void askWhatItCan(uint32_t timeout_ms) {
 }
 
 int amsSourceListPrinters(AmsPrinterList& out, uint32_t timeout_ms) {
-  memset(&out, 0, sizeof(out));   // not "= AmsPrinterList{}": no 2.3 kB temporary on the stack
+  memset(&out, 0, sizeof(out));   // not "= AmsPrinterList{}": no 3 kB temporary on the stack
   if (!amsSourceConfigured()) return -1;
   if (!s_info.known) askWhatItCan(timeout_ms);
 

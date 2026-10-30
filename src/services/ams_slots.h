@@ -52,6 +52,9 @@
 // "Charcoal", "Bambu Green", "Cyan" - the manufacturer's own colour name.
 #define AMS_COLOR_NAME_MAX   16
 #define AMS_PRINTER_NAME_MAX 24
+// The model of a Bambu printer as Bambuddy lists it: "A1 Mini", "X1C", "P1S",
+// "H2D". A few characters: 11 and a terminator.
+#define AMS_PRINTER_MODEL_MAX 12
 // "printing", "idle", "paused". Short on purpose: this is a state word, not
 // the name of the job.
 #define AMS_STATE_MAX        16
@@ -238,6 +241,10 @@ enum AmsPrinterKind : uint8_t {
 struct AmsPrinter {
   int  id;
   char name[AMS_PRINTER_NAME_MAX];
+  // The Bambu model, for the second line of the printer's button in the
+  // window "Choose printer". Bambuddy only; FilaMan, the AMS source and the
+  // Klipper printers leave it empty (AmsPrinter{} zeroes it).
+  char model[AMS_PRINTER_MODEL_MAX];
   bool active;
   bool online;
   // Klipper only (zero for the others): the layout (KlipperLayout) and the

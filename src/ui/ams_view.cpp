@@ -131,7 +131,7 @@ static bool s_close_pending = false;
 // The printers, fetched once and kept: their names are what the status line
 // shows, and asking again on every redraw would double the cost of a reload.
 // In the PSRAM: the list holds AMS_MAX_PRINTERS (64) printers, the Bambu ones
-// and the stored Klipper printers together, about 2.3 kB that the internal RAM
+// and the stored Klipper printers together, about 3 kB that the internal RAM
 // (BSS) should not carry for a page that is open now and then. Made on the
 // first opening and never freed, so the pointer never dangles.
 static AmsPrinterList* s_printers = nullptr;

@@ -1545,7 +1545,7 @@ int bbGetAmsState(const char* base_url, const char* api_key, int printer_id,
 
 int bbListPrinters(const char* base_url, const char* api_key,
                    AmsPrinterList& out, uint32_t timeout_ms) {
-  memset(&out, 0, sizeof(out));   // not "= AmsPrinterList{}": no 2.3 kB temporary on the stack
+  memset(&out, 0, sizeof(out));   // not "= AmsPrinterList{}": no 3 kB temporary on the stack
   if (!hasBaseUrl(base_url)) return -1;
 
   char url[160];
@@ -1592,6 +1592,9 @@ int bbListPrinters(const char* base_url, const char* api_key,
     dst = AmsPrinter{};
     dst.id = id;
     strncpy(dst.name, po["name"] | "", sizeof(dst.name) - 1);
+    // The model may be missing: it then stays empty and the button shows the
+    // name alone. dst is zeroed above, so the copy ends in a terminator.
+    strncpy(dst.model, po["model"] | "", sizeof(dst.model) - 1);
     // Neither key is guaranteed; absent means "do not grey it out".
     dst.active = po["is_active"] | true;
     dst.online = po["connected"] | po["online"] | false;
