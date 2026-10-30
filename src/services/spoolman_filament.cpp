@@ -398,6 +398,28 @@ static float materialDensity(const char* base_url, const char* material) {
   return 0.0f;
 }
 
+// The density of one database entry when it is the tag's product, else 0.
+static float entryProductDensity(JsonObjectConst e, const DensityProduct& want) {
+  const float d = e["density"] | 0.0f;
+  if (!densityPlausible(d)) return 0.0f;
+  const int weight_g = (int)lroundf(e["weight"] | 0.0f);
+  return densityEntryIsProduct(e["manufacturer"] | "", e["name"] | "", weight_g, want) ? d : 0.0f;
+}
+
+struct ProductDensityScan {
+  DensityProduct want;
+  float          density;
+  char           name[48];  // the entry it came from, for the log; copied,
+                            // the document it was read from is gone by then
+};
+
+static void scanProductDensity(JsonObjectConst e, void* p) {
+  ProductDensityScan* scan = (ProductDensityScan*)p;
+  if (scan->density > 0.0f) return;
+  scan->density = entryProductDensity(e, scan->want);
+  if (scan->density > 0.0f) snprintf(scan->name, sizeof(scan->name), "%s", e["name"] | "");
+}
+
 // The density of the database entry that carries the tag's product name, 0 if
 // there is none (V34, STATUS 56). Wurzel: a Bambu "Support for ABS" tag names
 // its material ABS-S, a base type the database does not have; the database
@@ -408,42 +430,50 @@ static float materialDensity(const char* base_url, const char* material) {
 // weight) and take its density only; the filament is still created from the
 // tag, as before. NOT-TO-DO: taking the whole entry (name, material and
 // temperatures would turn the tag's filament into the database's), or
-// matching on the words alone ("Support for ABS-GF" is another product). Only
-// the Spoolman form has a word search: the light form lists by vendor and
-// material, which is what found nothing here, so it skips this step.
+// matching on the words alone ("Support for ABS-GF" is another product).
+// The light form has no word search, only a maker's list of one material: for
+// the three support codes the material the product is filed under is known
+// (densitySupportBase()), so that list is read instead (o04, Niko11111
+// e1588eb). Any other material in the light form skips this step.
 static float productDensity(const char* base_url, const TagCreateInput& in) {
-  if (!in.product[0] || spoolmanFdbForm(base_url) != SM_FDB_SPOOLMAN) return 0.0f;
-  JsonDocument filter;
-  JsonObject f = filter.to<JsonArray>().add<JsonObject>();
-  f["manufacturer"] = true;
-  f["name"]         = true;
-  f["weight"]       = true;
-  f["density"]      = true;
-  const String words = String(in.vendor) + " " + in.product;
-  const String path = String("/api/v1/external/filament/search?limit=") + SM_FIL_DB_LIMIT +
-                      "&query=" + spoolmanUrlEncode(words.c_str());
-  JsonDocument doc;
-  // Within the same budget as the other searches of the database (f04,
-  // lvmiller b1bf6ffb): an answer cut off by it reads as a failed search,
-  // and the density goes on as if nothing was found (takeTypedDensity()),
-  // never from a half list. Test: test/test_fdb_read_limit_paths.py.
-  FdbJsonRead r = { &doc, &filter, &FDB_LIMIT_ANSWER, "Spoolman database search by product" };
-  const int code = spoolmanGetStreamed(base_url, path.c_str(), SM_FIL_DB_TIMEOUT_MS, fdbReadJson, &r);
-  if (code != 200) {
-    logSDf("Spoolman: filament database search by product -> HTTP %d", code);
-    return 0.0f;
+  if (!in.product[0]) return 0.0f;
+  ProductDensityScan scan = { { in.vendor, in.product, in.net_weight_g }, 0.0f, "" };
+  const SmFdbForm form = spoolmanFdbForm(base_url);
+  if (form == SM_FDB_LIGHT) {
+    const char* base = densitySupportBase(in.material);
+    if (!base) return 0.0f;
+    const int code = spoolmanFdbEachOf(base_url, in.vendor, base, scanProductDensity, &scan);
+    if (code != 200) {
+      logSDf("Spoolman: filament database list by product -> HTTP %d", code);
+      return 0.0f;
+    }
+  } else if (form == SM_FDB_SPOOLMAN) {
+    JsonDocument filter;
+    JsonObject f = filter.to<JsonArray>().add<JsonObject>();
+    f["manufacturer"] = true;
+    f["name"]         = true;
+    f["weight"]       = true;
+    f["density"]      = true;
+    const String words = String(in.vendor) + " " + in.product;
+    const String path = String("/api/v1/external/filament/search?limit=") + SM_FIL_DB_LIMIT +
+                        "&query=" + spoolmanUrlEncode(words.c_str());
+    JsonDocument doc;
+    // Within the same budget as the other searches of the database (f04,
+    // lvmiller b1bf6ffb): an answer cut off by it reads as a failed search,
+    // and the density goes on as if nothing was found (takeTypedDensity()),
+    // never from a half list. Test: test/test_fdb_read_limit_paths.py.
+    FdbJsonRead r = { &doc, &filter, &FDB_LIMIT_ANSWER, "Spoolman database search by product" };
+    const int code = spoolmanGetStreamed(base_url, path.c_str(), SM_FIL_DB_TIMEOUT_MS, fdbReadJson, &r);
+    if (code != 200) {
+      logSDf("Spoolman: filament database search by product -> HTTP %d", code);
+      return 0.0f;
+    }
+    for (JsonObjectConst e : doc.as<JsonArrayConst>()) scanProductDensity(e, &scan);
   }
-  const DensityProduct want = { in.vendor, in.product, in.net_weight_g };
-  for (JsonObjectConst e : doc.as<JsonArrayConst>()) {
-    const float d = e["density"] | 0.0f;
-    const char* name = e["name"] | "";
-    if (!densityPlausible(d)) continue;
-    if (!densityEntryIsProduct(e["manufacturer"] | "", name, (int)lroundf(e["weight"] | 0.0f), want))
-      continue;
-    logSDf("Spoolman: density %.2f for %s from the database entry \"%s\"", d, in.material, name);
-    return d;
-  }
-  return 0.0f;
+  if (scan.density > 0.0f)
+    logSDf("Spoolman: density %.2f for %s from the database entry \"%s\"",
+           scan.density, in.material, scan.name);
+  return scan.density;
 }
 
 // The last source of a density: the one typed at the scale, only if it is a

@@ -62,3 +62,23 @@ bool densityEntryIsProduct(const char* entry_vendor, const char* entry_name, int
   if (entry_weight_g > 0 && want.net_weight_g > 0 && entry_weight_g != want.net_weight_g) return false;
   return true;
 }
+
+// Bambu's support codes as block 2 of the tag carries them, and the material
+// SpoolmanDB lists the product under (checked against SpoolmanDB on
+// 30.10.2026: "Support for ABS" ABS, "Support for PA/PET" PA, "Support for
+// PLA White" and "Support for PLA/PETG Black/Nature" PLA). From Niko11111
+// e1588eb (o04).
+static const struct { const char* code; const char* base; } SUPPORT_BASES[] = {
+  { "abs-s", "ABS" },
+  { "pa-s",  "PA"  },
+  { "pla-s", "PLA" },
+};
+
+const char* densitySupportBase(const char* tag_material) {
+  if (!tag_material) return nullptr;
+  const size_t len = strlen(tag_material);
+  for (const auto& s : SUPPORT_BASES) {
+    if (len == strlen(s.code) && sameFolded(tag_material, s.code, len)) return s.base;
+  }
+  return nullptr;
+}

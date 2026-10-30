@@ -29,6 +29,12 @@
 //                "Support for PLA/PETG Black"), and its net weight is the
 //                same where both name one. A longer word is another product:
 //                "Support for ABS-GF" is not "Support for ABS".
+//
+//    support     The light form of the database has no word search, only
+//                the maker's list of one material. For the three support
+//                codes the base material to list is known; any other
+//                material is listed as it is and needs no help (o04,
+//                Niko11111 e1588eb).
 // ============================================================
 
 // The range of a plausible density in g/cm3, both ends included: 0.50 is the
@@ -57,3 +63,7 @@ bool densityPlausible(float d);
 // (after the blanks are ignored) on either side never match: two missing
 // makers are not the same maker.
 bool densityEntryIsProduct(const char* entry_vendor, const char* entry_name, int entry_weight_g, const DensityProduct& want);
+
+// The material the database lists a Bambu support code under ("ABS-S" ->
+// "ABS"), in any case of letters; nullptr for every other material.
+const char* densitySupportBase(const char* tag_material);
