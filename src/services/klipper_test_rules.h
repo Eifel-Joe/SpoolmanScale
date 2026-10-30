@@ -75,6 +75,11 @@ struct KlipperProbe {
   bool sm_connected;       // Moonraker says it is connected to Spoolman
   bool addr_same;          // klipperSameAddr of Moonraker's address and the scale's
   KlipperSameDb newest;    // klipperSameNewest, KS_UNKNOWN when not asked
+  // The Spoolman Moonraker talks to, for the words of KT_OTHER_SPOOLMAN: the
+  // address as klipperSpoolmanAddr writes it, or as Moonraker has it where
+  // the rules refuse it; "" when it was not read. Last, so that a probe
+  // built by field keeps its meaning.
+  char spoolman[KL_HOST_MAX + 16];
 };
 
 // The verdict, in the order of the specification; the first step that fails

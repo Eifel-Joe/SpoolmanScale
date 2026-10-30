@@ -8,14 +8,18 @@
 //
 // The test takes seconds, so it runs as a web job on a task of its own
 // (web_jobs.h). Whoever starts it hands the job a copy of the printer and of
-// its key, and the page asks the same URL again until the answer is ready;
-// the handler that collects the answer writes it to the store, because the
-// store belongs to the loop task (R3). Saving a printer starts the test by
-// itself, on the scale and not from the page (R30): a printer whose test never
-// ran cannot be used at the AMS view, so a page that is closed before it
-// starts the test must not leave the printer in that state.
+// its key, and the page asks the same URL again until the answer is ready.
+// The answer is written to the store by klipperTestCollect(), on the loop task
+// because the store belongs to it (R3): the route that is asked for it, the
+// loop's tick (a result nobody asks for is stored all the same, R31) and both
+// starts call it. Saving a printer starts the test by itself, on the scale and
+// not from the page (R30): a printer whose test never ran cannot be used at the
+// AMS view, so a page that is closed before it starts the test must not leave
+// the printer in that state.
 //
 // A key never leaves the scale: the list only says whether there is one.
+#include "web/pages/page_klipper.h"
+
 #include "web/web_pages.h"
 
 #include <Arduino.h>
@@ -27,6 +31,7 @@
 #include "hardware/sd_logger.h"
 #include "services/klipper_printers.h"
 #include "services/klipper_store.h"
+#include "services/moonraker_api.h"
 #include "web/web_access.h"
 #include "web/web_jobs.h"
 #include "web/web_shell.h"
@@ -50,10 +55,12 @@ static bool usable(WebServer &srv) {
 
 // ---- what the last test found beyond what the store keeps -------------------
 // The store keeps the verdict, the layout, the number of fields, the hints and
-// the time. Three words of the texts are not in it: Klipper's state ("startup"),
-// the code of an answer that was none, and the name of a system the scale cannot
-// drive. They are remembered here, in RAM, for the few printers tested last;
-// after a restart the list says the verdict without them.
+// the time. Four words of the texts are not in it: Klipper's state ("startup"),
+// the code of an answer that was none, the name of a system the scale cannot
+// drive, and the Spoolman address the printer talks to. They are remembered
+// here, in RAM, for the few printers tested last; after a restart the list says
+// the verdict without them. The slots are made on the first result, in the
+// PSRAM: a scale that never tests a printer pays nothing for them.
 #define KL_DETAIL_SLOTS 8
 
 struct TestDetail {
@@ -61,22 +68,25 @@ struct TestDetail {
   int16_t  code;
   char     state[KL_STATE_MAX];
   char     unknown[KL_LANE_MAX];
+  char     spoolman[KL_HOST_MAX + 16];
 };
 
-static TestDetail s_detail[KL_DETAIL_SLOTS];
-static uint8_t    s_detail_next = 0;
+static TestDetail *s_detail = nullptr;
+static uint8_t     s_detail_next = 0;
 
 static const TestDetail* detailOf(uint32_t id) {
-  if (id == 0) return nullptr;
-  for (const TestDetail &d : s_detail)
-    if (d.id == id) return &d;
+  if (!s_detail || id == 0) return nullptr;
+  for (int i = 0; i < KL_DETAIL_SLOTS; i++)
+    if (s_detail[i].id == id) return &s_detail[i];
   return nullptr;
 }
 
 static void detailPut(const WebJobResult &r) {
+  if (!s_detail) s_detail = static_cast<TestDetail*>(moonrakerAlloc(sizeof(TestDetail) * KL_DETAIL_SLOTS));
+  if (!s_detail) return;   // no memory: the list says the verdict without the words
   TestDetail *slot = nullptr;
-  for (TestDetail &d : s_detail)
-    if (d.id == r.kl_id) slot = &d;
+  for (int i = 0; i < KL_DETAIL_SLOTS; i++)
+    if (s_detail[i].id == r.kl_id) slot = &s_detail[i];
   if (!slot) {
     slot = &s_detail[s_detail_next];
     s_detail_next = (uint8_t)((s_detail_next + 1) % KL_DETAIL_SLOTS);
@@ -86,11 +96,13 @@ static void detailPut(const WebJobResult &r) {
   slot->code = (r.code == KL_E_PARSE) ? 200 : (int16_t)r.code;
   snprintf(slot->state, sizeof(slot->state), "%s", r.kl_state);
   snprintf(slot->unknown, sizeof(slot->unknown), "%s", r.kl_unknown);
+  snprintf(slot->spoolman, sizeof(slot->spoolman), "%s", r.kl_spoolman);
 }
 
 static void detailDrop(uint32_t id) {
-  for (TestDetail &d : s_detail)
-    if (d.id == id) d.id = 0;
+  if (!s_detail) return;
+  for (int i = 0; i < KL_DETAIL_SLOTS; i++)
+    if (s_detail[i].id == id) s_detail[i].id = 0;
 }
 
 // ---- the words ------------------------------------------------------------
@@ -141,7 +153,9 @@ static void verdictText(const KlipperPrinterCfg &c, char *out, size_t n) {
       snprintf(arg, sizeof(arg), "%s", (d && d->state[0]) ? d->state : "?");
       break;
     case KT_OTHER_SPOOLMAN:
-      snprintf(arg, sizeof(arg), "%s", klipperScaleSpoolman());
+      // The Spoolman the PRINTER talks to (R32), so that it can be found in
+      // Moonraker's [spoolman] and corrected there.
+      snprintf(arg, sizeof(arg), "%s", (d && d->spoolman[0]) ? d->spoolman : "?");
       break;
     case KT_BAD_ANSWER:
       if (d && d->code > 0) snprintf(arg, sizeof(arg), "%d", (int)d->code);
@@ -191,6 +205,85 @@ static bool handOver(const KlipperPrinterCfg &c) {
   return ok;
 }
 
+// ---- the result of a test -----------------------------------------------------
+// The verdict in English words for the log (Spec 5.3 Z: the result in plain
+// words on the page and in the log). The page's texts are the string table's.
+static void layoutLog(const KlipperTestOutcome &o, const char *unknown, char *out, size_t n) {
+  switch (o.layout) {
+    case KL_LAYOUT_MMU:   snprintf(out, n, "Happy Hare, %d bays", (int)o.fields); break;
+    case KL_LAYOUT_AFC:   snprintf(out, n, "AFC, %d bays", (int)o.fields); break;
+    case KL_LAYOUT_TOOLS: snprintf(out, n, "tool changer, %d tools", (int)o.fields); break;
+    case KL_LAYOUT_SINGLE:
+      if (unknown[0]) snprintf(out, n, "unknown system %s, one field", unknown);
+      else            snprintf(out, n, "one extruder");
+      break;
+    default: snprintf(out, n, "no layout read"); break;
+  }
+}
+
+static void verdictLog(const WebJobResult &r, char *out, size_t n) {
+  char layout[80];
+  switch (r.kl.test) {
+    case KT_OK:
+      layoutLog(r.kl, r.kl_unknown, layout, sizeof(layout));
+      snprintf(out, n, "ok, %s", layout);
+      break;
+    case KT_UNREACHABLE:    snprintf(out, n, "unreachable"); break;
+    case KT_ACCESS:         snprintf(out, n, "access denied (not trusted)"); break;
+    case KT_KLIPPY:         snprintf(out, n, "Klipper not ready (%s)", r.kl_state); break;
+    case KT_NO_SPOOLMAN:    snprintf(out, n, "Spoolman not set up"); break;
+    case KT_SM_OFFLINE:     snprintf(out, n, "Spoolman offline"); break;
+    case KT_OTHER_SPOOLMAN: snprintf(out, n, "other Spoolman %s", r.kl_spoolman); break;
+    case KT_BAD_ANSWER:
+      snprintf(out, n, "unexpected answer (HTTP %d)", (r.code == KL_E_PARSE) ? 200 : r.code);
+      break;
+    default:                snprintf(out, n, "not tested"); break;
+  }
+}
+
+// R31: the one place that writes the outcome of a finished Klipper test to the
+// store, and the only one that takes the job's slot for it. Called by the route
+// that is asked for the answer, by the loop (klipperTestTick) and by both starts
+// before they take the slot for a new job, so that a result is stored whoever
+// comes first and none is thrown away as somebody else's leftover. False when no
+// finished Klipper test waits; *id and *stored (both may be null) say which
+// printer it was and whether the outcome went into the store.
+// Root: the test took seconds, and the printer's address can be changed in that
+//   time. The save then reset the stored outcome (KT_NONE, the R30 gate), and the
+//   result that arrives is about the old address.
+// Fix: the address and port the job tested are compared with the stored ones
+//   first; a result about another address is dropped and logged.
+// NOT-TO-DO: storing it anyway. An old OK would open the gate for an address
+//   nobody has tested.
+static bool klipperTestCollect(uint32_t *id, bool *stored) {
+  if (webJobState() != WJS_DONE || webJobKind() != WJ_KLIPPER_TEST) return false;
+  const WebJobResult &r = webJobResult();
+  const KlipperPrinterCfg &sent = webJobKlipperInput();
+  KlipperPrinterCfg now;
+  bool written = false;
+  const char *fate = "not stored";
+  if (!klipperStoreFind(r.kl_id, &now)) {
+    fate = "printer gone, dropped";
+  } else if (now.port != sent.port || strcmp(now.host, sent.host) != 0) {
+    fate = "address changed while the test ran, dropped";
+  } else if (klipperStoreSetTest(r.kl_id, r.kl)) {
+    detailPut(r);
+    written = true;
+    fate = "stored";
+  }
+  char word[112];
+  verdictLog(r, word, sizeof(word));
+  logSDf("Web: Klipper test of '%s' (%lu): %s, %s", sent.name, (unsigned long)r.kl_id, word, fate);
+  if (id) *id = r.kl_id;
+  if (stored) *stored = written;
+  webJobTake();
+  return true;
+}
+
+void klipperTestTick() {
+  klipperTestCollect(nullptr, nullptr);
+}
+
 // ---- what was typed -------------------------------------------------------
 // Digits only; empty or 0 is Moonraker's own port (the store makes it 7125).
 static bool parsePort(const char *s, uint16_t *out) {
@@ -204,9 +297,9 @@ static bool parsePort(const char *s, uint16_t *out) {
   return true;
 }
 
-// The name and the address cleaned by the store's own rules (a text too long
-// for its field is refused, not cut in the middle of a word), the port as a
-// number. The store judges the rest.
+// The name and the address cleaned by the store's own rules: a name too long
+// for its field is cut at a character boundary, a host that does not fit is
+// refused. The port is read as a number. The store judges the rest.
 static KlipperSave readPrinter(WebServer &srv, KlipperPrinterCfg *c) {
   if (!klipperNameClean(srv.arg("name").c_str(), c->name, sizeof(c->name))) return KLS_BAD_NAME;
   if (!klipperHostClean(srv.arg("host").c_str(), c->host, sizeof(c->host))) return KLS_BAD_HOST;
@@ -415,7 +508,9 @@ static void scriptForm(String &h) {
          "$('kd').checked=false;$('kd-l').style.display=p.key?'':'none';"
          "$('kl-ft').textContent=K.edit;$('kl-cancel').style.display='';"
          "$('kl-ft').scrollIntoView({behavior:'smooth'});$('kn').focus();}"
-         "function saveForm(){const key=$('kk').value.trim();"
+         // A save in flight has the button disabled: neither a second click nor
+         // Enter in a field starts another.
+         "function saveForm(){if($('kl-save').disabled)return;const key=$('kk').value.trim();"
          "const o={id:EDIT,name:$('kn').value,host:$('kh').value,port:$('kp').value,"
          "key:key,keyset:key?1:0,keydel:$('kd').checked?1:0};"
          "$('kl-save').disabled=true;"
@@ -423,7 +518,7 @@ static void scriptForm(String &h) {
          // job was running) the page asks for it, and either way waits for it.
          // The callback is one literal: test_klipper_page.py reads the script
          // literal by literal and keeps those that show JavaScript.
-         "kpost('/api/klipper/save',o).then(function(r){$('kl-save').disabled=false;if(!r.ok){flash('kl-fs',r.text||WS.err,true);return;}flash('kl-fs',WS.ok,false,3000);resetForm();if(r.json&&r.json.testing)pollTest(0);else if(r.json)testNow(r.json.id);else load();});}");
+         "kpost('/api/klipper/save',o).then(function(r){$('kl-save').disabled=false;if(!r.ok){flash('kl-fs',r.text||WS.err,true);return;}flash('kl-fs',WS.ok,false,3000);resetForm();load();if(r.json&&r.json.testing)pollTest(0);else if(r.json)testNow(r.json.id);});}");
 }
 
 // The test: started by the scale after a save, or by the button; the page asks
@@ -434,10 +529,8 @@ static void scriptTest(String &h) {
          "setTimeout(function(){pollTest(n+1);},700);return;}"
          "flash('kl-s','',false);load();});}"
          "function testNow(id){flash('kl-s',K.testing,false);"
-         "kpost('/api/klipper/test',{id:id}).then(function(r){"
-         "if(!r.ok||!r.json){flash('kl-s',r.text||WS.err,true,5000);return;}"
-         "if(r.json.queued===false){flash('kl-s',K.busy,true,5000);return;}"
-         "pollTest(0);});}"
+         // A refused test leaves the list as the save made it: read again.
+         "kpost('/api/klipper/test',{id:id}).then(function(r){if(r.ok&&r.json&&r.json.queued!==false){pollTest(0);return;}flash('kl-s',r.ok&&r.json?K.busy:(r.text||WS.err),true,5000);load();});}"
          "function delPrinter(p){"
          "ask(K.delAsk.replace('%s',function(){return p.name;}),K.del,true).then(function(ok){"
          "if(!ok)return;kpost('/api/klipper/delete',{id:p.id}).then(function(r){"
@@ -533,6 +626,7 @@ static void routes(WebServer &srv) {
 
     // The same start as POST /api/klipper/test.
     bool testing = false;
+    klipperTestCollect(nullptr, nullptr);          // a finished test of ours is stored first (R31)
     if (webJobState() == WJS_DONE) webJobTake();   // somebody else's leftover
     if (handOver(c)) testing = webJobStart(WJ_KLIPPER_TEST, klipperScaleSpoolman(), false);
     logSDf("Web: Klipper printer %lu saved, key %s, test %s", (unsigned long)c.id,
@@ -568,6 +662,7 @@ static void routes(WebServer &srv) {
     const uint32_t id = (uint32_t)strtoul(srv.arg("id").c_str(), nullptr, 10);
     KlipperPrinterCfg c;
     if (!klipperStoreFind(id, &c)) { srv.send(404, "text/plain", T(STR_W_KL_E_GONE)); return; }
+    klipperTestCollect(nullptr, nullptr);          // a finished test of ours is stored first (R31)
     if (webJobState() == WJS_DONE) webJobTake();   // somebody else's leftover
     if (!handOver(c) || !webJobStart(WJ_KLIPPER_TEST, klipperScaleSpoolman(), false)) {
       srv.send(200, "application/json", "{\"queued\":false}");
@@ -583,18 +678,14 @@ static void routes(WebServer &srv) {
       srv.send(202, "application/json", "{\"state\":\"running\"}");
       return;
     }
-    if (webJobState() == WJS_DONE && webJobKind() == WJ_KLIPPER_TEST) {
-      const WebJobResult &r = webJobResult();
-      const bool stored = klipperStoreSetTest(r.kl_id, r.kl);
-      if (stored) detailPut(r);
-      logSDf("Web: Klipper test of printer %lu: verdict %d, %s", (unsigned long)r.kl_id,
-             (int)r.kl.test, stored ? "stored" : "not stored");
+    uint32_t id = 0;
+    bool stored = false;
+    if (klipperTestCollect(&id, &stored)) {
       String j = F("{\"state\":\"done\",\"id\":");
-      j += String((unsigned long)r.kl_id);
+      j += String((unsigned long)id);
       j += F(",\"stored\":");
       j += stored ? F("true") : F("false");
       j += '}';
-      webJobTake();
       srv.send(200, "application/json", j);
       return;
     }

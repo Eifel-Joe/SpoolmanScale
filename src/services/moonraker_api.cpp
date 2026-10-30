@@ -58,6 +58,14 @@ JsonVariantConst resultOf(const JsonDocument& doc) {
   return doc["result"];
 }
 
+// At most n - 1 bytes of src, terminated. Written out because snprintf with a
+// source array longer than the target is a format-truncation error.
+void copyText(char* dst, size_t n, const char* src) {
+  size_t i = 0;
+  for (; i + 1 < n && src[i]; i++) dst[i] = src[i];
+  dst[i] = '\0';
+}
+
 // A key goes into a header as it is, so a CR or LF in it would start a header
 // line of its own. The store accepts A-Z a-z 0-9 _ - only; this holds for a
 // key that came in by another way (a restored backup).
@@ -320,8 +328,13 @@ void newestOnScale(const char* scale_spoolman, int* id, char* registered, size_t
 // where the two differ (a name against an address) the newest spool of both.
 void probeSameSpoolman(const Target& t, const char* scale_spoolman, KlipperProbe* probe) {
   char theirs[128] = "";
-  probe->addr_same = readSpoolmanAddress(t, theirs, sizeof(theirs)) &&
-                     klipperSameAddr(theirs, scale_spoolman);
+  const bool read = readSpoolmanAddress(t, theirs, sizeof(theirs));
+  // The printer's address is kept for the verdict's words: normalised, or as
+  // Moonraker writes it where the rules refuse it (the rules leave "" then).
+  if (read && !klipperSpoolmanAddr(theirs, probe->spoolman, sizeof(probe->spoolman))) {
+    copyText(probe->spoolman, sizeof(probe->spoolman), theirs);
+  }
+  probe->addr_same = read && klipperSameAddr(theirs, scale_spoolman);
   if (probe->addr_same) return;
   int theirs_id = -1;
   int ours_id = -1;

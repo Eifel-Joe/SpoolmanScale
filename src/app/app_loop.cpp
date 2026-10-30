@@ -98,6 +98,7 @@
 #include "services/prefs_store.h"
 #include "services/spool_extras.h"
 #include "web/web_jobs.h"
+#include "web/pages/page_klipper.h"   // klipperTestTick()
 #include "ui/confirm_popup.h"
 #include "ui/tare_entry.h"
 #include "ui/no_tag_create.h"   // noTagAfterCreateBusy()
@@ -751,6 +752,7 @@ void appLoop() {
   perfSection("flashlog");
   flashLogTick();
   perfSection("jobs");
+  klipperTestTick();   // stores a finished Klipper test before webJobsTick() drops it
   webJobsTick();
   // Gives the kept spool list back once it is too old or was called off. Two
   // comparisons while there is none.

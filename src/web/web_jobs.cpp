@@ -54,6 +54,9 @@ static bool                 s_flag    = false;
 // so the job never reaches into the store (R3).
 static KlipperPrinterCfg    s_kl_cfg;
 static char                 s_kl_key[KL_KEY_MAX] = "";
+// Set by the hand-over, spent by the start: a test runs only on an input that
+// was handed over for this very start (M1).
+static bool                 s_kl_pending = false;
 static unsigned long        s_done_ms = 0;
 // The gates of the "postponed" line and of the "task creation failed" line,
 // one each. Every kind of job starts from the loop task (the web handlers and
@@ -145,6 +148,13 @@ static void runBambuCatalog() {
   snprintf(s_res.pub, sizeof(s_res.pub), "%s", s_arg);
 }
 
+// The key does not outlive the test, nor a start that was refused.
+static void klipperInputDrop() {
+  volatile char* wipe = s_kl_key;
+  for (size_t i = 0; i < sizeof(s_kl_key); i++) wipe[i] = 0;
+  s_kl_pending = false;
+}
+
 // Unix seconds, or 0 while the clock has not been set (it starts in 1970, and
 // no scale ran before 2024).
 static uint32_t unixNow() {
@@ -174,6 +184,7 @@ static void runKlipperTest() {
     if (facts->truncated)         o.flags |= KL_FLAG_TRUNCATED;
     snprintf(s_res.kl_unknown, sizeof(s_res.kl_unknown), "%s", facts->unknown_system);
   }
+  snprintf(s_res.kl_spoolman, sizeof(s_res.kl_spoolman), "%s", probe.spoolman);
   o.at = unixNow();
   s_res.kl = o;
   s_res.kl_id = s_kl_cfg.id;
@@ -181,10 +192,7 @@ static void runKlipperTest() {
   s_res.code = probe.access_code > 0 ? probe.info_code : probe.access_code;
   s_res.ok = probe.access_code > 0;
   moonrakerFree(facts);
-
-  // The copy of the key does not outlive the test.
-  volatile char* wipe = s_kl_key;
-  for (size_t i = 0; i < sizeof(s_kl_key); i++) wipe[i] = 0;
+  klipperInputDrop();
 }
 
 static void webJobTask(void* arg) {
@@ -239,7 +247,12 @@ static uint32_t webJobMinHeap(WebJobKind kind, const char* arg) {
 }
 
 bool webJobStart(WebJobKind kind, const char* arg, bool flag) {
-  if (s_state != WJS_IDLE || kind == WJ_NONE) return false;
+  // A Klipper test runs on an input handed over for this start, or not at all.
+  if (kind == WJ_KLIPPER_TEST && !s_kl_pending) return false;
+  if (s_state != WJS_IDLE || kind == WJ_NONE) {
+    if (kind == WJ_KLIPPER_TEST) klipperInputDrop();
+    return false;
+  }
   // One inventory at a time, device wide, see backend_job.h.
   if (kind == WJ_SPOOLS && backendJobState() == BJS_RUNNING) return false;
   // A GitHub job is a TLS request like the daily update check, and the floor
@@ -269,6 +282,7 @@ bool webJobStart(WebJobKind kind, const char* arg, bool flag) {
                     (unsigned)free_heap, (unsigned)min_heap,
                     (unsigned)logGateTakeSuppressed(&s_start_gate));
     }
+    if (kind == WJ_KLIPPER_TEST) klipperInputDrop();
     return false;
   }
   s_res.kind   = kind;
@@ -283,6 +297,7 @@ bool webJobStart(WebJobKind kind, const char* arg, bool flag) {
   s_res.kl     = KlipperTestOutcome{};
   s_res.kl_state[0]   = '\0';
   s_res.kl_unknown[0] = '\0';
+  s_res.kl_spoolman[0] = '\0';
   s_arg[0] = '\0';
   if (arg) { strncpy(s_arg, arg, sizeof(s_arg) - 1); s_arg[sizeof(s_arg) - 1] = '\0'; }
   s_flag = flag;
@@ -300,8 +315,10 @@ bool webJobStart(WebJobKind kind, const char* arg, bool flag) {
       Serial.printf("[webjob] task creation failed (%u more since the last line)\n",
                     (unsigned)logGateTakeSuppressed(&s_create_gate));
     }
+    if (kind == WJ_KLIPPER_TEST) klipperInputDrop();
     return false;
   }
+  if (kind == WJ_KLIPPER_TEST) s_kl_pending = false;   // spent: the task has the input
   // Started: what was refused or failed before is over, the next one gets a line.
   logGateReset(&s_start_gate);
   logGateReset(&s_create_gate);
@@ -312,8 +329,11 @@ bool webJobSetKlipperInput(const KlipperPrinterCfg& cfg, const char* key) {
   if (s_state != WJS_IDLE) return false;
   s_kl_cfg = cfg;
   snprintf(s_kl_key, sizeof(s_kl_key), "%s", key ? key : "");
+  s_kl_pending = true;
   return true;
 }
+
+const KlipperPrinterCfg& webJobKlipperInput() { return s_kl_cfg; }
 
 WebJobState webJobState() { return s_state; }
 WebJobKind  webJobKind()  { return s_res.kind; }

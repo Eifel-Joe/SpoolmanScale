@@ -77,5 +77,7 @@ int moonrakerSetActiveSpool(const KlipperPrinterCfg& c, const char* key, int spo
 // klipperTestVerdict(*probe)), else the code that stopped the first request
 // (zero or less: nothing connected).
 // info_code is KL_E_PARSE when /server/info answered 200 with no Klipper state.
+// probe->spoolman is the Spoolman address Moonraker has (read for the address
+// comparison, so only once Moonraker is connected to its Spoolman).
 int moonrakerProbe(const KlipperPrinterCfg& c, const char* key, const char* scale_spoolman,
                    KlipperProbe* probe, KlipperFacts* facts);

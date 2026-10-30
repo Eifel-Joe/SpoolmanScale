@@ -65,6 +65,7 @@ struct WebJobResult {
   KlipperTestOutcome kl;
   char   kl_state[KL_STATE_MAX];   // Klipper's own state ("startup", "error", ...), "" when not read
   char   kl_unknown[KL_LANE_MAX];  // a system the scale cannot drive ("box"), "" when none
+  char   kl_spoolman[KL_HOST_MAX + 16];  // the Spoolman the printer talks to (KlipperProbe::spoolman)
 };
 
 // Starts a job. `arg` is the release tag for WJ_GH_NOTES and the scale's
@@ -77,7 +78,14 @@ bool webJobStart(WebJobKind kind, const char* arg, bool flag);
 // handler on the loop task before webJobStart() (R3). The job reads this copy
 // and nothing of the store, which belongs to the loop task. False, and nothing
 // copied, while any job is in flight: a running test reads the old copy.
+// The input is good for one start: webJobStart() refuses a Klipper test that
+// nobody handed an input for, and wipes the key when it refuses one.
 bool webJobSetKlipperInput(const KlipperPrinterCfg& cfg, const char* key);
+
+// The printer as the last test got it, for the handler that collects the
+// result: it compares address and port with the stored printer before it
+// stores an outcome. Valid while a result of WJ_KLIPPER_TEST waits.
+const KlipperPrinterCfg& webJobKlipperInput();
 
 WebJobState webJobState();
 WebJobKind  webJobKind();

@@ -1,4 +1,4 @@
-"""Read the source tree without a compiler and check the page "Klipper" of the browser (web/pages/page_klipper.cpp) and the job behind its connection test: the page is in the tab strip after the label printer, behind the configuration gate, and only where Klipper printers can be used; the list never carries a key, only whether there is one; saving starts the test, deleting asks first, every fetch has a catch; every verdict of the test has its text in German, English and French; and the job runs the probe on a copy, without touching the settings."""
+"""Read the source tree without a compiler and check the page "Klipper" of the browser (web/pages/page_klipper.cpp) and the job behind its connection test: the page is in the tab strip after the label printer, behind the configuration gate, and only where Klipper printers can be used; the list never carries a key, only whether there is one; saving starts the test, deleting asks first, every fetch has a catch; every verdict of the test has its text in German, English and French; and the job runs the probe on a copy, without touching the settings. A finished test is stored by one function that the route, the loop and the two starts call, and only if the address is still the one that was tested; the text of a foreign Spoolman names the printer's address; the log says the verdict in words; the list reloads after every save; a start without a hand-over is refused."""
 import re
 
 import klipper_src as ks
@@ -103,9 +103,65 @@ for buf in every_buffer:
 # 4. The test: started by a POST (202), asked again at the same address for the
 # answer, and the answer written on the loop task by the one who collects it.
 test_text = ks.route_text(PAGE, "/api/klipper/test")
-for token in ("webJobStart(", "WJ_KLIPPER_TEST", "202", "webJobState(", "WJS_DONE", "webJobTake(", "klipperStoreSetTest("):
+for token in ("webJobStart(", "WJ_KLIPPER_TEST", "202", "webJobState(", "WJS_DONE", "webJobTake("):
     assert token in test_text, f"src/{PAGE}: the route /api/klipper/test lacks {token}"
 assert "klipperScaleSpoolman(" in page_code, f"src/{PAGE}: the job is not handed the scale's Spoolman (klipperScaleSpoolman())"
+
+# R31: the outcome is written in ONE function, klipperTestCollect(), which the
+# GET route, the loop (klipperTestTick) and both starts call. A result nobody
+# asked for is stored by the loop, and a start stores a finished one before it
+# takes the slot, instead of throwing it away as somebody else's leftover.
+set_calls = ks.calls(page.code, "klipperStoreSetTest")
+assert len(set_calls) == 1, f"src/{PAGE}: klipperStoreSetTest() is called {len(set_calls)} times, expected once (one function stores the outcome)"
+owner = [n for n, a, b in funcs if a <= set_calls[0][0] < b]
+assert owner == ["klipperTestCollect"], f"src/{PAGE}: the outcome is stored in {owner}, not in klipperTestCollect()"
+collect = ks.body_of(PAGE, "klipperTestCollect")
+for token in ("webJobState()", "WJS_DONE", "webJobKind()", "WJ_KLIPPER_TEST", "webJobTake("):
+    assert token in collect, f"src/{PAGE}: klipperTestCollect() lacks {token}"
+# M5: the address the job tested is compared with the stored one first; a test
+# of an old address must not overwrite the reset of a changed one.
+assert "klipperStoreFind(" in collect and "webJobKlipperInput(" in collect and re.search(r"\bstrcmp\s*\(", collect) \
+    and re.search(r"\.port\b", collect), f"src/{PAGE}: klipperTestCollect() does not compare host and port of the tested copy with the stored printer"
+assert collect.index("klipperStoreFind(") < collect.index("klipperStoreSetTest("), \
+    f"src/{PAGE}: klipperTestCollect() stores before it compared the address"
+tick = ks.body_of(PAGE, "klipperTestTick")
+assert "klipperTestCollect(" in tick, f"src/{PAGE}: klipperTestTick() does not collect"
+for path in ("/api/klipper/test", "/api/klipper/save"):
+    for a, b in ks.route_spans(PAGE, path):
+        text = page.code[a:b]
+        if "HTTP_GET" in text:
+            assert "klipperTestCollect(" in text, f"src/{PAGE}: GET {path} does not collect through klipperTestCollect()"
+        elif "webJobStart(" in text:
+            assert "klipperTestCollect(" in text and text.index("klipperTestCollect(") < text.index("webJobStart("), \
+                f"src/{PAGE}: POST {path} starts before it stored a finished result"
+loop = ks.source_of("app/app_loop.cpp")
+assert '#include "web/pages/page_klipper.h"' in loop.text, "src/app/app_loop.cpp: page_klipper.h is not included"
+loop_code = ks.collapse(loop.code)
+assert "klipperTestTick();" in loop_code and loop_code.index("klipperTestTick();") < loop_code.index("webJobsTick();"), \
+    "src/app/app_loop.cpp: klipperTestTick() is not called, or not before webJobsTick() drops the result"
+
+# R32: the text of a foreign Spoolman names the PRINTER's address, which the
+# probe carries (the normalised one from /server/config) and the page remembers.
+rules_h = ks.source_of("services/klipper_test_rules.h")
+m = re.search(r"struct\s+KlipperProbe\s*\{(.*?)\};", rules_h.code, re.S)
+assert m, "src/services/klipper_test_rules.h: struct KlipperProbe is not there"
+members = [x.strip() for x in m.group(1).split(";") if x.strip()]
+assert re.fullmatch(r"char\s+spoolman\s*\[\s*KL_HOST_MAX\s*\+\s*16\s*\]", members[-1]), \
+    f"src/services/klipper_test_rules.h: the last member of KlipperProbe is '{members[-1]}', not char spoolman[KL_HOST_MAX + 16]"
+api_code = ks.source_of("services/moonraker_api.cpp").code
+assert re.search(r"probe->spoolman\b", api_code) and re.search(r"\bklipperSpoolmanAddr\s*\(", api_code), \
+    "src/services/moonraker_api.cpp: moonrakerProbe() does not fill probe->spoolman with the normalised address"
+assert re.search(r"\bkl_spoolman\b", ks.code_of("web/web_jobs.h")) and re.search(r"\bprobe\.spoolman\b", ks.body_of("web/web_jobs.cpp", "runKlipperTest")), \
+    "src/web/web_jobs.cpp: the job does not hand the printer's Spoolman address to the result"
+assert "klipperScaleSpoolman(" not in ks.body_of(PAGE, "verdictText"), \
+    f"src/{PAGE}: verdictText() names the scale's Spoolman, the text is about the printer's"
+assert re.search(r"\bkl_spoolman\b", ks.body_of(PAGE, "detailPut")), f"src/{PAGE}: detailPut() does not remember the printer's Spoolman address"
+
+# M2: Klartext im Protokoll - the log line says the verdict in words, not as a number.
+all_lits = ks.literals_of(PAGE)
+for word in ("unreachable", "access denied", "Klipper not ready", "Spoolman not set up", "Spoolman offline", "other Spoolman"):
+    assert any(word in lit for lit in all_lits), f"src/{PAGE}: no log word '{word}' for a verdict"
+assert not any("verdict %d" in lit for lit in all_lits), f"src/{PAGE}: a log line still names the verdict as a number"
 
 # 5. The script of the page. Every fetch has a catch (check.sh holds the whole
 # page to it as well, but a page without a single fetch would pass that).
@@ -138,6 +194,13 @@ def pieces_with(url):
 
 saves = pieces_with("/api/klipper/save")
 assert saves, f"src/{PAGE}: the script never saves"
+# I1: the list is read again after a save on every path, and when a test was
+# refused; M7: a save in flight (button disabled) is not started a second time,
+# from the button or from Enter in a field.
+assert re.search(r"\bload\s*\(", named["saveForm"]), f"src/{PAGE}: saveForm() does not reload the list"
+assert re.search(r"\bload\s*\(", named["testNow"]), f"src/{PAGE}: testNow() does not reload the list when the test is refused"
+assert re.match(r"function saveForm\(\)\{if\(\$\('kl-save'\)\.disabled\)return;", named["saveForm"]), \
+    f"src/{PAGE}: saveForm() does not start with a guard against a save in flight"
 tests = {n for n, t in named.items() if "/api/klipper/test" in t}
 for name, text in saves:
     ok = "/api/klipper/test" in text or any(re.search(rf"\b{t}\s*\(", text) for t in tests)
@@ -196,6 +259,18 @@ assert "case WJ_KLIPPER_TEST" in ks.body_of("web/web_jobs.cpp", "webJobTask"), \
 talks = ks.body_of("web/web_jobs.cpp", "webJobTalksToGithub")
 assert re.search(r"case WJ_KLIPPER_TEST:[^;]*?return false;", talks), \
     "src/web/web_jobs.cpp: webJobTalksToGithub() does not say that WJ_KLIPPER_TEST does not talk to GitHub"
+# M1: the input is good for one start. webJobStart() refuses a Klipper test
+# nobody handed an input for, and a refused start wipes the key it was handed.
+start_body = ks.body_of("web/web_jobs.cpp", "webJobStart")
+assert re.search(r"WJ_KLIPPER_TEST\s*&&\s*!s_kl_pending", start_body), \
+    "src/web/web_jobs.cpp: webJobStart() does not refuse a Klipper test without a hand-over"
+assert start_body.count("klipperInputDrop(") >= 2, \
+    "src/web/web_jobs.cpp: webJobStart() does not wipe the input when it refuses (heap, task)"
+drop_body = ks.body_of("web/web_jobs.cpp", "klipperInputDrop")
+assert "s_kl_key" in drop_body and "s_kl_pending = false" in drop_body, \
+    "src/web/web_jobs.cpp: klipperInputDrop() does not wipe the key and invalidate the input"
+assert "s_kl_pending = true" in ks.body_of("web/web_jobs.cpp", "webJobSetKlipperInput"), \
+    "src/web/web_jobs.cpp: webJobSetKlipperInput() does not mark the input as handed over"
 probing = [name for name, a, b in ks.cc.find_functions(jobs.code) if re.search(r"\bmoonrakerProbe\s*\(", jobs.code[a:b])]
 assert probing, "src/web/web_jobs.cpp: no function runs moonrakerProbe()"
 for name, a, b in ks.cc.find_functions(jobs.code):
