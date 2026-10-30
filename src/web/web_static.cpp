@@ -389,7 +389,7 @@ const char* webStaticVersion() { return FW_VERSION; }
 static const char APP_JS[] PROGMEM =
   "var WS={ok:'OK',err:'Error',yes:'OK',no:'Cancel',"
   "dl:'Download not possible in an embedded window - open the scale directly: http://{a}',"
-  "dls:'Download: {n}'};\n"
+  "dls:'Download: {n}',dlok:'Saved: {n}',cls:'Close'};\n"
 
   "function $(i){return document.getElementById(i);}\n"
 
@@ -452,7 +452,10 @@ static const char APP_JS[] PROGMEM =
   //   the window when the data does not come. A handle is
   //   {emb, w, id, t, list, k}; downloadStart() answers null when the window
   //   was refused, with the sentence already on the page in element id.
-  //   One file: clicked by script, the window closes itself. Several
+  //   One file: clicked by script; the window then stays with a line naming
+  //   the file and a Close button (acceptance of v0.8.6-beta.9: Edge shows
+  //   its download bubble in that window, and a window that closed itself
+  //   five seconds later took the bubble with it). Several
   //   (downloadStart(id, n) with n > 1, list): the window gets one real link
   //   per file, so every save is the user's own click, and it stays open until
   //   the user closes it.
@@ -463,9 +466,10 @@ static const char APP_JS[] PROGMEM =
   //   file in "save all" - opening one consumes the click, the second is
   //   blocked; one handle serves them all. No scripted click for the second
   //   file on - it would not arrive. No self-closing list - the user is still
-  //   clicking. No `download` or click outside these functions, and no asking
-  //   the frame whether it is sandboxed - it cannot be read from inside, so a
-  //   frame always takes the window.
+  //   clicking. No self-closing window after a single file either - the
+  //   browser's download bubble lives in it. No `download` or click outside
+  //   these functions, and no asking the frame whether it is sandboxed - it
+  //   cannot be read from inside, so a frame always takes the window.
   // See test_download_embedded.py
   "function downloadEmbedded(){"
   "try{return window.self!==window.top;}catch(e){return true;}}\n"
@@ -494,8 +498,10 @@ static const char APP_JS[] PROGMEM =
 
   // src is a Blob or a URL of the scale. In the window it is the window that
   // makes the object URL. A window the user has closed since says so like a
-  // refused one. One file is clicked and the window goes a few seconds later;
-  // for a list every file becomes a link in it, and nothing closes it.
+  // refused one. One file is clicked and the window says so, with a Close
+  // button; for a list every file becomes a link in it. Once the data is
+  // there nothing closes either window by itself: the minute's timer of
+  // downloadStart() stops here.
   "function downloadFinish(h,src,name){"
   "var win=h.emb?h.w:window;if(!win)return;"
   "if(h.emb&&win.closed){downloadAbort(h);downloadNo(h.id);return;}"
@@ -508,10 +514,15 @@ static const char APP_JS[] PROGMEM =
   "if(!h.k++)box.style.cssText='font:15px sans-serif;margin:14px';"
   "a.textContent=WS.dls.replace('{n}',name);a.style.cssText='display:block;margin:0 0 10px';"
   "box.appendChild(a);"
-  "}else{box.appendChild(a);a.click();a.remove();}"
+  "}else{box.appendChild(a);a.click();a.remove();"
+  "if(h.emb){box.style.cssText='font:15px sans-serif;margin:14px';"
+  "var p=d.createElement('div'),b=d.createElement('button');"
+  "p.textContent=WS.dlok.replace('{n}',name);p.style.cssText='margin:0 0 12px';"
+  "b.textContent=WS.cls;b.onclick=function(){win.close();};"
+  "box.appendChild(p);box.appendChild(b);}}"
   "}catch(e){if(!h.emb)throw e;downloadAbort(h);downloadNo(h.id);return;}"
   "if(h.list)return;"
-  "if(h.emb){clearTimeout(h.t);h.t=setTimeout(function(){downloadAbort(h);},5000);}"
+  "if(h.emb){clearTimeout(h.t);h.t=0;}"
   // Not at once: a browser may still be reading the blob for the save. In the
   // window it goes with the window.
   "else if(!isUrl)setTimeout(function(){URL.revokeObjectURL(u);},10000);}\n"

@@ -4737,7 +4737,8 @@ const char* const STRINGS[][3] = {
   { "Download im eingebetteten Fenster nicht möglich - die Waage direkt öffnen: http://{a}",
     "Download not possible in an embedded window - open the scale directly: http://{a}",
     "Téléchargement impossible dans une fenêtre intégrée - ouvrez directement la balance : http://{a}" },  // STR_W_DL_EMBEDDED
-  { "Speichern: {n}", "Download: {n}", "Enregistrer : {n}" },  // STR_W_DL_SAVE
+  { "Speichern: {n}",   "Download: {n}", "Enregistrer : {n}" },  // STR_W_DL_SAVE
+  { "Gespeichert: {n}", "Saved: {n}",    "Enregistré : {n}" },  // STR_W_DL_SAVED
 };
 
 StringID tagWriteResultString(uint8_t code) {
