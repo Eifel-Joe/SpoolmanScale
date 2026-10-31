@@ -104,6 +104,9 @@ if unit_text is not None:
     # Every worker that started is known to the unit, and the loop deletes
     # the parked ones in one place: a worker whose result nobody collects
     # must not keep its stack, and with it a share of workerFreeHeap().
+    reap_done = function_body(unit, "bool workerTaskReapDone(")
+    if reap_done is None or "workerTaskReap(" not in reap_done or "vTaskDelay(" not in reap_done:
+        errors.append(f"src/{UNIT}: workerTaskReapDone() does not wait, bounded, for a task about to park")
     reap_all = function_body(unit, "void workerTasksReap(")
     if reap_all is None or "workerTaskReap(" not in reap_all:
         errors.append(f"src/{UNIT}: workerTasksReap() does not delete the parked workers")
@@ -125,22 +128,26 @@ USERS = {
                                   "start": "void maybeStartCheck(", "stack": "TASK_STACK_BYTES"},
 }
 # The workers that talk to a backend (V56). They have no tick of their own
-# that runs on every pass; workerTasksReap() in the loop deletes them.
+# that runs on every pass; workerTasksReap() in the loop deletes them. A
+# start comes only after the module has seen its task's result, so the task
+# is at its last stores before parking: the start waits for that moment
+# (workerTaskReapDone) instead of failing. Failing there lost the AMS grams
+# that were owed (ams_view.cpp startWeights(), review of 31.10.2026).
 BACKEND_USERS = {
     "services/backend_job.cpp": {"task": "static void backendJobTask(", "start": "bool backendJobStartList(",
-                                 "stack": "BACKEND_JOB_STACK_BYTES"},
+                                 "stack": "BACKEND_JOB_STACK_BYTES", "reap": "workerTaskReapDone("},
     "services/backend_http.cpp": {"task": "static void warmTask(", "start": "static void warmStart(",
-                                  "stack": "WARM_STACK_BYTES"},
+                                  "stack": "WARM_STACK_BYTES", "reap": "workerTaskReapDone("},
     "app/label_server.cpp": {"task": "static void jobTask(", "start": "static bool startJob(",
-                             "stack": "LS_STACK_BYTES"},
+                             "stack": "LS_STACK_BYTES", "reap": "workerTaskReapDone("},
     "app/label_spool.cpp": {"task": "static void dateTask(", "start": "static bool startDateJob(",
-                            "stack": "LABEL_DATE_STACK_BYTES"},
+                            "stack": "LABEL_DATE_STACK_BYTES", "reap": "workerTaskReapDone("},
     "services/ams_weights.cpp": {"task": "static void amsWeightsTask(", "start": "bool amsWeightsStart(",
-                                 "stack": "AMS_WEIGHTS_STACK_BYTES"},
+                                 "stack": "AMS_WEIGHTS_STACK_BYTES", "reap": "workerTaskReapDone("},
     "services/dried_batch.cpp": {"task": "static void driedBatchTask(", "start": "bool driedBatchStart(",
-                                 "stack": "DRIED_BATCH_STACK_BYTES"},
+                                 "stack": "DRIED_BATCH_STACK_BYTES", "reap": "workerTaskReapDone("},
     "services/tag_probe_job.cpp": {"task": "static void tagProbeTask(", "start": "bool tagProbeStart(",
-                                   "stack": "TAG_PROBE_STACK_BYTES"},
+                                   "stack": "TAG_PROBE_STACK_BYTES", "reap": "workerTaskReapDone("},
 }
 USERS.update(BACKEND_USERS)
 for rel, parts in USERS.items():
@@ -163,7 +170,7 @@ for rel, parts in USERS.items():
     if start is None:
         errors.append(f"src/{rel}: {parts['start']}) is not there")
     else:
-        for needle in ("workerTaskReap(", "workerStackPlan(", "workerTaskStart("):
+        for needle in (parts.get("reap", "workerTaskReap("), "workerStackPlan(", "workerTaskStart("):
             if needle not in start:
                 errors.append(f"src/{rel}: {parts['start']}) does not call {needle}")
         if re.search(r"-\s*" + re.escape(parts["stack"]) + r"\b", start):

@@ -72,6 +72,9 @@ if unit is not None:
             (r"\bs_task_running\b|\bupdateCheckBusy\(\)", "the daily check"),
             (r"webJobState\(\)\s*==\s*WJS_RUNNING", "a web job"),
             (r"backendJobState\(\)\s*==\s*BJS_RUNNING", "the inventory list"),
+            # Its stack and connection come from the internal heap, and the
+            # scale's own requests have no floor (review of 31.10.2026).
+            (r"fdbState\(\)\s*==\s*FDB_RUNNING", "the database job of \"Neu aus Datenbank\""),
         ):
             if not re.search(needle, body):
                 errors.append(f"src/services/update_check.cpp: githubRequestMustWait() does not wait for {why}")
@@ -99,9 +102,26 @@ if screen is not None:
         if RULE not in body:
             errors.append(f"src/ui/ota_github.cpp: {what} on the scale ({signature})) does not ask {RULE}")
     # A download that waited too long gives up and says so, as the check does.
+    # It installs the version that was confirmed, not one a check rewrote
+    # meanwhile, and only while its screen is still shown (review of
+    # 31.10.2026).
     flash = function_body(code, "void doGithubOtaFlash(")
-    if flash is not None and "GH_CHECK_WAIT_MS" not in flash:
-        errors.append("src/ui/ota_github.cpp: doGithubOtaFlash() waits without a limit (GH_CHECK_WAIT_MS)")
+    if flash is not None:
+        if "GH_CHECK_WAIT_MS" not in flash:
+            errors.append("src/ui/ota_github.cpp: doGithubOtaFlash() waits without a limit (GH_CHECK_WAIT_MS)")
+        if "s_flash_wait_tag" not in flash:
+            errors.append("src/ui/ota_github.cpp: a waiting install does not keep the version it was asked for "
+                          "(s_flash_wait_tag)")
+        if "otaGithubScreenVisible()" not in flash:
+            errors.append("src/ui/ota_github.cpp: a waiting install goes on after its screen was left")
+
+# The wait covers the inventory list of a lookup at its longest: two attempts
+# of 20 s and the archive pass of 8 s (lookup_scan.cpp).
+deferred = read("app/deferred_actions.h")
+if deferred is not None:
+    m = re.search(r"#define\s+GH_CHECK_WAIT_MS\s+(\d+)", deferred)
+    if not m or int(m.group(1)) < 48000:
+        errors.append("src/app/deferred_actions.h: GH_CHECK_WAIT_MS is shorter than the longest inventory list (48 s)")
 
 # 3. "Install" on the firmware page, run from the loop.
 page = read("web/pages/page_firmware.cpp")
@@ -115,6 +135,18 @@ if page is not None:
         if "GH_CHECK_WAIT_MS" not in body:
             errors.append("src/web/pages/page_firmware.cpp: the install from the web UI waits without a limit "
                           "(GH_CHECK_WAIT_MS)")
+        if "s_web_install_gave_up" not in body:
+            errors.append("src/web/pages/page_firmware.cpp: an install from the web UI that gave up waiting "
+                          "is not remembered for the page (s_web_install_gave_up)")
+    # The page hears it: /api/ota/progress says so, and the box closes with
+    # the "busy" text instead of five minutes of "keep the page open".
+    full = cc.Source(page).code_str
+    at = full.find('srv.on("/api/ota/progress"')
+    progress = full[at:full.find("});", at)] if at >= 0 else ""
+    if "s_web_install_gave_up" not in progress or "failed" not in progress:
+        errors.append("src/web/pages/page_firmware.cpp: /api/ota/progress does not report an install that gave up")
+    if not re.search(r"d&&d\.failed", full):
+        errors.append("src/web/pages/page_firmware.cpp: the install box does not close on an install that gave up")
 
 if errors:
     print("github wait: FAILED")
