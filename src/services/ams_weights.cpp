@@ -7,6 +7,7 @@
 #include "services/backend.h"
 #include "services/backend_api.h"
 #include "services/backend_job_rules.h"
+#include "services/worker_task.h"
 #include "services/dried_batch.h"
 #include "services/klipper_printers.h"
 #include "services/spool_detail.h"
@@ -149,7 +150,7 @@ bool amsWeightsStart(int printer_id, const AmsSlotState& st) {
   // backendFdbBaseUrl() is that server exactly then and the active backend
   // otherwise: the higher floor of the two.
   const uint32_t min_heap  = backendJobMinHeapBoth(backendBaseUrl(), backendFdbBaseUrl());
-  const uint32_t free_heap = (uint32_t)ESP.getFreeHeap();
+  const uint32_t free_heap = workerFreeHeap();
   if (free_heap < min_heap) {
     // The grid asks again with every refresh: one line a minute, with the
     // refusals it stands for.

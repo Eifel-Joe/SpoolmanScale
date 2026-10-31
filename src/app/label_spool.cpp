@@ -15,6 +15,7 @@
 #include "services/backend.h"
 #include "services/backend_api.h"
 #include "services/backend_job_rules.h"
+#include "services/worker_task.h"
 #include "services/drying_sync.h"
 #include "services/local_date.h"
 #include "services/tag_spool_match.h"
@@ -277,7 +278,7 @@ static bool startDateJob(int id) {
   // backendFdbBaseUrl() is that server exactly then and the active backend
   // otherwise: the higher floor.
   const uint32_t min_heap  = backendJobMinHeapBoth(backendBaseUrl(), backendFdbBaseUrl());
-  const uint32_t free_heap = (uint32_t)ESP.getFreeHeap();
+  const uint32_t free_heap = workerFreeHeap();
   if (free_heap < min_heap) {
     // Every label asks once more: one line a minute, with the refusals it
     // stands for.

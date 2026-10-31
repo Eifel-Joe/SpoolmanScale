@@ -36,10 +36,30 @@
 // ============================================================
 
 struct WorkerTask {
-  TaskHandle_t  handle;    // the task, until the loop has deleted it
-  volatile bool parked;    // the task is done and waits in workerTaskPark()
-  bool          outside;   // its stack lies in PSRAM
+  TaskHandle_t  handle;         // the task, until the loop has deleted it
+  volatile bool parked;         // the task is done and waits in workerTaskPark()
+  bool          outside;        // its stack lies in PSRAM
+  uint32_t      outside_bytes;  // that stack's size, counted by workerFreeHeap()
 };
+
+// The free internal heap every worker tests its floor against, in place of
+// ESP.getFreeHeap(): that number less the stacks in PSRAM of the workers that
+// are still there (started and not yet deleted by the loop).
+//
+// Root: a floor was set for one background request beside the rest of the
+// firmware, and on the 7B it kept the others out while a GitHub request ran,
+// because that request's stack lowered the free heap. Moved to PSRAM, the
+// stack no longer does: beside the daily check a tag probe would see 14 kB
+// more and start, its own stack and connection on top (review, 31.10.2026).
+// Counted here, every other worker sees the heap as it did with the stack
+// inside, on every board, and the request itself still starts lower.
+// Not done instead: making each worker wait for the GitHub requests. That
+// would also hold them up on boards with heap for both, which run them side
+// by side today.
+// The "postponed, heap X < Y" lines of the workers show this number, so
+// beside a GitHub request X is lower than the heap by that request's stack.
+// See test_worker_stack.py (3a).
+uint32_t workerFreeHeap();
 
 // Whether a stack of this size may be tried in PSRAM here: a firmware built
 // with PSRAM and with FreeRTOS taking a stack from outside internal RAM

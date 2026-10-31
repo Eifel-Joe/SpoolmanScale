@@ -8,6 +8,7 @@
 #include "services/backend.h"
 #include "services/backend_api.h"
 #include "services/backend_job_rules.h"
+#include "services/worker_task.h"
 #include "services/http_progress.h"
 #include "web/web_jobs.h"
 
@@ -138,7 +139,7 @@ bool backendJobStartList(bool allow_archived, const JsonDocument* filter,
   // address (cfg_spoolman_base) can be empty there. The copy in s_base below
   // only matters in Spoolman mode, where it is the same address.
   const uint32_t min_heap  = backendJobMinHeap(backendBaseUrl());
-  const uint32_t free_heap = (uint32_t)ESP.getFreeHeap();
+  const uint32_t free_heap = workerFreeHeap();
   if (free_heap < min_heap) {
     // The callers ask again on every pass of the loop; a line each time
     // filled the log (over 4000 of them, 25.10.2026), so one a minute.

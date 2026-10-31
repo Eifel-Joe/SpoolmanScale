@@ -98,7 +98,9 @@ uint32_t backendJobMinHeapBoth(const char* first, const char* second);
 //  The internal heap that is left while the request runs is the same as
 //  with the stack inside, so no new number is guessed here. A worker whose
 //  stack may not go to PSRAM (it reads or writes the flash on its own task)
-//  keeps the whole floor.
+//  keeps the whole floor. While such a stack is there, every other worker
+//  counts it as taken (workerFreeHeap(), worker_task.h): what kept them out
+//  beside a GitHub request on the 7B still does.
 //
 //  Not lowered by hand: a floor of 34 kB for everybody would cut into the
 //  reserve of every worker whose stack still comes from the internal heap.

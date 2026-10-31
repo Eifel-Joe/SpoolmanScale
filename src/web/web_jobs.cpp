@@ -308,9 +308,10 @@ bool webJobStart(WebJobKind kind, const char* arg, bool flag) {
   // "Check" on the scale waits only for the daily check (doGithubOtaCheck),
   // not for these jobs; only its deferred retry in the loop (app_loop.cpp)
   // waits for both. Nothing is logged, the pages and the catalog sync ask
-  // again. The jobs for the backend are not held up here: on the 7B a
-  // running check leaves less than their floor (40 kB at http, 50 kB at
-  // https), and boards with more heap have room for both.
+  // again. The jobs for the backend are not held up here: their floor is
+  // tested against workerFreeHeap(), which counts the check's stack in PSRAM
+  // as taken, so each start still leaves the reserve its floor is for, and
+  // boards with more heap have room for both.
   if (webJobTalksToGithub(kind) &&
       (updateCheckBusy() || backendJobState() == BJS_RUNNING)) {
     return false;
@@ -320,7 +321,7 @@ bool webJobStart(WebJobKind kind, const char* arg, bool flag) {
   // would be testing the wrong number. A stack from PSRAM does not, and then
   // the floor is lower by the stack (workerStackPlan, backend_job_rules.h).
   const uint32_t min_heap  = webJobMinHeap(kind, arg);
-  const uint32_t free_heap = (uint32_t)ESP.getFreeHeap();
+  const uint32_t free_heap = workerFreeHeap();
   const bool may_go_outside = webJobStackMayGoOutside(kind) &&
                               workerStackCanGoOutside(WEB_JOB_STACK_BYTES);
   const WorkerStackPlan plan = workerStackPlan(free_heap, min_heap, WEB_JOB_STACK_BYTES,

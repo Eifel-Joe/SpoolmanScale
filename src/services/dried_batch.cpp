@@ -8,6 +8,7 @@
 #include "services/backend.h"
 #include "services/backend_api.h"
 #include "services/backend_job_rules.h"
+#include "services/worker_task.h"
 
 // The numbers the web jobs run with, for the same reasons: an https backend
 // does its handshake on this stack, the task sits below the loop so the
@@ -64,7 +65,7 @@ bool driedBatchStart(int printer_id, uint8_t ams_id, const int* spool_ids,
   // (backendPatchSpoolLastDried). backendFdbBaseUrl() is that server exactly
   // then and the active backend otherwise: the higher floor of the two.
   const uint32_t min_heap  = backendJobMinHeapBoth(backendBaseUrl(), backendFdbBaseUrl());
-  const uint32_t free_heap = (uint32_t)ESP.getFreeHeap();
+  const uint32_t free_heap = workerFreeHeap();
   if (free_heap < min_heap) {
     // One line a minute, with the refusals it stands for.
     if (logGateDue(&s_start_gate, millis(), BACKEND_JOB_REFUSAL_LOG_MS)) {

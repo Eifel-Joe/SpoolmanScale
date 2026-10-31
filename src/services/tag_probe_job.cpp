@@ -8,6 +8,7 @@
 #include "services/backend.h"
 #include "services/backend_api.h"
 #include "services/backend_job_rules.h"
+#include "services/worker_task.h"
 #include "ui/spoolman_lookup.h"
 
 // The web jobs' stack, not the backend job's smaller one: a backend behind
@@ -53,7 +54,7 @@ bool tagProbeStart(const char* query) {
   // backendFdbBaseUrl() is that server exactly then and the active backend
   // otherwise: the higher floor of the two.
   const uint32_t min_heap  = backendJobMinHeapBoth(backendBaseUrl(), backendFdbBaseUrl());
-  const uint32_t free_heap = (uint32_t)ESP.getFreeHeap();
+  const uint32_t free_heap = workerFreeHeap();
   if (free_heap < min_heap) {
     // The recheck asks again every few seconds: one line a minute, with the
     // refusals it stands for.

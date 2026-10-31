@@ -9,6 +9,7 @@
 #include "services/backend.h"
 #include "services/backend_api.h"
 #include "services/backend_job_rules.h"
+#include "services/worker_task.h"
 #include "services/prefs_store.h"
 
 #define LS_KEY_PRESET         "lbl_fm_preset"
@@ -141,7 +142,7 @@ static bool startJob(JobKind kind, const LabelKey& key) {
   // The floor follows the address both fetches read, the active backend's
   // (backendLabelPresets and backendLabelRender in backend_api.cpp).
   const uint32_t min_heap  = backendJobMinHeap(backendBaseUrl());
-  const uint32_t free_heap = (uint32_t)ESP.getFreeHeap();
+  const uint32_t free_heap = workerFreeHeap();
   if (free_heap < min_heap) {
     // A refused fetch is asked for again (the list every 20 s): one line a
     // minute, with the refusals it stands for.

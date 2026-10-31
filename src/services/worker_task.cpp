@@ -24,6 +24,16 @@
 #error "worker stacks cannot go to PSRAM: CONFIG_SPIRAM or CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM is off"
 #endif
 
+// The stacks in PSRAM of the workers that are still there. Changed only by
+// workerTaskStart() and workerTaskReap(), both on the loop task.
+static volatile uint32_t s_outside_bytes = 0;
+
+uint32_t workerFreeHeap() {
+  const uint32_t free_heap = (uint32_t)heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+  const uint32_t held      = s_outside_bytes;
+  return free_heap > held ? free_heap - held : 0;
+}
+
 bool workerStackCanGoOutside(uint32_t stack_bytes) {
 #if WORKER_STACK_OUTSIDE
   return heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) >= stack_bytes;
@@ -44,8 +54,10 @@ bool workerTaskStart(WorkerTask* w, const WorkerStackPlan& plan, const WorkerTas
       xTaskCreatePinnedToCoreWithCaps(spec.fn, spec.name, spec.stack_bytes, nullptr,
                                       spec.priority, &h, spec.core,
                                       MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) == pdPASS) {
-    w->outside = true;
-    w->handle  = h;
+    w->outside       = true;
+    w->outside_bytes = spec.stack_bytes;
+    w->handle        = h;
+    s_outside_bytes  = s_outside_bytes + spec.stack_bytes;
     return true;
   }
 #endif
@@ -55,8 +67,9 @@ bool workerTaskStart(WorkerTask* w, const WorkerStackPlan& plan, const WorkerTas
       xTaskCreatePinnedToCoreWithCaps(spec.fn, spec.name, spec.stack_bytes, nullptr,
                                       spec.priority, &h, spec.core,
                                       MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT) == pdPASS) {
-    w->outside = false;
-    w->handle  = h;
+    w->outside       = false;
+    w->outside_bytes = 0;
+    w->handle        = h;
     return true;
   }
   return false;
@@ -79,8 +92,10 @@ bool workerTaskReap(WorkerTask* w) {
   // Suspends the task if it is not yet, waits until no core runs it, deletes
   // it and frees its stack and TCB, all before it returns.
   vTaskDeleteWithCaps(w->handle);
-  w->handle  = nullptr;
-  w->parked  = false;
-  w->outside = false;
+  s_outside_bytes  = s_outside_bytes - w->outside_bytes;
+  w->handle        = nullptr;
+  w->parked        = false;
+  w->outside       = false;
+  w->outside_bytes = 0;
   return true;
 }

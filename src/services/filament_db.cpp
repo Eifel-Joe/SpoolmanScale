@@ -13,6 +13,7 @@
 #include "backend_api.h"
 #include "backend_job_rules.h"
 #include "text_util.h"
+#include "worker_task.h"
 
 // The task, on the terms of the backend job (backend_job.cpp): core 0, below
 // the loop, its stack from the heap and a floor checked before it is taken.
@@ -286,7 +287,7 @@ static bool startTask(FdbJob job) {
   // The floor follows the server the job asks, the one copied into s_base
   // below (backendFdbBaseUrl(): the backend, or the Spoolman behind BamBuddy).
   const uint32_t min_heap  = backendJobMinHeap(backendFdbBaseUrl());
-  const uint32_t free_heap = (uint32_t)ESP.getFreeHeap();
+  const uint32_t free_heap = workerFreeHeap();
   if (free_heap < min_heap) {
     // One line a minute, with the refusals it stands for.
     if (logGateDue(&s_start_gate, millis(), BACKEND_JOB_REFUSAL_LOG_MS)) {

@@ -9,6 +9,7 @@
 #include "hardware/sd_logger.h"
 #include "services/backend.h"
 #include "services/backend_job_rules.h"
+#include "services/worker_task.h"
 #include "services/github_release.h"
 #include "services/prefs_store.h"
 
@@ -448,7 +449,7 @@ static void warmTask(void*) {
 static void warmStart() {
   if (s_warming || !ensureMux()) return;
   // Only runs for an https backend (backendConnTick), so this is the TLS floor.
-  if (ESP.getFreeHeap() < backendJobMinHeap(backendBaseUrl())) return;
+  if (workerFreeHeap() < backendJobMinHeap(backendBaseUrl())) return;
   s_warming = true;
   if (xTaskCreatePinnedToCore(warmTask, "tlswarm", WARM_STACK_BYTES, nullptr,
                               WARM_PRIORITY, nullptr, WARM_CORE) != pdPASS) {

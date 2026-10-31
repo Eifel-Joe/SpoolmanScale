@@ -272,7 +272,7 @@ void maybeStartCheck() {
   // the floor drops by the stack (workerStackPlan). This task touches no
   // flash, the NVS writes are the tick's, on the loop task.
   const uint32_t min_heap  = backendJobMinHeap(VERSION_URL);
-  const uint32_t free_heap = (uint32_t)ESP.getFreeHeap();
+  const uint32_t free_heap = workerFreeHeap();
   const bool may_go_outside = workerStackCanGoOutside(TASK_STACK_BYTES);
   const WorkerStackPlan plan = workerStackPlan(free_heap, min_heap, TASK_STACK_BYTES,
                                                may_go_outside);
