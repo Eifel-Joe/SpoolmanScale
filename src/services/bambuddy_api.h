@@ -239,8 +239,8 @@ bool bbGetDriedFromSpoolman(int spool_id, char* out_iso, size_t out_size,
 // belongs to BamBuddy. BamBuddy's own answer for a spool carries no filament
 // id, and the spool id is the same on both sides. *out_filament_weight (may
 // be null) is the filament's nominal weight, 0 when it has none. False, with
-// both at 0, when there is no Spoolman address (local mode), the spool is
-// unknown or the request fails; the cause is in the log.
+// both at 0, when there is no Spoolman address (local mode, not logged), the
+// spool is unknown or the request fails (those two are logged).
 bool bbSpoolmanFilamentOf(int spool_id, int* out_filament_id, uint32_t timeout_ms,
                           float* out_filament_weight = nullptr);
 
@@ -321,10 +321,13 @@ int  bbCreateSpool(const char* base_url, const char* api_key,
 // and json_array the whole new list as JSON array text. The server replaces
 // the list, it does not merge: what is not in the array is gone afterwards,
 // so the caller sends the complete list, "[]" to empty it. Any other `what`
-// is refused before a request is made. Waits at most 5 s. Any 2xx counts as
-// done and returns 200; otherwise the HTTP code, the negative transport code,
-// or -1 for no base url, a bad id, an unknown `what` or an empty body. The
-// refused request is in the log with the server's reason.
+// is refused before a request is made. 5 s is its read limit, not one for the
+// whole request. Any 2xx counts as done and returns 200; otherwise the HTTP
+// code, the negative transport code, or -1 for no base url, a bad id, an
+// unknown `what`, an empty body or a request that could not start (a bad url,
+// a host name that does not resolve: BackendHttp::begin()). Logged here: a
+// refusal with the server's reason, a transport error, an unknown `what` and
+// an empty body; the other -1 only in the caller's log.
 int  bbPutSpoolLinks(const char* base_url, const char* api_key, int spool_id,
        const char* what, const String& json_array);
 

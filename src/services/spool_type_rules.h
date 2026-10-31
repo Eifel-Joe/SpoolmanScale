@@ -86,10 +86,10 @@ bool spoolTypeOfVendor(const char* type_name, const char* vendor);
 // no out or a vendor that has none).
 int spoolTypeFilter(const SpoolType* list, int n, const char* vendor, int* out, int out_max);
 
-// What spoolTypeNear() looks for. The list and where the answer goes are the
-// same pairs spoolTypeFilter() takes; what the near search asks on top of the
-// vendor (a weight and how far from it) goes into one struct with the vendor,
-// so the function keeps to five parameters (house rule).
+// What spoolTypeNear() looks for: the vendor, as spoolTypeFilter() takes it,
+// and the weight with how far from it a type may lie. One struct for the
+// three keeps spoolTypeNear() to five parameters (house rule); the list and
+// where the answer goes stay the pairs spoolTypeFilter() takes.
 struct SpoolTypeNearQuery {
   const char* vendor;   // the maker whose types are looked at
   float grams;          // the weight the types are compared with
@@ -155,11 +155,11 @@ SpoolTypeAsk spoolTypeFirstAsk(float total, float remaining, float bare, bool ow
 // when it says Bambu's fixed 250 g (V25). NOT-TO-DO: treating a chosen 250 g
 // like the chain's 250 g (not trusted) gives the wrong nominal weight and 10 g
 // more tolerance; putting the type into the filament or vendor slot fails too,
-// since each holds one empty weight only. trusted may be null.
+// since each holds one empty weight only (head of file). trusted may be null.
 int spoolTypeCreateTare(int chosen_g, int chain_g, bool chain_trusted, bool* trusted);
 
-// The empty weight a new spool keeps as its own (L21). Wurzel: a tare that the
-// new spool inherited from another spool must not be written onto it as its
+// The empty weight a new spool keeps as its own (L21). Wurzel: a tare the new
+// spool inherits from its filament or brand must not be written onto it as its
 // own. Fix: an inherited one gives 0, which leaves the field out; otherwise the
 // tare, never negative. NOT-TO-DO: passing tare_g through unchanged writes the
 // inherited value onto the new spool, which L21 forbids.

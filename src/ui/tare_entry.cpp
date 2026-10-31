@@ -480,14 +480,14 @@ void showTareChoice() {
   // in, then spool type and full spool. Weighing and the full spool need the
   // spool on the pad, and a button not offered leaves its place empty. The
   // box is as wide as the weight popup this opens from, and its places are
-  // counted inside the border, where LVGL puts the children.
-  // Every other backend keeps the column it always had: weigh and type in,
-  // one above the other, weighing offered with the pad empty as well (the
-  // press takes the reading then, an empty reel may be put down meanwhile).
-  // Both have two rows, so the cancel row and the box height share a sum.
-  // choiceButton() is upstream's and puts a button at the column's x of 12;
-  // every button here gets its own x right after it (lv_obj_set_x), so the
-  // grid needs no sixth parameter (house rule, at most five).
+  // counted inside the border, where LVGL puts the children. Every other
+  // backend keeps its column: weigh and type in, one above the other, weighing
+  // offered with the pad empty too (the press takes the reading then, an empty
+  // reel may go down meanwhile). Both have two rows, so the cancel row and the
+  // box height share a sum.
+  //
+  // choiceButton() is upstream's (the column's x of 12); lv_obj_set_x() then
+  // places each button, so the grid needs no sixth parameter (house rule).
   const bool grid   = spoolTypesActive();
   const bool on_pad = padHoldsSpool();
   const int BORDER = 2, BTN_H = 70, TOP = 44, BOTTOM = 10;

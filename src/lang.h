@@ -1781,8 +1781,8 @@ enum StringID {
   STR_UNK_BTN_OTHER,     // button: the tiles with every way
   STR_UNK_BTN_WEIGH,     // button: close and only weigh
   STR_UNK_TILE_COPY,     // tile: the copy entry
-  STR_UNK_NET,           // what lies on the pad, without the empty spool
-  STR_UNK_GROSS,         // what lies on the pad, all of it
+  STR_UNK_NET,           // the reading without the parts on the spool and the empty spool
+  STR_UNK_GROSS,         // the reading without the parts on the spool, empty spool unknown
   STR_UNK_UID,           // an NTAG without data, by its chip
   STR_UNK_NO_COLOR,      // the swatch of a tag that names no colour
 

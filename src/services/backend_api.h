@@ -285,8 +285,10 @@ bool backendCanTareFilamentOrVendor();
 // BamBuddy's copy is copyBbsCreate() (services/copy_bbs.h): which fields go
 // along, the empty spool (chosen_core_g, a spool type chosen at the scale;
 // spool_weight, the fallback for a template without core_weight) and what a
-// copy behind Spoolman takes over beyond that. The other backends take
-// spool_weight as it is and ignore chosen_core_g.
+// copy behind Spoolman takes over beyond that. It keeps its own time limits
+// and does not use timeout_ms; in BamBuddy's own inventory the template's
+// label stays, and initial_weight only stands in for a template without one.
+// The other backends take spool_weight as it is and ignore chosen_core_g.
 int  backendCreateSpool(const char* base_url, int template_spool_id, int filament_id,
        float initial_weight, float spool_weight, float remaining_weight,
        int* out_spool_id = nullptr, uint32_t timeout_ms = 8000, float chosen_core_g = 0.0f);

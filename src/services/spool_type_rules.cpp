@@ -187,17 +187,14 @@ SpoolTypeAsk spoolTypeFirstAsk(float total, float remaining, float bare, bool ow
 }
 
 int spoolTypeCreateTare(int chosen_g, int chain_g, bool chain_trusted, bool* trusted) {
-  // A chosen type comes first and counts as stored, even at 250 g. The test
-  // for chosen_g > 0 must come before the chain: asking the chain first would
-  // return its 250 g in place of a type picked for the spool.
+  // The choice before the chain; the header says why.
   const bool chosen = chosen_g > 0;
   if (trusted) *trusted = chosen ? true : chain_trusted;
   return chosen ? chosen_g : chain_g;
 }
 
 int spoolTypeOwnCore(int tare_g, bool inherited) {
-  // An inherited empty weight is not written onto the new spool as its own
-  // (L21), so the result is 0. Otherwise the tare, never negative.
+  // L21; the header says why.
   if (inherited) return 0;
   return tare_g > 0 ? tare_g : 0;
 }

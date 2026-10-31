@@ -934,8 +934,8 @@ static int bambuddyCreateUnderSpoolman(const TagCreateInput& in, const TagFilame
   // from the filament or the brand would turn into the spool's own, and a
   // later correction at the filament or the brand would no longer reach it.
   // Inherited gives 0, which leaves the field out and the spool inheriting
-  // (spoolTypeOwnCore(), L21). The type chosen at the scale (TARE_SPOOL) and
-  // the input's own are still written.
+  // (spoolTypeOwnCore(), L21, test_spool_type_rules.py). The type chosen at
+  // the scale (TARE_SPOOL) and the input's own are still written.
   uint8_t tare_from = TARE_NONE;
   const int tare = tagCreateTare(in, plan, &tare_from, nullptr);
   ns.core_weight  = spoolTypeOwnCore(tare, tare_from == TARE_FILAMENT || tare_from == TARE_VENDOR);
