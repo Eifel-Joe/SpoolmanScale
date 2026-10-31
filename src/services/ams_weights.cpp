@@ -125,9 +125,9 @@ bool amsWeightsStart(int printer_id, const AmsSlotState& st) {
   // One HTTP worker at a time: a second task is another 16 kB of stack, and
   // the drying batch is the one the user is waiting for.
   if (driedBatchBusy()) return false;
-  // The last task, parked when it was done, is deleted first; one a moment
-  // away from parking counts as busy.
-  if (!workerTaskReap(&s_worker)) return false;
+  // The last task is deleted first; its result was taken, so it is parked
+  // or a moment away from it (workerTaskReapDone).
+  if (!workerTaskReapDone(&s_worker)) return false;
   // BamBuddy's assignment list is where the grams live. An AMS source sends
   // them in its own answer, and FilaMan has no list to read. A Klipper printer
   // names its spools itself and the record gives the grams, in either mode.

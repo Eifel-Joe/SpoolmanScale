@@ -135,9 +135,9 @@ bool backendJobStartList(bool allow_archived, const JsonDocument* filter,
                          uint32_t timeout_ms, uint8_t attempts,
                          uint32_t retry_pause_ms, bool archived_only) {
   if (backendListBusy() || s_state != BJS_IDLE) return false;
-  // The last list's task, parked when it was done, is deleted first; one a
-  // moment away from parking is busy, and the callers ask again.
-  if (!workerTaskReap(&s_worker)) return false;
+  // The last list's task is deleted first; the list was taken, so it is
+  // parked or a moment away from it (workerTaskReapDone).
+  if (!workerTaskReapDone(&s_worker)) return false;
   // Checked here rather than inside the task: a stack from the internal heap
   // comes out of it the moment the task is created, and a stack from PSRAM
   // lowers the floor by its size instead (workerStackPlan,

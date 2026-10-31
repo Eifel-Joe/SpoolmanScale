@@ -117,6 +117,15 @@ bool workerTaskReap(WorkerTask* w) {
   return true;
 }
 
+// A few milliseconds: the task stands between two stores and is only kept
+// from them by a task of higher priority on its core.
+#define WORKER_REAP_DONE_TICKS 20
+
+bool workerTaskReapDone(WorkerTask* w) {
+  for (int i = 0; i < WORKER_REAP_DONE_TICKS && w->handle && !w->parked; i++) vTaskDelay(1);
+  return workerTaskReap(w);
+}
+
 void workerTasksReap() {
   for (uint8_t i = 0; i < s_known_n; i++) workerTaskReap(s_known[i]);
 }

@@ -14,6 +14,7 @@
 #include "boards/board.h"
 #include "services/backend_job.h"
 #include "services/backend_job_rules.h"
+#include "services/filament_db.h"
 #include "services/partition_layout.h"
 #include "services/github_release.h"
 #include "services/heap_low.h"
@@ -316,7 +317,11 @@ void maybeStartCheck() {
 bool updateCheckBusy() { return s_task_running; }
 
 bool githubRequestMustWait() {
-  return s_task_running || webJobState() == WJS_RUNNING || backendJobState() == BJS_RUNNING;
+  // The database job of "Neu aus Datenbank" as well: its stack and connection
+  // come from the internal heap, and the scale's own requests have no floor
+  // to keep them off beside it.
+  return s_task_running || webJobState() == WJS_RUNNING || backendJobState() == BJS_RUNNING ||
+         fdbState() == FDB_RUNNING;
 }
 
 // Restores the badge from what the last check found, without going near the

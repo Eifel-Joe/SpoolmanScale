@@ -275,9 +275,9 @@ static LogGate s_create_gate;
 
 // False when the task could not start; the caller then gives up on the dates.
 static bool startDateJob(int id) {
-  // The last fetch's task, parked when it was done, is deleted first; one a
-  // moment away from parking counts as a fetch that could not start.
-  if (!workerTaskReap(&s_date_worker)) return false;
+  // The last fetch's task is deleted first; its result was collected, so it
+  // is parked or a moment away from it (workerTaskReapDone).
+  if (!workerTaskReapDone(&s_date_worker)) return false;
   // The floor follows the addresses the requests can go to (the QR link's,
   // fetchDates, then backendGetSpoolJson): the backend's, taken into s_job.at
   // below, and for a BamBuddy that keeps its spools in a Spoolman server that

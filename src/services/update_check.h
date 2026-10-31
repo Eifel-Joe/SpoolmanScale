@@ -35,8 +35,9 @@ bool updateCheckBusy();
 // "Install" on the GitHub screen and "Install" on the firmware page. True
 // while the daily check, a web job or the inventory list runs, the three the
 // background requests already keep apart from (maybeStartCheck(),
-// webJobStart()): two requests side by side take two stacks and two
-// connections, and the floor is for one (Spec 5.3 T). Loop task.
+// webJobStart()), and while the database job of "Neu aus Datenbank" runs,
+// whose stack stays internal: two requests side by side take two stacks and
+// two connections, and the floor is for one (Spec 5.3 T). Loop task.
 // Root: "Check" waited for the daily check and the web jobs only, both
 //   "Install" buttons for none of them, so a check or a download could run
 //   beside the inventory list (Punkteliste n41, 31.10.2026).

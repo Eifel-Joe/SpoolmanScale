@@ -61,9 +61,9 @@ static void driedBatchTask(void* arg) {
 bool driedBatchStart(int printer_id, uint8_t ams_id, const int* spool_ids,
                      uint8_t n, const char* iso) {
   if (s_state != DBS_IDLE || !spool_ids || n == 0 || !iso || !iso[0]) return false;
-  // The last task, parked when it was done, is deleted first; one a moment
-  // away from parking counts as busy.
-  if (!workerTaskReap(&s_worker)) return false;
+  // The last task is deleted first; its result was taken, so it is parked
+  // or a moment away from it (workerTaskReapDone).
+  if (!workerTaskReapDone(&s_worker)) return false;
   // Checked here rather than inside the task: the stack comes out of the
   // heap the moment the task is created, so testing afterwards would be
   // testing the wrong number.

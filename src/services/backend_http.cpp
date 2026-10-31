@@ -452,9 +452,9 @@ static void warmTask(void*) {
 
 static void warmStart() {
   if (s_warming || !ensureMux()) return;
-  // The last warm-up's task, parked when it was done, is deleted first; one a
-  // moment away from parking is asked for again on the next tick.
-  if (!workerTaskReap(&s_warm_worker)) return;
+  // The last warm-up's task is deleted first; it cleared s_warming, so it is
+  // parked or a moment away from it (workerTaskReapDone).
+  if (!workerTaskReapDone(&s_warm_worker)) return;
   // Only runs for an https backend (backendConnTick), so this is the TLS
   // floor, lower by the stack when it goes to PSRAM (workerStackPlan).
   const WorkerStackPlan plan = workerStackPlan(workerFreeHeap(), backendJobMinHeap(backendBaseUrl()),

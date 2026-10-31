@@ -123,7 +123,12 @@ extern bool gh_downgrade_pending;
 // downgrade above, and it used to run inline in the button's callback.
 extern bool gh_flash_pending;
 extern unsigned long gh_check_wait_since;
-#define GH_CHECK_WAIT_MS 10000
+// How long "Check" and both installs wait for a background request
+// (githubRequestMustWait()). Long enough for the inventory list of a lookup
+// at its longest, two attempts of 20 s and the archive pass of 8 s
+// (lookup_scan.cpp); 10 s gave a check or an install up while a slow server
+// was still answering the list (review of 31.10.2026).
+#define GH_CHECK_WAIT_MS 60000
 
 // Asked before a weight is written that BamBuddy's own inventory would clamp:
 // it stores consumption, so anything above the label weight is lost. Carries

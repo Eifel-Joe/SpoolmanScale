@@ -143,9 +143,9 @@ static LogGate s_create_gate;
 
 // False when the task could not start; the caller marks the fetch failed.
 static bool startJob(JobKind kind, const LabelKey& key) {
-  // The last fetch's task, parked when it was done, is deleted first; one a
-  // moment away from parking counts as a fetch that could not start.
-  if (!workerTaskReap(&s_worker)) return false;
+  // The last fetch's task is deleted first; its result was collected, so it
+  // is parked or a moment away from it (workerTaskReapDone).
+  if (!workerTaskReapDone(&s_worker)) return false;
   // The floor follows the address both fetches read, the active backend's
   // (backendLabelPresets and backendLabelRender in backend_api.cpp), lower by
   // the stack when it goes to PSRAM (workerStackPlan).

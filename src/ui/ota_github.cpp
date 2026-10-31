@@ -189,9 +189,10 @@ static void ghShowStatus(GhLook look, const char *text) {
 // go back) once something is. The old screen kept a greyed "Install" beside
 // the search button, which read as broken.
 static bool gh_action_installs = false;
-// Since when an install waits for a background request, 0 while none does
-// (doGithubOtaFlash()).
+// Since when an install waits for a background request, 0 while none does,
+// and the version it was asked for (doGithubOtaFlash()).
 static unsigned long s_flash_wait_since = 0;
+static char          s_flash_wait_tag[40] = "";
 
 static void ghSetAction(bool installs) {
   gh_action_installs = installs;
@@ -355,7 +356,20 @@ void doGithubOtaFlash(const char* version) {
   // The release to download, taken from the check that just ran rather than
   // from GitHub's "latest" alias - see the URL below for why that matters.
   const char* tag = (version && version[0]) ? version : gh_latest_version;
+  // An install that waits (below) goes on only for the version it was asked
+  // for and while its screen is shown: a check that runs meanwhile may set
+  // gh_latest_version to another one (the daily check, or the firmware page's
+  // with its own channel), and installing that would skip the question a
+  // downgrade asks; Back only hides this screen. Either ends the wait.
+  if (s_flash_wait_since &&
+      (strcmp(tag, s_flash_wait_tag) != 0 || !otaGithubScreenVisible())) {
+    s_flash_wait_since = 0;
+    logSD("OTA: install dropped, its version changed or its screen was left while it waited");
+    if (otaGithubScreenVisible()) ghShowStatus(GH_LOOK_BAD, T(STR_GH_OTA_FLASH_FAIL));
+    return;
+  }
   if (tag[0] == '\0') {
+    s_flash_wait_since = 0;
     ghShowStatus(GH_LOOK_BAD, T(STR_GH_OTA_FLASH_FAIL));
     return;
   }
@@ -363,6 +377,7 @@ void doGithubOtaFlash(const char* version) {
   // screen still showed an earlier, fitting one. Refused before the download
   // rather than by Update.begin() at its start.
   if (partitionTagTooBig(tag)) {
+    s_flash_wait_since = 0;
     char big[96];
     snprintf(big, sizeof(big), T(STR_GH_OTA_TOO_BIG), tag);
     ghShowStatus(GH_LOOK_WARN, big);
@@ -375,8 +390,9 @@ void doGithubOtaFlash(const char* version) {
   if (githubRequestMustWait()) {
     if (!s_flash_wait_since) {
       s_flash_wait_since = millis() | 1;   // 0 means "not waiting"
+      snprintf(s_flash_wait_tag, sizeof(s_flash_wait_tag), "%s", tag);
       ghShowStatus(GH_LOOK_BUSY, T(STR_GH_OTA_FLASHING));
-      logSD("OTA: install waits, a background request is running");
+      logSDf("OTA: install of %s waits, a background request is running", tag);
     }
     if (millis() - s_flash_wait_since <= GH_CHECK_WAIT_MS) {
       gh_flash_pending = true;

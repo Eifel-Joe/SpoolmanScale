@@ -95,6 +95,18 @@ bool workerTaskStart(WorkerTask* w, const WorkerStackPlan& plan, const WorkerTas
 // True when w holds no task afterwards, false while the task still runs.
 bool workerTaskReap(WorkerTask* w);
 
+// Loop task, for a start that comes after the module has seen the result of
+// its last task: that task is then at its last stores before parking, and
+// this waits for it, a few ticks at most, before it deletes it. False only if
+// the task has not parked after WORKER_REAP_DONE_TICKS, and then the start is
+// refused as busy.
+// Root: the backend workers set their done flag, then park. A start in
+//   between, in the same pass that collected the result (ams_view.cpp
+//   startWeights()), found the task not yet parked and was refused, and the
+//   AMS grams that were owed were never fetched (review of 31.10.2026).
+// NOT-TO-DO: the plain workerTaskReap() there, or waiting without a bound.
+bool workerTaskReapDone(WorkerTask* w);
+
 // Loop task, once per pass. Deletes every parked worker that workerTaskStart()
 // has created, whether or not its module collects the result.
 // Root: the web job and the daily check delete theirs in a tick of their own;

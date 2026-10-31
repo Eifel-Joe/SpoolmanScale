@@ -48,6 +48,10 @@ static unsigned long ota_last_paint = 0;
 // a minute and then restarts the device, so a reply written after it would
 // never leave.
 static bool gh_web_flash_pending = false;
+// The install the web UI asked for gave up waiting for a background request
+// (otaWebGithubTick()). Told to the page by /api/ota/progress, cleared by the
+// next install it asks for.
+static bool s_web_install_gave_up = false;
 static char gh_web_flash_tag[40] = "";
 // Its checksum, taken with the tag when the install is asked for: by the time
 // the loop runs it, a daily check answered meanwhile may have cleared the
@@ -128,6 +132,7 @@ void otaWebGithubTick() {
     if (millis() - s_wait_since <= GH_CHECK_WAIT_MS) return;
     s_wait_since = 0;
     gh_web_flash_pending = false;
+    s_web_install_gave_up = true;
     logSD("OTA: install from the web UI gave up waiting for the background request");
     otaBrowserShowUploadFailed();
     return;
@@ -513,6 +518,9 @@ static String body() {
          "return;}"
          "fetch('/api/ota/progress',{cache:'no-store'}).then(r=>r.ok?r.json():null)"
          ".then(function(d){"
+         // Gave up waiting for a background request before the download began.
+         "if(d&&d.failed){clearInterval(iv);document.getElementById('rbox').style.display='none';"
+         "ghSay(ghErr({error:d.failed}),true);return;}"
          "if(d&&d.active){seen=true;bar.style.display='block';"
          "if(d.total){var p=Math.min(100,Math.round(d.done*100/d.total));"
          "bi.style.width=p+'%';"
@@ -547,9 +555,13 @@ static void routes(WebServer &srv) {
   srv.on("/api/ota/progress", HTTP_GET, [&srv]() {
     if (!webRequire(srv, GATE_MAINT, T(STR_W_NAV_FIRMWARE))) return;
     char j[96];
-    snprintf(j, sizeof(j), "{\"active\":%s,\"done\":%lu,\"total\":%lu}",
+    // "failed": the install gave up waiting before it began, the page closes
+    // its box with the "busy" text rather than wait for a reboot that will
+    // not come.
+    snprintf(j, sizeof(j), "{\"active\":%s,\"done\":%lu,\"total\":%lu%s}",
              gh_flash_active ? "true" : "false",
-             (unsigned long)s_flash_done, (unsigned long)s_flash_total);
+             (unsigned long)s_flash_done, (unsigned long)s_flash_total,
+             s_web_install_gave_up ? ",\"failed\":\"busy\"" : "");
     srv.send(200, "application/json", j);
   });
 
@@ -740,6 +752,7 @@ static void routesTail(WebServer &srv) {
     strncpy(gh_web_flash_tag, gh_latest_version, sizeof(gh_web_flash_tag) - 1);
     gh_web_flash_tag[sizeof(gh_web_flash_tag) - 1] = '\0';
     snprintf(gh_web_flash_sha, sizeof(gh_web_flash_sha), "%s", otaExpectedSha(gh_web_flash_tag));
+    s_web_install_gave_up = false;
     gh_web_flash_pending = true;
     srv.send(200, "application/json", "{\"ok\":true}");
   });
