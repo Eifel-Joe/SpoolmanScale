@@ -14,7 +14,19 @@ its stack inside. A task created with a stack from heap_caps is deleted from
 the loop with vTaskDeleteWithCaps(): deleting itself, it would make a helper
 task from the internal heap and abort when that fails
 (components/freertos/esp_additions/idf_additions.c). A start refused for the
-heap says so, to the browser and in the log, instead of "busy"."""
+heap says so, to the browser and in the log, instead of "busy".
+
+The seven workers that talk to a backend do the same since v0.8.6-beta.13
+(Spec 5.3 T, V56; Punkteliste n45): the inventory list, the TLS warm-up, the
+label server, the label dates, the AMS weights, the drying batch and the tag
+probe. Their call paths were looked through for flash access on 31.10.2026
+(docs of the meta repository, recherche/2026-10-31-beta13); "Neu aus
+Datenbank" (filament_db.cpp) reads and writes the flash on its task through
+filament_db_store.cpp and keeps its stack inside. The loop deletes every
+parked worker in one place, workerTasksReap(), so that a stack in PSRAM is
+not left counted against the others (workerFreeHeap()) after its task is
+done. The spool list, the net probe, the Klipper test and the backend test
+say "lowmem" like the firmware page."""
 import re
 import sys
 from pathlib import Path
@@ -89,6 +101,18 @@ if unit_text is not None:
     reap = function_body(unit, "bool workerTaskReap(")
     if reap is None or "vTaskDeleteWithCaps(" not in reap:
         errors.append(f"src/{UNIT}: workerTaskReap() does not delete the parked task")
+    # Every worker that started is known to the unit, and the loop deletes
+    # the parked ones in one place: a worker whose result nobody collects
+    # must not keep its stack, and with it a share of workerFreeHeap().
+    reap_all = function_body(unit, "void workerTasksReap(")
+    if reap_all is None or "workerTaskReap(" not in reap_all:
+        errors.append(f"src/{UNIT}: workerTasksReap() does not delete the parked workers")
+    start_body = function_body(unit, "bool workerTaskStart(")
+    if start_body is None or "workerTaskRemember(" not in start_body:
+        errors.append(f"src/{UNIT}: workerTaskStart() does not remember the worker for workerTasksReap()")
+loop_text = read("app/app_loop.cpp")
+if loop_text is not None and "workerTasksReap()" not in code_with_strings(loop_text):
+    errors.append("src/app/app_loop.cpp: the loop does not call workerTasksReap()")
 
 # 2. The web job and the daily check create their task through the unit, end
 # it by parking it, and have the loop delete it: in the tick, and before a
@@ -100,6 +124,25 @@ USERS = {
     "services/update_check.cpp": {"task": "void updateCheckTask(", "tick": "void updateCheckTick(",
                                   "start": "void maybeStartCheck(", "stack": "TASK_STACK_BYTES"},
 }
+# The workers that talk to a backend (V56). They have no tick of their own
+# that runs on every pass; workerTasksReap() in the loop deletes them.
+BACKEND_USERS = {
+    "services/backend_job.cpp": {"task": "static void backendJobTask(", "start": "bool backendJobStartList(",
+                                 "stack": "BACKEND_JOB_STACK_BYTES"},
+    "services/backend_http.cpp": {"task": "static void warmTask(", "start": "static void warmStart(",
+                                  "stack": "WARM_STACK_BYTES"},
+    "app/label_server.cpp": {"task": "static void jobTask(", "start": "static bool startJob(",
+                             "stack": "LS_STACK_BYTES"},
+    "app/label_spool.cpp": {"task": "static void dateTask(", "start": "static bool startDateJob(",
+                            "stack": "LABEL_DATE_STACK_BYTES"},
+    "services/ams_weights.cpp": {"task": "static void amsWeightsTask(", "start": "bool amsWeightsStart(",
+                                 "stack": "AMS_WEIGHTS_STACK_BYTES"},
+    "services/dried_batch.cpp": {"task": "static void driedBatchTask(", "start": "bool driedBatchStart(",
+                                 "stack": "DRIED_BATCH_STACK_BYTES"},
+    "services/tag_probe_job.cpp": {"task": "static void tagProbeTask(", "start": "bool tagProbeStart(",
+                                   "stack": "TAG_PROBE_STACK_BYTES"},
+}
+USERS.update(BACKEND_USERS)
 for rel, parts in USERS.items():
     text = read(rel)
     if text is None:
@@ -112,9 +155,10 @@ for rel, parts in USERS.items():
     task = function_body(code, parts["task"])
     if task is None or "workerTaskPark(" not in task:
         errors.append(f"src/{rel}: {parts['task']}) does not end with workerTaskPark(")
-    tick = function_body(code, parts["tick"])
-    if tick is None or "workerTaskReap(" not in tick:
-        errors.append(f"src/{rel}: {parts['tick']}) does not delete a parked task (workerTaskReap)")
+    if "tick" in parts:
+        tick = function_body(code, parts["tick"])
+        if tick is None or "workerTaskReap(" not in tick:
+            errors.append(f"src/{rel}: {parts['tick']}) does not delete a parked task (workerTaskReap)")
     start = function_body(code, parts["start"])
     if start is None:
         errors.append(f"src/{rel}: {parts['start']}) is not there")
@@ -155,6 +199,29 @@ if web_text is not None:
         errors.append(f'src/{WEB_JOBS}: a start refused for the heap is not logged ("Web job: ... postponed, heap %u < %u")')
     if "WJR_LOW_HEAP" not in web:
         errors.append(f"src/{WEB_JOBS}: a start refused for the heap is not told apart (WJR_LOW_HEAP)")
+
+# 3b. The backend workers may move their stack: none of them touches the flash
+# on its own task (looked through on 31.10.2026, see the docstring). "Neu aus
+# Datenbank" does, through the store of the downloaded database, so it never
+# asks for PSRAM. If the store stops writing the flash itself, look again.
+for rel, parts in BACKEND_USERS.items():
+    text = read(rel)
+    if text is None:
+        continue
+    start = function_body(code_with_strings(text), parts["start"])
+    if start is not None and "workerStackCanGoOutside(" not in start:
+        errors.append(f"src/{rel}: {parts['start']}) never tries a stack in PSRAM (workerStackCanGoOutside)")
+FDB = "services/filament_db.cpp"
+fdb_text = read(FDB)
+if fdb_text is not None:
+    fdb = code_with_strings(fdb_text)
+    if "workerStackCanGoOutside(" in fdb or "MALLOC_CAP_SPIRAM" in fdb and "xTaskCreatePinnedToCoreWithCaps(" in fdb:
+        errors.append(f"src/{FDB}: the database job asks for a stack in PSRAM, but it reads and writes "
+                      "the flash on its own task (filament_db_store.cpp)")
+store_text = read("services/filament_db_store.cpp")
+if store_text is not None and "esp_partition_write(" not in code_with_strings(store_text):
+    errors.append("src/services/filament_db_store.cpp: no longer writes the flash itself; "
+                  "check whether the database job may move its stack too")
 
 # 3a. Every worker that tests a floor tests it against workerFreeHeap(): the
 # internal heap less the stacks in PSRAM of the workers still there. A stack
