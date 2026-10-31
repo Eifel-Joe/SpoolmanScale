@@ -60,13 +60,19 @@ int main() {
   // A typed price stands on its own, also for a template without one.
   assert(copyRulesCostPerKg(0.0f, 12.00f, true) == 12.00f);
   // Untouched passes the template's value on as it is, more than two decimals
-  // included, and a template without a price gives none.
+  // included, and a template without a price gives none. A price that stands
+  // in typed_price while typed is false is not the copy's.
   assert(copyRulesCostPerKg(24.99f, 0.0f, false) == 24.99f);
   assert(copyRulesCostPerKg(10.999f, 0.0f, false) == 10.999f);
   assert(copyRulesCostPerKg(0.0f, 0.0f, false) == 0.0f);
+  assert(copyRulesCostPerKg(10.99f, 12.00f, false) == 10.99f);
   // A chosen type of 0 or less is no choice.
   assert(copyRulesCore(-5, 167, false) == 167);
   assert(copyRulesCore(-5, 250, true) == 0);
+  // A chosen type beats a template's empty spool it only inherited, and a
+  // chosen 250 g stays 250 g, not the template's own.
+  assert(copyRulesCore(200, 250, true) == 200);
+  assert(copyRulesCore(250, 167, false) == 250);
   // No colour name at all is none as well.
   assert(strcmp(copyRulesColorName(nullptr, false), "") == 0);
   assert(strcmp(copyRulesColorName("", false), "") == 0);
