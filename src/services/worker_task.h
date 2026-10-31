@@ -13,7 +13,11 @@
 //  "busy" and the daily check was skipped (31.10.2026). Their stack now
 //  comes from PSRAM where the board has it, and the floor drops by the stack
 //  (workerStackPlan() in backend_job_rules.h). Without PSRAM, or when PSRAM
-//  gives no block, the stack comes from the internal heap as before.
+//  gives no block, the stack comes from the internal heap as before. Since
+//  v0.8.6-beta.13 the seven workers that talk to a backend do the same
+//  (V56): the inventory list, the TLS warm-up, the label server, the label
+//  dates, the AMS weights, the drying batch and the tag probe. The database
+//  job of "Neu aus Datenbank" writes the flash itself and keeps its stack.
 //
 //  A stack in PSRAM must never be in use while the cache is off. A flash
 //  access turns it off on a board that runs its code from flash: ESP-IDF
@@ -90,3 +94,16 @@ bool workerTaskStart(WorkerTask* w, const WorkerStackPlan& plan, const WorkerTas
 // Loop task. Deletes a parked task and gives its stack and its TCB back.
 // True when w holds no task afterwards, false while the task still runs.
 bool workerTaskReap(WorkerTask* w);
+
+// Loop task, once per pass. Deletes every parked worker that workerTaskStart()
+// has created, whether or not its module collects the result.
+// Root: the web job and the daily check delete theirs in a tick of their own;
+//   the seven backend workers (v0.8.6-beta.13, V56) have none that runs on
+//   every pass, only a start and a take. A parked worker left there keeps its
+//   stack, and a stack in PSRAM is still counted by workerFreeHeap(), so every
+//   other worker would see 14-16 kB less until the next start of that module.
+// Fix: workerTaskStart() remembers each WorkerTask it starts (one static per
+//   module, so a short list) and this deletes the parked ones.
+// NOT-TO-DO: deleting in the modules' take functions: a result nobody takes
+//   (the screen was left) would keep the task. See test_worker_stack.py.
+void workerTasksReap();

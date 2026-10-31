@@ -69,6 +69,9 @@ static LogGate                    s_create_gate;
 // so that its line shows how deep the list pushed the heap.
 static uint32_t                   s_heap_at_start = 0;
 static uint32_t                   s_heap_low_before = 0;
+// The task, its stack from PSRAM where it can (worker_task.h, V56): nothing
+// on it touches the flash. Deleted by the loop once it has parked.
+static WorkerTask                 s_worker{};
 
 static bool transientParseError(const DeserializationError& e) {
   return e == DeserializationError::IncompleteInput ||
@@ -125,27 +128,36 @@ static void backendJobTask(void* arg) {
   // other core reads the state first and the result after.
   __sync_synchronize();
   s_state = BJS_DONE;
-  vTaskDelete(NULL);
+  workerTaskPark(&s_worker);
 }
 
 bool backendJobStartList(bool allow_archived, const JsonDocument* filter,
                          uint32_t timeout_ms, uint8_t attempts,
                          uint32_t retry_pause_ms, bool archived_only) {
   if (backendListBusy() || s_state != BJS_IDLE) return false;
-  // Checked here rather than inside the task: the stack comes out of the
-  // heap the moment the task is created. The floor follows the address the
+  // The last list's task, parked when it was done, is deleted first; one a
+  // moment away from parking is busy, and the callers ask again.
+  if (!workerTaskReap(&s_worker)) return false;
+  // Checked here rather than inside the task: a stack from the internal heap
+  // comes out of it the moment the task is created, and a stack from PSRAM
+  // lowers the floor by its size instead (workerStackPlan,
+  // backend_job_rules.h). The floor follows the address the
   // list goes to, backendBaseUrl(): in FilaMan and BamBuddy mode the backend
   // layer reads that one and ignores the base it is handed, and the Spoolman
   // address (cfg_spoolman_base) can be empty there. The copy in s_base below
   // only matters in Spoolman mode, where it is the same address.
   const uint32_t min_heap  = backendJobMinHeap(backendBaseUrl());
   const uint32_t free_heap = workerFreeHeap();
-  if (free_heap < min_heap) {
+  const bool may_go_outside = workerStackCanGoOutside(BACKEND_JOB_STACK_BYTES);
+  const WorkerStackPlan plan = workerStackPlan(free_heap, min_heap, BACKEND_JOB_STACK_BYTES,
+                                               may_go_outside);
+  if (!plan.outside && !plan.inside) {
     // The callers ask again on every pass of the loop; a line each time
     // filled the log (over 4000 of them, 25.10.2026), so one a minute.
     if (logGateDue(&s_refusal_gate, millis(), BACKEND_JOB_REFUSAL_LOG_MS)) {
       logSDf("Backend job: postponed, heap %u < %u (%u more refusals since the last line)",
-             (unsigned)free_heap, (unsigned)min_heap,
+             (unsigned)free_heap,
+             (unsigned)workerStartFloor(min_heap, BACKEND_JOB_STACK_BYTES, may_go_outside),
              (unsigned)logGateTakeSuppressed(&s_refusal_gate));
     }
     return false;
@@ -176,11 +188,9 @@ bool backendJobStartList(bool allow_archived, const JsonDocument* filter,
   // and if it succeeds the task may finish before this line would run - on
   // the simulator it always does.
   s_state = BJS_RUNNING;
-  BaseType_t ok = xTaskCreatePinnedToCore(backendJobTask, "backendjob",
-                                          BACKEND_JOB_STACK_BYTES, nullptr,
-                                          BACKEND_JOB_PRIORITY, nullptr,
-                                          BACKEND_JOB_CORE);
-  if (ok != pdPASS) {
+  if (!workerTaskStart(&s_worker, plan,
+                       WorkerTaskSpec{backendJobTask, "backendjob", BACKEND_JOB_STACK_BYTES,
+                                      BACKEND_JOB_PRIORITY, BACKEND_JOB_CORE})) {
     s_state = BJS_IDLE;
     if (logGateDue(&s_create_gate, millis(), BACKEND_JOB_REFUSAL_LOG_MS)) {
       logSDf("Backend job: task creation failed (%u more since the last line)",

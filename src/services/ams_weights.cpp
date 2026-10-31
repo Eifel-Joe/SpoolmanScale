@@ -33,6 +33,10 @@ static uint8_t                  s_bay_count = 0;
 static LogGate                  s_start_gate;
 static LogGate                  s_create_gate;
 
+// The task, its stack from PSRAM where it can (worker_task.h, V56): nothing
+// on it touches the flash. Deleted by the loop once it has parked.
+static WorkerTask               s_worker{};
+
 static void amsWeightsTask(void* arg) {
   (void)arg;
   AmsSlotSpool assigned[AMS_WEIGHTS_MAX];
@@ -56,8 +60,7 @@ static void amsWeightsTask(void* arg) {
              s_res.printer_id, code);
       __sync_synchronize();
       s_state = AWS_DONE;
-      vTaskDelete(NULL);
-      return;
+      workerTaskPark(&s_worker);
     }
   }
 
@@ -114,7 +117,7 @@ static void amsWeightsTask(void* arg) {
   // Written before the state says so, read the other way round by the loop.
   __sync_synchronize();
   s_state = AWS_DONE;
-  vTaskDelete(NULL);
+  workerTaskPark(&s_worker);
 }
 
 bool amsWeightsStart(int printer_id, const AmsSlotState& st) {
@@ -122,6 +125,9 @@ bool amsWeightsStart(int printer_id, const AmsSlotState& st) {
   // One HTTP worker at a time: a second task is another 16 kB of stack, and
   // the drying batch is the one the user is waiting for.
   if (driedBatchBusy()) return false;
+  // The last task, parked when it was done, is deleted first; one a moment
+  // away from parking counts as busy.
+  if (!workerTaskReap(&s_worker)) return false;
   // BamBuddy's assignment list is where the grams live. An AMS source sends
   // them in its own answer, and FilaMan has no list to read. A Klipper printer
   // names its spools itself and the record gives the grams, in either mode.
@@ -151,12 +157,16 @@ bool amsWeightsStart(int printer_id, const AmsSlotState& st) {
   // otherwise: the higher floor of the two.
   const uint32_t min_heap  = backendJobMinHeapBoth(backendBaseUrl(), backendFdbBaseUrl());
   const uint32_t free_heap = workerFreeHeap();
-  if (free_heap < min_heap) {
+  const bool may_go_outside = workerStackCanGoOutside(AMS_WEIGHTS_STACK_BYTES);
+  const WorkerStackPlan plan = workerStackPlan(free_heap, min_heap, AMS_WEIGHTS_STACK_BYTES,
+                                               may_go_outside);
+  if (!plan.outside && !plan.inside) {
     // The grid asks again with every refresh: one line a minute, with the
     // refusals it stands for.
     if (logGateDue(&s_start_gate, millis(), BACKEND_JOB_REFUSAL_LOG_MS)) {
       logSDf("AMSWEIGHTS: not started, heap %u < %u (%u more refusals since the last line)",
-             (unsigned)free_heap, (unsigned)min_heap,
+             (unsigned)free_heap,
+             (unsigned)workerStartFloor(min_heap, AMS_WEIGHTS_STACK_BYTES, may_go_outside),
              (unsigned)logGateTakeSuppressed(&s_start_gate));
     }
     return false;
@@ -169,11 +179,9 @@ bool amsWeightsStart(int printer_id, const AmsSlotState& st) {
   s_res.printer_id = printer_id;
 
   s_state = AWS_RUNNING;
-  BaseType_t ok = xTaskCreatePinnedToCore(amsWeightsTask, "amsweights",
-                                          AMS_WEIGHTS_STACK_BYTES, nullptr,
-                                          AMS_WEIGHTS_PRIORITY, nullptr,
-                                          AMS_WEIGHTS_CORE);
-  if (ok != pdPASS) {
+  if (!workerTaskStart(&s_worker, plan,
+                       WorkerTaskSpec{amsWeightsTask, "amsweights", AMS_WEIGHTS_STACK_BYTES,
+                                      AMS_WEIGHTS_PRIORITY, AMS_WEIGHTS_CORE})) {
     s_state = AWS_IDLE;
     // A task that cannot be created is asked for again like a refused start:
     // one line a minute here as well.

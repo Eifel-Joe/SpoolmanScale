@@ -15,10 +15,12 @@
 
 // Opening the connection ahead of time is a task of its own: the handshake
 // would otherwise stand the loop still for 0.6 s. The stack is the update
-// check's, for the same TLS handshake; it comes from the heap only while the
-// task runs, and only when the heap can spare it. How much that is, is not a
-// number here: warmStart() asks the rules for the floor of the backend's
-// address (backend_job_rules.h), like every other worker.
+// check's, for the same TLS handshake; it comes from PSRAM where it can
+// (worker_task.h, V56: nothing on this task touches the flash), else from the
+// internal heap, and only while the task runs and when the heap can spare it.
+// How much that is, is not a number here: warmStart() asks the rules for the
+// floor of the backend's address (backend_job_rules.h), like every other
+// worker.
 #define WARM_STACK_BYTES     14336
 #define WARM_PRIORITY        1
 #define WARM_CORE            0
@@ -418,12 +420,11 @@ void backendConnClose() {
   xSemaphoreGive(s_mux);
 }
 
-// A function of its own for the String: warmTask() ends with vTaskDelete(NULL),
-// and test_worker_heap_floors.py keeps every String, client and document out
-// of such a task's body, inner blocks included, rather than tell a block the
-// task leaves from one it never leaves. Nothing leaked here before: host sat
-// in the block of the semaphore, which closes before vTaskDelete(NULL), so its
-// destructor ran. The kept connection is s_pool's and outlives this on purpose.
+// A function of its own for the String: warmTask() ends by parking itself
+// (workerTaskPark, it never returns), and test_worker_heap_floors.py keeps
+// every String, client and document out of such a task's body, inner blocks
+// included, rather than tell a block the task leaves from one it never leaves.
+// The kept connection is s_pool's and outlives this on purpose.
 static void warmConnect() {
   String host;
   uint16_t port = 0;
@@ -436,6 +437,9 @@ static void warmConnect() {
   }
 }
 
+// The warm-up's task, deleted by the loop once it has parked.
+static WorkerTask s_warm_worker{};
+
 static void warmTask(void*) {
   if (xSemaphoreTake(s_mux, pdMS_TO_TICKS(10000)) == pdTRUE) {
     warmConnect();
@@ -443,16 +447,23 @@ static void warmTask(void*) {
     xSemaphoreGive(s_mux);
   }
   s_warming = false;
-  vTaskDelete(NULL);
+  workerTaskPark(&s_warm_worker);
 }
 
 static void warmStart() {
   if (s_warming || !ensureMux()) return;
-  // Only runs for an https backend (backendConnTick), so this is the TLS floor.
-  if (workerFreeHeap() < backendJobMinHeap(backendBaseUrl())) return;
+  // The last warm-up's task, parked when it was done, is deleted first; one a
+  // moment away from parking is asked for again on the next tick.
+  if (!workerTaskReap(&s_warm_worker)) return;
+  // Only runs for an https backend (backendConnTick), so this is the TLS
+  // floor, lower by the stack when it goes to PSRAM (workerStackPlan).
+  const WorkerStackPlan plan = workerStackPlan(workerFreeHeap(), backendJobMinHeap(backendBaseUrl()),
+                                               WARM_STACK_BYTES,
+                                               workerStackCanGoOutside(WARM_STACK_BYTES));
+  if (!plan.outside && !plan.inside) return;
   s_warming = true;
-  if (xTaskCreatePinnedToCore(warmTask, "tlswarm", WARM_STACK_BYTES, nullptr,
-                              WARM_PRIORITY, nullptr, WARM_CORE) != pdPASS) {
+  if (!workerTaskStart(&s_warm_worker, plan,
+                       WorkerTaskSpec{warmTask, "tlswarm", WARM_STACK_BYTES, WARM_PRIORITY, WARM_CORE})) {
     s_warming = false;
   }
 }

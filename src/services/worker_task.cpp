@@ -28,6 +28,21 @@
 // workerTaskStart() and workerTaskReap(), both on the loop task.
 static volatile uint32_t s_outside_bytes = 0;
 
+// Every worker started so far, for workerTasksReap(). Each is a static of its
+// module and lives as long as the firmware, so the list holds one entry per
+// module: nine today. A worker past the end is not lost, its module deletes
+// it before its next start (workerTaskReap()).
+#define WORKER_TASKS_KNOWN_MAX 16
+static WorkerTask* s_known[WORKER_TASKS_KNOWN_MAX];
+static uint8_t     s_known_n = 0;
+
+static void workerTaskRemember(WorkerTask* w) {
+  for (uint8_t i = 0; i < s_known_n; i++) {
+    if (s_known[i] == w) return;
+  }
+  if (s_known_n < WORKER_TASKS_KNOWN_MAX) s_known[s_known_n++] = w;
+}
+
 uint32_t workerFreeHeap() {
   const uint32_t free_heap = (uint32_t)heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
   const uint32_t held      = s_outside_bytes;
@@ -58,6 +73,7 @@ bool workerTaskStart(WorkerTask* w, const WorkerStackPlan& plan, const WorkerTas
     w->outside_bytes = spec.stack_bytes;
     w->handle        = h;
     s_outside_bytes  = s_outside_bytes + spec.stack_bytes;
+    workerTaskRemember(w);
     return true;
   }
 #endif
@@ -70,6 +86,7 @@ bool workerTaskStart(WorkerTask* w, const WorkerStackPlan& plan, const WorkerTas
     w->outside       = false;
     w->outside_bytes = 0;
     w->handle        = h;
+    workerTaskRemember(w);
     return true;
   }
   return false;
@@ -98,4 +115,8 @@ bool workerTaskReap(WorkerTask* w) {
   w->outside       = false;
   w->outside_bytes = 0;
   return true;
+}
+
+void workerTasksReap() {
+  for (uint8_t i = 0; i < s_known_n; i++) workerTaskReap(s_known[i]);
 }

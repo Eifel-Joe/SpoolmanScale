@@ -93,7 +93,8 @@ uint32_t backendJobMinHeapBoth(const char* first, const char* second);
 //  the scale, on the loop task without a stack of its own, ran at 46 kB.
 //
 //  The web job and the daily check therefore take their stack from PSRAM
-//  where the board has it (worker_task.h). Their floor then drops by exactly
+//  where the board has it (worker_task.h), and since v0.8.6-beta.13 the
+//  backend workers too, which met the same floor against an https backend. Their floor then drops by exactly
 //  that stack, because the stack is no longer taken from the internal heap.
 //  The internal heap that is left while the request runs is the same as
 //  with the stack inside, so no new number is guessed here. A worker whose

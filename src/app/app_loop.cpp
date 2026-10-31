@@ -52,6 +52,7 @@
 #include "ui/weight_button.h"
 #include "services/ota_state.h"
 #include "services/update_check.h"
+#include "services/worker_task.h"
 #include "ui/ota_browser.h"
 #include "ui/remote_link_popup.h"
 #include "ui/tag_write_popup.h"
@@ -771,6 +772,9 @@ void appLoop() {
   // Background update check. Cheap: a few comparisons per pass, and the actual
   // request happens in its own task on the other core.
   perfSection("updchk");
+  // The workers that are done and parked, deleted before anything below
+  // asks for a new one (worker_task.h).
+  workerTasksReap();
   updateCheckTick();
   bambuCatalogSyncTick();
   dryingSyncTick();

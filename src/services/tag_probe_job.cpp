@@ -30,6 +30,10 @@ static char                   s_base[sizeof(cfg_spoolman_base)] = "";
 static LogGate                s_start_gate;
 static LogGate                s_create_gate;
 
+// The task, its stack from PSRAM where it can (worker_task.h, V56): nothing
+// on it touches the flash. Deleted by the loop once it has parked.
+static WorkerTask             s_worker{};
+
 static void tagProbeTask(void* arg) {
   (void)arg;
   const uint32_t t0 = millis();
@@ -39,11 +43,14 @@ static void tagProbeTask(void* arg) {
   // other core reads the state first and the result after.
   __sync_synchronize();
   s_state = TPS_DONE;
-  vTaskDelete(NULL);
+  workerTaskPark(&s_worker);
 }
 
 bool tagProbeStart(const char* query) {
   if (s_state != TPS_IDLE || !query || !query[0]) return false;
+  // The last task, parked when it was done, is deleted first; one a moment
+  // away from parking counts as busy.
+  if (!workerTaskReap(&s_worker)) return false;
   // Checked here rather than inside the task: the stack comes out of the
   // heap the moment the task is created. The floor follows the addresses the
   // lookup can go to (backendFindSpoolByTag in backend_api.cpp): the active
@@ -55,12 +62,16 @@ bool tagProbeStart(const char* query) {
   // otherwise: the higher floor of the two.
   const uint32_t min_heap  = backendJobMinHeapBoth(backendBaseUrl(), backendFdbBaseUrl());
   const uint32_t free_heap = workerFreeHeap();
-  if (free_heap < min_heap) {
+  const bool may_go_outside = workerStackCanGoOutside(TAG_PROBE_STACK_BYTES);
+  const WorkerStackPlan plan = workerStackPlan(free_heap, min_heap, TAG_PROBE_STACK_BYTES,
+                                               may_go_outside);
+  if (!plan.outside && !plan.inside) {
     // The recheck asks again every few seconds: one line a minute, with the
     // refusals it stands for.
     if (logGateDue(&s_start_gate, millis(), BACKEND_JOB_REFUSAL_LOG_MS)) {
       logSDf("Recheck: postponed, heap %u < %u (%u more refusals since the last line)",
-             (unsigned)free_heap, (unsigned)min_heap,
+             (unsigned)free_heap,
+             (unsigned)workerStartFloor(min_heap, TAG_PROBE_STACK_BYTES, may_go_outside),
              (unsigned)logGateTakeSuppressed(&s_start_gate));
     }
     return false;
@@ -77,11 +88,9 @@ bool tagProbeStart(const char* query) {
   // and if it succeeds the task may finish before this line would run - on
   // the simulator it always does.
   s_state = TPS_RUNNING;
-  BaseType_t ok = xTaskCreatePinnedToCore(tagProbeTask, "tagprobe",
-                                          TAG_PROBE_STACK_BYTES, nullptr,
-                                          TAG_PROBE_PRIORITY, nullptr,
-                                          TAG_PROBE_CORE);
-  if (ok != pdPASS) {
+  if (!workerTaskStart(&s_worker, plan,
+                       WorkerTaskSpec{tagProbeTask, "tagprobe", TAG_PROBE_STACK_BYTES,
+                                      TAG_PROBE_PRIORITY, TAG_PROBE_CORE})) {
     s_state = TPS_IDLE;
     // A task that cannot be created is asked for again like a refused start:
     // one line a minute here as well.

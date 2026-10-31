@@ -32,6 +32,10 @@ static char                     s_base[sizeof(cfg_spoolman_base)] = "";
 static LogGate                  s_start_gate;
 static LogGate                  s_create_gate;
 
+// The task, its stack from PSRAM where it can (worker_task.h, V56): nothing
+// on it touches the flash. Deleted by the loop once it has parked.
+static WorkerTask               s_worker{};
+
 static void driedBatchTask(void* arg) {
   (void)arg;
   for (uint8_t i = 0; i < s_res.count; i++) {
@@ -51,12 +55,15 @@ static void driedBatchTask(void* arg) {
   // other core reads the state first and the result after.
   __sync_synchronize();
   s_state = DBS_DONE;
-  vTaskDelete(NULL);
+  workerTaskPark(&s_worker);
 }
 
 bool driedBatchStart(int printer_id, uint8_t ams_id, const int* spool_ids,
                      uint8_t n, const char* iso) {
   if (s_state != DBS_IDLE || !spool_ids || n == 0 || !iso || !iso[0]) return false;
+  // The last task, parked when it was done, is deleted first; one a moment
+  // away from parking counts as busy.
+  if (!workerTaskReap(&s_worker)) return false;
   // Checked here rather than inside the task: the stack comes out of the
   // heap the moment the task is created, so testing afterwards would be
   // testing the wrong number.
@@ -66,11 +73,15 @@ bool driedBatchStart(int printer_id, uint8_t ams_id, const int* spool_ids,
   // then and the active backend otherwise: the higher floor of the two.
   const uint32_t min_heap  = backendJobMinHeapBoth(backendBaseUrl(), backendFdbBaseUrl());
   const uint32_t free_heap = workerFreeHeap();
-  if (free_heap < min_heap) {
+  const bool may_go_outside = workerStackCanGoOutside(DRIED_BATCH_STACK_BYTES);
+  const WorkerStackPlan plan = workerStackPlan(free_heap, min_heap, DRIED_BATCH_STACK_BYTES,
+                                               may_go_outside);
+  if (!plan.outside && !plan.inside) {
     // One line a minute, with the refusals it stands for.
     if (logGateDue(&s_start_gate, millis(), BACKEND_JOB_REFUSAL_LOG_MS)) {
       logSDf("DRIEDBATCH: not started, heap %u < %u (%u more refusals since the last line)",
-             (unsigned)free_heap, (unsigned)min_heap,
+             (unsigned)free_heap,
+             (unsigned)workerStartFloor(min_heap, DRIED_BATCH_STACK_BYTES, may_go_outside),
              (unsigned)logGateTakeSuppressed(&s_start_gate));
     }
     return false;
@@ -90,11 +101,9 @@ bool driedBatchStart(int printer_id, uint8_t ams_id, const int* spool_ids,
   // and if it succeeds the task may finish before this line would run - in
   // the simulator it always does, the task runs inline there.
   s_state = DBS_RUNNING;
-  BaseType_t ok = xTaskCreatePinnedToCore(driedBatchTask, "driedbatch",
-                                          DRIED_BATCH_STACK_BYTES, nullptr,
-                                          DRIED_BATCH_PRIORITY, nullptr,
-                                          DRIED_BATCH_CORE);
-  if (ok != pdPASS) {
+  if (!workerTaskStart(&s_worker, plan,
+                       WorkerTaskSpec{driedBatchTask, "driedbatch", DRIED_BATCH_STACK_BYTES,
+                                      DRIED_BATCH_PRIORITY, DRIED_BATCH_CORE})) {
     s_state = DBS_IDLE;
     // A task that cannot be created is asked for again like a refused start:
     // one line a minute here as well.

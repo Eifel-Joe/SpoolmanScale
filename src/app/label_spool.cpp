@@ -25,9 +25,11 @@
 // One spool by id, a small answer: a slow server only costs the label its date.
 #define LABEL_DATE_TIMEOUT_MS  4000
 // The browser's dates are fetched on a task of their own, the shape of the
-// other backend workers: core 0, below the loop, stack from the heap while
-// it runs. TLS needs the 16 kB. The heap floor for that stack is not a number
-// here: 50000 at https, 40000 at http (backend_job_rules.h).
+// other backend workers: core 0, below the loop, stack from PSRAM where it
+// can (worker_task.h, V56: nothing on it touches the flash), else from the
+// internal heap, while it runs. TLS needs the 16 kB. The heap floor for that
+// stack is not a number here: 50000 at https, 40000 at http
+// (backend_job_rules.h).
 #define LABEL_DATE_STACK_BYTES 16384
 #define LABEL_DATE_PRIORITY    1
 #define LABEL_DATE_CORE        0
@@ -255,13 +257,15 @@ struct DateJob {
   LabelLinkAnswer link;
 };
 static DateJob s_job;
+// The fetch's task, deleted by the loop once it has parked.
+static WorkerTask s_date_worker{};
 
 static void dateTask(void*) {
   if (s_job.want_link) labelLinkFetchAt(s_job.at, s_job.gen, &s_job.link);
   s_job.ok = fetchDates(s_job.at.base, s_job.id, &s_job.extras);
   __sync_synchronize();
   s_job_done = true;
-  vTaskDelete(NULL);
+  workerTaskPark(&s_date_worker);
 }
 
 // The gates of the "not fetched" line and of the "task creation failed" line,
@@ -271,6 +275,9 @@ static LogGate s_create_gate;
 
 // False when the task could not start; the caller then gives up on the dates.
 static bool startDateJob(int id) {
+  // The last fetch's task, parked when it was done, is deleted first; one a
+  // moment away from parking counts as a fetch that could not start.
+  if (!workerTaskReap(&s_date_worker)) return false;
   // The floor follows the addresses the requests can go to (the QR link's,
   // fetchDates, then backendGetSpoolJson): the backend's, taken into s_job.at
   // below, and for a BamBuddy that keeps its spools in a Spoolman server that
@@ -279,12 +286,16 @@ static bool startDateJob(int id) {
   // otherwise: the higher floor.
   const uint32_t min_heap  = backendJobMinHeapBoth(backendBaseUrl(), backendFdbBaseUrl());
   const uint32_t free_heap = workerFreeHeap();
-  if (free_heap < min_heap) {
+  const bool may_go_outside = workerStackCanGoOutside(LABEL_DATE_STACK_BYTES);
+  const WorkerStackPlan plan = workerStackPlan(free_heap, min_heap, LABEL_DATE_STACK_BYTES,
+                                               may_go_outside);
+  if (!plan.outside && !plan.inside) {
     // Every label asks once more: one line a minute, with the refusals it
     // stands for.
     if (logGateDue(&s_date_gate, millis(), BACKEND_JOB_REFUSAL_LOG_MS)) {
       logSDf("Label: dates not fetched, heap %u < %u (%u more refusals since the last line)",
-             (unsigned)free_heap, (unsigned)min_heap,
+             (unsigned)free_heap,
+             (unsigned)workerStartFloor(min_heap, LABEL_DATE_STACK_BYTES, may_go_outside),
              (unsigned)logGateTakeSuppressed(&s_date_gate));
     }
     return false;
@@ -296,8 +307,9 @@ static bool startDateJob(int id) {
   s_job.want_link = labelLinkDue();
   s_job_done = false;
   s_job_running = true;
-  if (xTaskCreatePinnedToCore(dateTask, "labeldates", LABEL_DATE_STACK_BYTES, nullptr,
-                              LABEL_DATE_PRIORITY, nullptr, LABEL_DATE_CORE) != pdPASS) {
+  if (!workerTaskStart(&s_date_worker, plan,
+                       WorkerTaskSpec{dateTask, "labeldates", LABEL_DATE_STACK_BYTES,
+                                      LABEL_DATE_PRIORITY, LABEL_DATE_CORE})) {
     s_job_running = false;
     // A task that cannot be created is asked for again like a refused start:
     // one line a minute here as well.

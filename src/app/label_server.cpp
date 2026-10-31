@@ -23,8 +23,9 @@
 // A preview older than this is fetched again: the preset may have changed.
 #define LS_PREVIEW_MAX_AGE_MS 30000
 // The editor's fetches run like the label dates: core 0, below the loop,
-// TLS needs the 16 kB of stack. The heap floor for that stack is not a number
-// here: 50000 at https, 40000 at http (backend_job_rules.h).
+// TLS needs the 16 kB of stack, from PSRAM where it can (worker_task.h). The
+// heap floor for that stack is not a number here: 50000 at https, 40000 at
+// http (backend_job_rules.h).
 #define LS_STACK_BYTES        16384
 #define LS_PRIORITY           1
 #define LS_CORE               0
@@ -58,6 +59,9 @@ struct ServerJob {
 };
 static ServerJob s_job;
 static volatile bool s_job_running = false, s_job_done = false;
+// The fetch's task, its stack from PSRAM where it can (worker_task.h, V56):
+// nothing on it touches the flash. Deleted by the loop once it has parked.
+static WorkerTask s_worker{};
 
 static int s_preset = -1;   // -1: not read from NVS yet
 
@@ -129,7 +133,7 @@ static void jobTask(void*) {
                                     s_job.reason, sizeof(s_job.reason));
   __sync_synchronize();
   s_job_done = true;
-  vTaskDelete(NULL);
+  workerTaskPark(&s_worker);
 }
 
 // The gates of the "not started" line and of the "task creation failed" line,
@@ -139,16 +143,22 @@ static LogGate s_create_gate;
 
 // False when the task could not start; the caller marks the fetch failed.
 static bool startJob(JobKind kind, const LabelKey& key) {
+  // The last fetch's task, parked when it was done, is deleted first; one a
+  // moment away from parking counts as a fetch that could not start.
+  if (!workerTaskReap(&s_worker)) return false;
   // The floor follows the address both fetches read, the active backend's
-  // (backendLabelPresets and backendLabelRender in backend_api.cpp).
+  // (backendLabelPresets and backendLabelRender in backend_api.cpp), lower by
+  // the stack when it goes to PSRAM (workerStackPlan).
   const uint32_t min_heap  = backendJobMinHeap(backendBaseUrl());
   const uint32_t free_heap = workerFreeHeap();
-  if (free_heap < min_heap) {
+  const bool may_go_outside = workerStackCanGoOutside(LS_STACK_BYTES);
+  const WorkerStackPlan plan = workerStackPlan(free_heap, min_heap, LS_STACK_BYTES, may_go_outside);
+  if (!plan.outside && !plan.inside) {
     // A refused fetch is asked for again (the list every 20 s): one line a
     // minute, with the refusals it stands for.
     if (logGateDue(&s_start_gate, millis(), BACKEND_JOB_REFUSAL_LOG_MS)) {
       logSDf("Label: server fetch not started, heap %u < %u (%u more refusals since the last line)",
-             (unsigned)free_heap, (unsigned)min_heap,
+             (unsigned)free_heap, (unsigned)workerStartFloor(min_heap, LS_STACK_BYTES, may_go_outside),
              (unsigned)logGateTakeSuppressed(&s_start_gate));
     }
     return false;
@@ -158,8 +168,8 @@ static bool startJob(JobKind kind, const LabelKey& key) {
   s_job.key = key;
   s_job_done = false;
   s_job_running = true;
-  if (xTaskCreatePinnedToCore(jobTask, "labelsrv", LS_STACK_BYTES, nullptr,
-                              LS_PRIORITY, nullptr, LS_CORE) != pdPASS) {
+  if (!workerTaskStart(&s_worker, plan,
+                       WorkerTaskSpec{jobTask, "labelsrv", LS_STACK_BYTES, LS_PRIORITY, LS_CORE})) {
     s_job_running = false;
     // A task that cannot be created is asked for again like a refused start:
     // one line a minute here as well.
