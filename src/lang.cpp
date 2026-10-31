@@ -4745,6 +4745,27 @@ const char* const STRINGS[][3] = {
   { "Zu wenig freier Speicher zum Laden. Später oder nach einem Neustart der Waage erneut versuchen.",
     "Not enough free memory to load it. Try again later or after restarting the scale.",
     "Pas assez de mémoire libre pour le chargement. Réessayez plus tard ou après un redémarrage de la balance." },  // STR_W_BCAT_LOWMEM
+  { "Zu wenig freier Speicher. Später oder nach einem Neustart der Waage erneut versuchen.",
+    "Not enough free memory. Try again later or after restarting the scale.",
+    "Pas assez de mémoire libre. Réessayez plus tard ou après un redémarrage de la balance." },  // STR_W_LOWMEM
+  { "Gespeichert - Test übersprungen, zu wenig freier Speicher",
+    "Saved - test skipped, not enough free memory",
+    "Enregistré - test ignoré, mémoire libre insuffisante" },  // STR_W_HOST_SAVED_LOWMEM
+  { "Fehler vom Server",
+    "Error from the server",
+    "Erreur du serveur" },  // STR_SERVER_ERR_TITLE
+  { "Der Server hat geantwortet, aber mit einem Fehler. Der Grund steht im Protokoll der Waage. Später noch einmal versuchen.",
+    "The server answered, but with an error. The reason is in the scale's log. Try again later.",
+    "Le serveur a répondu avec une erreur. La raison est dans le journal de la balance. Réessayez plus tard." },  // STR_SERVER_ERR_TEXT
+  { "Nicht verknüpft: Fehler vom Server",
+    "Not linked: error from the server",
+    "Non lié : erreur du serveur" },  // STR_LINK_SERVER_ERR
+  { "Vorlage nicht gefunden",
+    "Template not found",
+    "Modèle introuvable" },  // STR_COPY_TPL_GONE_TITLE
+  { "Die Spule ist nicht mehr da, sie wurde gelöscht oder archiviert.",
+    "The spool is no longer there, it was deleted or archived.",
+    "La bobine n'existe plus, elle a été supprimée ou archivée." },  // STR_COPY_TPL_GONE_TEXT
 };
 
 StringID tagWriteResultString(uint8_t code) {

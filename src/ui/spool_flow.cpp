@@ -1125,6 +1125,7 @@ enum LinkRowRefresh : uint8_t {
   LINK_ROW_OK = 0,     // read, the row is true again
   LINK_ROW_CHANGED,    // not what the list said: gone, archived, bound meanwhile
   LINK_ROW_NETWORK,    // no answer worth acting on, so nothing is known
+  LINK_ROW_FAILED,     // the server answered, with an error: nothing is known either
 };
 
 // The cache decides what a list shows, never what is written. Between a row
@@ -1163,12 +1164,13 @@ static LinkRowRefresh linkRefreshRow(int idx) {
   }
   // Anything else that is not a spool: a 500, a body that did not parse. Not
   // a statement about the spool, so the list stays - but it has to be said,
-  // or the tap looks as if it had not been felt.
+  // or the tap looks as if it had not been felt. The server did answer, so
+  // not "no connection" (Punkteliste n42); the code is in the line above.
   if (code != 200 || err) {
     logSDf("link row: spool %d not read, HTTP %d %s (%lu ms)", s.id, code,
            err ? err.c_str() : "", took);
-    showInfoPopup(STR_SERVER_DOWN_TITLE, STR_SERVER_DOWN_TEXT, INFO_WARN);
-    return LINK_ROW_NETWORK;
+    showInfoPopup(STR_SERVER_ERR_TITLE, STR_SERVER_ERR_TEXT, INFO_WARN);
+    return LINK_ROW_FAILED;
   }
 
   JsonObjectConst spool = doc.as<JsonObjectConst>();
@@ -1493,7 +1495,9 @@ bool doLinkPatchUid(int spool_id, bool is_bambu, const char* link_uuid) {
     const LinkRowRefresh r = linkRefreshRow(i);
     if (r != LINK_ROW_OK) {
       logSDf("LINK ABORT: spool %d could not be read before the write (%d)", spool_id, (int)r);
-      statusMessageShow(T(r == LINK_ROW_NETWORK ? STR_LINK_NO_CONNECTION : STR_LIST_SPOOL_CHANGED),
+      statusMessageShow(T(r == LINK_ROW_NETWORK ? STR_LINK_NO_CONNECTION
+                          : r == LINK_ROW_FAILED ? STR_LINK_SERVER_ERR
+                                                 : STR_LIST_SPOOL_CHANGED),
                         UI_COL_BAD_TEXT);
       closeLinkOverlays();
       return false;
@@ -3773,6 +3777,7 @@ void handleSpoolFlowDeferredActions() {
           linkReloadSpoolList();
           break;
         case LINK_ROW_NETWORK:
+        case LINK_ROW_FAILED:
           break;   // said by a popup, the list stays as it is
       }
     }
@@ -3959,8 +3964,12 @@ void handleSpoolFlowDeferredActions() {
     JsonDocument cdoc;
     DeserializationError derr2 = DeserializationError::Ok;
     int hcode = serverReachNote(backendGetSpoolJson(cfg_spoolman_base, cid, cdoc, 5000, &derr2), true);
+    // "Not found" for a 404 only: a 500 or the like is the server's error, not
+    // a wrong number (Punkteliste n42).
     if (hcode != 200) {
-      idPadSay(T(serverReachIsNetworkFailure(hcode) ? STR_NO_CONNECTION : STR_LINK_ID_NOT_FOUND),
+      idPadSay(T(serverReachIsNetworkFailure(hcode) ? STR_NO_CONNECTION
+                 : hcode == 404                    ? STR_LINK_ID_NOT_FOUND
+                                                   : STR_SERVER_ERR_TITLE),
                true);
     } else {
       if (!derr2) {

@@ -92,10 +92,13 @@ struct CopyBbsCreate {
 
 // Reads the template (raw, as Bambuddy stores it), its profiles per printer
 // model and, behind Spoolman, its filament id and weight, each within 3 s,
-// and holds them until the next load or copyBbsClear(). False only when the template
-// itself could not be read; profiles or a filament id that could not be read
-// leave a gap the create reports. Forgets a price typed before.
-bool copyBbsLoad(int template_spool_id);
+// and holds them until the next load or copyBbsClear(). Returns the HTTP code
+// of the template's read, 200 when it was read; anything else when the
+// template itself could not be read, so the card can say why (no connection,
+// gone, an error the server answered with). Profiles or a filament id that
+// could not be read leave a gap the create reports. Forgets a price typed
+// before.
+int copyBbsLoad(int template_spool_id);
 
 // The nominal weight the copy of template_spool_id starts from
 // (copyRulesNominal): the Spoolman filament's weight loaded for that very

@@ -2154,6 +2154,15 @@ enum StringID {
   // A web job refused for the internal heap, told apart from "busy" (web/web_jobs.h)
   STR_W_FW_LOWMEM,            // firmware page, GitHub check or release notes; names the check on the scale (STR_GH_OTA_CHECK_BTN) and the upload (STR_W_FW_FILE)
   STR_W_BCAT_LOWMEM,          // tags page, loading BambuStudio's colour table
+  STR_W_LOWMEM,               // tags page (spool list) and Klipper page (connection test): a start refused for the heap
+  STR_W_HOST_SAVED_LOWMEM,    // backend page: the address is saved, its test was refused for the heap (beside STR_W_HOST_SAVED_ONLY)
+
+  // A read the server answered with an error, told apart from no connection (services/server_reach.h)
+  STR_SERVER_ERR_TITLE,       // popup title
+  STR_SERVER_ERR_TEXT,        // popup text under it; the HTTP code is in the log
+  STR_LINK_SERVER_ERR,        // status line, a link stopped by it (beside STR_LINK_NO_CONNECTION)
+  STR_COPY_TPL_GONE_TITLE,    // popup title, the copy card's template is no longer on the server (404)
+  STR_COPY_TPL_GONE_TEXT,     // popup text under it
 
   STR_COUNT
 };

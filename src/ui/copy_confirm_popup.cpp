@@ -10,6 +10,8 @@
 
 #include "hardware/sd_logger.h"
 #include "services/copy_bbs.h"      // what a copy behind Bambuddy on Spoolman takes over
+#include "services/server_reach.h"   // a template read that never reached the server
+#include "services/spool_cache.h"
 #include "services/spool_start.h"
 #include "lang.h"
 #include "services/no_tag_create_rules.h"   // the reading, the type list and the fill weight without a tag
@@ -507,6 +509,34 @@ static void copyTypeWithout() {
   buildCopyCard();
 }
 
+// A template the card could not read: the reason, as the other reads of the
+// scale tell them apart, and the way back is Cancel's.
+// Root: copyBbsLoad() said yes or no, and every failure got "No connection to
+//   the server" / "The server did not answer", a spool that was gone and an
+//   error from Spoolman as well, while serverReachNote() never heard of it,
+//   so the header stayed green (Punkteliste n42, 31.10.2026).
+// Fix: the read's HTTP code decides. One that never reached the server goes
+//   to serverReachNote(), whose popup and red header the loop puts up, as for
+//   every other request. A 404 is a spool gone since the list was read: the
+//   copy list is read again from the server, as copyRowRefresh() does for its
+//   row, and without a list the card says so. Anything else is an error the
+//   server answered with; the code is in the log line of copyBbsLoad().
+// See test_copy_load_reason.py.
+static void copyTemplateUnread(int code) {
+  copyBackToList();
+  if (serverReachIsNetworkFailure(serverReachNote(code, true))) return;
+  if (code == 404) {
+    spoolCacheForget("a copy template is gone");
+    if (scr_copy_list) {
+      copyListReloadAsk();
+      return;
+    }
+    showInfoPopup(STR_COPY_TPL_GONE_TITLE, STR_COPY_TPL_GONE_TEXT, INFO_WARN);
+    return;
+  }
+  showInfoPopup(STR_SERVER_ERR_TITLE, STR_SERVER_ERR_TEXT, INFO_WARN);
+}
+
 void showCopyConfirmPopup(int template_spool_id, int template_filament_id,
                           const char* template_name,
                           float template_remaining, float template_initial, float template_spool_w,
@@ -534,17 +564,20 @@ void showCopyConfirmPopup(int template_spool_id, int template_filament_id,
   // Behind Bambuddy on Spoolman the template is read here, before the list of
   // types, whichever way it was chosen, so the card can show what goes along;
   // the loop stands still for it, as for the read of a row out of the cache
-  // (copyRowRefresh()). A template that cannot be read gets that read's hint,
-  // and the way back is Cancel's: no card for a copy that would create nothing.
+  // (copyRowRefresh()). A template that cannot be read gets that read's hint
+  // (copyTemplateUnread()), and the way back is Cancel's: no card for a copy
+  // that would create nothing.
   s_copy_bbs = spoolTypesActive();
   // A card outside it starts with nothing read: a BBS card closed from outside
   // the flow left its template and a typed price behind, and a create for the
   // same template would reuse them once the mode is back.
   if (!s_copy_bbs) copyBbsClear();
-  if (s_copy_bbs && !copyBbsLoad(template_spool_id)) {
-    copyBackToList();
-    showInfoPopup(STR_SERVER_DOWN_TITLE, STR_SERVER_DOWN_TEXT, INFO_WARN);
-    return;
+  if (s_copy_bbs) {
+    const int code = copyBbsLoad(template_spool_id);
+    if (code != 200) {
+      copyTemplateUnread(code);
+      return;
+    }
   }
   // Behind Spoolman the copy starts from its filament's nominal weight, not
   // from a label the template had raised (copyRulesNominal). Set here, once,

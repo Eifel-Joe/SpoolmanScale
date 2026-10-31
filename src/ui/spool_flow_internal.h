@@ -122,6 +122,9 @@ extern bool      copy_flow_archived; // true = showing archived spools
 
 void closeCopyListPopup();
 void closeCopyConfirmPopup();
+// The copy list read again from the server on the next pass, as "Reload" under
+// it does: for a template the card found gone. Nothing while no list is open.
+void copyListReloadAsk();
 // Patch newly created spool with tag UID and query it on main screen
 // True when the tag was bound; the spool exists either way.
 bool finishCopyFlow(int new_spool_id, const char* tray_uuid_override = nullptr);

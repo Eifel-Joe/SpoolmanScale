@@ -897,10 +897,13 @@ static void copyRowRefresh(int idx) {
     copyFetchStart(s_cf_archived, mat);
     return;
   }
+  // Anything else that is not a spool: a 500, a body that did not parse. The
+  // server did answer, so not "no connection" (Punkteliste n42); the code is
+  // in the line above.
   if (code != 200 || err) {
     logSDf("copy row: spool %d not read, HTTP %d %s (%lu ms)", s.id, code,
            err ? err.c_str() : "", took);
-    showInfoPopup(STR_SERVER_DOWN_TITLE, STR_SERVER_DOWN_TEXT, INFO_WARN);
+    showInfoPopup(STR_SERVER_ERR_TITLE, STR_SERVER_ERR_TEXT, INFO_WARN);
     return;
   }
 
@@ -923,6 +926,10 @@ void copyCreateRequest(int template_spool_id, int template_filament_id, float te
   copy_create_core = chosen_core_g;
   copy_create_asked = copyTypeAsked();
   copy_create_pending = true;
+}
+
+void copyListReloadAsk() {
+  if (scr_copy_list) copy_reload_pending = true;
 }
 
 void copyFlowDeferredActions() {

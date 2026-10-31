@@ -134,11 +134,11 @@ static int loadTemplate(int template_spool_id) {
   return 200;
 }
 
-bool copyBbsLoad(int template_spool_id) {
+int copyBbsLoad(int template_spool_id) {
   HttpStallTime stall(__func__);   // the loop stands still for these reads
   const int code = loadTemplate(template_spool_id);
   if (code != 200) logSDf("Copy: template %d unreadable (HTTP %d)", template_spool_id, code);
-  return code == 200;
+  return code;
 }
 
 float copyBbsNominal(int template_spool_id, float tpl_label_g) {
