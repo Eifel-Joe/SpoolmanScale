@@ -4,7 +4,7 @@ This guide covers everything you need to physically build a SpoolmanScale: parts
 
 For the project overview, features, and flashing instructions, see the [README](README.md).
 
-> ⚠️ This is a beta build guide. If something is unclear or doesn't fit your hardware batch, please report it on [MakerWorld](https://makerworld.com/@FormFollowsF) or in the [Discord](https://discord.gg/K3KmKnrWhP).
+> ⚠️ This is a beta build guide. If something is unclear or doesn't fit your hardware batch, please report it on [MakerWorld](https://makerworld.com/@FormFollowsF) or in the [Discord](https://discord.gg/K3KmKnrWhP). For the Waveshare boards and anything else this fork adds, [open an issue at this fork](https://github.com/Eifel-Joe/SpoolmanScale/issues) instead.
 
 ---
 
@@ -157,7 +157,7 @@ The firmware is built for one board at a time. Everything above describes the WT
 | Waveshare ESP32-S3-Touch-LCD-7 | `waveshare-s3-lcd7` | 800×480, the 480×320 UI enlarged to fill it | built, not tested on hardware by this fork; see the notes below |
 | Waveshare ESP32-S3-Touch-LCD-7B | `waveshare-s3-lcd7b` | 1024×600, the 480×320 UI enlarged to fill it | tested on hardware by this fork; see the notes below |
 
-For the Waveshare 7 and 7B there is one printable enclosure, both boards have the same outline: 👉 [7" Spoolman T-Scale](https://makerworld.com/en/models/3429397-7-spoolman-t-scale-waveshare-esp32-s3-touch-7) on MakerWorld. For the WT32-SC01 Plus, besides the original's enclosure, the 👉 [Spoolman T-Scale](https://makerworld.com/en/models/3302257-spoolman-t-scale-filamant-scale-filaman-bambuddy#profileId-3747973) fits as well.
+For the Waveshare 7 and 7B there is one printable enclosure, both boards have the same outline: 👉 [7" Spoolman T-Scale](https://makerworld.com/en/models/3429397-7-spoolman-t-scale-waveshare-esp32-s3-touch-7) by wolfrage76 on MakerWorld. For the WT32-SC01 Plus, besides the original's enclosure, the 👉 [Spoolman T-Scale](https://makerworld.com/en/models/3302257-spoolman-t-scale-filamant-scale-filaman-bambuddy#profileId-3747973) fits as well.
 
 ### Waveshare ESP32-S3-Touch-LCD-7
 
