@@ -156,6 +156,35 @@ if web_text is not None:
     if "WJR_LOW_HEAP" not in web:
         errors.append(f"src/{WEB_JOBS}: a start refused for the heap is not told apart (WJR_LOW_HEAP)")
 
+# 3a. Every worker that tests a floor tests it against workerFreeHeap(): the
+# internal heap less the stacks in PSRAM of the workers still there. A stack
+# moved to PSRAM no longer lowers ESP.getFreeHeap(), so beside a GitHub check
+# a worker on the internal heap would see 14-16 kB more than before and start
+# where its floor used to keep it out (review of 31.10.2026: the tag probe
+# beside the daily check on the 7B). Counted like this, every other worker
+# sees the heap as it did with the stack inside.
+FLOOR_READERS = [
+    "services/backend_job.cpp", "app/label_server.cpp", "app/label_spool.cpp",
+    "services/ams_weights.cpp", "services/dried_batch.cpp", "services/filament_db.cpp",
+    "services/tag_probe_job.cpp", "services/backend_http.cpp", "web/web_jobs.cpp",
+    "services/update_check.cpp",
+]
+RAW_FLOOR_READ = re.compile(r"=\s*\(uint32_t\)\s*ESP\.getFreeHeap\(\)\s*;|ESP\.getFreeHeap\(\)\s*<")
+for rel in FLOOR_READERS:
+    text = read(rel)
+    if text is None:
+        continue
+    code = code_with_strings(text)
+    if "workerFreeHeap()" not in code:
+        errors.append(f"src/{rel}: does not test its floor against workerFreeHeap()")
+    if RAW_FLOOR_READ.search(code):
+        errors.append(f"src/{rel}: tests a floor against ESP.getFreeHeap(), which misses the stacks in PSRAM")
+if unit_text is not None:
+    unit = code_with_strings(unit_text)
+    body = function_body(unit, "uint32_t workerFreeHeap(")
+    if body is None or "MALLOC_CAP_INTERNAL" not in body:
+        errors.append(f"src/{UNIT}: workerFreeHeap() does not start from the internal heap")
+
 catalog_text = read("bambu/bambu_catalog.cpp")
 if catalog_text is not None and "esp_partition_write(" not in code_with_strings(catalog_text):
     errors.append("src/bambu/bambu_catalog.cpp: no longer writes the flash itself; "
