@@ -22,11 +22,13 @@
 //  Three things to know:
 //   - The monitor is global, there is one for the whole device. While a
 //     measurement runs, heap_caps_get_minimum_free_size() shows the local
-//     value to everybody, the "lowest since boot" of the list job
-//     (backend_job.cpp) included. The daily check and the GitHub jobs of
-//     the web pages do not start beside the list, so that line is normally
-//     not read in the window; if it is, it shows the local value, which is
-//     never lower than the true one.
+//     value to everybody: the "lowest since boot" of the list job
+//     (backend_job.cpp) and heap_min of the perf line (perf_monitor.cpp,
+//     ESP.getMinFreeHeap()). The daily check and the GitHub jobs of the web
+//     pages do not start beside the list, but the scale's own check and
+//     download do not wait for it, and the perf line is written whenever its
+//     window ends. What either reads in the window is the local value,
+//     which is never lower than the true one.
 //   - It sees the whole internal heap, not this request's allocations: what
 //     the other tasks take in the same window counts. That is what the floor
 //     is about, the lowest the device went while the request ran.

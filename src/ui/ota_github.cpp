@@ -319,9 +319,9 @@ void doGithubOtaCheck() {
 
   // The background check holds its own TLS connection and stack, and a second
   // request beside it would take another ~22-24 kB of the internal heap.
-  // Rather than open a second one, hand this off to the
-  // loop and let it come back once the task is done - the screen already says
-  // "checking", so nothing looks stuck.
+  // Rather than open a second one, hand this off to the loop and let it come
+  // back once the task is done - the screen already says "checking", so
+  // nothing looks stuck.
   if (updateCheckBusy()) {
     gh_check_pending = true;
     gh_check_wait_since = millis();

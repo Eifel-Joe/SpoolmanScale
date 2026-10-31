@@ -38,7 +38,7 @@
 // Internal heap that has to stay free after an LVGL block. The worker tasks
 // refuse to start below 50000 bytes at https, 40000 at http
 // (backend_job_rules.h), so LVGL stops short of that and leaves them some
-// room on top: 14 kB over the https floor, 24 kB over the http one.
+// room on top: 15.5 kB over the https floor, 25.5 kB over the http one.
 #ifndef LVGL_MEM_INTERNAL_RESERVE
 #define LVGL_MEM_INTERNAL_RESERVE (64u * 1024u)
 #endif

@@ -26,13 +26,16 @@ in it, the line end. A line cut off at the end of the file is none, and
 neither is a name longer than 40 bytes. The matching itself is not the
 scan's: the regex below retries at every offset, while the scale restarts a
 failed prefix at the failing byte only and swallows the byte after an
-overlong name (boardImageScanFeed). So it finds every line the scale finds,
-and in odd bytes more. For a real image, where the line stands by itself
-behind the end of another string, that can only make this check stricter
-than needed, never looser. Names are compared whole, so waveshare-s3-lcd7 is
-not waveshare-s3-lcd7b. Any other board's line fails the file even where the
-own line is there too: the scale would take that image (the own line settles
-it), a release has no reason to carry two. Standard library only, Python 3.9.
+overlong name (boardImageScanFeed). So in odd bytes it finds lines the scale
+misses, and one of those can take in a line the scale does find (the scale
+missed the outer prefix and reads the inner one): the name it reports then
+holds the prefix and is no board's. For a real image, where the line stands
+by itself behind the end of another string, that can only make this check
+stricter than needed, never looser. Names are compared whole, so
+waveshare-s3-lcd7 is not waveshare-s3-lcd7b. Any other board's line fails
+the file even where the own line is there too: the scale would take that
+image (the own line settles it), a release has no reason to carry two.
+Standard library only, Python 3.9.
 """
 
 from __future__ import annotations

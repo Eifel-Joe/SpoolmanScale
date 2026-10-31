@@ -20,9 +20,10 @@
 // connection is closed, and the warm-up task needs 14 kB for that very
 // handshake.
 // The floor is not one number: 50000 for https (stack and connection, TLS
-// itself lives in PSRAM) and 40000 for plain http (backend_job_rules.h). The Waveshare 7B has about 58 620
-// bytes free in steady state, which the old 60000 for everybody never cleared,
-// so an unknown tag was never looked up on a Bambuddy over http.
+// itself lives in PSRAM) and 40000 for plain http (backend_job_rules.h). The
+// Waveshare 7B has about 58 620 bytes free in steady state, which the old
+// 60000 for everybody never cleared, so an unknown tag was never looked up on
+// a Bambuddy over http.
 #define BACKEND_JOB_STACK_BYTES   16384
 #define BACKEND_JOB_PRIORITY      1
 #define BACKEND_JOB_CORE          0

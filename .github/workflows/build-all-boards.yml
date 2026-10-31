@@ -35,8 +35,10 @@ on:
 # read the same version.json from gh-pages, and the second push would be
 # refused or the older tag would land last. A run that has started is not
 # cancelled: it may have created its release already, and its pages must
-# follow. GitHub keeps one waiting run per group: a third tag pushed while
-# one runs and one waits cancels the waiting one, so tag one at a time.
+# follow. GitHub keeps one waiting run per group, and a manual run belongs to
+# it as well: a third run, tag or manual, started while one runs and one
+# waits cancels the waiting one. So tag one at a time, and start no manual
+# run while a tag is being released.
 concurrency:
   group: release
   cancel-in-progress: false
@@ -44,8 +46,10 @@ jobs:
   build:
     # This job builds and releases every board, but GitHub shows the job of a
     # matrix as "<name> (<matrix values>)", here "build (wt32-sc01-plus)", as
-    # if only the WT32 were released. The suffix is left out when the name
-    # itself holds a matrix expression. This one evaluates to the empty string
+    # if only the WT32 were released. GitHub leaves the suffix out when the
+    # name itself holds a matrix expression: not in its documentation, seen
+    # in the build-only run of 25.10.2026 (run 40236593752), whose job was
+    # "Build and release all boards". This one evaluates to the empty string
     # (`&&` returns its last operand), so the name stays as written. A plain
     # name would still get the suffix; test/test_release_workflow.py pins the
     # line.
@@ -57,8 +61,8 @@ jobs:
       # Every board but the matrix one, by its BOARD_ID. Built in "Build the
       # other boards", its factory image published in "Publish to gh-pages".
       # A new board is one more name here and in scripts/release_files.py
-      # (OTHER_BOARDS, MODELS); test/test_release_workflow.py holds both to
-      # the boards in src/boards.
+      # (OTHER_BOARDS, MODELS); test/test_release_workflow.py holds this line
+      # and both of those to the boards in src/boards.
       OTHER_BOARDS: waveshare-s3-lcd7 waveshare-s3-lcd7b
     strategy:
       matrix:

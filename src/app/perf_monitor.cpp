@@ -89,9 +89,10 @@ void perfLogWindow() {
   s_loop_gap_max_ms = 0;
   s_window_start_ms = now;
 
-  // heap_min is the lowest the internal heap has been since boot, and
-  // dma_biggest the largest block a DMA buffer could still get. Both decide
-  // how large the draw buffers may become.
+  // heap_min is the lowest the internal heap has been since boot (since the
+  // start of a GitHub request while it measures its low point, heap_low.h),
+  // and dma_biggest the largest block a DMA buffer could still get. Both
+  // decide how large the draw buffers may become.
   // log_dest says which store sd_write_max was measured against: the card
   // was 26 to 28 ms a line, the ring in flash is under one, so the number
   // means nothing without it.

@@ -145,6 +145,9 @@ def update_version_json(published: dict, version: str, images: dict[str, tuple[s
     # workflow wrote.
     data["url"] = RELEASES_URL
     _record(data, version, images[TOP_BOARD])
+    # A "boards" or a board node that is no JSON object is replaced, not
+    # refused: a board finds no release in it (versionFilePick() reads keys of
+    # an object), and check_newer() skipped it as well (_published_tags).
     boards = data.get("boards")
     if not isinstance(boards, dict):
         boards = data["boards"] = {}
@@ -183,6 +186,9 @@ def release_title(version: str, day: datetime.date) -> str:
 
 
 def image_name(board: str) -> str:
+    """The release asset a board's firmware downloads: the plain
+    SpoolmanScale.bin for the WT32, SpoolmanScale-<board>.bin for the others
+    (BOARD_OTA_ASSET in each board_config.h under src/boards)."""
     return "SpoolmanScale.bin" if board == TOP_BOARD else "SpoolmanScale-" + board + ".bin"
 
 

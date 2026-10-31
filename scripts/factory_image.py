@@ -44,12 +44,12 @@ def check_factory(firmware: bytes, factory: bytes) -> str | None:
     # The file ends where the firmware ends, and what sits at 0x10000 is the
     # firmware just built, byte for byte.
     if len(factory) != len(firmware) + FIRMWARE_AT or factory[FIRMWARE_AT:] != firmware:
-        return "firmware.factory.bin does not hold firmware.bin at 0x10000"
+        return f"firmware.factory.bin does not hold firmware.bin at {FIRMWARE_AT:#x}"
     if factory[:1] != BOOT_MAGIC:
         return f"firmware.factory.bin has no bootloader at 0x0 (found {factory[:1].hex()}, expected {BOOT_MAGIC.hex()})"
     if factory[TABLE_AT:TABLE_AT + len(TABLE_MAGIC)] != TABLE_MAGIC:
         found = factory[TABLE_AT:TABLE_AT + len(TABLE_MAGIC)].hex()
-        return f"firmware.factory.bin has no partition table at 0x8000 (found {found}, expected {TABLE_MAGIC.hex()})"
+        return f"firmware.factory.bin has no partition table at {TABLE_AT:#x} (found {found}, expected {TABLE_MAGIC.hex()})"
     return None
 
 
@@ -70,7 +70,7 @@ def main(argv: list[str]) -> int:
         return 1
     firmware = firmware_path.read_bytes()
     factory = factory_path.read_bytes()
-    print(f"firmware.factory.bin: {len(factory)} bytes, firmware.bin {len(firmware)} bytes at 0x10000")
+    print(f"firmware.factory.bin: {len(factory)} bytes, firmware.bin {len(firmware)} bytes at {FIRMWARE_AT:#x}")
 
     problem = check_factory(firmware, factory)
     if problem is not None:
