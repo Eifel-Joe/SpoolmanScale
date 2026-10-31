@@ -1,4 +1,4 @@
-"""Compile the production backend job rules and check how much free heap the list worker needs for each kind of backend address, and that a refused start is logged once per interval with the rest counted."""
+"""Compile the production backend job rules and check how much free heap the list worker needs for each kind of backend address, how far the floor drops for a worker whose stack lies in PSRAM, and that a refused start is logged once per interval with the rest counted."""
 import subprocess
 import tempfile
 from pathlib import Path
@@ -61,6 +61,43 @@ int main() {
   // letters is not a TLS address.
   assert(backendJobMinHeap("httpsproxy.local:8000") == 40000u);
   assert(backendJobMinHeap("https:/x") == 40000u);
+
+  // A worker whose stack lies in PSRAM takes none of it from the internal
+  // heap, so its floor drops by exactly the stack: what the request leaves
+  // free while it runs stays what it was with the stack inside. 16384 is the
+  // web job, 14336 the daily update check.
+  assert(workerStartFloor(50000, 16384, true) == 33616u);
+  assert(workerStartFloor(50000, 14336, true) == 35664u);
+  assert(workerStartFloor(40000, 16384, true) == 23616u);
+  // With the stack inside, the floor is the floor.
+  assert(workerStartFloor(50000, 16384, false) == 50000u);
+  // A stack larger than the floor leaves no floor, it does not wrap round.
+  assert(workerStartFloor(10000, 16384, true) == 0u);
+
+  // What a start may try. The 7B in operation has 46 to 50 kB free: the web
+  // job to GitHub starts only with its stack outside.
+  WorkerStackPlan p = workerStackPlan(46000, 50000, 16384, true);
+  assert(p.outside && !p.inside);
+  // 49888, the daily check that beta.8 skipped (log 30.10.2026): it runs now.
+  p = workerStackPlan(49888, 50000, 14336, true);
+  assert(p.outside && !p.inside);
+  // A job that may not move its stack (it reads or writes the flash on its
+  // own task) keeps the whole floor: refused at 46 kB as before.
+  p = workerStackPlan(46000, 50000, 16384, false);
+  assert(!p.outside && !p.inside);
+  // Enough for both: outside first, inside if PSRAM gives no stack.
+  p = workerStackPlan(60000, 50000, 16384, true);
+  assert(p.outside && p.inside);
+  p = workerStackPlan(60000, 50000, 16384, false);
+  assert(!p.outside && p.inside);
+  // The edges: one byte under the floor less the stack is a refusal, the
+  // floor less the stack itself is a start.
+  p = workerStackPlan(33615, 50000, 16384, true);
+  assert(!p.outside && !p.inside);
+  p = workerStackPlan(33616, 50000, 16384, true);
+  assert(p.outside && !p.inside);
+  p = workerStackPlan(50000, 50000, 16384, false);
+  assert(!p.outside && p.inside);
 
   // The log gate. The first call is always due; after that one per interval,
   // and every call that is not due is counted.

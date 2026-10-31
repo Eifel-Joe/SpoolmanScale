@@ -313,8 +313,9 @@ for rel, signatures in HEAP_LOW_REQUESTS.items():
 # that way on every run and on the 7B (57 kB free, floor 50 kB) locked itself
 # out after about two. Such a task calls a function that holds the objects
 # and returns, and only then deletes itself. Inner blocks count: a brace does
-# not destroy anything when the task never leaves it.
-SELF_DELETE = re.compile(r"\bvTaskDelete\(\s*(?:NULL|nullptr)\s*\)")
+# not destroy anything when the task never leaves it. A task that parks itself
+# for the loop to delete (workerTaskPark, worker_task.h) never returns either.
+SELF_DELETE = re.compile(r"\bvTaskDelete\(\s*(?:NULL|nullptr)\s*\)|\bworkerTaskPark\(")
 # The plain clients hold a socket the same way; BackendTls is a WiFiClientSecure.
 OWNING_TYPES = ("WiFiClientSecure", "NetworkClientSecure", "BackendTls", "WiFiClient", "NetworkClient",
                 "HTTPClient", "BackendHttp", "JsonDocument", "String")
