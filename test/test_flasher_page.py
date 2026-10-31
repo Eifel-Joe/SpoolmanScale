@@ -166,9 +166,10 @@ expect("must not contain U+2014", chr(0x2014) not in text)
 expect("must be plain ASCII (write signs as HTML entities)", all(ord(c) < 128 for c in text),
        "first other character: " + next((repr(c) for c in text if ord(c) >= 128), "-"))
 
-# 8. What the review of the page found. The licence link goes to the branch
-#    that has the file: the fork's main mirrors the original and has no
-#    LICENSE, waage has it. The hints taken from the 7B page are hedged: not
+# 8. What the review of the page found. The licence link goes to main, the
+#    fork's default branch since 31.10.2026: it was called waage, and GitHub
+#    redirects the old links only as long as no branch of that name exists
+#    again, so the page must not lead there. The hints taken from the 7B page are hedged: not
 #    every board has BOOT and RESET buttons, or a USB and a UART connector. A
 #    scale that cannot update itself is told to save its settings first, under
 #    "Backup and restore" (the English name in its web interface). If ESP Web
@@ -177,9 +178,9 @@ expect("must be plain ASCII (write signs as HTML entities)", all(ord(c) < 128 fo
 #    line instead. The status line says which board is selected, not that
 #    installing runs. The safety sentence (in .choice p) and the version line
 #    are readable on the dark background, in the colour of the board notes.
-LICENSE_URL = "https://github.com/Eifel-Joe/SpoolmanScale/blob/waage/LICENSE"
+LICENSE_URL = "https://github.com/Eifel-Joe/SpoolmanScale/blob/main/LICENSE"
 READABLE = "#8aa4cc"
-expect("must not link the LICENSE on main (the fork's main has none)", "blob/main/LICENSE" not in text)
+expect("must not link the branch waage (renamed to main)", "/waage/" not in text)
 expect(f"must link the licence at {LICENSE_URL}", LICENSE_URL in text)
 expect("must hedge the BOOT/RESET help (if your board has BOOT and RESET buttons)",
        "if your board has boot and reset buttons" in flat)
