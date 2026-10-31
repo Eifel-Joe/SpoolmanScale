@@ -42,6 +42,13 @@ int main() {
   assert(parseVersion("v0.8.3-beta.5000") == 8003000ULL);
   assert(parseVersion("v1.2.3") == 1002003999ULL);
   assert(parseVersion("1.2.3") == 1002003999ULL);
+  // The documentation build (feat/doku-bilder, never released) names itself
+  // with "-doku" and ranks one below the version it was built on, so the
+  // update check offers the real release again.
+  assert(parseVersion("v0.8.6-beta.12-doku") < parseVersion("v0.8.6-beta.12"));
+  assert(parseVersion("v0.8.6-beta.12-doku") == parseVersion("v0.8.6-beta.11"));
+  assert(parseVersion("v0.8.6-doku") < parseVersion("v0.8.6"));
+
   return 0;
 }
 '''

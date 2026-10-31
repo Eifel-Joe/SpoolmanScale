@@ -157,6 +157,8 @@ jobs:
         run: python3 test/test_printer_pick_rules.py
       - name: Test printer list
         run: python3 test/test_printer_list.py
+      - name: Test doc build rules
+        run: python3 test/test_doc_build_rules.py
       - name: Test Klipper location rules
         run: python3 test/test_klipper_location_rules.py
       - name: Test downloads in a frame
@@ -249,7 +251,8 @@ jobs:
         with:
           name: firmware-${{ matrix.env }}-${{ github.sha }}
           path: .pio/build/${{ matrix.env }}/firmware.bin
-          retention-days: 14
+          # Documentation build only (feat/doku-bilder, never released): kept one day.
+          retention-days: 1
       - name: Check the factory image
         # Why every board leaves one: a board whose screen cannot open yet (a
         # new one, or a panel setup that is still wrong) cannot reach the
@@ -288,4 +291,5 @@ jobs:
         with:
           name: factory-${{ matrix.env }}-${{ github.sha }}
           path: SpoolmanScale-${{ matrix.env }}_factory.bin
-          retention-days: 14
+          # Documentation build only (feat/doku-bilder, never released): kept one day.
+          retention-days: 1
