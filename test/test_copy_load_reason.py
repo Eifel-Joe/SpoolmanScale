@@ -111,10 +111,26 @@ for rel, signature in (("ui/copy_flow.cpp", "static void copyRowRefresh("),
     if "STR_SERVER_ERR_TITLE" not in body:
         errors.append(f"src/{rel}: {signature}) does not say that the server answered with an error")
 
+# 3a. The link list tells its callers the two apart as well: the write that
+# finds its row unreadable says "Not linked: no connection" only when there
+# was none, and the server's error otherwise.
+flow = read("ui/spool_flow.cpp")
+if flow is not None:
+    code = code_of(flow)
+    if not re.search(r"\bLINK_ROW_FAILED\b", code):
+        errors.append("src/ui/spool_flow.cpp: LinkRowRefresh has no outcome for an error the server answered with "
+                      "(LINK_ROW_FAILED)")
+    body = function_body(code, "static LinkRowRefresh linkRefreshRow(")
+    if body is not None and "return LINK_ROW_FAILED" not in body:
+        errors.append("src/ui/spool_flow.cpp: linkRefreshRow() does not answer LINK_ROW_FAILED for a server error")
+    if "STR_LINK_SERVER_ERR" not in code:
+        errors.append("src/ui/spool_flow.cpp: a link stopped by a server error says \"no connection\" "
+                      "(STR_LINK_SERVER_ERR missing)")
+
 # 4. The texts, in the table and the enum.
 lang_h = read("lang.h")
 lang_cpp = read("lang.cpp")
-for name in NEW_STRINGS:
+for name in NEW_STRINGS + ("STR_LINK_SERVER_ERR",):
     if lang_h is not None and not re.search(r"^\s*" + name + r",", lang_h, re.M):
         errors.append(f"src/lang.h: {name} is missing")
     if lang_cpp is not None and f"// {name}" not in lang_cpp:
