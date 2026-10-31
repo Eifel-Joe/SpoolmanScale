@@ -696,6 +696,27 @@ static void layoutGrid(const AmsSlotState& st) {
   logLvMem("amsview/post", tiles);
 }
 
+// The grid again, over the same printer, for the weights that came in behind
+// the first frame.
+// Root: the redraw called layoutGrid() on the full body, so every weights
+//   result laid a second set of tiles exactly over the first: nothing to see,
+//   but the pool held both, and with many bays it could run out.
+// Fix: the body is emptied first, as fetchAndDraw() does. lv_obj_clean() also
+//   scrolls it back to the top, so the offset is taken before and put back
+//   after; the layout runs first, as in scaleSubScrollRestore(), or LVGL
+//   clamps the offset against a content height of zero.
+// NOT-TO-DO: the clean alone: the grams come a moment after the page opens,
+//   and whoever had scrolled to a lower unit was thrown back to the top.
+//   See test_ams_grid_redraw.py.
+static void redrawGrid() {
+  if (!s_body) return;
+  const lv_coord_t scroll_y = lv_obj_get_scroll_y(s_body);
+  lv_obj_clean(s_body);
+  layoutGrid(s_state);
+  lv_obj_update_layout(s_body);
+  lv_obj_scroll_to_y(s_body, scroll_y, LV_ANIM_OFF);
+}
+
 static void backCb(lv_event_t* e) {
   s_close_pending = true;
 }
@@ -1556,6 +1577,6 @@ void handleAmsViewDeferredActions() {
   }
   if (s_weights_redraw && !isAmsDetailPopupOpen() && !isPrinterListOpen()) {
     s_weights_redraw = false;
-    if (s_scr) layoutGrid(s_state);
+    if (s_scr) redrawGrid();
   }
 }
