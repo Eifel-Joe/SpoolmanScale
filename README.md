@@ -89,7 +89,7 @@ The parts are the WT32-SC01 Plus's (PN532, NAU7802 and load cell, see the hardwa
 - **Never connect the PN532 to the board's own I2C connector:** a chip on that bus answers on the same address and the reader would switch the backlight and the SD card off.
 - Power and flashing through the connector labelled **USB**, not UART.
 
-Pin table, flashing and everything else that is different: **[Other Boards in BUILDING.md](BUILDING.md#other-boards)**. The wiring guides of the original's documentation describe the WT32-SC01 Plus only.
+Pin table, flashing and everything else that is different: **[Waveshare 7 and 7B](https://eifel-joe.github.io/SpoolmanScale-Docs/build/waveshare/)** in this fork's documentation, or [Other Boards in BUILDING.md](BUILDING.md#other-boards). The wiring guides of the original's documentation describe the WT32-SC01 Plus only.
 
 ## Download and updates
 
@@ -114,7 +114,11 @@ The files without a version in their name are what a scale downloads when it upd
 
 ## Documentation
 
-The [original's documentation](https://niko11111.github.io/SpoolmanScale-Docs/) covers the WT32-SC01 Plus and everything this fork has not changed. Wiring and flashing of the Waveshare boards are in [BUILDING.md](BUILDING.md#other-boards). A documentation of this fork's own is in the works.
+**[This fork's documentation](https://eifel-joe.github.io/SpoolmanScale-Docs/)**, in English and German, describes what this fork does differently: the Waveshare boards, updates, creating spools, empty spools, the Brother printer, Klipper printers and the web interface. Everything else is in the [original's documentation](https://niko11111.github.io/SpoolmanScale-Docs/), which covers the WT32-SC01 Plus and everything this fork has not changed.
+
+<a href="https://eifel-joe.github.io/SpoolmanScale-Docs/">
+  <img src="https://img.shields.io/badge/📖%20Documentation-This%20fork-28d49a?style=for-the-badge&logoColor=white" alt="Documentation of this fork"/>
+</a>
 
 ## How it relates to the original
 
