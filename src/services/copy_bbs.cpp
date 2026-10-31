@@ -42,7 +42,7 @@ struct LinkList {
 
 }  // namespace
 
-// Each read before the card may hold the loop this long (Festlegung 11).
+// Each read before the card may hold the loop this long; the card waits on it.
 #define COPY_BBS_READ_TIMEOUT_MS  3000
 // The suppliers the card looks through for the purchase source. Bambuddy
 // allows one source per spool, and a spool with more suppliers than this
@@ -112,8 +112,8 @@ static int loadTemplate(int template_spool_id) {
     return code;
   }
   // Not part of the spool. A failed read is not "no presets": the card shows
-  // no count and the create reports them as not taken over (Festlegung 8),
-  // where an empty list (200, []) is none and nothing is said.
+  // no count and the create reports them as not taken over on the status
+  // line, where an empty list (200, []) is none and nothing is said.
   s_presets_code = bbGetSpoolPresetsJson(backendBaseUrl(), bambuddyApiKey(), template_spool_id,
                                          s_presets, COPY_BBS_READ_TIMEOUT_MS);
   if (s_presets_code != 200) s_presets.clear();
@@ -148,7 +148,7 @@ float copyBbsNominal(int template_spool_id, float tpl_label_g) {
   return copyRulesNominal(ours ? s_filament_g : 0.0f, tpl_label_g);
 }
 
-// The supplier the card names beside the location (section 3).
+// The supplier the card names beside the location.
 static const char* supplierShown(JsonArrayConst suppliers) {
   bool source[COPY_BBS_SUPPLIERS_MAX];
   int n = 0;
@@ -193,8 +193,8 @@ bool copyBbsView(CopyBbsView* out) {
 
 // The fields a copy behind Bambuddy has always carried, from the template.
 // The label weight is the caller's: the template's in Bambuddy's own
-// inventory, U's start rule behind Spoolman (from the filament's nominal
-// weight, copyBbsNominal()).
+// inventory, the start rule's behind Spoolman (spool_start.h, from the
+// filament's nominal weight, copyBbsNominal()).
 static void commonFields(JsonObjectConst tpl, const CopyBbsCreate& in, int label_g,
                          BbNewSpool& ns) {
   ns.material = tpl["material"] | "";
@@ -220,7 +220,8 @@ static int templateUnreadable(int template_spool_id, int code) {
   return code;
 }
 
-// The copy in Bambuddy's own inventory, as it was before J (Festlegung 1).
+// The copy in Bambuddy's own inventory, as it always was: what a copy takes
+// over beyond these fields is for Bambuddy on Spoolman only.
 // The template is read back raw at the create, because the mapped form folds
 // subtype and color_name into one name and trims rgba to six characters - a
 // copy built from it would be poorer than its template. How big from the
@@ -270,23 +271,23 @@ static uint8_t putLinks(int spool_id, JsonArrayConst src, const LinkList& list) 
   return list.bit;
 }
 
-// What the POST sends behind Spoolman beyond commonFields() (Festlegungen 2,
-// 5, 9, 10, 14). The strings point into s_tpl. CM_FILAMENT when the filament
-// id was not read: the copy is made without it, and Bambuddy looks one up.
+// What the POST sends behind Spoolman beyond commonFields(); the strings point
+// into s_tpl. CM_FILAMENT when the filament id was not read: the copy is made
+// without it, and Bambuddy looks one up.
 static uint8_t takenOver(JsonObjectConst tpl, BbNewSpool& ns) {
   ns.color_name = copyRulesColorName(tpl["color_name"] | "",
                                      tpl["color_name_is_synthesized"] | false);
   // The price per kg, never effective_cost_per_kg, which Bambuddy may derive:
-  // the template's, or the one typed on the card exactly as typed, whatever
-  // the label weight (Festlegung 5). Sent only as a real price: no price,
-  // emptied or not a number leaves it out.
+  // the template's, or the one typed on the card exactly as typed: a price per
+  // kg does not change with the label weight. Sent only as a real price: no
+  // price, emptied or not a number leaves it out.
   const float cost = copyRulesCostPerKg(tpl["cost_per_kg"] | 0.0f, s_price, s_price_typed);
   if (cost > 0.0f && isfinite(cost)) ns.cost_per_kg = cost;
   // One place, not two: by its id when the template has one, else by name.
   const int location_id = tpl["location_id"] | 0;
   if (location_id > 0) ns.location_id = location_id;
   else ns.storage_location = tpl["storage_location"] | "";
-  // Without a profile the name is the filament's (Festlegung 14): neither goes.
+  // Without a profile id the name is one Bambuddy filled in: neither goes.
   const char* profile = tpl["slicer_filament"] | "";
   if (copyRulesHasProfile(profile)) {
     ns.slicer_filament      = profile;
@@ -330,8 +331,8 @@ int copyBbsCreate(const CopyBbsCreate& in, int* out_spool_id, uint8_t* out_missi
   // Nothing to add the lists to; the caller reports the failed create.
   if (code != 200 || new_id <= 0) return code;
 
-  // From here the spool stands, and what fails is reported, not undone
-  // (Festlegung 8). 207: made, but the price was refused.
+  // From here the spool stands, and what fails is reported on the status
+  // line, not undone. 207: made, but the price was refused.
   if (warned && ns.cost_per_kg > 0.0f) {
     logSDf("Copy: spool %d, price not taken over (207)", new_id);
     missing |= CM_PRICE;
@@ -339,7 +340,7 @@ int copyBbsCreate(const CopyBbsCreate& in, int* out_spool_id, uint8_t* out_missi
   if (missing & CM_FILAMENT) {
     logSDf("Copy: spool %d made without its template's filament, Bambuddy chose one", new_id);
   }
-  // In the order of Festlegung 7: profiles per model, suppliers, K profiles.
+  // One list after the other: profiles per model, suppliers, K profiles.
   if (s_presets_code != 200) {
     logSDf("Copy: spool %d, filament-presets not taken over (read HTTP %d)", new_id, s_presets_code);
     missing |= CM_PRESETS;

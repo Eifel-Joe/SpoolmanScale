@@ -142,7 +142,7 @@ bool finishCopyFlow(int new_spool_id, const char* tray_uuid_override) {
 }
 
 // The parts of a copy behind Bambuddy on Spoolman that did not come across,
-// in the order of their bits, for the status line (Festlegung 8). The log
+// in the order of their bits, for the status line to name them. The log
 // has each of them with its HTTP code (copy_bbs.cpp).
 static const struct { uint8_t bit; int text; } COPY_MISSING_PARTS[] = {
   { CM_PRICE,     STR_COPY_PART_PRICE },
@@ -208,12 +208,12 @@ void doCopySpoolCreate(int template_spool_id, int template_filament_id, float te
   // What the card read for the copy (copy_bbs.h) goes on every way out of
   // here, a create that was never tried included.
   if (!wifi_ok) { copyBbsClear(); return; }
-  // The copy's empty spool (tare_g: the type chosen, else the template's) is
-  // one someone stored, at whichever level spoolTare() found it: the reading
+  // The copy's empty spool (tare_g) is one someone stored: the type chosen,
+  // else the template's, at whichever level spoolTare() found it. The reading
   // without the parts on the spool (spool_extras.h) is weighed against it,
   // and a full copy files what it weighs as its full weight (spool_start.h).
-  // Behind Bambuddy on Spoolman that full weight is the copy's label, the
-  // one the card priced; in Bambuddy's own inventory the label stays the
+  // Behind Bambuddy on Spoolman that full weight is the copy's label, the one
+  // line 3 of the card shows; in Bambuddy's own inventory the label stays the
   // template's and only what is left comes from here (copy_bbs.h). A copy made
   // without a tag weighs nothing: the reading is 0 for it (noTagGross()).
   const float bare = noTagGross(noTagMode(), spoolExtrasBareReading());
@@ -229,8 +229,8 @@ void doCopySpoolCreate(int template_spool_id, int template_filament_id, float te
   int code = serverReachNote(backendCreateSpool(cfg_spoolman_base, template_spool_id, template_filament_id,
     (float)start.initial_g, tare_g, start.remaining_g, &new_id, 8000, chosen_core_g), true);
   // Read before the load is cleared. Elsewhere nothing goes missing, and the
-  // bits a copy behind Spoolman left before a switch of backend must not
-  // speak for this one: no other backend's create resets them.
+  // bits an earlier copy behind Spoolman left must not speak for this one:
+  // only copyBbsCreate() resets them, a Spoolman or FilaMan create does not.
   const uint8_t missing = spoolTypesActive() ? copyBbsLastMissing() : (uint8_t)CM_NONE;
   copyBbsClear();
   if ((code == 200 || code == 201) && new_id > 0) {

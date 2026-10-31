@@ -30,18 +30,18 @@
 //  since v0.8.0-beta.49, when it moved onto the house card.
 //
 //  With Bambuddy on Spoolman and a spool on the pad, the maker's list of
-//  spool types comes first (design notes L21, L22): the type picked is the
+//  spool types comes first (rules L21, L22): the type picked is the
 //  copy's empty spool, on the card and on the server; "without type" leaves
 //  the template's (copy_bbs.h says which of it is sent); back goes where
 //  Cancel on the card goes. The card is built when the list answers.
 //
 //  With Bambuddy on Spoolman the template is read before all of that, for
-//  each of the three ways it can be chosen (design note J, Festlegung 15),
-//  and copy_bbs.h holds what was read until the create or until the card is
+//  each of the three ways it can be chosen, so the card can show it, and
+//  copy_bbs.h holds what was read until the create or until the card is
 //  left. The card then shows what the copy takes over - the profile, the
-//  place and the supplier - and has a price button between its answers
-//  (section 3). Every way off the card that creates nothing clears what was
-//  read: Cancel, back from the list of types, a read that failed; the create
+//  place and the supplier - and has a price button between its answers.
+//  Every way off the card that creates nothing clears what was read:
+//  Cancel, back from the list of types, a read that failed; the create
 //  clears it in doCopySpoolCreate(). A card closed from outside the flow
 //  (hideSpoolFlowOverlays()) leaves it to the next card: behind Bambuddy on
 //  Spoolman its read replaces it, outside it the card clears it as it opens.
@@ -54,11 +54,11 @@
 #define COPY_CARD_SWATCH   18
 #define COPY_CARD_GAP      8
 #define COPY_CARD_TEXT_W   (UI_POPUP_W - UI_CARD_TEXT_PAD)
-// Behind Bambuddy on Spoolman (design note J, section 3): two lines more in
-// the small type of line 2, and the card grows by them. Festlegung 13: five
-// lines do not fit the house card's 260 px, so it is 304 of the screen's 320
-// with the answers at the same distance from its bottom edge. The answers get
-// the price between them, as on the card for a new spool from a tag.
+// Behind Bambuddy on Spoolman: two lines more in the small type of line 2,
+// and the card grows by them. Five lines do not fit the house card's 260 px,
+// so it is 304 of the screen's 320, with the answers at the same distance
+// from its bottom edge. The answers get the price between them, as on the
+// card for a new spool from a tag.
 #define COPY_CARD_SMALL_PITCH  22   // UI_FONT_SMALL's 16 px line and 6 px of air
 #define COPY_CARD_BBS_GROW     (2 * COPY_CARD_SMALL_PITCH)
 #define COPY_CARD_PRICE_W      80
@@ -82,10 +82,10 @@ static float    s_copy_core            = 0.0f;
 // The template is behind Bambuddy on Spoolman and was read for this card
 // (copyBbsLoad()): the card shows what the copy takes over.
 static bool     s_copy_bbs             = false;
-// The price button (BBS), a price per kg (Festlegung 5). copyBbsView() gives
-// the template's, never a typed one, so what was typed since the card was
-// asked for is kept here: for the button, and for a card built again within
-// the same copy, which must show what copy_bbs.h will send.
+// The price button (BBS), a price per kg as the server keeps it. copyBbsView()
+// gives the template's, never a typed one, so what was typed since the card
+// was asked for is kept here: for the button, and for a card built again
+// within the same copy, which must show what copy_bbs.h will send.
 static lv_obj_t* s_copy_price_lbl      = nullptr;
 static float     s_copy_price_tpl      = 0.0f;   // the template's price per kg
 static bool      s_copy_price_typed    = false;
@@ -131,7 +131,7 @@ static void copyBackToList() {
 
 // The price button shows the price per kg that goes to the server: the one
 // typed, else the template's ("10.99/kg"), and "Price" where there is none
-// (Festlegung 5: 0 is no price).
+// (0 is no price).
 //
 // Wurzel: the button is 80 px and its text gets 72 of them, and with cents a
 // price per kg of 100 or more can be wider than that in UI_FONT_SMALL
@@ -230,7 +230,7 @@ static lv_obj_t* copyAnswerButton(lv_obj_t* box, int x, int y, int w, bool ok) {
 // grows instead, and a long text wraps - a long place and supplier ran over
 // line 3. Fix: one line of height, as labelOneLine() gives its labels.
 // NOT-TO-DO: the same for line 2 of the card outside Bambuddy on Spoolman,
-// which stays exactly as it was (ruling 16).
+// which is left as it was; the fix came with the two lines behind Spoolman.
 static lv_obj_t* copyCardSmallLine(lv_obj_t* box, const char* text, int y, bool one_line) {
   lv_obj_t *lbl = lv_label_create(box);
   lv_label_set_text(lbl, text);
@@ -244,10 +244,10 @@ static lv_obj_t* copyCardSmallLine(lv_obj_t* box, const char* text, int y, bool 
   return lbl;
 }
 
-// The two lines a copy behind Bambuddy on Spoolman adds (section 3), from y
-// down: the profile with the profiles per printer model counted behind it,
-// and the place with the supplier. A dash for what the template has not; the
-// line stays, so the card says that nothing is taken over there.
+// The two lines a copy behind Bambuddy on Spoolman adds, from y down: the
+// profile with the profiles per printer model counted behind it, and the
+// place with the supplier. A dash for what the template has not; the line
+// stays, so the card says that nothing is taken over there.
 //
 // Wurzel: one label dots its end, and the end of the profile line is the
 // count - the one thing on it that says profiles per model go along ("Profil:
@@ -255,7 +255,7 @@ static lv_obj_t* copyCardSmallLine(lv_obj_t* box, const char* text, int y, bool 
 // 360 px line). Fix: the count is a label of its own that keeps its width,
 // and the name beside it gets the rest, as the swatch and the name of line 1
 // share theirs. NOT-TO-DO: putting the count first, which turns the line
-// round from the order the design note shows.
+// round: the profile is what it is about, the count only adds to it.
 static void buildCopyTakenOver(lv_obj_t* box, const CopyBbsView& v, int y) {
   char count[32] = "";
   if (v.model_presets > 0) {
@@ -395,11 +395,11 @@ static void buildCopyCard() {
   // One line where the profile follows it (BBS); as it always was elsewhere.
   copyCardSmallLine(box, line2, y2, s_copy_bbs);
 
-  // Line 3: what the new spool starts with, as doCopySpoolCreate() will file
-  // it (spool_start.h), and the empty spool it is weighed against: the type
-  // chosen, else the template's (copyTare()). The reading is the one without
-  // the parts on the spool (spool_extras.h), as doCopySpoolCreate() takes it,
-  // and 0 for a copy made without a tag (noTagGross()).
+  // Line 3: what the new spool starts with (spool_start.h), as every backend
+  // files it but Bambuddy's own inventory: that keeps the template's label,
+  // and at most that much is left (copy_bbs.cpp createAsBefore()). Weighed
+  // against the type chosen, else the template's empty spool (copyTare()), and
+  // read without the parts (spool_extras.h), 0 without a tag (noTagGross()).
   const bool fill_missing = copyFillMissing();
   const SpoolStart start = spoolStartValues(noTagGross(noTagMode(), spoolExtrasBareReading()),
                                             (int)lroundf(tare),
@@ -532,10 +532,10 @@ void showCopyConfirmPopup(int template_spool_id, int template_filament_id,
   (void)template_remaining;   // the weight the template had is not the new spool's
 
   // Behind Bambuddy on Spoolman the template is read here, before the list of
-  // types, whichever way it was chosen (Festlegung 15); the loop stands still
-  // for it, as for the read of a row out of the cache (copyRowRefresh()). A
-  // template that cannot be read gets that read's hint, and the way back is
-  // Cancel's: no card for a copy that would create nothing (Festlegung 8).
+  // types, whichever way it was chosen, so the card can show what goes along;
+  // the loop stands still for it, as for the read of a row out of the cache
+  // (copyRowRefresh()). A template that cannot be read gets that read's hint,
+  // and the way back is Cancel's: no card for a copy that would create nothing.
   s_copy_bbs = spoolTypesActive();
   // A card outside it starts with nothing read: a BBS card closed from outside
   // the flow left its template and a typed price behind, and a create for the

@@ -2,7 +2,7 @@
 
 #include <math.h>
 
-#include "services/spool_type_rules.h"   // spoolTypeOwnCore (U, L21)
+#include "services/spool_type_rules.h"   // spoolTypeOwnCore (L21)
 
 float copyRulesCostPerKg(float tpl_cost_per_kg, float typed_price, bool typed) {
   // Untouched: the template's value as it is, not the cent the card shows.
@@ -32,7 +32,7 @@ int copyRulesCore(int chosen_g, int tpl_core_g, bool tpl_inherited) {
 
 bool copyRulesHasProfile(const char* slicer_filament) {
   // Only the id counts, not slicer_filament_name: Bambuddy fills that in with
-  // the name of the filament when the spool has no profile (Festlegung 14).
+  // the name of the filament when the spool has no profile.
   return slicer_filament != nullptr && slicer_filament[0] != '\0';
 }
 
