@@ -8,6 +8,7 @@
 #include <esp_heap_caps.h>
 #include <lvgl.h>
 
+#include "app/doc_build.h"
 #include "ui/touch_feedback.h"
 
 // Set to 1 to enable touch coordinate debug output on Serial.
@@ -207,6 +208,18 @@ static void lvgl_touch(lv_indev_drv_t *drv, lv_indev_data_t *data) {
   touch_held_by_gesture = gesture;
   if (gesture) {
     data->state = LV_INDEV_STATE_REL;
+    if (touch_activity_callback) touch_activity_callback();
+    return;
+  }
+  // Documentation build: a real finger ends a touch from the web at once;
+  // without one, the web touch is reported as if a finger were there.
+  int16_t doc_x = 0, doc_y = 0;
+  if (points > 0) {
+    docTouchCancel();
+  } else if (docTouchPoint(doc_x, doc_y)) {
+    data->state = LV_INDEV_STATE_PR;
+    data->point.x = doc_x;
+    data->point.y = doc_y;
     if (touch_activity_callback) touch_activity_callback();
     return;
   }

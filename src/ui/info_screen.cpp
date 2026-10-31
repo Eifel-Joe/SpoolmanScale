@@ -297,7 +297,7 @@ static void infoVersionLine(lv_obj_t* parent) {
   lv_obj_clear_flag(row, LV_OBJ_FLAG_CLICKABLE);
 
   label(row, T(STR_INFO_PRODUCT), UI_FONT_SMALL, UI_COL_INK);
-  lv_obj_t* chip = label(row, FW_VERSION, UI_FONT_CAPTION, UI_COL_ACCENT);
+  lv_obj_t* chip = label(row, FW_VERSION_SHOWN, UI_FONT_CAPTION, UI_COL_ACCENT);
   lv_obj_set_style_bg_color(chip, lv_color_hex(UI_COL_ACCENT_CHIP), 0);
   lv_obj_set_style_bg_opa(chip, LV_OPA_COVER, 0);
   lv_obj_set_style_radius(chip, LV_RADIUS_CIRCLE, 0);

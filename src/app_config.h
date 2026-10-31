@@ -1,6 +1,12 @@
 #pragma once
 
-#define FW_VERSION  "v0.8.6-beta.12"
+// Documentation build (feat/doku-bilder, never released): "-doku" marks it
+// in status.json, the log, the web interface and the update check, which
+// ranks it below beta.12 and offers the real release again. The screens that
+// go into the documentation show FW_VERSION_SHOWN, the version one can
+// download.
+#define FW_VERSION        "v0.8.6-beta.12-doku"
+#define FW_VERSION_SHOWN  "v0.8.6-beta.12"
 #define DONATION_URL "ko-fi.com/formfollowsfunction"
 
 // Backlight PWM duty on GPIO45, 8 bit, straight through to LovyanGFX. Not a

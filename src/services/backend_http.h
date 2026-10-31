@@ -164,6 +164,15 @@ class BackendHttp : private BackendTlsHolder, public HTTPClient {
   // Never borrow the kept connection: for a diagnostic that measures what a
   // connection of its own costs, and must not move the kept one elsewhere.
   void noPool() { no_pool_ = true; }
+  // Documentation build (services/doc_build_rules.h): it only reads. These
+  // hide HTTPClient's writing calls; each refuses with
+  // HTTPC_ERROR_CONNECTION_REFUSED, sendRequest() lets GET and HEAD through.
+  int sendRequest(const char* type, String payload);
+  int sendRequest(const char* type, uint8_t* payload = NULL, size_t size = 0);
+  int POST(String payload);
+  int POST(uint8_t* payload, size_t size);
+  int PATCH(String payload);
+  int PUT(String payload);
  private:
   void newAnswer();
   void settle();

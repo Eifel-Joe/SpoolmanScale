@@ -75,6 +75,9 @@ lv_obj_t* createUpdateBadge(lv_obj_t* anchor) {
 }
 
 void showUpdateBadges(bool show) {
+  // Documentation build: the update check offers the real release (see
+  // version_compare.cpp), but no red dot may sit on a screenshot.
+  show = false;
   setBadgeVisible(lbl_burger_badge, show);
   setBadgeVisible(lbl_system_badge, show);
   setBadgeVisible(lbl_fw_badge, show);

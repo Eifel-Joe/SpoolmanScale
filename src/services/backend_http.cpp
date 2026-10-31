@@ -9,6 +9,7 @@
 #include "hardware/sd_logger.h"
 #include "services/backend.h"
 #include "services/backend_job_rules.h"
+#include "services/doc_build_rules.h"
 #include "services/worker_task.h"
 #include "services/github_release.h"
 #include "services/prefs_store.h"
@@ -334,6 +335,56 @@ void BackendHttp::settle() {
   }
   // Anything beyond the end of the answer belongs to no request.
   if (s_pool->available() > 0) s_pool->stop();
+}
+
+// Documentation build: every writing request is refused, so neither a
+// simulated weight nor a wrong tap reaches a server. One log line a minute,
+// with the number refused since the last one: the BamBuddy device protocol
+// alone would otherwise write a line per reading.
+static bool docRefused(const char* method) {
+  if (docWriteAllowed(method)) return false;
+  static uint32_t s_last_ms = 0;
+  static uint32_t s_since   = 0;
+  const uint32_t now = millis();
+  if (s_last_ms == 0 || now - s_last_ms >= 60000) {
+    logSDf("Doc build: write refused (%s), %u more since the last line", method ? method : "?",
+           (unsigned)s_since);
+    s_last_ms = now ? now : 1;
+    s_since   = 0;
+  } else {
+    s_since++;
+  }
+  return true;
+}
+
+int BackendHttp::sendRequest(const char* type, String payload) {
+  if (docRefused(type)) return HTTPC_ERROR_CONNECTION_REFUSED;
+  return Http::sendRequest(type, payload);
+}
+
+int BackendHttp::sendRequest(const char* type, uint8_t* payload, size_t size) {
+  if (docRefused(type)) return HTTPC_ERROR_CONNECTION_REFUSED;
+  return Http::sendRequest(type, payload, size);
+}
+
+int BackendHttp::POST(String payload) {
+  if (docRefused("POST")) return HTTPC_ERROR_CONNECTION_REFUSED;
+  return Http::POST(payload);
+}
+
+int BackendHttp::POST(uint8_t* payload, size_t size) {
+  if (docRefused("POST")) return HTTPC_ERROR_CONNECTION_REFUSED;
+  return Http::POST(payload, size);
+}
+
+int BackendHttp::PATCH(String payload) {
+  if (docRefused("PATCH")) return HTTPC_ERROR_CONNECTION_REFUSED;
+  return Http::PATCH(payload);
+}
+
+int BackendHttp::PUT(String payload) {
+  if (docRefused("PUT")) return HTTPC_ERROR_CONNECTION_REFUSED;
+  return Http::PUT(payload);
 }
 
 void BackendHttp::end() {

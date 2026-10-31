@@ -55,8 +55,13 @@ uint64_t parseVersion(const char* v) {
   if (minor < 0) minor = 0;
   if (patch < 0) patch = 0;
 
-  return (uint64_t)major * WEIGHT_MAJOR
-       + (uint64_t)minor * WEIGHT_MINOR
-       + (uint64_t)patch * WEIGHT_PATCH
-       + beta;
+  const uint64_t value = (uint64_t)major * WEIGHT_MAJOR
+                       + (uint64_t)minor * WEIGHT_MINOR
+                       + (uint64_t)patch * WEIGHT_PATCH
+                       + beta;
+  // The documentation build ("-doku", never released) ranks one below the
+  // version it was built on, so the update check offers that release again
+  // and the scale finds its way back.
+  if (strstr(v, "-doku") && value > 0) return value - 1;
+  return value;
 }

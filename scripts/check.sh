@@ -39,7 +39,7 @@ if [ -z "$v_cfg" ]; then bad "FW_VERSION not found in src/app_config.h"; fi
 if [ -z "$v_main" ]; then bad "Version line not found in the src/main.cpp header"; fi
 if [ -n "$v_cfg" ] && [ -n "$v_main" ]; then
   if [ "$v_cfg" != "$v_main" ]; then bad "version mismatch: app_config.h says $v_cfg, main.cpp header says $v_main";
-  elif ! echo "$v_cfg" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$'; then bad "version '$v_cfg' is not vX.Y.Z or vX.Y.Z-beta.N";
+  elif ! echo "$v_cfg" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?(-doku)?$'; then bad "version '$v_cfg' is not vX.Y.Z or vX.Y.Z-beta.N";
   else ok "version $v_cfg in both places"; fi
 fi
 

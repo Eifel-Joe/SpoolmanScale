@@ -11,6 +11,7 @@
 #include "hardware/sd_logger.h"
 #include "hardware/flash_log.h"
 #include "web/web_access.h"
+#include "web/web_doc.h"
 #include "web/web_net_probe.h"
 #include "web/web_screenshot.h"
 #include "web/web_shell.h"
@@ -319,6 +320,7 @@ static String body() {
 static void routes(WebServer &srv) {
   netProbeRoutes(srv);
   screenshotRoutes(srv);
+  docRoutes(srv);
   // ── SD-Card Log endpoints ─────────────────────────────────
   // GET /logs -> JSON list of available log files
   srv.on("/api/logs", HTTP_GET, [&srv]() {
