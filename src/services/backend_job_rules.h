@@ -82,6 +82,44 @@ uint32_t backendJobMinHeap(const char* base_url);
 // counts as TLS on whichever side it stands, as above.
 uint32_t backendJobMinHeapBoth(const char* first, const char* second);
 
+// ------------------------------------------------------------
+//  A STACK IN PSRAM
+//
+//  The floors above count the worker's stack: it used to come out of the
+//  internal heap the moment the task was created. On the 7B that alone kept
+//  the GitHub jobs out. With 46 to 50 kB free in operation the check of the
+//  firmware page answered "busy", and the daily check wrote "skipped, heap
+//  49888 < 50000" (31.10.2026), while the same request made by "Check" on
+//  the scale, on the loop task without a stack of its own, ran at 46 kB.
+//
+//  The web job and the daily check therefore take their stack from PSRAM
+//  where the board has it (worker_task.h). Their floor then drops by exactly
+//  that stack, because the stack is no longer taken from the internal heap.
+//  The internal heap that is left while the request runs is the same as
+//  with the stack inside, so no new number is guessed here. A worker whose
+//  stack may not go to PSRAM (it reads or writes the flash on its own task)
+//  keeps the whole floor.
+//
+//  Not lowered by hand: a floor of 34 kB for everybody would cut into the
+//  reserve of every worker whose stack still comes from the internal heap.
+// ------------------------------------------------------------
+
+// The internal heap a start must find for a worker with this floor and this
+// stack: the floor less the stack when the stack lies outside, the floor
+// itself when it does not. A stack larger than the floor leaves 0.
+uint32_t workerStartFloor(uint32_t min_heap, uint32_t stack_bytes, bool stack_outside);
+
+// What a start may try with free_heap bytes of internal heap free. outside:
+// a stack from PSRAM, when the worker may have one and the heap clears the
+// lower floor. inside: a stack from the internal heap, when the heap clears
+// the whole floor. Both: PSRAM first. Neither: refused for the heap.
+struct WorkerStackPlan {
+  bool outside;
+  bool inside;
+};
+WorkerStackPlan workerStackPlan(uint32_t free_heap, uint32_t min_heap, uint32_t stack_bytes,
+                                bool may_go_outside);
+
 // Says whether a line that can repeat on every pass may be written now:
 // the first time, then once per interval. The calls that are refused are
 // counted, so that the line can say how many it stands for. Zero-initialise

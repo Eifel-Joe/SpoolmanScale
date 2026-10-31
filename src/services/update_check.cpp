@@ -23,6 +23,7 @@
 #include "services/prefs_store.h"
 #include "services/version_compare.h"
 #include "services/version_file.h"
+#include "services/worker_task.h"
 #include "ui/ota_github.h"
 #include "ui/update_badges.h"
 
@@ -55,8 +56,9 @@ constexpr uint32_t TIME_IS_SYNCED = 1700000000;
 
 // The mbedTLS handshake is the deepest thing this task does and wants roughly
 // 8 kB on its own. 12 kB leaves headroom for the JSON parse on top of it. The
-// stack is taken from the heap when the task starts and given back when it
-// deletes itself, so this costs nothing for the other 86399 seconds of the day.
+// stack is taken when the task starts, from PSRAM where the board has it
+// (worker_task.h), and given back when the loop deletes the task, so this
+// costs nothing for the other 86399 seconds of the day.
 // The watermark is logged below; if it stays comfortable this can come down.
 // Raised from 12 kB when the connection stopped being setInsecure(): the
 // certificate bundle parses the matching root inside the handshake, on this
@@ -116,6 +118,9 @@ bool s_scheduled = false;
 // goes there too, see otaGithubShowCheckAnswer(). Loop task only, like the
 // schedule; taken back with the answer, so a later daily check is not shown.
 bool s_answer_to_screen = false;
+
+// The check's task, from its start until the loop has deleted it.
+WorkerTask s_worker = {};
 
 // The request itself, in a function of its own that returns. It used to be the
 // body of updateCheckTask(), which ends with vTaskDelete(NULL): that call does
@@ -227,7 +232,8 @@ void updateCheckTask(void* arg) {
   // guard keeps the web jobs and the next check from starting while they still
   // hold their memory, so it drops after them and not with the result.
   s_task_running = false;
-  vTaskDelete(NULL);
+  // Deleted by the loop (updateCheckTick, maybeStartCheck), see worker_task.h.
+  workerTaskPark(&s_worker);
 }
 
 void maybeStartCheck() {
@@ -235,6 +241,8 @@ void maybeStartCheck() {
   if (!g_upd_autocheck) return;
   if (!wifi_ok) return;
   if (s_task_running) return;
+  // The last check's task, done but not yet deleted, goes first.
+  if (!workerTaskReap(&s_worker)) return;
   // Never a second TLS connection while an image is being written.
   if (gh_flash_active || otaWebUploadActive()) return;
   // Nor beside a web job (the GitHub check, the release notes, the colour
@@ -250,22 +258,30 @@ void maybeStartCheck() {
   // Signed difference, so this survives the millis() wrap after 49 days.
   if ((long)(millis() - s_due_ms) < 0) return;
 
-  // Checked here rather than inside the task: the 14 kB stack comes out of the
-  // heap the moment the task is created, so testing after the fact would be
-  // testing the wrong number. Skipping a version check costs nothing, an out
-  // of memory reboot costs the user their session. The floor is the rule every
-  // https worker asks, not a number of this file: the request goes to GitHub,
-  // so it is https, and TLS itself lives in PSRAM here (the measurements are
-  // in backend_job_rules.h). It used to be 60000 for a handshake of 40 kB that
-  // this firmware does not take from the internal heap, which kept the 7B
-  // (57 kB free in operation) from running the daily check.
+  // Checked here rather than inside the task: a 14 kB stack from the internal
+  // heap comes out of it the moment the task is created, so testing after the
+  // fact would be testing the wrong number. Skipping a version check costs
+  // nothing, an out of memory reboot costs the user their session. The floor
+  // is the rule every https worker asks, not a number of this file: the
+  // request goes to GitHub, so it is https, and TLS itself lives in PSRAM here
+  // (the measurements are in backend_job_rules.h). It used to be 60000 for a
+  // handshake of 40 kB that this firmware does not take from the internal
+  // heap, which kept the 7B (57 kB free in operation) from running the daily
+  // check. With 46 to 50 kB in operation (beta.9) it was skipped at 50000
+  // too, "heap 49888 < 50000": the stack now goes to PSRAM where it can, and
+  // the floor drops by the stack (workerStackPlan). This task touches no
+  // flash, the NVS writes are the tick's, on the loop task.
   const uint32_t min_heap  = backendJobMinHeap(VERSION_URL);
   const uint32_t free_heap = (uint32_t)ESP.getFreeHeap();
-  if (free_heap < min_heap) {
-    Serial.printf("[upd] postponed, heap %u < %u\n", (unsigned)free_heap, (unsigned)min_heap);
+  const bool may_go_outside = workerStackCanGoOutside(TASK_STACK_BYTES);
+  const WorkerStackPlan plan = workerStackPlan(free_heap, min_heap, TASK_STACK_BYTES,
+                                               may_go_outside);
+  if (!plan.outside && !plan.inside) {
+    const uint32_t need = workerStartFloor(min_heap, TASK_STACK_BYTES, may_go_outside);
+    Serial.printf("[upd] postponed, heap %u < %u\n", (unsigned)free_heap, (unsigned)need);
     // For the line updateCheckTick() writes: what was free, what was needed.
     s_skip_free  = free_heap;
-    s_skip_floor = min_heap;
+    s_skip_floor = need;
     s_result = RES_FAIL_HEAP;
     s_due_ms = millis() + RETRY_DELAY_MS;
     return;
@@ -285,13 +301,12 @@ void maybeStartCheck() {
   s_task_running = true;
   s_due_ms = millis() + RETRY_DELAY_MS;
   // What the task starts from. Nothing allocates between the floor test above
-  // and here, and the stack comes out of this number the moment the task exists.
+  // and here, and a stack from the internal heap comes out of this number the
+  // moment the task exists.
   s_heap_at_start = free_heap;
 
-  BaseType_t ok = xTaskCreatePinnedToCore(updateCheckTask, "updchk",
-                                          TASK_STACK_BYTES, nullptr,
-                                          TASK_PRIORITY, nullptr, TASK_CORE);
-  if (ok != pdPASS) {
+  if (!workerTaskStart(&s_worker, plan, WorkerTaskSpec{updateCheckTask, "updchk", TASK_STACK_BYTES,
+                                                       TASK_PRIORITY, TASK_CORE})) {
     s_task_running = false;
     Serial.println("[upd] task creation failed");
   }
@@ -333,6 +348,8 @@ void updateCheckTick() {
   // Everything below runs on the loop task on purpose. LVGL is not thread
   // safe, the SD logger shares one file handle, and NVS writes block on flash.
   // The task only sets flags; the side effects happen here.
+  // A check's task that is done is deleted here, its stack with it.
+  workerTaskReap(&s_worker);
   uint8_t result = s_result;
   bool answered = (result == RES_AVAILABLE || result == RES_UP_TO_DATE);
   if (result != RES_NONE) {

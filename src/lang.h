@@ -2151,6 +2151,10 @@ enum StringID {
   STR_W_DL_SAVE,              // a link in the window that holds several downloads; {n} is the file name
   STR_W_DL_SAVED,             // the line in the window of a single download, above its Close button; {n} is the file name
 
+  // A web job refused for the internal heap, told apart from "busy" (web/web_jobs.h)
+  STR_W_FW_LOWMEM,            // firmware page, GitHub check or release notes; names the check on the scale (STR_GH_OTA_CHECK_BTN) and the upload (STR_W_FW_FILE)
+  STR_W_BCAT_LOWMEM,          // tags page, loading BambuStudio's colour table
+
   STR_COUNT
 };
 

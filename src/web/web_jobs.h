@@ -18,11 +18,11 @@
 //
 //  Now the handler starts a job and answers 202. The job runs on its own
 //  task, the same shape as the daily update check (core 0, below the loop
-//  in priority, stack from the heap for as long as it runs), and the
-//  browser asks the same URL again until the answer is ready. One job at a
-//  time: a second TLS request beside the first would take another stack and
-//  connection (~22-24 kB) from the internal heap, and the floors are not
-//  meant for two.
+//  in priority, a stack for as long as it runs, from PSRAM where the board
+//  has it, see worker_task.h), and the browser asks the same URL again until
+//  the answer is ready. One job at a time: a second TLS request beside the
+//  first would take another connection from the internal heap, and another
+//  stack where it cannot go to PSRAM, and the floors are not meant for two.
 //
 //  What must not run on the second task stays out of it: LVGL, NVS and the
 //  badges are touched by the handler that collects the result, on the loop
@@ -71,8 +71,20 @@ struct WebJobResult {
 // Starts a job. `arg` is the release tag for WJ_GH_NOTES and the scale's
 // Spoolman address for WJ_KLIPPER_TEST, unused otherwise; `flag` is the
 // pre-release channel for WJ_GH_CHECK. False when a job is already running or
-// the heap is too low for a second task.
+// the heap is too low for a second task; webJobLastRefusal() says which.
 bool webJobStart(WebJobKind kind, const char* arg, bool flag);
+
+// Why the last webJobStart() returned false. A page that answered "busy" for
+// every refusal told the user the device was checking or writing when it was
+// short of internal heap (the firmware page on the 7B, 31.10.2026): it now
+// tells WJR_LOW_HEAP apart and says so.
+enum WebJobRefusal : uint8_t {
+  WJR_NONE = 0,   // the last start went through
+  WJR_BUSY,       // another job, the daily check or the inventory list is in the way
+  WJR_LOW_HEAP,   // the internal heap is below this job's floor
+  WJR_NO_TASK     // the heap was enough, the task could not be created all the same
+};
+WebJobRefusal webJobLastRefusal();
 
 // The printer and its key for the next WJ_KLIPPER_TEST, copied here by the
 // handler on the loop task before webJobStart() (R3). The job reads this copy

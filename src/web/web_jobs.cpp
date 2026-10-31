@@ -13,14 +13,17 @@
 #include "services/github_release.h"
 #include "services/moonraker_api.h"
 #include "services/update_check.h"
+#include "services/worker_task.h"
+#include "hardware/sd_logger.h"
 #include "web/web_net_probe.h"
 #include "web/web_shell.h"
 
 // The same numbers the update check task runs with, for the same reasons: a
 // TLS handshake with the certificate bundle wants the stack, the task sits
 // below the loop so the display keeps its share, and it lives on the other
-// core. The heap floor is checked before the stack is taken from it; it is not
-// a number here but follows what the job talks to (webJobMinHeap below).
+// core. The heap floor is checked before the task is created; it is not a
+// number here but follows what the job talks to (webJobMinHeap below) and
+// where the stack goes (webJobStackMayGoOutside below).
 #define WEB_JOB_STACK_BYTES   16384
 #define WEB_JOB_PRIORITY      1
 #define WEB_JOB_CORE          0
@@ -63,6 +66,9 @@ static unsigned long        s_done_ms = 0;
 // the catalog sync), so one pair serves them all.
 static LogGate              s_start_gate;
 static LogGate              s_create_gate;
+// The job's task, from its start until the loop has deleted it.
+static WorkerTask           s_task = {};
+static WebJobRefusal        s_refusal = WJR_NONE;
 
 static void runHostTest() {
   s_res.code = backendGetHealthCode(backendBaseUrl(), 4000);
@@ -207,15 +213,44 @@ static void webJobTask(void* arg) {
     case WJ_KLIPPER_TEST: runKlipperTest(); break;
     default: break;
   }
-  Serial.printf("[webjob] kind %d done, ok=%d code=%d, stack left %u\n",
+  Serial.printf("[webjob] kind %d done, ok=%d code=%d, stack left %u (%s)\n",
                 (int)s_res.kind, (int)s_res.ok, s_res.code,
-                (unsigned)uxTaskGetStackHighWaterMark(NULL));
+                (unsigned)uxTaskGetStackHighWaterMark(NULL),
+                s_task.outside ? "PSRAM" : "internal");
   s_done_ms = millis() ? millis() : 1;
   // Everything above is written before the state says so: the handler on
   // the other core reads the state first and the result after.
   __sync_synchronize();
   s_state = WJS_DONE;
-  vTaskDelete(NULL);
+  // Deleted by the loop (webJobsTick, webJobStart), see worker_task.h.
+  workerTaskPark(&s_task);
+}
+
+// For the log line of a refused start.
+static const char* webJobKindName(WebJobKind kind) {
+  switch (kind) {
+    case WJ_HOST_TEST:     return "backend test";
+    case WJ_SPOOLS:        return "spool list";
+    case WJ_GH_CHECK:      return "GitHub check";
+    case WJ_GH_NOTES:      return "release notes";
+    case WJ_BAMBU_CATALOG: return "colour table";
+    case WJ_NET_PROBE:     return "net probe";
+    case WJ_KLIPPER_TEST:  return "Klipper test";
+    default:               return "job";
+  }
+}
+
+// Which kinds may have their stack in PSRAM: every kind whose task does not
+// touch the flash itself, see worker_task.h. The colour table reads the ETag
+// of its stored copy and writes the new copy with esp_partition_* on this
+// task (bambu_catalog.cpp), so it keeps its stack in the internal heap and
+// its whole floor. The request paths of all other kinds were looked through
+// for NVS, Update and esp_partition_* on 31.10.2026 and touch none of them;
+// a new kind is looked through before it is let out.
+// Not split so that the loop stores the table: the loop would then wait out
+// the flash erases, which this job keeps off the display.
+static bool webJobStackMayGoOutside(WebJobKind kind) {
+  return kind != WJ_BAMBU_CATALOG;
 }
 
 // Which kinds talk to GitHub (the release check, its notes, BambuStudio's
@@ -247,18 +282,28 @@ static uint32_t webJobMinHeap(WebJobKind kind, const char* arg) {
 }
 
 bool webJobStart(WebJobKind kind, const char* arg, bool flag) {
+  // Every way out below that is not a start is "busy", unless it says other.
+  s_refusal = WJR_BUSY;
   // A Klipper test runs on an input handed over for this start, or not at all.
   if (kind == WJ_KLIPPER_TEST && !s_kl_pending) return false;
   if (s_state != WJS_IDLE || kind == WJ_NONE) {
     if (kind == WJ_KLIPPER_TEST) klipperInputDrop();
     return false;
   }
+  // The last job's task, done but still parked: deleted now, so that its
+  // stack is free before the next is taken. It is parked a moment after it
+  // says it is done; a start in that moment is busy.
+  if (!workerTaskReap(&s_task)) {
+    if (kind == WJ_KLIPPER_TEST) klipperInputDrop();
+    return false;
+  }
   // One inventory at a time, device wide, see backend_job.h.
   if (kind == WJ_SPOOLS && backendJobState() == BJS_RUNNING) return false;
   // A GitHub job is a TLS request like the daily update check, and the floor
-  // is for one such request: two stacks side by side would take what it
-  // leaves free. So it does not start while the daily check runs, nor while
-  // the inventory list does (its task takes a stack of the same size). The
+  // is for one such request: two connections side by side (and two stacks,
+  // where they cannot go to PSRAM) would take what it leaves free. So it does
+  // not start while the daily check runs, nor while the inventory list does
+  // (its task takes a stack of the same size from the internal heap). The
   // check waits for the web jobs and the list the same way (maybeStartCheck).
   // "Check" on the scale waits only for the daily check (doGithubOtaCheck),
   // not for these jobs; only its deferred retry in the loop (app_loop.cpp)
@@ -270,18 +315,27 @@ bool webJobStart(WebJobKind kind, const char* arg, bool flag) {
       (updateCheckBusy() || backendJobState() == BJS_RUNNING)) {
     return false;
   }
-  // Checked here rather than inside the task: the stack comes out of the
-  // heap the moment the task is created, so testing afterwards would be
-  // testing the wrong number.
+  // Checked here rather than inside the task: a stack from the internal heap
+  // comes out of it the moment the task is created, so testing afterwards
+  // would be testing the wrong number. A stack from PSRAM does not, and then
+  // the floor is lower by the stack (workerStackPlan, backend_job_rules.h).
   const uint32_t min_heap  = webJobMinHeap(kind, arg);
   const uint32_t free_heap = (uint32_t)ESP.getFreeHeap();
-  if (free_heap < min_heap) {
-    // The pages ask again: one line a minute, with the refusals it stands for.
+  const bool may_go_outside = webJobStackMayGoOutside(kind) &&
+                              workerStackCanGoOutside(WEB_JOB_STACK_BYTES);
+  const WorkerStackPlan plan = workerStackPlan(free_heap, min_heap, WEB_JOB_STACK_BYTES,
+                                               may_go_outside);
+  if (!plan.outside && !plan.inside) {
+    // In the log, not only on Serial: "busy" on the page with nothing in the
+    // log is what left the 7B's refusals unexplained (31.10.2026). The pages
+    // ask again: one line a minute, with the refusals it stands for.
     if (logGateDue(&s_start_gate, millis(), BACKEND_JOB_REFUSAL_LOG_MS)) {
-      Serial.printf("[webjob] postponed, heap %u < %u (%u more refusals since the last line)\n",
-                    (unsigned)free_heap, (unsigned)min_heap,
-                    (unsigned)logGateTakeSuppressed(&s_start_gate));
+      logSDf("Web job: %s postponed, heap %u < %u (%u more refusals since the last line)",
+             webJobKindName(kind), (unsigned)free_heap,
+             (unsigned)workerStartFloor(min_heap, WEB_JOB_STACK_BYTES, may_go_outside),
+             (unsigned)logGateTakeSuppressed(&s_start_gate));
     }
+    s_refusal = WJR_LOW_HEAP;
     if (kind == WJ_KLIPPER_TEST) klipperInputDrop();
     return false;
   }
@@ -305,10 +359,10 @@ bool webJobStart(WebJobKind kind, const char* arg, bool flag) {
   // Set before the task exists: if creation fails it is cleared again below,
   // and if it succeeds the task may finish before this line would run.
   s_state = WJS_RUNNING;
-  BaseType_t ok = xTaskCreatePinnedToCore(webJobTask, "webjob", WEB_JOB_STACK_BYTES,
-                                          nullptr, WEB_JOB_PRIORITY, nullptr, WEB_JOB_CORE);
-  if (ok != pdPASS) {
+  if (!workerTaskStart(&s_task, plan, WorkerTaskSpec{webJobTask, "webjob", WEB_JOB_STACK_BYTES,
+                                                     WEB_JOB_PRIORITY, WEB_JOB_CORE})) {
     s_state = WJS_IDLE;
+    s_refusal = WJR_NO_TASK;
     // A task that cannot be created is asked for again like a refused start:
     // one line a minute here as well.
     if (logGateDue(&s_create_gate, millis(), BACKEND_JOB_REFUSAL_LOG_MS)) {
@@ -322,8 +376,11 @@ bool webJobStart(WebJobKind kind, const char* arg, bool flag) {
   // Started: what was refused or failed before is over, the next one gets a line.
   logGateReset(&s_start_gate);
   logGateReset(&s_create_gate);
+  s_refusal = WJR_NONE;
   return true;
 }
+
+WebJobRefusal webJobLastRefusal() { return s_refusal; }
 
 bool webJobSetKlipperInput(const KlipperPrinterCfg& cfg, const char* key) {
   if (s_state != WJS_IDLE) return false;
@@ -348,6 +405,8 @@ void webJobTake() {
 }
 
 void webJobsTick() {
+  // A job's task that is done is deleted on the next pass, its stack with it.
+  workerTaskReap(&s_task);
   if (s_state == WJS_DONE && millis() - s_done_ms > WEB_JOB_KEEP_MS) {
     Serial.printf("[webjob] result of kind %d dropped, nobody asked\n", (int)s_res.kind);
     webJobTake();

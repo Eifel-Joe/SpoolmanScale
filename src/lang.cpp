@@ -4739,6 +4739,12 @@ const char* const STRINGS[][3] = {
     "Téléchargement impossible dans une fenêtre intégrée - ouvrez directement la balance : http://{a}" },  // STR_W_DL_EMBEDDED
   { "Speichern: {n}",   "Download: {n}", "Enregistrer : {n}" },  // STR_W_DL_SAVE
   { "Gespeichert: {n}", "Saved: {n}",    "Enregistré : {n}" },  // STR_W_DL_SAVED
+  { "Zu wenig freier Speicher für die Abfrage. Am Gerät „Auf Updates prüfen“ nutzen oder die Datei hochladen.",
+    "Not enough free memory for the check. Use “Check for Updates” on the device, or upload the file.",
+    "Pas assez de mémoire libre pour la recherche. Utilisez « Rechercher des mises à jour » sur l'appareil ou envoyez le fichier." },  // STR_W_FW_LOWMEM
+  { "Zu wenig freier Speicher zum Laden. Später oder nach einem Neustart der Waage erneut versuchen.",
+    "Not enough free memory to load it. Try again later or after restarting the scale.",
+    "Pas assez de mémoire libre pour le chargement. Réessayez plus tard ou après un redémarrage de la balance." },  // STR_W_BCAT_LOWMEM
 };
 
 StringID tagWriteResultString(uint8_t code) {

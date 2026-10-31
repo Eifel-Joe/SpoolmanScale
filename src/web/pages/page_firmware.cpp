@@ -285,6 +285,7 @@ static String body() {
   h += F(",fail:");       h += jsStr(T(STR_W_FW_CHECK_FAIL));
   h += F(",nowifi:");     h += jsStr(T(STR_W_FW_NOWIFI));
   h += F(",busy:");       h += jsStr(T(STR_W_FW_BUSY));
+  h += F(",lowmem:");     h += jsStr(T(STR_W_FW_LOWMEM));
   h += F(",installing:"); h += jsStr(T(STR_W_FW_INSTALLING));
   h += F(",keep:");       h += jsStr(T(STR_W_FW_HINT));
   h += F(",notes:");      h += jsStr(T(STR_W_FW_NOTES));
@@ -310,6 +311,7 @@ static String body() {
          "function ghSay(t,bad){var m=document.getElementById('ghmsg');"
          "m.className=bad?'msg bad':'msg';m.textContent=t;}"
          "function ghErr(d){return d.error==='nowifi'?G.nowifi:"
+         "d.error==='lowmem'?G.lowmem:"
          "(d.error==='busy'?G.busy:G.fail+(d.error?': '+d.error:''));}"
          "function fmtDate(s){if(!s)return G.unknown;"
          "var d=new Date(s);return isNaN(d)?s:d.toLocaleDateString();}"
@@ -583,8 +585,14 @@ static void routes(WebServer &srv) {
     // The request itself runs on the web worker: a TLS handshake held the
     // loop task, and with it the display, for up to eight seconds when it was
     // made here. 202 says "asked, not answered"; the page asks again.
+    // A start refused for the heap is no "busy": on the 7B the page said
+    // "the device is checking or writing" while it was short of internal
+    // heap (31.10.2026). It says so now, and names the two ways that need no
+    // job: the check on the scale and the file upload.
     if (!webJobStart(WJ_GH_CHECK, nullptr, gh_prerelease)) {
-      srv.send(200, "application/json", "{\"ok\":false,\"error\":\"busy\"}");
+      srv.send(200, "application/json", webJobLastRefusal() == WJR_LOW_HEAP
+                                            ? "{\"ok\":false,\"error\":\"lowmem\"}"
+                                            : "{\"ok\":false,\"error\":\"busy\"}");
       return;
     }
     srv.send(202, "application/json", "{\"ok\":true,\"pending\":true}");
@@ -612,8 +620,15 @@ static void routes(WebServer &srv) {
       srv.send(200, "application/json", "{\"ok\":false,\"error\":\"nowifi\"}");
       return;
     }
-    if (otaBusy() || !webJobStart(WJ_GH_NOTES, tag.c_str(), false)) {
+    if (otaBusy()) {
       srv.send(200, "application/json", "{\"ok\":false,\"error\":\"busy\"}");
+      return;
+    }
+    // As for the check: refused for the heap is not "busy".
+    if (!webJobStart(WJ_GH_NOTES, tag.c_str(), false)) {
+      srv.send(200, "application/json", webJobLastRefusal() == WJR_LOW_HEAP
+                                            ? "{\"ok\":false,\"error\":\"lowmem\"}"
+                                            : "{\"ok\":false,\"error\":\"busy\"}");
       return;
     }
     srv.send(202, "application/json", "{\"ok\":true,\"pending\":true}");

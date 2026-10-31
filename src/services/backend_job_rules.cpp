@@ -29,6 +29,19 @@ uint32_t backendJobMinHeapBoth(const char* first, const char* second) {
   return a > b ? a : b;
 }
 
+uint32_t workerStartFloor(uint32_t min_heap, uint32_t stack_bytes, bool stack_outside) {
+  if (!stack_outside) return min_heap;
+  return min_heap > stack_bytes ? min_heap - stack_bytes : 0;
+}
+
+WorkerStackPlan workerStackPlan(uint32_t free_heap, uint32_t min_heap, uint32_t stack_bytes,
+                                bool may_go_outside) {
+  WorkerStackPlan p;
+  p.outside = may_go_outside && free_heap >= workerStartFloor(min_heap, stack_bytes, true);
+  p.inside  = free_heap >= min_heap;
+  return p;
+}
+
 bool logGateDue(LogGate* g, uint32_t now_ms, uint32_t interval_ms) {
   if (!g) return true;
   // The difference is taken in uint32_t on purpose: it stays right when
