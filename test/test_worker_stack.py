@@ -205,6 +205,19 @@ PAGES = {
     "web/web_bambu_catalog.cpp": {"handlers": ['srv.on("/api/bambu/catalog", HTTP_POST'],
                                   "js": r"d\.error\s*===\s*'lowmem'",
                                   "string": "STR_W_BCAT_LOWMEM"},
+    # The spool list of the tags page shows the error in its picker.
+    "web/pages/page_tags.cpp": {"handlers": ['srv.on("/api/spools", HTTP_GET'],
+                                "js": r"d\.error\s*===\s*'lowmem'\s*\?\s*M\.lowmem",
+                                "string": "STR_W_LOWMEM"},
+    # A JSON answer for whoever asks; no page of its own.
+    "web/web_net_probe.cpp": {"handlers": ['srv.on("/api/net/probe"'], "js": None, "string": None},
+    # A test the save could not start is asked for again by the page.
+    "web/pages/page_klipper.cpp": {"handlers": ['srv.on("/api/klipper/test", HTTP_POST'],
+                                   "js": r"\.lowmem\s*\?\s*K\.lowmem",
+                                   "string": "STR_W_LOWMEM"},
+    # The backend test after a new address: the page shows the answer's msg.
+    "web/pages/page_backend.cpp": {"handlers": ['srv.on("/api/host", HTTP_POST'], "js": None,
+                                   "string": "STR_W_HOST_SAVED_LOWMEM"},
 }
 for rel, page in PAGES.items():
     text = read(rel)
@@ -216,14 +229,14 @@ for rel, page in PAGES.items():
         body = code[at:code.find("});", at)] if at >= 0 else ""
         if not LOWMEM_REPLY.search(body) or "lowmem" not in body:
             errors.append(f"src/{rel}: {handler} does not answer \"lowmem\" for a start refused for the heap")
-    if not re.search(page["js"], code):
+    if page["js"] and not re.search(page["js"], code):
         errors.append(f"src/{rel}: the page does not show a text of its own for \"lowmem\"")
-    if page["string"] not in code:
+    if page["string"] and page["string"] not in code:
         errors.append(f"src/{rel}: does not use {page['string']}")
 
 lang_h = read("lang.h")
 lang_cpp = read("lang.cpp")
-for name in ("STR_W_FW_LOWMEM", "STR_W_BCAT_LOWMEM"):
+for name in ("STR_W_FW_LOWMEM", "STR_W_BCAT_LOWMEM", "STR_W_LOWMEM", "STR_W_HOST_SAVED_LOWMEM"):
     if lang_h is not None and not re.search(r"^\s*" + name + r",", lang_h, re.M):
         errors.append(f"src/lang.h: {name} is missing")
     if lang_cpp is not None and f"// {name}" not in lang_cpp:
