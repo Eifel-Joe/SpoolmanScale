@@ -1,5 +1,8 @@
 # Contributing to SpoolmanScale
 
+> [!NOTE]
+> **This fork** ([Eifel-Joe/SpoolmanScale](https://github.com/Eifel-Joe/SpoolmanScale)) keeps the original's guide below as it is. Pull requests to this fork go to `dev`, as in the original: pre-releases are made there, and `main` holds what has been released. Problems with the Waveshare boards or with what this fork adds: [open an issue at the fork](https://github.com/Eifel-Joe/SpoolmanScale/issues). A contribution meant for the original goes to [Niko11111/SpoolmanScale](https://github.com/Niko11111/SpoolmanScale) under the rules below.
+
 Thank you for helping. Every kind of help is welcome: a bug report with a log,
 a photo of a screen that looks wrong, a translation, an idea, or code. Large
 parts of SpoolmanScale were built by people who started with exactly that.

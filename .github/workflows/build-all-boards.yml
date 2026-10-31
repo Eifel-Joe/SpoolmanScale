@@ -14,8 +14,9 @@ name: Build and Release
 #                    factory image under the fixed name its manifest points at
 #
 # The pages of this fork are served from the branch gh-pages, so that is where
-# version.json and the flasher go. main stays a mirror of the original and is
-# not written by this workflow. The release comes first and the pages follow:
+# version.json and the flasher go. main (what has been released) and dev
+# (where pre-releases are made) are this fork's own branches, and this
+# workflow writes neither. The release comes first and the pages follow:
 # the device reads the tag from version.json and downloads from that tag's
 # release, so version.json must never name a release that does not exist, not
 # yet or not at all because its upload failed.
