@@ -126,6 +126,18 @@ if flow is not None:
     if "STR_LINK_SERVER_ERR" not in code:
         errors.append("src/ui/spool_flow.cpp: a link stopped by a server error says \"no connection\" "
                       "(STR_LINK_SERVER_ERR missing)")
+    # "Copy by ID": the pad says "ID not found" for a 404 only, and the
+    # server's error for anything else that is not a network failure.
+    at = code.find("if (copy_id_lookup_pending > 0)")
+    block = function_body(code[at:], "if (copy_id_lookup_pending > 0)") if at >= 0 else None
+    if block is None:
+        errors.append("src/ui/spool_flow.cpp: the lookup of \"Copy by ID\" (copy_id_lookup_pending) is not there")
+    else:
+        if "404" not in block:
+            errors.append("src/ui/spool_flow.cpp: \"Copy by ID\" says \"ID not found\" for every answer but a "
+                          "network failure, not for a 404 only")
+        if "STR_SERVER_ERR_TITLE" not in block:
+            errors.append("src/ui/spool_flow.cpp: \"Copy by ID\" does not say that the server answered with an error")
 
 # 4. The texts, in the table and the enum.
 lang_h = read("lang.h")
