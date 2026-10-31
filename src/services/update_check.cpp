@@ -251,9 +251,8 @@ void maybeStartCheck() {
   // internal heap, and a second pair would take what the floor leaves free.
   // Not logged and not postponed, the due time stays as it is: the other one
   // is over in seconds and the next pass asks again. The web jobs wait for
-  // this check the same way (webJobStart). "Check" on the scale waits only
-  // for this check (doGithubOtaCheck), not for the web jobs; its deferred
-  // retry in the loop (app_loop.cpp) waits for both.
+  // this check the same way (webJobStart), and so do "Check" and "Install" on
+  // the scale and "Install" on the firmware page (githubRequestMustWait()).
   if (webJobState() == WJS_RUNNING || backendJobState() == BJS_RUNNING) return;
   // Signed difference, so this survives the millis() wrap after 49 days.
   if ((long)(millis() - s_due_ms) < 0) return;
@@ -315,6 +314,10 @@ void maybeStartCheck() {
 }  // namespace
 
 bool updateCheckBusy() { return s_task_running; }
+
+bool githubRequestMustWait() {
+  return s_task_running || webJobState() == WJS_RUNNING || backendJobState() == BJS_RUNNING;
+}
 
 // Restores the badge from what the last check found, without going near the
 // network. Comparing rather than trusting a stored flag means it corrects

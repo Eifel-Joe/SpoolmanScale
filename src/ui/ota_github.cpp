@@ -189,6 +189,9 @@ static void ghShowStatus(GhLook look, const char *text) {
 // go back) once something is. The old screen kept a greyed "Install" beside
 // the search button, which read as broken.
 static bool gh_action_installs = false;
+// Since when an install waits for a background request, 0 while none does
+// (doGithubOtaFlash()).
+static unsigned long s_flash_wait_since = 0;
 
 static void ghSetAction(bool installs) {
   gh_action_installs = installs;
@@ -317,15 +320,16 @@ void doGithubOtaCheck() {
   ghShowStatus(GH_LOOK_BUSY, T(STR_GH_OTA_CHECKING));
   lv_timer_handler();
 
-  // The background check holds its own TLS connection and stack, and a second
-  // request beside it would take another ~22-24 kB of the internal heap.
-  // Rather than open a second one, hand this off to the loop and let it come
-  // back once the task is done - the screen already says "checking", so
-  // nothing looks stuck.
-  if (updateCheckBusy()) {
+  // The daily check, a web job and the inventory list each hold a stack and
+  // a connection of their own, and a second request beside one would take
+  // another ~22-24 kB of the internal heap (githubRequestMustWait()). Rather
+  // than open a second one, hand this off to the loop and let it come back
+  // once that one is done - the screen already says "checking", so nothing
+  // looks stuck.
+  if (githubRequestMustWait()) {
     gh_check_pending = true;
     gh_check_wait_since = millis();
-    logSD("OTA check: deferred, background check running");
+    logSD("OTA check: deferred, a background request is running");
     return;
   }
 
@@ -364,6 +368,26 @@ void doGithubOtaFlash(const char* version) {
     ghShowStatus(GH_LOOK_WARN, big);
     return;
   }
+  // Not beside another request, as the check (githubRequestMustWait()): the
+  // download is asked for again on the next pass of the loop, the screen says
+  // it is installing meanwhile, and after GH_CHECK_WAIT_MS it gives up as the
+  // deferred check does. A download and an upgrade go the same way here.
+  if (githubRequestMustWait()) {
+    if (!s_flash_wait_since) {
+      s_flash_wait_since = millis() | 1;   // 0 means "not waiting"
+      ghShowStatus(GH_LOOK_BUSY, T(STR_GH_OTA_FLASHING));
+      logSD("OTA: install waits, a background request is running");
+    }
+    if (millis() - s_flash_wait_since <= GH_CHECK_WAIT_MS) {
+      gh_flash_pending = true;
+      return;
+    }
+    s_flash_wait_since = 0;
+    logSD("OTA: install gave up waiting for the background request");
+    ghShowStatus(GH_LOOK_BAD, T(STR_GH_OTA_FLASH_FAIL));
+    return;
+  }
+  s_flash_wait_since = 0;
 
   otaGithubOverlayShow();
 
@@ -394,6 +418,8 @@ void showOtaGithubScreen() {
   logSD("SHOW: OtaGithubScreen");
   logSD("UI: Screen -> OTA GitHub");
   otaGithubForgetLabels();
+  // An install that waited when the screen was left is not resumed by it.
+  s_flash_wait_since = 0;
   if (!update_available) gh_latest_version[0] = '\0';
 
   if (scr_ota_github) { lv_obj_del(scr_ota_github); scr_ota_github = nullptr; }

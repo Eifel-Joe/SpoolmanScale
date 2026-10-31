@@ -8,6 +8,7 @@
 #include <lvgl.h>
 
 #include "app/app_state.h"
+#include "app/deferred_actions.h"   // GH_CHECK_WAIT_MS
 #include "app_config.h"
 #include "hardware/sd_logger.h"
 #include "boards/board.h"
@@ -114,6 +115,24 @@ static void webFlashProgress(uint32_t done, uint32_t total) {
 
 void otaWebGithubTick() {
   if (!gh_web_flash_pending) return;
+  // Not beside the daily check, a web job or the inventory list
+  // (githubRequestMustWait()): asked again on the next pass while one runs,
+  // given up after GH_CHECK_WAIT_MS like the install on the scale. Until then
+  // the flag stays, so otaBusy() keeps a second install out.
+  static unsigned long s_wait_since = 0;   // 0: not waiting
+  if (githubRequestMustWait()) {
+    if (!s_wait_since) {
+      s_wait_since = millis() | 1;
+      logSDf("OTA: install of %s from the web UI waits, a background request is running", gh_web_flash_tag);
+    }
+    if (millis() - s_wait_since <= GH_CHECK_WAIT_MS) return;
+    s_wait_since = 0;
+    gh_web_flash_pending = false;
+    logSD("OTA: install from the web UI gave up waiting for the background request");
+    otaBrowserShowUploadFailed();
+    return;
+  }
+  s_wait_since = 0;
   gh_web_flash_pending = false;
 
   logSDf("OTA: installing %s from GitHub, asked from the web UI", gh_web_flash_tag);

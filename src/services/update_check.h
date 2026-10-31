@@ -31,6 +31,20 @@ void updateCheckTick();
 // for one of them, not for two side by side. TLS itself lives in PSRAM here.
 bool updateCheckBusy();
 
+// Whether a GitHub request of the scale itself has to wait: "Check" and
+// "Install" on the GitHub screen and "Install" on the firmware page. True
+// while the daily check, a web job or the inventory list runs, the three the
+// background requests already keep apart from (maybeStartCheck(),
+// webJobStart()): two requests side by side take two stacks and two
+// connections, and the floor is for one (Spec 5.3 T). Loop task.
+// Root: "Check" waited for the daily check and the web jobs only, both
+//   "Install" buttons for none of them, so a check or a download could run
+//   beside the inventory list (Punkteliste n41, 31.10.2026).
+// NOT-TO-DO: a heap floor of their own instead. The scale's own requests run
+//   on the loop task without a stack of their own; what they must not do is
+//   start beside another one. See test_github_wait.py.
+bool githubRequestMustWait();
+
 // Puts the badge back at boot from the version the last check stored, by
 // comparing it against FW_VERSION. No network call - the check itself only
 // runs once a day, so without this a reboot inside that window hid a waiting

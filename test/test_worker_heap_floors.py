@@ -30,9 +30,8 @@ FLOOR_USERS = {
 # the inventory list: their stacks would add up in the internal heap, and the
 # floor is for one of them. The daily update check waits for the web jobs and
 # for the inventory list, and the GitHub jobs of the web pages wait for the
-# daily check and for the inventory list. The "Check" button on the scale
-# waits only for the daily check; its deferred retry in the loop waits for
-# the daily check and the web jobs.
+# daily check and for the inventory list. The scale's own check and both
+# installs wait for all three; test_github_wait.py holds them to it.
 WAITS = {
     "services/update_check.cpp": ["webJobState() == WJS_RUNNING", "backendJobState() == BJS_RUNNING"],
     "web/web_jobs.cpp": ["updateCheckBusy()"],

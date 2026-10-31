@@ -791,18 +791,20 @@ void appLoop() {
     doGithubOtaFlash(gh_latest_version);
   }
 
-  // A manual check that ran into the background task. Retried as soon as the
-  // TLS connection is free again, dropped after GH_CHECK_WAIT_MS so a task that
-  // never returns cannot leave the screen waiting on it.
-  // The web worker holds a TLS connection of its own at times; each takes a
-  // stack and connection (~22-24 kB), and the 50 kB floor is for one of them.
+  // A manual check that ran into a background request: the daily check, a web
+  // job or the inventory list (githubRequestMustWait()). Each takes a stack
+  // and a connection (~22-24 kB), and the 50 kB floor is for one of them.
+  // Retried as soon as it is over, dropped after GH_CHECK_WAIT_MS so a task
+  // that never returns cannot leave the screen waiting on it; the screen then
+  // says the check failed instead of "checking" for good.
   if (gh_check_pending) {
-    if (!updateCheckBusy() && webJobState() != WJS_RUNNING) {
+    if (!githubRequestMustWait()) {
       gh_check_pending = false;
       doGithubOtaCheck();
     } else if (millis() - gh_check_wait_since > GH_CHECK_WAIT_MS) {
       gh_check_pending = false;
-      logSD("OTA check: gave up waiting for the background check");
+      logSD("OTA check: gave up waiting for the background request");
+      otaGithubShowCheckAnswer(GH_ANSWER_FAILED, nullptr);
     }
   }
 
