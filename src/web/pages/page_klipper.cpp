@@ -451,6 +451,8 @@ static void scriptStrings(String &h) {
   h += jsStr(T(STR_W_KL_TESTED));
   h += F(",busy:");
   h += jsStr(T(STR_W_KL_BUSY));
+  h += F(",lowmem:");
+  h += jsStr(T(STR_W_LOWMEM));
   h += F("};");
 }
 
@@ -530,7 +532,7 @@ static void scriptTest(String &h) {
          "flash('kl-s','',false);load();});}"
          "function testNow(id){flash('kl-s',K.testing,false);"
          // A refused test leaves the list as the save made it: read again.
-         "kpost('/api/klipper/test',{id:id}).then(function(r){if(r.ok&&r.json&&r.json.queued!==false){pollTest(0);return;}flash('kl-s',r.ok&&r.json?K.busy:(r.text||WS.err),true,5000);load();});}"
+         "kpost('/api/klipper/test',{id:id}).then(function(r){if(r.ok&&r.json&&r.json.queued!==false){pollTest(0);return;}flash('kl-s',r.ok&&r.json?(r.json.lowmem?K.lowmem:K.busy):(r.text||WS.err),true,5000);load();});}"
          "function delPrinter(p){"
          "ask(K.delAsk.replace('%s',function(){return p.name;}),K.del,true).then(function(ok){"
          "if(!ok)return;kpost('/api/klipper/delete',{id:p.id}).then(function(r){"
@@ -664,8 +666,15 @@ static void routes(WebServer &srv) {
     if (!klipperStoreFind(id, &c)) { srv.send(404, "text/plain", T(STR_W_KL_E_GONE)); return; }
     klipperTestCollect(nullptr, nullptr);          // a finished test of ours is stored first (R31)
     if (webJobState() == WJS_DONE) webJobTake();   // somebody else's leftover
-    if (!handOver(c) || !webJobStart(WJ_KLIPPER_TEST, klipperScaleSpoolman(), false)) {
+    // Refused for the heap is not "busy" (webJobLastRefusal(), web_jobs.h).
+    if (!handOver(c)) {
       srv.send(200, "application/json", "{\"queued\":false}");
+      return;
+    }
+    if (!webJobStart(WJ_KLIPPER_TEST, klipperScaleSpoolman(), false)) {
+      srv.send(200, "application/json", webJobLastRefusal() == WJR_LOW_HEAP
+                                            ? "{\"queued\":false,\"lowmem\":true}"
+                                            : "{\"queued\":false}");
       return;
     }
     logSDf("Web: Klipper test of printer %lu started", (unsigned long)id);

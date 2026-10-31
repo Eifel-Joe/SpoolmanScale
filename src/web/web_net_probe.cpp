@@ -119,8 +119,11 @@ void netProbeRoutes(WebServer& srv) {
       return;
     }
     if (webJobState() == WJS_DONE) webJobTake();   // somebody else's leftover
+    // Refused for the heap is not "busy" (webJobLastRefusal(), web_jobs.h).
     if (!webJobStart(WJ_NET_PROBE, url, false)) {
-      srv.send(200, "application/json", "{\"error\":\"busy\"}");
+      srv.send(200, "application/json", webJobLastRefusal() == WJR_LOW_HEAP
+                                            ? "{\"error\":\"lowmem\"}"
+                                            : "{\"error\":\"busy\"}");
       return;
     }
     srv.send(202, "application/json", "{\"pending\":true}");

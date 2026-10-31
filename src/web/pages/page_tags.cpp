@@ -261,6 +261,7 @@ static String body() {
   h += F(",relink:");  h += jsStr(T(STR_W_TAG_RELINK));
   h += F(",queued:");  h += jsStr(T(STR_W_TAG_QUEUED));
   h += F(",nolist:");  h += jsStr(T(STR_W_TAG_NOLIST));
+  h += F(",lowmem:");  h += jsStr(T(STR_W_LOWMEM));
   h += F(",sku:");     h += jsStr(T(STR_W_TAG_SKU));
   h += F(",nozzle:");  h += jsStr(T(STR_W_TAG_NOZZLE));
   h += F(",bed:");     h += jsStr(T(STR_W_TAG_BED));
@@ -505,7 +506,7 @@ static String body() {
          "if(r.status===202){if((n||0)<40)setTimeout(()=>loadSpools((n||0)+1),700);"
          "else setOpt(p,M.nolist);return null;}return r.json();}).then(d=>{"
          "if(!d)return;"
-         "if(d.error){setOpt(p,d.error);return;}"
+         "if(d.error){setOpt(p,d.error==='lowmem'?M.lowmem:d.error);return;}"
          "setOpt(p,M.pick);"
          "d.forEach(s=>{const o=document.createElement('option');o.value=s.id;"
          "o.textContent='#'+s.id+'  '+s.label;p.appendChild(o);});"
@@ -821,8 +822,11 @@ static void routes(WebServer &srv) {
       return;
     }
     if (webJobState() == WJS_DONE) webJobTake();   // somebody else's leftover
+    // Refused for the heap is not "busy" (webJobLastRefusal(), web_jobs.h).
     if (!webJobStart(WJ_SPOOLS, nullptr, false)) {
-      srv.send(200, "application/json", "{\"error\":\"busy\"}");
+      srv.send(200, "application/json", webJobLastRefusal() == WJR_LOW_HEAP
+                                            ? "{\"error\":\"lowmem\"}"
+                                            : "{\"error\":\"busy\"}");
       return;
     }
     srv.send(202, "application/json", "{\"pending\":true}");

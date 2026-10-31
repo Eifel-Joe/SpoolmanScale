@@ -620,8 +620,13 @@ static void routes(WebServer &srv) {
     // the answer. Held in this handler it stood the loop still for four
     // seconds.
     if (webJobState() == WJS_DONE) webJobTake();   // somebody else's leftover
+    // Refused for the heap is not "busy" (webJobLastRefusal(), web_jobs.h).
     if (webJobStart(WJ_HOST_TEST, nullptr, false)) {
       srv.send(202, "application/json", "{\"queued\":true}");
+    } else if (webJobLastRefusal() == WJR_LOW_HEAP) {
+      srv.send(200, "application/json",
+               String("{\"queued\":false,\"lowmem\":true,\"msg\":\"") +
+                   jsonEsc(T(STR_W_HOST_SAVED_LOWMEM)) + "\"}");
     } else {
       srv.send(200, "application/json",
                String("{\"queued\":false,\"msg\":\"") + jsonEsc(T(STR_W_HOST_SAVED_ONLY)) + "\"}");
