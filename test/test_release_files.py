@@ -257,7 +257,9 @@ with tempfile.TemporaryDirectory() as tmp:
     done = run("check", published, "v0.8.4")
     expect("cli check same: exit 1", done.returncode == 1, f"{done.returncode}: {done.stdout}{done.stderr}")
     expect("cli check same: error line", "::error::" in done.stdout and "does not rank above the published" in done.stdout, done.stdout + done.stderr)
-    expect("cli check same: names the published version", "v0.8.4" in done.stdout, done.stdout)
+    # A tag below the published one: the line can only pass by naming the published version.
+    done = run("check", published, "v0.8.3")
+    expect("cli check older: names the published version", "the published v0.8.4" in done.stdout, done.stdout)
     done = run("check", tmp / "none.json", "v0.8.4-beta.1")
     expect("cli check no file: exit 0", done.returncode == 0, f"{done.returncode}: {done.stdout}{done.stderr}")
     published.write_text("{}")

@@ -68,11 +68,10 @@ expect("must read the published version.json from origin/gh-pages", "origin/gh-p
 expect("must push the pages with git push origin HEAD:gh-pages", re.search(r"git\s+push\s+origin\s+HEAD:gh-pages\b", code) is not None)
 
 # 4. The release before the pages: version.json must never name a tag whose
-#    release does not exist (Review Focus 2).
+#    release does not exist, a device would read that tag and download a 404.
+#    Both steps are looked for in 5.
 release_step = re.search(r"^\s*-\s*name:\s*Create GitHub Release\s*$", text, re.MULTILINE)
 pages_step = re.search(r"^\s*-\s*name:\s*Publish to gh-pages\s*$", text, re.MULTILINE)
-expect("must have the step 'Create GitHub Release'", release_step is not None)
-expect("must have the step 'Publish to gh-pages'", pages_step is not None)
 if release_step and pages_step:
     expect("release step comes before pages", release_step.start() < pages_step.start(),
            f"release at {release_step.start()}, pages at {pages_step.start()}")
@@ -95,28 +94,64 @@ def step_lines(name):
     return None
 
 
-# 5. Release and publish on a tag push only. On a manual run github.ref_name
+def job_lines(job_id):
+    """The lines of the job `<job_id>:` under `jobs:` as (indent, line) pairs, up
+    to the next job; None when there is no such job."""
+    all_lines = text.splitlines()
+    in_jobs = False
+    for at, line in enumerate(all_lines):
+        if re.match(r"^jobs:\s*$", line):
+            in_jobs = True
+            continue
+        if not in_jobs:
+            continue
+        m = re.match(r"^(\s+)" + re.escape(job_id) + r":\s*$", line)
+        if m:
+            indent = len(m.group(1))
+            block = []
+            for follow in all_lines[at + 1:]:
+                if follow.strip() and len(follow) - len(follow.lstrip()) <= indent:
+                    break
+                block.append((len(follow) - len(follow.lstrip()), follow.strip()))
+            return indent, block
+    return None
+
+
+# 5. Release and publish on a tag push only, and so do the steps that serve
+#    only them: the refusal of a tag that does not rank above what is
+#    published, version.json and the title. On a manual run github.ref_name
 #    is a branch: the release would get the branch's name as its tag while
 #    version.json names FW_VERSION, a release that does not exist.
 TAG_ONLY = re.compile(r"^if:\s*(?:\$\{\{\s*)?github\.ref_type\s*==\s*'tag'(?:\s*\}\})?$")
-for name in ("Create GitHub Release", "Publish to gh-pages"):
+for name in ("Refuse a tag that is not newer than what is published", "Update version.json", "Release title",
+             "Create GitHub Release", "Publish to gh-pages"):
     step = step_lines(name)
+    expect(f"must have the step '{name}'", step is not None)
     if step is None:
-        continue  # reported above
+        continue
     indent, block = step
     expect(f"step '{name}' must run on a tag push only (if: github.ref_type == 'tag')",
            any(depth == indent + 2 and TAG_ONLY.match(line) for depth, line in block))
 
 # 6. The date in a pre-release title is the German one (the runner's clock is
-#    UTC): the title step runs with TZ Europe/Berlin.
+#    UTC): the title step runs with TZ Europe/Berlin, set in its own env:.
 title_step = step_lines("Release title")
-expect("must have the step 'Release title'", title_step is not None)
 if title_step is not None:
-    expect("step 'Release title' must run with TZ: Europe/Berlin",
-           any(re.match(r"^TZ:\s*['\"]?Europe/Berlin['\"]?$", line) for _, line in title_step[1]))
+    title_indent, title_block = title_step
+    env_at = next((at for at, (depth, line) in enumerate(title_block)
+                   if depth == title_indent + 2 and line == "env:"), None)
+    env_lines = []
+    for depth, line in title_block[env_at + 1:] if env_at is not None else []:
+        if line and depth <= title_indent + 2:
+            break
+        env_lines.append(line)
+    expect("step 'Release title' must run with TZ: Europe/Berlin in its env:",
+           any(re.match(r"^TZ:\s*['\"]?Europe/Berlin['\"]?$", line) for line in env_lines))
 
 # 7. The boards: every BOARD_ID in src/boards, the matrix board on its own and
-#    the rest in OTHER_BOARDS, in the workflow and in release_files.py.
+#    the rest in OTHER_BOARDS, in the workflow and in release_files.py, and
+#    each with a model name in release_files.MODELS (one flasher manifest per
+#    board, written for the boards MODELS names).
 BOARD_ID = re.compile(r'^\s*#define\s+BOARD_ID\s+"([^"]+)"', re.MULTILINE)
 board_ids = set()
 for header in sorted(boards_dir.glob("*/board_config.h")):
@@ -137,6 +172,8 @@ for line in lines:
 expect("must not keep a second list of boards (OTHER_BOARDS=)", re.search(r"\bOTHER_BOARDS=", code) is None)
 expect("release_files.OTHER_BOARDS must name the same boards", sorted(rf.OTHER_BOARDS) == others,
        f"release_files {list(rf.OTHER_BOARDS)}, src/boards {others}")
+expect("release_files.MODELS must name every board of src/boards", sorted(rf.MODELS) == sorted(board_ids),
+       f"release_files {sorted(rf.MODELS)}, src/boards {sorted(board_ids)}")
 
 # 8. One release at a time, and none with a file missing. Two tags pushed close
 #    together would otherwise race on gh-pages: both read the same version.json
@@ -174,13 +211,13 @@ if release is not None:
 #    reads each file for the line of the board it is meant for. A failing call
 #    stops the step (its run block starts with `set -euo pipefail`, so that
 #    no shell setting decides it), and the step stands before the checksums
-#    are taken (Update version.json), before the release and before the pages. It
-#    runs on a manual run as well: no `if:`. The test fills in the step's
-#    variables for every board (the matrix board, and each of OTHER_BOARDS in
-#    the loop that names it) and compares the calls with the files the
-#    release carries: SpoolmanScale.bin for the WT32 and SpoolmanScale-<id>.bin
-#    for the others, the same with the version in the name, and each board's
-#    factory image.
+#    are taken (Update version.json), before the release and before the
+#    pages. It runs on a manual run as well: no `if:`. The test fills in the
+#    step's variables for every board (the matrix board, and each of
+#    OTHER_BOARDS in the loop that names it) and compares the calls with the
+#    files the release carries: SpoolmanScale.bin for the WT32 and
+#    SpoolmanScale-<id>.bin for the others, the same with the version in the
+#    name, and each board's factory image.
 MARKER_STEP = "Check that every image names its board"
 VERSION = "v0.0.0"
 expect("scripts/board_marker.py must exist", (root / "scripts" / "board_marker.py").is_file())
@@ -308,50 +345,27 @@ else:
 # 11. The display name of the release job. The job builds and releases all
 #     three boards (the matrix board and OTHER_BOARDS), but GitHub shows a job
 #     of a matrix as "<name> (<matrix values>)", here "build (wt32-sc01-plus)",
-#     which reads as if only the WT32 were built. The suffix stays unless the
-#     name itself holds a matrix expression, so the name ends in an expression
-#     that names the matrix and evaluates to the empty string (`&&` hands back
-#     its last operand). The line is pinned as a whole: a plain name would bring
-#     the suffix back, and the odd-looking expression is not to be tidied away.
-#     Only the name is new: the job id stays `build`, the matrix and the steps
-#     are held by the checks above.
+#     which reads as if only the WT32 were built. GitHub leaves the suffix out
+#     when the name itself holds a matrix expression (seen in a run, not
+#     documented; build-all-boards.yml names the run), so the name ends in an
+#     expression that names the matrix and evaluates to the empty string (`&&`
+#     hands back its last operand). The line is pinned as a whole: a plain
+#     name would bring the suffix back, and the odd-looking expression is not
+#     to be tidied away. Only the name is new: the job id stays `build`, the
+#     matrix and the steps are held by the checks above.
 JOB_ID = "build"
 JOB_NAME = "name: Build and release all boards${{ matrix.env && '' }}"
-
-
-def job_lines(job_id):
-    """The lines of the job `<job_id>:` under `jobs:` as (indent, line) pairs, up
-    to the next job; None when there is no such job."""
-    all_lines = text.splitlines()
-    in_jobs = False
-    for at, line in enumerate(all_lines):
-        if re.match(r"^jobs:\s*$", line):
-            in_jobs = True
-            continue
-        if not in_jobs:
-            continue
-        m = re.match(r"^(\s+)" + re.escape(job_id) + r":\s*$", line)
-        if m:
-            indent = len(m.group(1))
-            block = []
-            for follow in all_lines[at + 1:]:
-                if follow.strip() and len(follow) - len(follow.lstrip()) <= indent:
-                    break
-                block.append((len(follow) - len(follow.lstrip()), follow.strip()))
-            return indent, block
-    return None
-
 
 job = job_lines(JOB_ID)
 expect(f"must have the job '{JOB_ID}'", job is not None)
 if job is not None:
-    indent, block = job
-    names = [line for depth, line in block if depth == indent + 2 and line.startswith("name:")]
+    job_indent, job_block = job
+    names = [line for depth, line in job_block if depth == job_indent + 2 and line.startswith("name:")]
     expect(f"job '{JOB_ID}' must have exactly one name:", len(names) == 1, f"{len(names)} name key(s)")
-    for line in names:
-        expect(f"job '{JOB_ID}' must be named exactly `{JOB_NAME}`", line == JOB_NAME, line)
+    for name_line in names:
+        expect(f"job '{JOB_ID}' must be named exactly `{JOB_NAME}`", name_line == JOB_NAME, name_line)
         for board in sorted(board_ids):
-            expect(f"the name of job '{JOB_ID}' must not name a board ({board})", board not in line, line)
+            expect(f"the name of job '{JOB_ID}' must not name a board ({board})", board not in name_line, name_line)
 
 # 12. Verdict.
 if errors:

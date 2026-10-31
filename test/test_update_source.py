@@ -1,4 +1,4 @@
-"""Read the source tree without a compiler and check that the update path asks this fork and not the original: the repo and the pages address are each defined once in app_config.h, the release download, the version check and the flasher take them from there, no file under src/ still names the original's repo or its pages root, and the links that must stay with the original (the manual, the FilaMan plugin) are still there. The checks by hand read the version file the daily check reads, through the same choice of release, nothing asks GitHub for its release list, and the checksum goes with every tag a check found."""
+"""Read the source tree without a compiler and check that the update path asks this fork and not the original: the repo and the pages address are each defined once in app_config.h, the release download, the version check and the flasher take them from there, no file under src/ still names the original's repo or its pages root, and the links that must stay with the original (the manual, the FilaMan plugin, the Ko-fi, Discord and MakerWorld codes) are still there. The checks by hand read the version file the daily check reads, through the same choice of release, nothing asks GitHub for its release list, and the checksum goes with every tag a check found."""
 import re
 import sys
 from pathlib import Path
@@ -23,13 +23,14 @@ VERSION_FILE = "services/version_file.h"
 VERSION_FILE_DEFINE = re.compile(r'^\s*#define\s+VERSION_FILE_URL\s+FW_PAGES_URL\s+"version\.json"\s*(?://.*)?$',
                                  re.MULTILINE)
 
-# The original's repo (github.com/Niko11111/SpoolmanScale, followed by a quote,
-# a slash or the end of the line) and its pages root (with the slash after
-# SpoolmanScale: the manual lives under SpoolmanScale-Docs and stays). The
-# FilaMan plugin repo starts the same way but is another repository.
+# The original's repo however it is reached (github.com/, api.github.com/repos/,
+# raw.githubusercontent.com/ or a bare Niko11111/SpoolmanScale) and its pages
+# root, each as a whole name: the manual lives under SpoolmanScale-Docs and
+# stays. The FilaMan plugin repo (Niko11111/filaman-spoolmanscale-plugin) is
+# another repository.
 ORIGINAL = re.compile(
-    r"github\.com/niko11111/spoolmanscale(?:[\"'/]|$)"
-    r"|niko11111\.github\.io/spoolmanscale/",
+    r"niko11111/spoolmanscale(?![\w-])"
+    r"|niko11111\.github\.io/spoolmanscale(?![\w-])",
     re.IGNORECASE,
 )
 
@@ -45,10 +46,17 @@ DEFINE_USERS = [
 ]
 INCLUDE_CONFIG = re.compile(r'^\s*#include\s+"app_config\.h"', re.MULTILINE)
 
-# What belongs to the original and must not disappear with the update source.
+# What belongs to the original and must not disappear with the update source:
+# the manual, the FilaMan plugin, and the codes of the info screen and the
+# test label but GitHub's (Ko-fi, Discord, MakerWorld, the manual).
 KEPT = [
     ("app_config.h", 'DOCS_URL "https://niko11111.github.io/SpoolmanScale-Docs/"'),
+    ("app_config.h", 'DONATION_URL "ko-fi.com/formfollowsfunction"'),
     ("web/pages/page_backend_embed.cpp", "Niko11111/filaman-spoolmanscale-plugin"),
+    ("ui/info_screen.cpp", '"https://ko-fi.com/formfollowsfunction"'),
+    ("ui/info_screen.cpp", '"https://discord.gg/K3KmKnrWhP"'),
+    ("ui/info_screen.cpp", '"https://makerworld.com/de/@FormFollowsF/upload"'),
+    ("ui/info_screen.cpp", '"https://niko11111.github.io/SpoolmanScale-Docs/"'),
 ]
 
 errors = []

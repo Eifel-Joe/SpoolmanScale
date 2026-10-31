@@ -38,9 +38,16 @@ def load(rel):
     return cc.Source(path.read_text(encoding="utf-8", errors="replace"))
 
 
-def depth_at(code, start, offset):
-    """How many braces are open at offset, counted from start."""
-    return code.count("{", start, offset) - code.count("}", start, offset)
+def same_block(code, start, offset):
+    """Whether offset lies in the block that holds start (start before offset):
+    no brace between them closes that block, and every one opened is closed.
+    Equal depth alone would also take a sibling block behind "} {" or "} else {"."""
+    depth = 0
+    for char in code[start:offset]:
+        depth += (char == "{") - (char == "}")
+        if depth < 0:
+            return False
+    return depth == 0
 
 
 def block_after(code, offset):
@@ -132,7 +139,7 @@ if github is not None:
             if write.groups() != feed.groups()[:2]:
                 errors.append(f"{where}: Update.write({', '.join(write.groups())}) and "
                               f"boardImageScanFeed({', '.join(feed.groups()[:2])}) are not given the same bytes")
-            if depth_at(body, 0, write.start()) != depth_at(body, 0, feed.start()):
+            if not same_block(body, write.start(), feed.start()):
                 errors.append(f"{where}: the scan is not fed in the same block as the write")
             # A foreign verdict ends the download at once, like the browser
             # upload: the rest of a wrong image is not written to the flash.
@@ -176,7 +183,7 @@ if github is not None:
                         errors.append(f"{where}: the board line must be asked after the download is known to be "
                                       "complete and before the refusal block and Update.end()")
                     for label, match in (("foreign", foreign), ("missing line", missing)):
-                        if match is not None and depth_at(body, 0, match.start()) != depth_at(body, 0, chain):
+                        if match is not None and not same_block(body, chain, match.start()):
                             errors.append(f"{where}: the {label} test is nested in another branch, "
                                           "it can be skipped")
                     # Whatever sets `fail` ends in the refusal block, which

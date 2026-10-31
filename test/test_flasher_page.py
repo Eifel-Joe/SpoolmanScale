@@ -32,12 +32,15 @@ def expect(name, condition, detail=""):
 
 # 1. The boards: every BOARD_ID in src/boards has a manifest-<id>.json on the
 #    page, and the page names no manifest of a board that does not exist (the
-#    workflow publishes manifest-<board>.json for exactly these boards).
+#    workflow publishes manifest-<board>.json for exactly these boards). Each
+#    board has its width and height in RESOLUTION, for what its button shows (5).
+RESOLUTION = {"wt32-sc01-plus": (480, 320), "waveshare-s3-lcd7": (800, 480), "waveshare-s3-lcd7b": (1024, 600)}
 BOARD_ID = re.compile(r'^\s*#define\s+BOARD_ID\s+"([^"]+)"', re.MULTILINE)
 board_ids = set()
 for header in sorted(boards_dir.glob("*/board_config.h")):
     board_ids.update(BOARD_ID.findall(header.read_text(encoding="utf-8", errors="replace")))
-expect("src/boards must name three boards", len(board_ids) == 3, f"{sorted(board_ids)}")
+expect("src/boards must name the boards RESOLUTION knows, a new one needs its resolution there",
+       sorted(board_ids) == sorted(RESOLUTION), f"src/boards {sorted(board_ids)}, RESOLUTION {sorted(RESOLUTION)}")
 for board in sorted(board_ids):
     expect(f"must name manifest-{board}.json", f"manifest-{board}.json" in text)
 named = set(re.findall(r"manifest-([A-Za-z0-9_-]+)\.json", text))
@@ -125,18 +128,22 @@ expect("a choice must set the manifest attribute of the install button",
        re.search(r"""setAttribute\(\s*["']manifest["']""", text) is not None)
 
 # 5. What the visitor is told about each board: its model name and resolution
-#    (from release_files.MODELS), and the right claim: only the 7B was tried on
-#    a scale, the other two were built and not tried on hardware by this fork.
-RESOLUTION = {"wt32-sc01-plus": "480", "waveshare-s3-lcd7": "800", "waveshare-s3-lcd7b": "1024"}
+#    (from release_files.MODELS), each whole: the 7" model's name is the start
+#    of the 7B's, and 480 is the height of the 7" as well as the width of the
+#    WT32. And the right claim: only the 7B was tried on a scale, the other
+#    two were built and not tried on hardware by this fork.
 for board in sorted(board_ids):
     entry = parsed.boards.get(f"manifest-{board}.json")
-    if entry is None:
-        continue  # reported above
+    if entry is None or board not in RESOLUTION or board not in rf.MODELS:
+        continue  # reported above and in test_release_workflow.py
     # Plain ASCII for the message: the sign between the numbers is not, and a
     # console that cannot print it must not hide the finding.
     shown = re.sub(r"\s+", " ", entry["text"]).strip().encode("ascii", "replace").decode()
-    expect(f"{board}: must show the model name {rf.MODELS[board]!r}", rf.MODELS[board] in shown, shown)
-    expect(f"{board}: must show the resolution ({RESOLUTION[board]} wide)", RESOLUTION[board] in shown, shown)
+    model = rf.MODELS[board]
+    width, height = RESOLUTION[board]
+    expect(f"{board}: must show the model name {model!r}", re.search(re.escape(model) + r"(?![\w-])", shown), shown)
+    expect(f"{board}: must show the resolution {width}x{height}",
+           re.search(rf"(?<!\d){width}\s*\D\s*{height}(?!\d)", shown), shown)
     tried = "tested on the maintainer's scale" in shown.lower() and "not tested" not in shown.lower()
     built = "not tested on hardware by this fork" in shown.lower()
     if board == "waveshare-s3-lcd7b":
