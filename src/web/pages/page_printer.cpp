@@ -153,10 +153,10 @@ static String stateJson() {
   return j;
 }
 
-// The manual's printers page. The manual has German and English; French
-// readers get the English page.
+// The printers page of the original's manual, which this fork's does not
+// have. It has German and English; French readers get the English page.
 static const __FlashStringHelper* docsPrintersUrl() {
-  return g_lang == LANG_DE ? F(DOCS_URL "de/use/printers/") : F(DOCS_URL "use/printers/");
+  return g_lang == LANG_DE ? F(ORIGINAL_DOCS_URL "de/use/printers/") : F(ORIGINAL_DOCS_URL "use/printers/");
 }
 
 // The way to the manual's page of recommended printers and their labels,

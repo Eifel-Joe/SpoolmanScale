@@ -91,8 +91,13 @@
 #define FW_PAGES_URL  "https://eifel-joe.github.io/SpoolmanScale/"
 // The public web flasher, where the hint sends a device on the old layout.
 #define FLASHER_URL FW_PAGES_URL
-// The manual. A German page lives under de/, the English one at the root.
-#define DOCS_URL "https://niko11111.github.io/SpoolmanScale-Docs/"
+// The manual: this fork's own documentation, which describes what the fork
+// does differently and links to the original's for everything else. A German
+// page lives under de/, the English one at the root, in both.
+#define DOCS_URL "https://eifel-joe.github.io/SpoolmanScale-Docs/"
+// The original's manual, for its page of recommended printers and their shop
+// links, which this fork's documentation does not have.
+#define ORIGINAL_DOCS_URL "https://niko11111.github.io/SpoolmanScale-Docs/"
 
 // The two chips on I2C_EXT. Named because a bare 0x2A stood in three files and
 // meant nothing to anyone reading a bus scan.

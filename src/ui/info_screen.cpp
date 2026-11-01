@@ -29,7 +29,7 @@ static const char* QR_URLS[QR_COUNT]   = {
   "https://github.com/" FW_REPO,   // the fork the updates come from
   "https://discord.gg/K3KmKnrWhP",
   "https://makerworld.com/de/@FormFollowsF/upload",
-  "https://niko11111.github.io/SpoolmanScale-Docs/",
+  DOCS_URL,                        // this fork's manual (app_config.h)
   nullptr   // by language, see qrUrl()
 };
 static const char* QR_URLS_DISPLAY[QR_COUNT] = {
@@ -37,7 +37,7 @@ static const char* QR_URLS_DISPLAY[QR_COUNT] = {
   "github.com/" FW_REPO,
   "discord.gg/K3KmKnrWhP",
   "makerworld.com/de/@FormFollowsF/upload",
-  "niko11111.github.io/SpoolmanScale-Docs",
+  "eifel-joe.github.io/SpoolmanScale-Docs",
   nullptr
 };
 
@@ -79,11 +79,11 @@ static const char* qrTitle(int idx) {
   return QR_TITLES[idx];
 }
 
-// The manual has a German page and an English one; French readers get the
-// English, as in the browser's link.
+// The original's manual has the printers page in German and English; French
+// readers get the English, as in the browser's link.
 static const char* qrUrl(int idx) {
   if (idx != QR_PRINTERS) return QR_URLS[idx];
-  return g_lang == LANG_DE ? DOCS_URL "de/use/printers/" : DOCS_URL "use/printers/";
+  return g_lang == LANG_DE ? ORIGINAL_DOCS_URL "de/use/printers/" : ORIGINAL_DOCS_URL "use/printers/";
 }
 
 // What stands under the title, the address without its scheme.
