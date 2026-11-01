@@ -514,6 +514,20 @@ for config in CONFIGS:
         expect(f"src/{badges}: the documentation firmware must set show = false in showUpdateBadges() (no red dot on a screenshot)", hides)
     else:
         expect(f"src/{badges}: the {config} build must not set show = false (the dot is what the update check shows)", not hides)
+# The other way a dot gets onto a screen: createUpdateBadge() shows the new badge
+# at once when an update was found before its screen was built, and the settings,
+# system and OTA screens are built when they are opened. The documentation
+# firmware, which is offered the release it was built on, must keep that dot off
+# too; the other builds show it as the update check says.
+for config in CONFIGS:
+    text = visible(config, badges)
+    as_found = re.search(r"\bsetBadgeVisible\s*\(\s*badge\s*,\s*update_available\s*\)", text) is not None
+    hidden = re.search(r"\bsetBadgeVisible\s*\(\s*badge\s*,\s*false\s*\)", text) is not None
+    if config == "doc":
+        expect(f"src/{badges}: the documentation firmware must make a new badge hidden (a screen built after the update check would carry the dot)",
+               hidden and not as_found)
+    else:
+        expect(f"src/{badges}: the {config} build must make a new badge visible as update_available says", as_found and not hidden)
 
 SHOWN = r"\bconst\s+char\s*\*\s*fwVersionShown\s*\(\s*(?:void)?\s*\)"
 for config in CONFIGS:
