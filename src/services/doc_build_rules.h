@@ -14,7 +14,7 @@
 //  the pad, so a screen shows a real-looking reading. The documentation
 //  firmware goes one step further: to keep a simulated weight or a wrong tap
 //  away from real data it only reads from servers and refuses every writing
-//  request (docWriteAllowed). The acceptance firmware must write - it sends
+//  request (docRequestAllowed). The acceptance firmware must write - it sends
 //  weights, creates and deletes test spools - so it has no such lock.
 //
 //  A simulated weight is meant for a test spool. The scale is used normally
@@ -68,6 +68,12 @@ bool docSimParse(const char* arg, float& grams, bool& off);
 // unsigned arithmetic, so the wrap of millis() after 49 days changes nothing.
 bool docSimExpired(uint32_t set_ms, uint32_t now_ms);
 
-// Whether the documentation build may send a request with the method: GET and
-// HEAD only. (The acceptance firmware does not ask; it has to write.)
-bool docWriteAllowed(const char* method);
+// Moonraker's query of the printer objects: a POST with the objects asked for
+// in its body, that reads them and changes nothing.
+#define DOC_MOONRAKER_QUERY "/printer/objects/query"
+
+// Whether the documentation build may send a request with the method to the
+// path (the request's path and query, as HTTPClient keeps it): GET and HEAD
+// anywhere, POST to exactly DOC_MOONRAKER_QUERY, nothing else. (The acceptance
+// firmware does not ask; it has to write.)
+bool docRequestAllowed(const char* method, const char* path);

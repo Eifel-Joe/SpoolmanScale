@@ -342,18 +342,20 @@ void BackendHttp::settle() {
 #if defined(SSC_DOC_BUILD)
 // Documentation firmware only: every writing request is refused, so neither a
 // simulated weight nor a wrong tap on the way to a screenshot reaches a
-// server. One log line a minute, with the number refused since the last one:
+// server; the one POST that only reads, Moonraker's object query, passes on
+// its path (docRequestAllowed), which is HTTPClient's _uri once begin() has
+// run. One log line a minute, with the number refused since the last one:
 // the BamBuddy device protocol alone would otherwise write a line per reading.
 // Not in the acceptance firmware, which has to write (it sends weights and
 // creates test spools): a refusal there would fail every send of an acceptance.
-static bool docRefused(const char* method) {
-  if (docWriteAllowed(method)) return false;
+bool BackendHttp::docRefused(const char* method) {
+  if (docRequestAllowed(method, _uri.c_str())) return false;
   static uint32_t s_last_ms = 0;
   static uint32_t s_since   = 0;
   const uint32_t now = millis();
   if (s_last_ms == 0 || now - s_last_ms >= 60000) {
-    logSDf("Doc build: write refused (%s), %u more since the last line", method ? method : "?",
-           (unsigned)s_since);
+    logSDf("Doc build: write refused (%s %s), %u more since the last line", method ? method : "?",
+           _uri.c_str(), (unsigned)s_since);
     s_last_ms = now ? now : 1;
     s_since   = 0;
   } else {

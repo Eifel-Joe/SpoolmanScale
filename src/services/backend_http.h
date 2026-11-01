@@ -182,6 +182,11 @@ class BackendHttp : private BackendTlsHolder, public HTTPClient {
   int PUT(uint8_t* payload, size_t size);
 #endif
  private:
+#if defined(SSC_DOC_BUILD)
+  // True (and a log line, at most one a minute) when this request must not go
+  // out: its method and path fail docRequestAllowed().
+  bool docRefused(const char* method);
+#endif
   void newAnswer();
   void settle();
   bool answerRead();

@@ -69,7 +69,15 @@ bool docSimExpired(uint32_t set_ms, uint32_t now_ms) {
   return (uint32_t)(now_ms - set_ms) >= (uint32_t)DOC_SIM_MAX_MS;
 }
 
-bool docWriteAllowed(const char* method) {
+bool docRequestAllowed(const char* method, const char* path) {
   if (!method) return false;
-  return strcasecmp(method, "GET") == 0 || strcasecmp(method, "HEAD") == 0;
+  if (strcasecmp(method, "GET") == 0 || strcasecmp(method, "HEAD") == 0) return true;
+  // Root: Moonraker reads the printer objects through a POST, and with GET and
+  // HEAD alone the AMS view of this firmware showed no Klipper printer's fields
+  // (31.10.2026: no picture of them in the documentation).
+  // Fix: that one POST passes, on exactly its path, compared byte for byte.
+  // NOT-TO-DO: letting every POST to a Klipper printer through. The G-code
+  // script and the Spoolman proxy are POSTs to the same host, and the proxy
+  // carries any method to Spoolman, a PATCH of a spool included.
+  return strcasecmp(method, "POST") == 0 && path && strcmp(path, DOC_MOONRAKER_QUERY) == 0;
 }
