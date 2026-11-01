@@ -1,4 +1,5 @@
 """Compile the production 7B expander driver against a Wire that records every frame, and check what reaches the chip: levels before direction, GPIO19/20 always on USB, a pin write the chip refuses sent again and counted."""
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -160,6 +161,29 @@ int main() {
   expect(io_ch32v003::write(3, true), "the write after a failed one is acknowledged");
   expect(frameIs(bus.frames.back(), OUTPUTS, 0x4C), "the next write carries the pin that was refused");
 
+  // The scale's brightness, 0..255 with 255 full, as the register takes it
+  // (Spec 5.3 S, V21): turned round, 0 is full on this chip, and never darker
+  // than 247, 97 % of 255, where Waveshare's driver stops ("Prevent the
+  // screen from completely turning off", io_extension.c).
+  expect(io_ch32v003::PWM_DARKEST == 247, "the darkest register value is 97 % of 255");
+  expect(io_ch32v003::pwmFor(255) == 0, "full brightness is register 0");
+  expect(io_ch32v003::pwmFor(128) == 127, "half brightness is 127");
+  expect(io_ch32v003::pwmFor(10) == 245, "the slider's least, 10, is 245");
+  expect(io_ch32v003::pwmFor(8) == 247 && io_ch32v003::pwmFor(0) == 247, "darker than that stops at 247");
+  uint8_t before = 0;
+  for (int b = 255; b >= 0; b--) {
+    const uint8_t r = io_ch32v003::pwmFor((uint8_t)b);
+    expect(r >= before, "a lower brightness never gives a brighter register value");
+    expect(r <= io_ch32v003::PWM_DARKEST, "no brightness goes past the darkest value");
+    before = r;
+  }
+  const size_t lit_from = bus.frames.size();
+  expect(io_ch32v003::brightness(128), "a brightness is acknowledged");
+  expect(bus.frames.size() == lit_from + 1 && frameIs(bus.frames.back(), PWM, 127),
+         "a brightness is one frame to register 0x05");
+  bus.answers = {NACK};
+  expect(!io_ch32v003::brightness(255), "a brightness the chip refuses fails");
+
   // Whatever was sent, GPIO19/20 stayed on the USB connector.
   for (const Frame& f : bus.frames) {
     if (f.bytes.size() == 2u && f.bytes[0] == OUTPUTS) {
@@ -179,4 +203,29 @@ with tempfile.TemporaryDirectory() as tmp:
                     str(cpp), str(root / "src" / "boards" / "waveshare_s3_lcd7b" / "io_ch32v003.cpp"),
                     "-o", str(binary)], check=True)
     subprocess.run([str(binary)], check=True)
+
+# The 7B dims the light itself, the 7 keeps switching it (Spec 5.3 S): the
+# 7's CH422G has no PWM. On the 7B the brightness goes to the register, and
+# the light comes on at the brightness, not at full and then down.
+boards = root / "src" / "boards"
+squeeze = lambda t: re.sub(r"\s+", "", t)
+
+
+def body(text, name):
+    m = re.search(r"\b" + name + r"\([^)]*\)\s*\{", text)
+    assert m, f"{name}() not found"
+    i, depth = m.end(), 1
+    while depth:
+        depth += {"{": 1, "}": -1}.get(text[i], 0)
+        i += 1
+    return squeeze(text[m.end():i - 1])
+
+
+assert "#defineBOARD_BACKLIGHT_PWM1" in squeeze((boards / "waveshare_s3_lcd7b" / "board_config.h").read_text()),     "the 7B does not dim its backlight (BOARD_BACKLIGHT_PWM 1)"
+assert "#defineBOARD_BACKLIGHT_PWM0" in squeeze((boards / "waveshare_s3_lcd7" / "board_config.h").read_text()),     "the 7 has no PWM for its light and must keep BOARD_BACKLIGHT_PWM 0"
+panel = (boards / "waveshare_s3_lcd7b" / "panel.cpp").read_text(encoding="utf-8")
+assert "io_ch32v003::brightness(brightness)" in body(panel, "panelSetBrightness"),     "the 7B's panelSetBrightness() does not hand the brightness to the expander"
+on = body(panel, "panelBacklightOn")
+assert "io_ch32v003::brightness(brightness)" in on and "io_ch32v003::write(hw_pins::EXIO_BACKLIGHT,true)" in on,     "the 7B's panelBacklightOn() does not set the brightness and switch the light on"
+assert on.index("io_ch32v003::brightness(") < on.index("io_ch32v003::write(hw_pins::EXIO_BACKLIGHT,true)"),     "the 7B's light comes on before its brightness is set"
 print("CH32V003 expander: ok")
