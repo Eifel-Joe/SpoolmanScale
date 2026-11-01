@@ -214,7 +214,7 @@ The 1024×600 version (16 MB flash, 8 MB PSRAM). Everything above for the 7 appl
 
 - **Its own firmware**, environment `waveshare-s3-lcd7b`. The board's I/O expander is a CH32V003 that does not speak like the 7's CH422G, so the 7's firmware cannot switch on its screen.
 - **The picture** is enlarged to the 1024×600 panel, about 14 % wider than on the WT32.
-- **Brightness** is applied to the picture as on the 7. This board could dim its backlight, but the firmware keeps it at full.
+- **Brightness** dims the backlight itself, through the PWM of the board's I/O expander (inverted, never past 97 %, as in Waveshare's driver). Dimming and "screen off" work as on the WT32.
 - **The optional PN532 reset** (GPIO6) is on the connector labelled **GPIO**.
 - **First flash** with the factory image `SpoolmanScale-waveshare-s3-lcd7b_<version>_factory.bin`, written at offset 0 as above, or with `pio run -e waveshare-s3-lcd7b -t upload`. After that it updates over WiFi with `SpoolmanScale-waveshare-s3-lcd7b.bin`.
 

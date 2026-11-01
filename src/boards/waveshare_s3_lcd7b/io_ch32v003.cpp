@@ -81,4 +81,13 @@ bool pwm(uint8_t value) {
   return writeReg(REG_PWM, value);
 }
 
+uint8_t pwmFor(uint8_t brightness) {
+  const uint8_t value = (uint8_t)(255 - brightness);
+  return value > PWM_DARKEST ? PWM_DARKEST : value;
+}
+
+bool brightness(uint8_t brightness) {
+  return pwm(pwmFor(brightness));
+}
+
 }

@@ -20,12 +20,12 @@
 #define BOARD_OTA_ASSET     "SpoolmanScale-" BOARD_ID ".bin"
 #define BOARD_VERSION_NODE  BOARD_ID
 
-// The expander has a PWM for the backlight, but for now the backlight only
-// switches, as on the 7, and the display dims the picture instead.
-// boardEarlyInit() sets the PWM to full once. The enlargement is nearest
-// neighbour from two tables and takes a strip of any size, so a redrawn area
-// needs no rounding to blocks.
-#define BOARD_BACKLIGHT_PWM     0
+// The expander has a PWM for the backlight, and the brightness setting goes
+// there (Spec 5.3 S, V21): the light itself is dimmed, not the picture. EXIO2
+// still switches it on and off. The 7 has no such PWM and dims the picture.
+// The enlargement is nearest neighbour from two tables and takes a strip of
+// any size, so a redrawn area needs no rounding to blocks.
+#define BOARD_BACKLIGHT_PWM     1
 #define BOARD_PANEL_ALIGN_X     1
 #define BOARD_PANEL_ALIGN_Y     1
 

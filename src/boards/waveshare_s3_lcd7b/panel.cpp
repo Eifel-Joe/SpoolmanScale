@@ -402,17 +402,33 @@ void panelSetNative(bool on) { s_native = on; }
 
 const uint16_t* panelGlass() { return s_fb; }
 
-// Never called: BOARD_BACKLIGHT_PWM is 0 and the display dims the picture.
+// The light itself, through the expander's PWM (Spec 5.3 S, V21): the
+// brightness setting, the dim after the idle time and the flash of a
+// screenshot all land here. One frame of 72 us on the board's bus, shared with
+// the touch chip, from the loop like the touch reads. A refusal is logged once
+// until the chip takes a value again, so a slider dragged over a dead bus does
+// not fill the log; the value is sent anew with the next brightness.
 void panelSetBrightness(uint8_t brightness) {
-  (void)brightness;
+  static bool s_refused = false;
+  const bool ok = io_ch32v003::brightness(brightness);
+  if (sd_verbose) {
+    logSDf("[verbose] Backlight: brightness %u -> PWM %u%s", (unsigned)brightness,
+           (unsigned)io_ch32v003::pwmFor(brightness), ok ? "" : " refused");
+  }
+  if (!ok && !s_refused) {
+    logSDf("Backlight: PWM %u not acknowledged by the CH32V003", (unsigned)io_ch32v003::pwmFor(brightness));
+  }
+  s_refused = !ok;
 }
 
 void panelBacklightOff() {
   io_ch32v003::write(hw_pins::EXIO_BACKLIGHT, false);
 }
 
+// The level first, so the light comes on where it was left and does not
+// flash at full before going down.
 void panelBacklightOn(uint8_t brightness) {
-  (void)brightness;
+  panelSetBrightness(brightness);
   io_ch32v003::write(hw_pins::EXIO_BACKLIGHT, true);
 }
 

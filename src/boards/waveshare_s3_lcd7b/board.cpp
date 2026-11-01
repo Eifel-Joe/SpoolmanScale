@@ -12,8 +12,8 @@
 // connector rather than on the CAN transceiver. All of that is every bit low.
 static constexpr uint8_t EXIO_AT_BOOT = 0x00;
 static constexpr uint32_t BOARD_I2C_HZ = 400000;
-// Inverted on this board: 0 is the backlight at full strength. The display
-// dims the picture instead, see BOARD_BACKLIGHT_PWM.
+// Inverted on this board: 0 is the backlight at full strength. Full until
+// the saved brightness arrives (displayPowerInit(), panelSetBrightness()).
 static constexpr uint8_t BACKLIGHT_PWM_FULL = 0;
 
 // High would hand GPIO19/20 to the CAN transceiver, and with them the USB

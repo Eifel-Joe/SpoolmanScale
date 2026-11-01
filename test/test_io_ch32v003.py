@@ -226,6 +226,6 @@ assert "#defineBOARD_BACKLIGHT_PWM0" in squeeze((boards / "waveshare_s3_lcd7" / 
 panel = (boards / "waveshare_s3_lcd7b" / "panel.cpp").read_text(encoding="utf-8")
 assert "io_ch32v003::brightness(brightness)" in body(panel, "panelSetBrightness"),     "the 7B's panelSetBrightness() does not hand the brightness to the expander"
 on = body(panel, "panelBacklightOn")
-assert "io_ch32v003::brightness(brightness)" in on and "io_ch32v003::write(hw_pins::EXIO_BACKLIGHT,true)" in on,     "the 7B's panelBacklightOn() does not set the brightness and switch the light on"
-assert on.index("io_ch32v003::brightness(") < on.index("io_ch32v003::write(hw_pins::EXIO_BACKLIGHT,true)"),     "the 7B's light comes on before its brightness is set"
+assert "panelSetBrightness(brightness);" in on and "io_ch32v003::write(hw_pins::EXIO_BACKLIGHT,true)" in on,     "the 7B's panelBacklightOn() does not set the brightness and switch the light on"
+assert on.index("panelSetBrightness(") < on.index("io_ch32v003::write(hw_pins::EXIO_BACKLIGHT,true)"),     "the 7B's light comes on before its brightness is set"
 print("CH32V003 expander: ok")

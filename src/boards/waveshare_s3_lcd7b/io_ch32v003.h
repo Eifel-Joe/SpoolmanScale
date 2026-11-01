@@ -44,4 +44,17 @@ uint32_t failures();
 // demo starts at 0 and turns its slider round (15_LVGL_SLIDER, lvgl_demo.c).
 bool pwm(uint8_t value);
 
+// The darkest register value: 97 % of 255. Waveshare's driver caps the duty
+// there, "Prevent the screen from completely turning off" (io_extension.c,
+// IO_EXTENSION_Pwm_Output()); ESPHome's component the same, 247.
+constexpr uint8_t PWM_DARKEST = 247;
+
+// The register value for a brightness of the scale, 0..255 with 255 full:
+// turned round and capped at PWM_DARKEST. Spec 5.3 S, V21.
+uint8_t pwmFor(uint8_t brightness);
+
+// pwm(pwmFor(brightness)): one frame to register 0x05, false when the chip
+// does not acknowledge it.
+bool brightness(uint8_t brightness);
+
 }
