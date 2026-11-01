@@ -6,9 +6,9 @@ name: CI
 on:
   push:
     branches: [dev, main, 'feature/**', 'fix/**', 'feat/**']
-    paths-ignore: ['manifest.json', 'index.html', 'version.json', 'webflasher/**', 'images/**', '*.md']
+    paths-ignore: ['images/**', '*.md']
   pull_request:
-    paths-ignore: ['manifest.json', 'index.html', 'version.json', 'webflasher/**', 'images/**', '*.md']
+    paths-ignore: ['images/**', '*.md']
   # Run workflow in the Actions tab: builds the documentation firmware (job
   # doc). The other jobs run as well, on the branch that was picked.
   workflow_dispatch:

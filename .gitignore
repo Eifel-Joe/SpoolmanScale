@@ -4,8 +4,6 @@
 # Nur diese explizit erlauben
 !src/
 !src/**
-!webflasher/
-!webflasher/**
 # The page the release workflow publishes to gh-pages as the web flasher.
 !flasher/
 !flasher/**
@@ -46,9 +44,6 @@ images/images_not_for_github/
 !partitions.csv
 !copy_release.py
 !lvgl_speed.py
-!manifest.json
-!version.json
 !README.md
 !BUILDING.md
-!index.html
 !.gitignore
