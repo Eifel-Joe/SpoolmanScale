@@ -215,6 +215,22 @@ static_assert(KL_EN == 0 && KL_DE == 1 && KL_FR == 2, "the languages");
 static_assert(KP_LOWER == 0 && KP_UPPER == 1 && KP_SPECIAL == 2 && KP_ACCENTS == 3, "the pages");
 static_assert(KF_LETTER == 0 && KF_CHECKED == 1 && KF_CTRL == 2 && KF_PLAIN == 3, "the flags");
 
+// A key's control word as LVGL 8.3.11 writes it (lv_btnmatrix.h lines 36 to
+// 42, lv_keyboard.h line 32, the maps of lv_keyboard.c lines 55 to 86),
+// spelled out here so the tables are held to LVGL, not to themselves: the
+// width in the low four bits, a letter with the popover bit 0x0400, a checked
+// key with 0x0100, a control key with NO_REPEAT 0x0020, CLICK_TRIG 0x0200
+// and CHECKED, the space bar its width alone (n28: the words are constants
+// in flash, no longer built in RAM).
+static uint16_t wantWord(uint8_t flag, uint8_t width) {
+  switch (flag) {
+    case 0: return (uint16_t)(0x0400 | width);
+    case 1: return (uint16_t)(0x0100 | width);
+    case 2: return (uint16_t)(0x0020 | 0x0200 | 0x0100 | width);
+    default: return width;
+  }
+}
+
 struct Want {
   KeyLang lang;
   KeyPage page;
@@ -278,7 +294,7 @@ static void check(const Want& w) {
     expect(false, w.name, -1, "keyLayoutGet() has no such page");
     return;
   }
-  if (!m.keys || !m.widths || !m.flags) {
+  if (!m.keys || !m.widths || !m.flags || !m.ctrl) {
     expect(false, w.name, -1, "a table is missing");
     return;
   }
@@ -301,6 +317,7 @@ static void check(const Want& w) {
     if (key < w.count && key < m.count) {
       expect(m.widths[key] == w.widths[key], w.name, key, "another width");
       expect(m.flags[key] == w.flags[key], w.name, key, "another flag");
+      expect(m.ctrl[key] == wantWord(w.flags[key], w.widths[key]), w.name, key, "another control word");
     }
     // The WiFi password is typed in ASCII: nothing beyond it but the symbols.
     if (w.wifi) expect(isControl(got) || ascii(got), w.name, key, "a byte of 0x80 or more on the WiFi keys");

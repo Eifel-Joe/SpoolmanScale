@@ -76,4 +76,16 @@ for key in ("BACKSPACE", "NEW_LINE", "KEYBOARD", "LEFT", "RIGHT", "OK"):
     assert pair, f"src/{MAPS}: no static_assert holds KEY_SYM_{key} to LV_SYMBOL_{key}"
 assert "constexpr" in maps, f"src/{MAPS}: the symbols are not compared by a constexpr function"
 
+# 4. The control words are the tables' constants (n28): LVGL only reads them
+# (lv_keyboard_update_ctrl_map() copies before it changes a bit), so they lie
+# in flash like LVGL's own, and no array of control words is kept in RAM.
+# The bits the tables spell are held to the build's LVGL.
+assert "lv_btnmatrix_ctrl_t" not in re.sub(r"static_assert\([^;]*;", "", maps),     f"src/{MAPS}: keeps control words of its own instead of the tables' constants"
+assert re.search(r"lv_keyboard_set_map\(kb,KEY_MODE\[p\],const_cast<constchar\*\*>\(m\.keys\),m\.ctrl\)", maps),     f"src/{MAPS}: lv_keyboard_set_map() is not handed the table's control words m.ctrl"
+for ours, lvgls in (("KEY_CTRL_POPOVER", "LV_BTNMATRIX_CTRL_POPOVER"), ("KEY_CTRL_CHECKED", "LV_BTNMATRIX_CTRL_CHECKED"),
+                    ("KEY_CTRL_BTN_FLAGS", "LV_KEYBOARD_CTRL_BTN_FLAGS")):
+    assert [a for a in asserts if ours in a and lvgls in a], f"src/{MAPS}: no static_assert holds {ours} to {lvgls}"
+layout_h = squeeze(cc.Source((src / "services" / "key_layout.h").read_text(encoding="utf-8")).code)
+assert "constuint16_t*ctrl;" in layout_h, "src/services/key_layout.h: KeyMap has no control words (ctrl)"
+
 print("keyboards: ok")
