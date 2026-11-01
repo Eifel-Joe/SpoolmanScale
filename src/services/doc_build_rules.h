@@ -14,8 +14,11 @@
 //  the pad, so a screen shows a real-looking reading. The documentation
 //  firmware goes one step further: to keep a simulated weight or a wrong tap
 //  away from real data it only reads from servers and refuses every writing
-//  request (docRequestAllowed). The acceptance firmware must write - it sends
-//  weights, creates and deletes test spools - so it has no such lock.
+//  request (docRequestAllowed), sends no label to a printer
+//  (docLabelNotPrinted in label_printer.cpp) and writes no tag
+//  (docTagWriteRefused in hardware/nfc.cpp). The acceptance firmware must
+//  write - it sends weights, creates and deletes test spools - so it has no
+//  such lock.
 //
 //  A simulated weight is meant for a test spool. The scale is used normally
 //  after an acceptance, so one that is forgotten must never reach a real

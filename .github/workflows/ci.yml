@@ -383,11 +383,12 @@ jobs:
           retention-days: 1
 
   # The documentation firmware: the acceptance firmware that also writes
-  # nothing to any server and shows no update dot (SSC_DOC_BUILD, set by the
-  # environment waveshare-s3-lcd7b-doku), for the screenshots of the
-  # documentation. On request only (Run workflow, with the branch picked):
-  # nobody needs it with every push. Its artifact is kept one day for the
-  # reason given at the acceptance job, and it is never a release file either.
+  # nothing to any server, printer or tag and shows no update dot
+  # (SSC_DOC_BUILD, set by the environment waveshare-s3-lcd7b-doku), for the
+  # screenshots of the documentation. On request only (Run workflow, with the
+  # branch picked): nobody needs it with every push. Its artifact is kept one
+  # day for the reason given at the acceptance job, and it is never a release
+  # file either.
   doc:
     name: Documentation firmware (waveshare-s3-lcd7b)
     if: github.event_name == 'workflow_dispatch'

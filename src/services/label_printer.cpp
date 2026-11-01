@@ -526,6 +526,23 @@ bool labelPrinterRasterFits(LabelPrinterModel model, const LabelRaster& image,
          nearDots(image.height, labelPrinterContentHeight(model, media_width_mm, media_length_mm));
 }
 
+#if defined(SSC_DOC_BUILD)
+// Documentation firmware only (services/doc_build_rules.h): no label leaves
+// the scale, over WLAN or Bluetooth. Wurzel: Spec 5.3 AA locks every way
+// out, and the firmware of beta.14 locked only the servers (Punkteliste
+// n54). Fix: this is the one door to the three drivers, and here none of
+// their calls is compiled; the answer is the one a printer gives once it has
+// the label (a Brother's "sent", any other's "printed"), so the card and a
+// run of labels go on as they do for a user, and the log says nothing went
+// out. NOT-TO-DO: an error instead, it would end a run of labels at the first
+// and leave the camera nothing but the error card; a lock in the drivers,
+// a NIIMBOT talks back and could not be answered without its printer.
+// test_build_variants.py holds the door shut.
+static LabelPrintResult docLabelNotPrinted(const LabelPrinterProfile& p) {
+  logSDf("Doc build: label not printed (%s), nothing goes to a printer", p.name);
+  return p.protocol == LP_PROTO_BROTHER_QL ? LP_NET_SENT : LP_OK;
+}
+#else
 // What the transport says, in the printer's terms; both drivers share it.
 static LabelPrintResult fromBle(BleWriteResult r) {
   switch (r) {
@@ -588,6 +605,7 @@ static LabelPrintResult printBrother(const LabelPrinterConfig& c, const LabelRas
   if (!label) return LP_MEDIA_MISMATCH;
   return fromBrother(brotherQlPrint(c.address, *label, image, progress));
 }
+#endif  // SSC_DOC_BUILD
 
 LabelPrintResult labelPrinterPrint(const LabelPrinterConfig& c, const LabelRaster& image,
                                    BleProgressFn progress) {
@@ -597,10 +615,15 @@ LabelPrintResult labelPrinterPrint(const LabelPrinterConfig& c, const LabelRaste
   if (image.width > p.max_raster_width) return LP_TOO_WIDE;
   if (!labelPrinterRasterFits(c.model, image, c.media_width_mm, c.media_length_mm))
     return LP_MEDIA_MISMATCH;
+#if defined(SSC_DOC_BUILD)
+  (void)progress;
+  return docLabelNotPrinted(p);
+#else
   if (p.protocol == LP_PROTO_NIIMBOT) return printNiimbot(p, c, image, progress);
   if (p.protocol == LP_PROTO_BROTHER_QL) return printBrother(c, image, progress);
   const PhomemoModel pm = p.protocol == LP_PROTO_PHOMEMO_M220 ? PHOMEMO_M220 : PHOMEMO_M110;
   return fromBle(phomemoMSeriesPrint(pm, c.address, image, progress));
+#endif
 }
 
 int labelPrintResultString(LabelPrintResult r) {

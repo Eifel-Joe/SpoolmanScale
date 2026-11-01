@@ -3,6 +3,25 @@
 #include <Adafruit_PN532.h>
 #include <string.h>
 
+#if defined(SSC_DOC_BUILD)
+#include "sd_logger.h"
+
+// Documentation firmware only (services/doc_build_rules.h): no tag is
+// written. Wurzel: Spec 5.3 AA locks every way out, and the firmware of
+// beta.14 locked only the servers (Punkteliste n54). Fix: the reader's two
+// writing commands are called here and nowhere else, and this build compiles
+// neither; a write is refused like one the tag did not take, so every job,
+// NTAG, MIFARE or erase, stops there with its usual error, and the screens
+// before it can still be reached. NOT-TO-DO: answer "written", what a job
+// wrote is read back afterwards, and it would fail there anyway.
+// test_build_variants.py holds the door shut.
+static bool docTagWriteRefused(const char* what, uint8_t at) {
+  logSDf("Doc build: tag write refused (%s %u), the documentation firmware writes no tag", what,
+         (unsigned)at);
+  return false;
+}
+#endif
+
 static Adafruit_PN532* nfc = nullptr;
 static constexpr uint8_t MIFARE_SECTOR_READ_ATTEMPTS = 3;
 
@@ -165,10 +184,15 @@ bool nfcAuthMifareSector(int sector, const uint8_t key[6], const uint8_t uid[4],
 }
 
 bool nfcWriteMifareBlock(uint8_t block, const uint8_t data[16]) {
+#if defined(SSC_DOC_BUILD)
+  (void)data;
+  return docTagWriteRefused("MIFARE block", block);
+#else
   if (!nfc) return false;
   uint8_t d[16];
   memcpy(d, data, 16);
   return nfc->mifareclassic_WriteDataBlock(block, d);
+#endif
 }
 
 bool nfcReadNtagPage(uint8_t page, uint8_t* data) {
@@ -181,5 +205,10 @@ bool nfcReadNtagPage(uint8_t page, uint8_t* data) {
 }
 
 bool nfcWriteNtagPage(uint8_t page, uint8_t* data) {
+#if defined(SSC_DOC_BUILD)
+  (void)data;
+  return docTagWriteRefused("NTAG page", page);
+#else
   return nfc && nfc->ntag2xx_WritePage(page, data);
+#endif
 }
