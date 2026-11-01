@@ -26,7 +26,10 @@ bool docTouchPoint(int16_t& x, int16_t& y);
 // A real finger came: the web touch ends at once.
 void docTouchCancel();
 
-// A simulated weight from now on; it ends by itself after DOC_SIM_MAX_MS.
+// A simulated weight from now on; it ends by itself after DOC_SIM_MAX_MS. The
+// auto-tare holds off while it runs (app_loop.cpp), but a tare or calibration
+// that a person starts is not guarded: it would store the simulated reading as
+// the zero or the factor. Set it off first.
 void  docSimSet(float grams);
 void  docSimOff();
 bool  docSimActive();

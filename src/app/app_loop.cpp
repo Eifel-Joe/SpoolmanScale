@@ -1509,9 +1509,15 @@ void appLoop() {
     // deliberately: a tag in range, a spool adopted without one, or a popup
     // that is about to use the weight, or the calibration screen, where the
     // zero the user just set has to hold until the factor is computed.
+    //
+    // Also while a weight is simulated (acceptance and documentation builds,
+    // SSC_ACCEPTANCE, never in a release; the stub says false there): a
+    // simulated 0.5 to 5 g is steady and looks like drift, so the tare would
+    // move the stored zero by it, write that to flash and survive the end of
+    // the simulation and the restart.
     const bool calibrating = scr_factor && !lv_obj_has_flag(scr_factor, LV_OBJ_FLAG_HIDDEN);
     scaleAutoTareTick(!tag_present && !aw_adopted && !idSpoolActive() && !calibrating && !isConfirmPopupOpen() &&
-                      !isTareEntryOpen() && !isSpoolWeightScopeOpen(),
+                      !isTareEntryOpen() && !isSpoolWeightScopeOpen() && !docSimActive(),
                       scale_filter_full ? (hi - lo) : 0.0f);
 
     // Keep the reference fresh only while the tag is genuinely being read.

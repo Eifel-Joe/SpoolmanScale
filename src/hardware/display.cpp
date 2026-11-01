@@ -203,6 +203,12 @@ static_assert(DISPLAY_W_PX % BOARD_PANEL_ALIGN_X == 0 && DISPLAY_H_PX % BOARD_PA
 static void lvgl_touch(lv_indev_drv_t *drv, lv_indev_data_t *data) {
   PanelTouchPoint tp[TOUCH_POINTS_READ];
   const uint8_t points = panelTouchRead(tp, TOUCH_POINTS_READ);
+  // Acceptance and documentation builds (SSC_ACCEPTANCE, never in a release): a
+  // real finger ends a touch from the web at once. Asked here, before the
+  // gesture below can return: two fingers (the screenshot gesture) took that
+  // early return and left the web touch running, to press again once the
+  // fingers lifted. The stub is empty in a release.
+  if (points > 0) docTouchCancel();
   const bool gesture = touch_gesture_hook && touch_gesture_hook(points);
   if (gesture && !touch_held_by_gesture) dropPressForGesture();
   touch_held_by_gesture = gesture;
@@ -211,14 +217,11 @@ static void lvgl_touch(lv_indev_drv_t *drv, lv_indev_data_t *data) {
     if (touch_activity_callback) touch_activity_callback();
     return;
   }
-  // Acceptance and documentation builds (SSC_ACCEPTANCE, never in a release): a
-  // real finger ends a touch from the web at once; without one, the web touch
-  // is reported as if a finger were there. The stubs make this a no-op in a
-  // release (points > 0 -> nothing to cancel, no web touch -> falls through).
+  // Without a finger, a touch from the web is reported as if one were there
+  // (the cancel above has already ended it when one is). The stub says no
+  // touch in a release, so this falls through to the code it was.
   int16_t doc_x = 0, doc_y = 0;
-  if (points > 0) {
-    docTouchCancel();
-  } else if (docTouchPoint(doc_x, doc_y)) {
+  if (points == 0 && docTouchPoint(doc_x, doc_y)) {
     data->state = LV_INDEV_STATE_PR;
     data->point.x = doc_x;
     data->point.y = doc_y;
