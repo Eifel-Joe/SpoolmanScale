@@ -1,4 +1,4 @@
-"""Read the source tree without a compiler and check that the update path asks this fork and not the original: the repo and the pages address are each defined once in app_config.h, the release download, the version check and the flasher take them from there, no file under src/ still names the original's repo or its pages root, and the links that must stay with the original (the manual, the FilaMan plugin, the Ko-fi, Discord and MakerWorld codes) are still there. The checks by hand read the version file the daily check reads, through the same choice of release, nothing asks GitHub for its release list, and the checksum goes with every tag a check found."""
+"""Read the source tree without a compiler and check that the update path asks this fork and not the original: the repo and the pages address are each defined once in app_config.h, the release download, the version check and the flasher take them from there, no file under src/ still names the original's repo or its pages root, and the links that must stay with the original (its manual's page of recommended printers, the FilaMan plugin, the Ko-fi, Discord and MakerWorld codes) are still there. The manual itself is this fork's documentation, on the info screen as well, and the original's old flasher files (webflasher/, manifest.json, index.html, version.json) are not in the repository root, nor whitelisted in .gitignore. The checks by hand read the version file the daily check reads, through the same choice of release, nothing asks GitHub for its release list, and the checksum goes with every tag a check found."""
 import re
 import sys
 from pathlib import Path
@@ -47,17 +47,40 @@ DEFINE_USERS = [
 INCLUDE_CONFIG = re.compile(r'^\s*#include\s+"app_config\.h"', re.MULTILINE)
 
 # What belongs to the original and must not disappear with the update source:
-# the manual, the FilaMan plugin, and the codes of the info screen and the
-# test label but GitHub's (Ko-fi, Discord, MakerWorld, the manual).
+# the original's manual for its page of recommended printers (with the shop
+# links, which only it has), the FilaMan plugin, and the codes of the info
+# screen and the test label but GitHub's and the manual's (Ko-fi, Discord,
+# MakerWorld).
 KEPT = [
-    ("app_config.h", 'DOCS_URL "https://niko11111.github.io/SpoolmanScale-Docs/"'),
+    ("app_config.h", 'ORIGINAL_DOCS_URL "https://niko11111.github.io/SpoolmanScale-Docs/"'),
     ("app_config.h", 'DONATION_URL "ko-fi.com/formfollowsfunction"'),
     ("web/pages/page_backend_embed.cpp", "Niko11111/filaman-spoolmanscale-plugin"),
     ("ui/info_screen.cpp", '"https://ko-fi.com/formfollowsfunction"'),
     ("ui/info_screen.cpp", '"https://discord.gg/K3KmKnrWhP"'),
     ("ui/info_screen.cpp", '"https://makerworld.com/de/@FormFollowsF/upload"'),
-    ("ui/info_screen.cpp", '"https://niko11111.github.io/SpoolmanScale-Docs/"'),
+    ("ui/info_screen.cpp", 'ORIGINAL_DOCS_URL "de/use/printers/"'),
+    ("web/pages/page_printer.cpp", 'ORIGINAL_DOCS_URL "de/use/printers/"'),
 ]
+
+# The manual is this fork's own documentation (Spec 5.3 T, V55): it describes
+# what the fork does differently and links to the original's for the rest.
+# The info screen's manual tile and its QR code lead there; the original's
+# manual stays reachable only through ORIGINAL_DOCS_URL, for the page of
+# recommended printers that this fork's documentation does not have.
+DOCS_DEFINE = re.compile(r'^\s*#define\s+DOCS_URL\s+"https://eifel-joe\.github\.io/SpoolmanScale-Docs/"\s*(?://.*)?$',
+                         re.MULTILINE)
+DOCS_DISPLAY = '"eifel-joe.github.io/SpoolmanScale-Docs"'
+ORIGINAL_DOCS = "niko11111.github.io/SpoolmanScale-Docs"
+
+# Files the original once served its web flasher and version check from, in
+# the repository root: the folder webflasher/ (its firmware 0.8.2), the
+# flasher page, its manifest and its version file. This fork publishes
+# version.json and the flasher on gh-pages (VERSION_FILE_URL, the release
+# workflow's "Publish to gh-pages", the page from flasher/index.html), and
+# nothing reads these; they only showed an old firmware to anyone looking.
+# .gitignore whitelists what the repository carries, so they must not be
+# whitelisted either, or a build's stray copy would show up to be committed.
+LEGACY = ["webflasher", "manifest.json", "index.html", "version.json"]
 
 errors = []
 
@@ -110,6 +133,55 @@ for rel, needle in KEPT:
     text = read(rel)
     if text is not None and needle not in text:
         errors.append(f"src/{rel}: lost {needle}")
+
+# 5b. The manual is this fork's documentation: DOCS_URL is defined so, and the
+# info screen's manual entry (QR_DOCS, the fifth of its arrays, held there by
+# a static_assert) is DOCS_URL and shows its address; the original's manual is
+# not spelled out in the info screen at all.
+
+
+def array_entries(text, name):
+    """The entries of `static const char* <name>[QR_COUNT] = { ... };`, comments
+    at the line ends dropped, each stripped; None when there is no such array."""
+    match = re.search(r"\b" + re.escape(name) + r"\s*\[\s*QR_COUNT\s*\]\s*=\s*\{(.*?)\};", text, re.DOTALL)
+    if not match:
+        return None
+    # A comment runs from // to the line end and holds no quote; the // of an
+    # address in a string is followed by its closing quote.
+    body = re.sub(r'//[^"\n]*$', "", match.group(1), flags=re.MULTILINE)
+    return [entry.strip() for entry in body.split(",") if entry.strip()]
+
+
+if config is not None and not DOCS_DEFINE.search(config):
+    errors.append('src/app_config.h: no #define DOCS_URL "https://eifel-joe.github.io/SpoolmanScale-Docs/"')
+info = read("ui/info_screen.cpp")
+if info is not None:
+    if not re.search(r"static_assert\s*\(\s*QR_DOCS\s*==\s*4\b", info):
+        errors.append("src/ui/info_screen.cpp: no static_assert(QR_DOCS == 4 ...), the manual's place in the arrays")
+    urls = array_entries(info, "QR_URLS")
+    shown = array_entries(info, "QR_URLS_DISPLAY")
+    if urls is None or len(urls) < 5 or urls[4] != "DOCS_URL":
+        errors.append(f"src/ui/info_screen.cpp: the manual's entry of QR_URLS is not DOCS_URL "
+                      f"({urls[4] if urls and len(urls) > 4 else 'missing'})")
+    if shown is None or len(shown) < 5 or shown[4] != DOCS_DISPLAY:
+        errors.append(f"src/ui/info_screen.cpp: the manual's entry of QR_URLS_DISPLAY is not {DOCS_DISPLAY} "
+                      f"({shown[4] if shown and len(shown) > 4 else 'missing'})")
+    if ORIGINAL_DOCS.lower() in info.lower():
+        errors.append(f"src/ui/info_screen.cpp: still spells out the original's manual ({ORIGINAL_DOCS}); "
+                      "the manual is DOCS_URL, the printers page ORIGINAL_DOCS_URL")
+
+# 5c. The original's old flasher files are gone from the repository root, and
+# .gitignore does not let them back in.
+for name in LEGACY:
+    if (root / name).exists():
+        errors.append(f"{name}: the original's old flasher file is still in the repository root "
+                      "(this fork publishes version.json and the flasher on gh-pages)")
+gitignore = root / ".gitignore"
+if gitignore.is_file():
+    for number, line in enumerate(gitignore.read_text(encoding="utf-8").splitlines(), 1):
+        whitelisted = line.strip().rstrip("/*").lstrip("!").rstrip("/")
+        if line.strip().startswith("!") and whitelisted in LEGACY:
+            errors.append(f".gitignore:{number}: still whitelists {line.strip()}")
 
 # 6. The checks by hand read the file the daily check reads (STATUS 33, 34).
 # GitHub's release list, which "Check" on the scale and the web page used to
