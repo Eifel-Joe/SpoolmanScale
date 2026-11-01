@@ -118,7 +118,7 @@ The web flasher and `version.json`, the file a scale reads to find an update, ar
 [![Downloads of the latest stable release](https://img.shields.io/github/downloads/Eifel-Joe/SpoolmanScale/latest/total?style=for-the-badge&label=latest%20stable&color=28d49a)](https://github.com/Eifel-Joe/SpoolmanScale/releases/latest)
 [![Downloads of the newest release, pre-releases included](https://img.shields.io/github/downloads-pre/Eifel-Joe/SpoolmanScale/latest/total?style=for-the-badge&label=newest%20incl.%20pre-release&color=28d49a)](https://github.com/Eifel-Joe/SpoolmanScale/releases)
 
-The counts are GitHub's downloads of the files on the Releases page: a scale that installs an update through "Update via GitHub" counts once, and so does a file downloaded by hand. The web flasher's files are not counted.
+The counts are GitHub's downloads of the files on the Releases page: a scale that installs an update through "Update via GitHub" counts once, and so does a file downloaded by hand. They also include downloads by automated programs and by this fork's own tests, so they do not tell how many people use the firmware. The web flasher's files are not counted.
 
 ## Documentation
 
