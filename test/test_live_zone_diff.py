@@ -63,9 +63,10 @@ def main():
         assert width(text, sizes[-1]) <= room, f"{text} does not fit {room} px even in {sizes[-1]}"
 
     # Both diffs are placed at DIFF_X and set through liveZoneSetDiff().
-    for build in ("buildWithBag", "buildBare"):
+    for build, labels in (("buildWithBag", ("lbl_raw_info", "lbl_bag_sm_diff")), ("buildBare", ("lbl_raw_info",))):
         body = body_of(ZONE, build)
-        assert body.count("diff(") >= 1 and "value(344," not in body, f"src/{ZONE}: {build}() places a diff by hand"
+        for label in labels:
+            assert f"{label}=diff(" in body, f"src/{ZONE}: {build}() places {label} by hand, not through diff()"
     setter = body_of(ZONE, "liveZoneSetDiff")
     for needle in ("lv_txt_get_size(", "DIFF_RIGHT-DIFF_X", "lv_obj_set_style_text_font(", "lv_obj_set_y("):
         assert needle in setter, f"src/{ZONE}: liveZoneSetDiff() lacks {needle}"

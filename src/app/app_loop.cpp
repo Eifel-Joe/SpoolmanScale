@@ -1594,7 +1594,7 @@ void appLoop() {
         float sm_diff = netto - sm_remaining;
         char sd_str[16];
         snprintf(sd_str, sizeof(sd_str), sm_diff >= 0 ? "+%.0f g" : "%.0f g", sm_diff);
-        lv_label_set_text(lbl_raw_info, sd_str);
+        liveZoneSetDiff(lbl_raw_info, sd_str);   // the font that fits its column
         lv_obj_set_style_text_color(lbl_raw_info,
           sm_diff >= 0 ? lv_color_hex(UI_COL_OK_TEXT_2) : lv_color_hex(UI_COL_BAD), 0);
       }
@@ -1628,7 +1628,7 @@ void appLoop() {
           float bag_diff = ohne_beutel - sm_remaining;
           char bd_str[16];
           snprintf(bd_str, sizeof(bd_str), bag_diff >= 0 ? "+%.0f g" : "%.0f g", bag_diff);
-          lv_label_set_text(lbl_bag_sm_diff, bd_str);
+          liveZoneSetDiff(lbl_bag_sm_diff, bd_str);
           lv_obj_set_style_text_color(lbl_bag_sm_diff,
             bag_diff >= 0 ? lv_color_hex(UI_COL_OK_TEXT_2) : lv_color_hex(UI_COL_BAD), 0);
         }
