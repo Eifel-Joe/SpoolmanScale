@@ -108,6 +108,8 @@ The same files are on the [Releases page](https://github.com/Eifel-Joe/SpoolmanS
 
 The files without a version in their name are what a scale downloads when it updates itself; each board takes its own.
 
+The web flasher and `version.json`, the file a scale reads to find an update, are published on this fork's GitHub Pages (branch `gh-pages`), the firmware files on the Releases page. The source tree carries neither.
+
 **Updates** come from this fork, not from the original: **Settings → System → Firmware Update → Update via GitHub**, or the firmware page of the web interface. Switch on **Pre-release** there for the 0.8.6 pre-releases. A scale that runs the original (or another fork) moves over once by hand: web interface → Firmware → upload your board's file without `_factory`; the settings are kept.
 
 [![Latest Release](https://img.shields.io/github/v/release/Eifel-Joe/SpoolmanScale?style=for-the-badge&color=28d49a)](https://github.com/Eifel-Joe/SpoolmanScale/releases/latest)
