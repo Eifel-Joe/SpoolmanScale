@@ -305,8 +305,12 @@ void buildPrinterScreen() {
     if (!have) copyT(buf_s, sizeof(buf_s), STR_PRN_DEVICE_NONE);
     else snprintf(buf_s, sizeof(buf_s), "%s  %s", c.name[0] ? c.name : T(STR_BT_UNNAMED), c.address);
     lv_obj_t *btn = makeListBtn(list, LV_SYMBOL_BLUETOOTH, buf_t, buf_s, have);
+    // Hides this screen rather than closing it, and leads on to the device
+    // list and the label printer screen, never back to the sheet: the way
+    // back ends here as on a close (n27: a run would wait for it).
     lv_obj_add_event_cb(btn, [](lv_event_t *e){
       logSD("BTN: Printer -> Devices");
+      s_back_to_sheet = false;
       show_ble_devices_pending = true;
     }, LV_EVENT_CLICKED, NULL); }
 
