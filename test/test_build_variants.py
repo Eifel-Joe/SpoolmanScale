@@ -2,9 +2,16 @@
 
 What the switches switch is read the way the preprocessor reads it, as far as `defined(...)` goes: each file is read three times, for a release (no switch), for the acceptance firmware (-DSSC_ACCEPTANCE) and for the documentation firmware (-DSSC_DOC_BUILD alone), following the project's own #include "..." lines, and the code that is left is what is checked: the files of the two builds are empty in a release, their header stubs take over, the write lock of the documentation build is not there in the acceptance firmware (it would refuse every send of an acceptance), and a release carries no route of the acceptance build. The routes /api/touch and /api/sim/weight are spelled in src/web/web_doc.cpp and nowhere else in src/, comments included, so that the text search of the release run needs no exceptions.
 
+The build files are read for the same purpose: platformio.ini sets a switch in the two environments waveshare-s3-lcd7b-abnahme (-DSSC_ACCEPTANCE) and waveshare-s3-lcd7b-doku (-DSSC_DOC_BUILD alone), both extending the 7B's, and in no other section; neither workflow's build matrix nor the release workflow's list of boards names them; ci.yml builds the acceptance firmware in a job of its own for a push to a work branch (not dev, not main, not a pull request), proves that firmware.bin holds /api/touch before it uploads it for one day, and builds the documentation firmware in a job that runs on request only. The `if:` of those jobs is evaluated for a push, a pull request and a manual run, and the proof step is run with bash against sample files.
+
 The rules (services/doc_build_rules.h) have their own test with a compiler, test_doc_build_rules.py; the version ranking has test_version_compare.py; what the release run does with these texts has test_release_workflow.py."""
+import json
+import os
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 root = Path(__file__).parents[1]
@@ -523,6 +530,334 @@ for rel, name in (("ui/main_screen.cpp", "buildUI"), ("ui/info_screen.cpp", "inf
         expect(f"src/{rel}: {name}() must call fwVersionShown()", re.search(r"\bfwVersionShown\s*\(\s*\)", body) is not None)
     expect(f"src/{rel}: must not mention a switch (fwVersionShown() carries it)",
            re.search(r"\bSSC_(ACCEPTANCE|DOC_BUILD)\b", source.code_str) is None)
+
+# ------------------------------------------------------------------ 8. the build environments
+# The switches come from two environments of their own, extending the 7B's, and
+# from nowhere else: not from [common] or [env] (every board would carry the
+# remote control), not from a board's environment (a release builds those),
+# not from default_envs (a plain `pio run` would build them). Each of the two
+# sets exactly its own switch; the documentation environment sets
+# SSC_DOC_BUILD alone, app_config.h derives the other.
+INI = root / "platformio.ini"
+ABNAHME_ENV, DOKU_ENV = "waveshare-s3-lcd7b-abnahme", "waveshare-s3-lcd7b-doku"
+BASE_ENV = "waveshare-s3-lcd7b"
+
+
+def read_ini(path):
+    """{section: {key: value}} of a PlatformIO ini: full-line comments dropped,
+    an indented line continues the value above it (joined with newlines)."""
+    sections, current, key = {}, None, None
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        stripped = raw.strip()
+        if not stripped or stripped[0] in ";#":
+            continue
+        section = re.match(r"^\[([^\]]+)\]\s*$", raw)
+        if section:
+            current, key = sections.setdefault(section.group(1), {}), None
+        elif raw[0] in " \t" and current is not None and key is not None:
+            current[key] += "\n" + stripped
+        else:
+            pair = re.match(r"^([\w.\-]+)\s*[=:]\s*(.*)$", raw)
+            if pair and current is not None:
+                key = pair.group(1)
+                current[key] = pair.group(2).strip()
+    return sections
+
+
+ini = read_ini(INI) if INI.is_file() else {}
+expect("platformio.ini: must be there", INI.is_file())
+own_sections = {f"env:{ABNAHME_ENV}", f"env:{DOKU_ENV}"}
+for section, keys in ini.items():
+    if section in own_sections:
+        continue
+    switches = sorted(set(re.findall(r"SSC_(?:ACCEPTANCE|DOC_BUILD)", " ".join(keys.values()))))
+    expect(f"platformio.ini [{section}]: must set no switch (a release builds it, or all boards inherit it)", not switches,
+           f"found {switches}")
+expect("platformio.ini [platformio]: default_envs must not name the acceptance or documentation environment",
+       not re.search(r"abnahme|doku", ini.get("platformio", {}).get("default_envs", "")))
+for env_name, flag, other in ((ABNAHME_ENV, "-DSSC_ACCEPTANCE", "SSC_DOC_BUILD"), (DOKU_ENV, "-DSSC_DOC_BUILD", "SSC_ACCEPTANCE")):
+    section = ini.get(f"env:{env_name}")
+    expect(f"platformio.ini: must have [env:{env_name}]", section is not None)
+    if section is None:
+        continue
+    expect(f"platformio.ini [env:{env_name}]: must extend env:{BASE_ENV}", section.get("extends") == f"env:{BASE_ENV}",
+           f"extends = {section.get('extends')}")
+    flags = section.get("build_flags", "")
+    expect(f"platformio.ini [env:{env_name}]: build_flags must keep the 7B's (${{env:{BASE_ENV}.build_flags}})",
+           f"${{env:{BASE_ENV}.build_flags}}" in flags, f"build_flags = {flags!r}")
+    defined = re.findall(r"-D\s*(SSC_\w+)", flags)
+    expect(f"platformio.ini [env:{env_name}]: build_flags must set {flag} and no other SSC_ switch "
+           f"(app_config.h derives the rest)", defined == [flag[2:]], f"sets {defined}")
+    expect(f"platformio.ini [env:{env_name}]: must not mention {other}", other not in " ".join(section.values()))
+
+# ------------------------------------------------------------------ 9. the workflows
+# A release builds the three boards of src/boards by their own environments:
+# neither workflow's build matrix, nor the list of the other boards of the
+# release, may name the acceptance or the documentation environment, and the
+# release workflow sets no switch by hand either (-D flags, or
+# PLATFORMIO_BUILD_FLAGS in the environment of a step). The acceptance firmware
+# is built by a job of its own in ci.yml, for a push to a work branch only:
+# the 7B's size check and board line as for any board, then the proof that
+# firmware.bin has the remote control in it (a build whose switch was lost
+# would otherwise be flashed as the acceptance firmware and show nothing),
+# then an artifact that is kept one day. The documentation firmware has a job
+# of its own, on request only (workflow_dispatch), kept one day as well.
+CI = root / ".github" / "workflows" / "ci.yml"
+RELEASE = root / ".github" / "workflows" / "build-all-boards.yml"
+
+
+def workflow_code(path):
+    """The lines of a workflow without comment-only lines."""
+    return [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip() and not line.lstrip().startswith("#")]
+
+
+def parse_job_steps(entries):
+    """[step] of a job's lines [(indent, text)]: a step is a dict with name, if,
+    uses, run (the text of a run block or a one-line run, None when there is
+    none), with ({key: value}) and text (all its lines)."""
+    start = next((at for at, (indent, line) in enumerate(entries) if indent == 4 and line == "steps:"), None)
+    if start is None:
+        return []
+    items = []
+    for indent, line in entries[start + 1:]:
+        if indent <= 4:
+            break
+        if indent == 6 and line.startswith("- "):
+            items.append([])
+        if items:
+            items[-1].append((indent, line))
+    steps = []
+    for item in items:
+        dash = item[0][0]
+        lines = [(dash + 2, item[0][1][2:])] + item[1:]
+        step = {"name": None, "if": None, "uses": None, "run": None, "with": {}, "text": "\n".join(line for _, line in lines)}
+        at = 0
+        while at < len(lines):
+            indent, line = lines[at]
+            pair = re.match(r"^([\w-]+):\s*(.*)$", line) if indent == dash + 2 else None
+            at += 1
+            if not pair:
+                continue
+            key, value = pair.groups()
+            children = []
+            while at < len(lines) and lines[at][0] > dash + 2:
+                children.append(lines[at])
+                at += 1
+            if key == "run":
+                step["run"] = "\n".join(line for _, line in children) if value.startswith("|") else value
+            elif key == "with":
+                for _, child in children:
+                    kv = re.match(r"^([\w-]+):\s*(.*)$", child)
+                    if kv:
+                        step["with"][kv.group(1)] = kv.group(2)
+            elif key in ("name", "if", "uses"):
+                step[key] = value
+        steps.append(step)
+    return steps
+
+
+def read_jobs(path):
+    """{job id: {"lines": [(indent, text)], "if": the job's if: or None, "matrix": bool, "steps": [step]}}"""
+    jobs, current, in_jobs = {}, None, False
+    for line in workflow_code(path):
+        indent = len(line) - len(line.lstrip())
+        if indent == 0:
+            in_jobs = line.strip() == "jobs:"
+            current = None
+        elif in_jobs and indent == 2 and re.match(r"^\s{2}[\w-]+:\s*$", line):
+            current = jobs.setdefault(line.strip()[:-1], {"lines": []})
+        elif in_jobs and current is not None:
+            current["lines"].append((indent, line.strip()))
+    for job in jobs.values():
+        job["if"] = next((line[3:].strip() for indent, line in job["lines"] if indent == 4 and line.startswith("if:")), None)
+        job["matrix"] = any(line.startswith("matrix:") for _, line in job["lines"])
+        job["steps"] = parse_job_steps(job["lines"])
+    return jobs
+
+
+def github_condition(expression, context):
+    """The truth of a GitHub Actions `if:` expression for a context ({'github.event_name': 'push', ...}).
+    Reads ==, !=, &&, ||, !, brackets, strings and startsWith, endsWith, contains and fromJSON;
+    ValueError for anything else."""
+    expression = re.sub(r"^\$\{\{\s*(.*?)\s*\}\}$", r"\1", expression.strip())
+    token = re.compile(r"\s*(?:(?P<string>'(?:[^']|'')*')|(?P<op>&&|\|\||==|!=|!|\(|\)|,)|(?P<name>[A-Za-z_][\w.\-]*))")
+    python, at = [], 0
+    helpers = {
+        "startsWith": lambda a, b: str(a).lower().startswith(str(b).lower()),
+        "endsWith": lambda a, b: str(a).lower().endswith(str(b).lower()),
+        "contains": lambda a, b: (str(b).lower() in [str(x).lower() for x in a]) if isinstance(a, list)
+        else str(b).lower() in str(a).lower(),
+        "fromJSON": json.loads,
+    }
+    while at < len(expression):
+        m = token.match(expression, at)
+        if not m or m.end() == at:
+            raise ValueError(f"cannot read `{expression}` at `{expression[at:at + 12]}`")
+        at = m.end()
+        if m.group("string") is not None:
+            python.append(repr(m.group("string")[1:-1].replace("''", "'")))
+        elif m.group("op") is not None:
+            python.append({"&&": " and ", "||": " or ", "!": " not "}.get(m.group("op"), m.group("op")))
+        else:
+            name = m.group("name")
+            if name in helpers:
+                python.append(f"_f['{name}']")
+            elif name in context:
+                python.append(repr(context[name]))
+            elif name in ("true", "false", "null"):
+                python.append({"true": "True", "false": "False", "null": "None"}[name])
+            else:
+                raise ValueError(f"cannot read `{expression}`: `{name}` is not a context this test knows")
+    try:
+        return bool(eval("".join(python), {"__builtins__": {}}, {"_f": helpers}))  # noqa: S307 - built from the tokens above
+    except Exception as problem:
+        raise ValueError(f"cannot read `{expression}`: {problem}")
+
+
+def event(name, ref_name):
+    """The contexts of a run: a push or a manual run on a branch, a pull request."""
+    if name == "pull_request":
+        return {"github.event_name": name, "github.ref_name": ref_name, "github.ref": f"refs/pull/{ref_name}",
+                "github.ref_type": "branch", "github.head_ref": "feat/abnahme-firmware", "github.base_ref": "dev"}
+    return {"github.event_name": name, "github.ref_name": ref_name, "github.ref": f"refs/heads/{ref_name}",
+            "github.ref_type": "branch", "github.head_ref": "", "github.base_ref": ""}
+
+
+def runs(job, name, ref_name):
+    """Whether the job runs for the event; None (with one error per if:) when
+    its if: cannot be read."""
+    if job["if"] is None:
+        return True
+    try:
+        return github_condition(job["if"], event(name, ref_name))
+    except ValueError as problem:
+        message = f"ci.yml: the if: of a job cannot be evaluated: {problem}"
+        if message not in errors:
+            errors.append(message)
+        return None
+
+
+def run_shell(script, workdir, env):
+    """The script as a step of the runner runs it (`bash -e`) in workdir; the file
+    lies beside the folder, not in it. (returncode, output), or (None, reason)."""
+    bash = shutil.which("bash")
+    if bash is None:
+        return None, "bash is not installed"
+    script_file = Path(workdir).parent / "step.sh"
+    with open(script_file, "w", encoding="utf-8", newline="\n") as handle:
+        handle.write(script + "\n")
+    try:
+        done = subprocess.run([bash, "-e", script_file.as_posix()], cwd=workdir, env={**os.environ, **env},
+                              capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
+    except (OSError, subprocess.SubprocessError) as problem:
+        return None, str(problem)
+    return done.returncode, (done.stdout + done.stderr).strip()
+
+
+# 9a. Nothing of the two builds in what a release builds.
+for path in (RELEASE, CI):
+    if not path.is_file():
+        errors.append(f".github/workflows/{path.name}: the file is missing")
+        continue
+    code = workflow_code(path)
+    for line in code:
+        for lists in re.findall(r"\benv:\s*\[([^\]]*)\]", line) + re.findall(r"\bOTHER_BOARDS:\s*(.*)$", line):
+            named = [name.strip() for name in re.split(r"[,\s]+", lists) if name.strip()]
+            expect(f"{path.name}: a build matrix or the list of the other boards must not name the acceptance or "
+                   f"documentation environment", not any(re.search(r"abnahme|doku", name) for name in named),
+                   f"names {named}")
+    if path == RELEASE:
+        for line in code:
+            if re.search(r"-D\s*SSC_|PLATFORMIO_BUILD_(SRC_)?FLAGS|PLATFORMIO_BUILD_UNFLAGS", line):
+                errors.append(f"{path.name}: the release must set no switch, found `{line.strip()[:80]}`")
+            if re.search(r"\bpio\s+run\b.*(abnahme|doku)", line):
+                errors.append(f"{path.name}: the release must not build the acceptance or documentation environment, found `{line.strip()[:80]}`")
+
+# 9b. The acceptance job and the documentation job in ci.yml.
+jobs = read_jobs(CI) if CI.is_file() else {}
+ci_text = CI.read_text(encoding="utf-8") if CI.is_file() else ""
+on_block = re.search(r"^on:\s*\n((?:[ \t]+.*\n|\s*\n)+)", ci_text, re.MULTILINE)
+expect("ci.yml: must be runnable by hand (workflow_dispatch: under on:) for the documentation firmware",
+       on_block is not None and re.search(r"^\s{2}workflow_dispatch:", on_block.group(1), re.MULTILINE) is not None)
+for env_name, label in ((ABNAHME_ENV, "acceptance"), (DOKU_ENV, "documentation")):
+    named = [job_id for job_id, job in jobs.items()
+             if any(env_name in (step["run"] or "") for step in job["steps"])]
+    expect(f"ci.yml: exactly one job must build {env_name} (`pio run -e {env_name}`)", len(named) == 1, f"{len(named)} job(s): {named}")
+    if len(named) != 1:
+        continue
+    job_id = named[0]
+    job = jobs[job_id]
+    expect(f"ci.yml job {job_id}: must not be a matrix job (the three release boards stay as they are)", not job["matrix"])
+    expect(f"ci.yml job {job_id}: must not be the job that builds the release boards", job_id not in ("build", "checks"))
+    if label == "acceptance":
+        # A push to a work branch builds it; dev, main, a pull request and a manual run do not.
+        wanted = [("push", "feat/abnahme-firmware"), ("push", "fix/lcd7b"), ("push", "feature/x")]
+        unwanted = [("push", "dev"), ("push", "main"), ("pull_request", "12/merge"), ("workflow_dispatch", "feat/abnahme-firmware")]
+    else:
+        # On request only.
+        wanted = [("workflow_dispatch", "feat/abnahme-firmware"), ("workflow_dispatch", "dev")]
+        unwanted = [("push", "feat/abnahme-firmware"), ("push", "dev"), ("push", "main"), ("pull_request", "12/merge")]
+    for name, ref in wanted:
+        if runs(job, name, ref) is False:
+            errors.append(f"ci.yml job {job_id}: must run for a {name} on {ref}, its if: is `{job['if']}`")
+    for name, ref in unwanted:
+        if runs(job, name, ref) is True:
+            errors.append(f"ci.yml job {job_id}: must not run for a {name} on {ref}, its if: is `{job['if']}`")
+    steps = job["steps"]
+    uploads = [at for at, step in enumerate(steps) if (step["uses"] or "").startswith("actions/upload-artifact@")]
+    expect(f"ci.yml job {job_id}: must upload exactly one artifact", len(uploads) == 1, f"{len(uploads)} upload(s)")
+    if len(uploads) != 1:
+        continue
+    upload = steps[uploads[0]]
+    expect(f"ci.yml job {job_id}: the artifact must be kept one day (retention-days: 1)",
+           upload["with"].get("retention-days") == "1", f"retention-days: {upload['with'].get('retention-days')}")
+    expect(f"ci.yml job {job_id}: must upload .pio/build/{env_name}/firmware.bin",
+           upload["with"].get("path") == f".pio/build/{env_name}/firmware.bin", f"path: {upload['with'].get('path')}")
+    build_at = next((at for at, step in enumerate(steps) if f"pio run -e {env_name}" in (step["run"] or "")), None)
+    expect(f"ci.yml job {job_id}: must build before it uploads", build_at is not None and build_at < uploads[0])
+    if label == "documentation":
+        continue
+    expect(f"ci.yml job {job_id}: the artifact must be named acceptance-{BASE_ENV}-${{{{ github.sha }}}}",
+           upload["with"].get("name") == f"acceptance-{BASE_ENV}-${{{{ github.sha }}}}", f"name: {upload['with'].get('name')}")
+    # The steps of the Build job that matter for an image that goes onto a scale.
+    whole = "\n".join(step["text"] for step in steps)
+    for what, needle in (("PlatformIO pinned to 6.2.0", "pip install platformio==6.2.0"),
+                         ("the pioarduino pin", "pioarduino==6.2.0"),
+                         ("the 6 MB size limit", "6291456"),
+                         ("the board line check of the 7B",
+                          f"python3 scripts/board_marker.py .pio/build/{env_name}/firmware.bin {BASE_ENV}")):
+        expect(f"ci.yml job {job_id}: must have {what} like the Build job (`{needle}`)", needle in whole)
+    # The proof that the remote control is in the image: before the upload, and it works.
+    proofs = [at for at, step in enumerate(steps) if "/api/touch" in (step["run"] or "")]
+    expect(f"ci.yml job {job_id}: exactly one step must check that firmware.bin holds /api/touch", len(proofs) == 1,
+           f"{len(proofs)} step(s)")
+    if len(proofs) == 1:
+        expect(f"ci.yml job {job_id}: the /api/touch check must come after the build and before the upload",
+               build_at is not None and build_at < proofs[0] < uploads[0])
+        script = steps[proofs[0]]["run"]
+        script = re.sub(r"\$\{\{\s*github\.sha\s*\}\}", "0" * 40, script)
+        firmware = f".pio/build/{env_name}/firmware.bin"
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp) / "work"
+            (work / firmware).parent.mkdir(parents=True)
+            body = b"\x00\x01\x02SpoolmanScale-board:" + BASE_ENV.encode() + bytes(range(256)) + b"\x00end"
+            for what, content, passes in (("holds /api/touch", body + b"\x00POST /api/touch\x00" + body, True),
+                                          ("holds no /api/touch (the switch was lost)", body, False),
+                                          ("holds /api/sim/weight but no /api/touch", body + b"\x00/api/sim/weight\x00", False)):
+                (work / firmware).write_bytes(content)
+                code, output = run_shell(script, work, {})
+                if code is None:
+                    expect(f"ci.yml job {job_id}: the /api/touch check must be runnable", False, output)
+                    break
+                expect(f"ci.yml job {job_id}: the /api/touch check must {'pass' if passes else 'fail'} when firmware.bin {what}",
+                       (code == 0) == passes, f"exit {code}, output: {output[-300:]}")
+
+# 9c. The release boards' own build job in ci.yml names no switch and none of the two environments.
+build_job = jobs.get("build")
+if build_job is not None:
+    joined = "\n".join(line for _, line in build_job["lines"])
+    expect("ci.yml job build: the matrix job of the release boards must not set a switch or build the acceptance or documentation environment",
+           not re.search(r"SSC_ACCEPTANCE|SSC_DOC_BUILD|abnahme|doku", joined))
 
 # ------------------------------------------------------------------ Verdict
 if errors:

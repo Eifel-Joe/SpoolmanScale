@@ -1,6 +1,6 @@
 """Read the release workflow as text, without running it, and check that it publishes for this fork: no own esptool merge (it fails for want of rich_click), nothing written to main (a mirror of the original) and no name of the original's repo; the factory images come from scripts/factory_image.py, the ranking, version.json, the flasher manifests and the release title from scripts/release_files.py; version.json and the flasher go to gh-pages, and only after the GitHub release exists; release and pages happen on a tag push only, and a pre-release title carries the German date; the boards built besides the matrix one are exactly the boards in src/boards, in the workflow and in release_files.py alike; one release runs at a time, and the release step fails on a file that is missing. Before anything is released, scripts/board_marker.py reads every image (the device file, the file for the browser upload and the factory image of every board) for the line of the board it is meant for, and the CI build does the same for the firmware.bin of every board: version.json carries the checksum of whatever file sits under a board's name, so a swapped file would otherwise pass the checksum, and the first failing call stops that check in any shell. The release job is shown as "Build and release all boards", not as "build (wt32-sc01-plus)": GitHub appends the matrix values to a job's name unless the name itself holds a matrix expression.
 
-The step "Read version from app_config.h" is run with bash against sample app_config.h files: the version line of a build with a switch carries a macro behind the release literal (`#define FW_VERSION  "v0.8.6-beta.14" SSC_VERSION_SUFFIX`), and the release run must still read exactly the literal, with the anchored pattern scripts/check.sh uses, or it would stop at the tag.
+The step "Read version from app_config.h" is run with bash against sample app_config.h files: the version line of a build with a switch carries a macro behind the release literal (`#define FW_VERSION  "v0.8.6-beta.14" SSC_VERSION_SUFFIX`), and the release run must still read exactly the literal, with the anchored pattern scripts/check.sh uses, or it would stop at the tag. The step before the checksums, the release and the pages that searches every attached file for the two routes of the acceptance firmware (/api/touch and /api/sim/weight) is run the same way: sample files without either text pass it, and either text planted in any one of the attached files stops it with ::error:: (a build switch that slipped into a release would otherwise ship the remote control to every user).
 
 The workflow cannot be tried before a real tag (tags are public), so this is what holds it together between releases."""
 import os
@@ -503,7 +503,75 @@ if read_script is not None:
             expect(f"step '{READ_STEP}' must fail with ::error:: when app_config.h has no FW_VERSION",
                    code != 0 and "::error::" in output, f"exit {code}, output: {output[-300:]}")
 
-# 13. Verdict.
+# 13. No route of the acceptance firmware in a release. The acceptance and
+#     documentation firmwares answer POST /api/touch and POST /api/sim/weight
+#     (src/web/web_doc.cpp, the only place in src/ that spells them); if a
+#     build switch (SSC_ACCEPTANCE, SSC_DOC_BUILD) ever slipped into a build the
+#     release publishes, the remote control would reach every user. So a step
+#     before the checksums, the release and the pages searches every file the
+#     release attaches for both texts and stops the run with ::error:: when one
+#     has either. It runs on a manual run as well (no `if:`), like the board
+#     line check: a manual run is the only way to try it without a tag. The
+#     test runs the step, as in 12, in a folder with a sample of every attached
+#     file: clean files pass, and each file with each text planted in it stops
+#     the step.
+ROUTE_TEXTS = ("/api/touch", "/api/sim/weight")
+step_names = re.findall(r"^\s*-\s*name:\s*(.*?)\s*$", text, re.MULTILINE)
+scan_steps = []
+for step_name in step_names:
+    step = step_lines(step_name)
+    step_code = [line for _, line in step[1] if line and not line.startswith("#")] if step is not None else []
+    if all(any(route in line for line in step_code) for route in ROUTE_TEXTS):
+        scan_steps.append(step_name)
+expect("must have one step that searches the attached files for /api/touch and /api/sim/weight",
+       len(scan_steps) == 1, f"{len(scan_steps)} step(s): {scan_steps}")
+if len(scan_steps) == 1:
+    scan_name = scan_steps[0]
+    scan_step = step_lines(scan_name)
+    scan_indent, scan_block = scan_step
+    scan_at = re.search(r"^\s*-\s*name:\s*" + re.escape(scan_name) + r"\s*$", text, re.MULTILINE)
+    marker_at = re.search(r"^\s*-\s*name:\s*" + re.escape(MARKER_STEP) + r"\s*$", text, re.MULTILINE)
+    json_at = re.search(r"^\s*-\s*name:\s*Update version\.json\s*$", text, re.MULTILINE)
+    if scan_at and marker_at and json_at and release_step and pages_step:
+        expect(f"step '{scan_name}' must come after the last image is built and named for its board "
+               f"(after '{MARKER_STEP}')", marker_at.start() < scan_at.start())
+        expect(f"step '{scan_name}' must come before version.json takes the checksums",
+               scan_at.start() < json_at.start())
+        expect(f"step '{scan_name}' must come before the release", scan_at.start() < release_step.start())
+        expect(f"step '{scan_name}' must come before the pages", scan_at.start() < pages_step.start())
+    expect(f"step '{scan_name}' must run on a manual run as well (no if:)",
+           not any(depth == scan_indent + 2 and line.startswith("if:") for depth, line in scan_block))
+    expect(f"step '{scan_name}' must not continue on error",
+           not any(re.match(r"^continue-on-error:\s*true\b", line) for _, line in scan_block))
+    scan_script = run_block(scan_step)
+    expect(f"step '{scan_name}' must have a `run: |` block", scan_script is not None)
+    if scan_script is not None:
+        scan_script = re.sub(r"\$\{\{\s*matrix\.env\s*\}\}", rf.TOP_BOARD, scan_script)
+        scan_script = re.sub(r"\$\{\{\s*steps\.version\.outputs\.version\s*\}\}", VERSION, scan_script)
+        attached = sorted(file for file, _ in expected_images())
+        clean = b"\x00\x01\x02SpoolmanScale-board:x\n" + bytes(range(256)) + b"\x00end"
+        scan_env = {"OTHER_BOARDS": " ".join(others), "GITHUB_REF_TYPE": "branch", "GITHUB_REF_NAME": "feat/x"}
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp) / "work"
+            work.mkdir()
+            for file in attached:
+                (work / file).write_bytes(clean)
+            code, output = run_bash(scan_script, work, scan_env)
+            if code is None:
+                expect(f"step '{scan_name}' must be runnable", False, output)
+            else:
+                expect(f"step '{scan_name}' must pass when no attached file has either text",
+                       code == 0 and "::error::" not in output, f"exit {code}, output: {output[-300:]}")
+                for file in attached:
+                    for route in ROUTE_TEXTS:
+                        (work / file).write_bytes(clean + b"\x00GET " + route.encode() + b" HTTP/1.1\x00" + clean)
+                        code, output = run_bash(scan_script, work, scan_env)
+                        expect(f"step '{scan_name}' must stop with ::error:: when {file} holds {route}",
+                               code is not None and code != 0 and "::error::" in output,
+                               f"exit {code}, output: {output[-300:]}")
+                    (work / file).write_bytes(clean)
+
+# 14. Verdict.
 if errors:
     print("release workflow: FAILED")
     for error in errors:
