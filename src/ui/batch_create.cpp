@@ -1,5 +1,6 @@
 #include "ui/batch_create.h"
 
+#include <esp_heap_caps.h>
 #include <stdint.h>
 #include <stdio.h>
 
@@ -372,11 +373,26 @@ static LabelRun       s_lr       = LR_IDLE;
 static int            s_lr_first = 0;                  // the run's first spool
 static int            s_lr_next  = 0;
 static LabelKind      s_lr_kind  = LABEL_KIND_SPOOL;
-static SpoolLabelData s_lr_data{};                     // the first's, taken at the start
+// The first's label data, taken at the start. Only while the labels run, in
+// PSRAM (n28: a static of internal RAM it held 300 bytes for good).
+static SpoolLabelData* s_lr_data = nullptr;
 
+// Room for the run's label data: PSRAM, else the internal heap; nullptr when
+// neither has it.
+static SpoolLabelData* labelDataTake() {
+  void* p = heap_caps_malloc(sizeof(SpoolLabelData), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (!p) p = heap_caps_malloc(sizeof(SpoolLabelData), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  return static_cast<SpoolLabelData*>(p);
+}
+
+// Every end of the labels passes here, and so does every start.
 static void labelsIdle() {
   s_lr = LR_IDLE;
   printCardSetStep(0, 0);
+  if (s_lr_data) {
+    heap_caps_free(s_lr_data);
+    s_lr_data = nullptr;
+  }
 }
 
 // The sheet's own print, as printerLastLabelResult() keeps its verdict: the
@@ -443,7 +459,13 @@ void batchLabelsStart(LabelKind kind, int from) {
     runLeftOut(ids, 0, n, STR_BATCH_LABELS_MISSING, "no label for");
     return;
   }
-  s_lr_data  = d;
+  s_lr_data = labelDataTake();
+  if (!s_lr_data) {
+    logSDf("Batch: no memory for the labels of the run of spool %d", d.id);
+    runLeftOut(ids, from, n, STR_BATCH_LABELS_MISSING, "no label for");
+    return;
+  }
+  *s_lr_data = d;
   s_lr_first = d.id;
   s_lr_kind  = kind;
   s_lr_next  = from;
@@ -499,11 +521,11 @@ void batchLabelsTick() {
     logSDf("Batch: all %d labels of the run of spool %d out", n, s_lr_first);
     return;
   }
-  s_lr_data.id = ids[s_lr_next];
+  s_lr_data->id = ids[s_lr_next];
   printCardSetStep(s_lr_next + 1, n);
-  const LabelPrintResult r = printerPrintSpoolData(s_lr_data, s_lr_kind);
+  const LabelPrintResult r = printerPrintSpoolData(*s_lr_data, s_lr_kind);
   printCardSetStep(0, 0);
-  logSDf("Batch: label %d of %d, spool %d, result %d", s_lr_next + 1, n, s_lr_data.id, (int)r);
+  logSDf("Batch: label %d of %d, spool %d, result %d", s_lr_next + 1, n, ids[s_lr_next], (int)r);
   if (r != LP_OK && r != LP_NET_SENT) {
     labelsIdle();
     runLeftOut(ids, s_lr_next, n, STR_BATCH_LABELS_MISSING, "no label for");
