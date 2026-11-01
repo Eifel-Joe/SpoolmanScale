@@ -163,8 +163,10 @@ static const struct { uint8_t bit; int text; } COPY_MISSING_PARTS[] = {
 // too wide ("Profile je Modell, Lieferanten" after the sentence). Fix: as
 // many parts as the line holds, in their order, measured with the label's
 // own font and width, and "..." for the rest; the log has every part.
-// NOT-TO-DO: giving lbl_status one line of height from here - the fix for
-// every status message, but a change to the main screen of every backend.
+// Since f02 lbl_status itself is one line high and dots any long message;
+// the parts stay, so a part is left out whole rather than cut in the middle.
+// NOT-TO-DO: giving lbl_status one line of height from here: main_screen.cpp
+// does that where the label is built.
 void copyCreatedStatus(uint8_t missing) {
   if (missing == CM_NONE) {
     statusMessageShow(T(STR_COPY_OK), UI_COL_GOOD);
