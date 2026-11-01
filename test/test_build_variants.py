@@ -477,8 +477,10 @@ for rel in ("services/doc_build_rules.h",):
 # that reached it would fail every send of the acceptance. Hence each of
 # these is read for all three configurations.
 #   - the writing methods of BackendHttp (sendRequest, POST, PATCH, PUT) are
-#     overridden to ask docWriteAllowed() first, in the header and in the
-#     implementation
+#     overridden to ask docRequestAllowed() first, in the header and in the
+#     implementation, with the path of the request (HTTPClient's _uri): the
+#     one POST the rule lets through, Moonraker's query of the printer
+#     objects, is told apart by its path
 #   - showUpdateBadges() sets show = false
 #   - every version text on the display comes from fwVersionShown(), which is
 #     FW_VERSION in a release and in the acceptance firmware (it says -abnahme
@@ -501,11 +503,15 @@ for rel, pattern in (("services/backend_http.h", r"\bint\s+{name}\s*\("),
                        not found)
 backend = "services/backend_http.cpp"
 for config in CONFIGS:
-    asks = re.search(r"\bdocWriteAllowed\s*\(", visible(config, backend)) is not None
+    text = visible(config, backend)
+    asks = re.search(r"\bdocRequestAllowed\s*\(", text) is not None
     if config == "doc":
-        expect(f"src/{backend}: the documentation firmware must ask docWriteAllowed() before it sends", asks)
+        expect(f"src/{backend}: the documentation firmware must ask docRequestAllowed() before it sends", asks)
+        expect(f"src/{backend}: the documentation firmware must hand docRequestAllowed() the path of the request "
+               "(_uri.c_str()), or Moonraker's object query cannot be told from a write",
+               re.search(r"\bdocRequestAllowed\s*\(\s*\w+\s*,\s*_uri\.c_str\s*\(\s*\)\s*\)", text) is not None)
     else:
-        expect(f"src/{backend}: the {config} build must not ask docWriteAllowed() (it would refuse a send)", not asks)
+        expect(f"src/{backend}: the {config} build must not ask docRequestAllowed() (it would refuse a send)", not asks)
 
 badges = "ui/update_badges.cpp"
 for config in CONFIGS:

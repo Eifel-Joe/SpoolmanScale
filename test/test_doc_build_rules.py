@@ -1,4 +1,4 @@
-"""Compile the rules of the acceptance and documentation builds (services/doc_build_rules.h) and check them: a touch from the web interface (a tap, a long press or a swipe, in the coordinates of the 480x320 interface, refused outside it), where the finger is at a moment of a swipe and when it lifts, the raw reading that makes the scale show a simulated weight, when a simulated weight runs out (15 minutes, also over the wrap of millis()), and that the documentation build only reads from a server: GET and HEAD pass, every writing method is refused. These builds exist for the acceptance of a beta and for the screenshots of the documentation and are never released. The rules themselves are compiled without a switch, so that this test always sees them."""
+"""Compile the rules of the acceptance and documentation builds (services/doc_build_rules.h) and check them: a touch from the web interface (a tap, a long press or a swipe, in the coordinates of the 480x320 interface, refused outside it), where the finger is at a moment of a swipe and when it lifts, the raw reading that makes the scale show a simulated weight, when a simulated weight runs out (15 minutes, also over the wrap of millis()), and that the documentation build only reads from a server: GET and HEAD pass, every writing method is refused, with one exception: a POST to exactly Moonraker's /printer/objects/query, which reads the printer objects and changes nothing (without it the AMS view of the documentation build shows no Klipper printer's fields). These builds exist for the acceptance of a beta and for the screenshots of the documentation and are never released. The rules themselves are compiled without a switch, so that this test always sees them."""
 import subprocess
 import tempfile
 from pathlib import Path
@@ -109,11 +109,37 @@ int main() {
   assert(docSimExpired(0xFFFFFF00u, 899744u));    // 256 + 899744 = 900000 ms
 
   // --- only reading from a server ---------------------------------------------
-  assert(docWriteAllowed("GET") && docWriteAllowed("get") && docWriteAllowed("HEAD"));
-  assert(!docWriteAllowed("POST") && !docWriteAllowed("PATCH") && !docWriteAllowed("PUT"));
-  assert(!docWriteAllowed("DELETE") && !docWriteAllowed("delete"));
-  assert(!docWriteAllowed("") && !docWriteAllowed(nullptr));
-  assert(!docWriteAllowed("GETX"));
+  // GET and HEAD pass, wherever they go.
+  assert(docRequestAllowed("GET", "/api/v1/spool") && docRequestAllowed("get", "/"));
+  assert(docRequestAllowed("HEAD", "/api/v1/health") && docRequestAllowed("GET", nullptr));
+  // Every writing method is refused.
+  assert(!docRequestAllowed("POST", "/api/v1/spool") && !docRequestAllowed("PATCH", "/api/v1/spool/7"));
+  assert(!docRequestAllowed("PUT", "/api/v1/spool/7") && !docRequestAllowed("DELETE", "/api/v1/spool/7"));
+  assert(!docRequestAllowed("delete", "/api/v1/spool/7"));
+  assert(!docRequestAllowed("", "/") && !docRequestAllowed(nullptr, "/"));
+  assert(!docRequestAllowed("GETX", "/"));
+  // One POST reads and changes nothing: Moonraker's query of the printer
+  // objects, which the AMS view needs to show a Klipper printer's fields. It
+  // passes on exactly that path, and on no other.
+  static_assert(sizeof(DOC_MOONRAKER_QUERY) == sizeof("/printer/objects/query"), "Moonraker's object query");
+  assert(docRequestAllowed("POST", "/printer/objects/query"));
+  assert(docRequestAllowed("post", "/printer/objects/query"));
+  // Its neighbours write or are something else: the G-code script, the
+  // Spoolman proxy (it can carry a PATCH), a subscription, a longer or
+  // shorter path, another case, a query string.
+  assert(!docRequestAllowed("POST", "/printer/gcode/script"));
+  assert(!docRequestAllowed("POST", "/server/spoolman/proxy"));
+  assert(!docRequestAllowed("POST", "/printer/objects/subscribe"));
+  assert(!docRequestAllowed("POST", "/printer/objects/query/"));
+  assert(!docRequestAllowed("POST", "/printer/objects/quer"));
+  assert(!docRequestAllowed("POST", "/printer/objects/query?extruder"));
+  assert(!docRequestAllowed("POST", "/PRINTER/objects/query"));
+  assert(!docRequestAllowed("POST", "/api/printer/objects/query"));
+  assert(!docRequestAllowed("POST", "") && !docRequestAllowed("POST", nullptr));
+  // The path does not open another method.
+  assert(!docRequestAllowed("PUT", "/printer/objects/query"));
+  assert(!docRequestAllowed("PATCH", "/printer/objects/query"));
+  assert(!docRequestAllowed("DELETE", "/printer/objects/query"));
   return 0;
 }
 '''
