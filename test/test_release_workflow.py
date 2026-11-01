@@ -1,8 +1,14 @@
 """Read the release workflow as text, without running it, and check that it publishes for this fork: no own esptool merge (it fails for want of rich_click), nothing written to main (a mirror of the original) and no name of the original's repo; the factory images come from scripts/factory_image.py, the ranking, version.json, the flasher manifests and the release title from scripts/release_files.py; version.json and the flasher go to gh-pages, and only after the GitHub release exists; release and pages happen on a tag push only, and a pre-release title carries the German date; the boards built besides the matrix one are exactly the boards in src/boards, in the workflow and in release_files.py alike; one release runs at a time, and the release step fails on a file that is missing. Before anything is released, scripts/board_marker.py reads every image (the device file, the file for the browser upload and the factory image of every board) for the line of the board it is meant for, and the CI build does the same for the firmware.bin of every board: version.json carries the checksum of whatever file sits under a board's name, so a swapped file would otherwise pass the checksum, and the first failing call stops that check in any shell. The release job is shown as "Build and release all boards", not as "build (wt32-sc01-plus)": GitHub appends the matrix values to a job's name unless the name itself holds a matrix expression.
 
+The step "Read version from app_config.h" is run with bash against sample app_config.h files: the version line of a build with a switch carries a macro behind the release literal (`#define FW_VERSION  "v0.8.6-beta.14" SSC_VERSION_SUFFIX`), and the release run must still read exactly the literal, with the anchored pattern scripts/check.sh uses, or it would stop at the tag.
+
 The workflow cannot be tried before a real tag (tags are public), so this is what holds it together between releases."""
+import os
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 root = Path(__file__).parents[1]
@@ -367,7 +373,137 @@ if job is not None:
         for board in sorted(board_ids):
             expect(f"the name of job '{JOB_ID}' must not name a board ({board})", board not in name_line, name_line)
 
-# 12. Verdict.
+# 12. The version the release reads. FW_VERSION in src/app_config.h is the
+#     release literal followed by a macro, SSC_VERSION_SUFFIX (empty in a
+#     release, "-abnahme" or "-doku" in a build made with a switch):
+#         #define FW_VERSION  "v0.8.6-beta.14" SSC_VERSION_SUFFIX
+#     The step reads the literal the way scripts/check.sh does, anchored at the
+#     start of the line, the quoted text only. A read that also takes the rest
+#     of the line (or any line that merely mentions FW_VERSION) hands the run
+#     "v0.8.6-beta.14 SSC_VERSION_SUFFIX", and the run stops at the tag with
+#     "Tag v0.8.6-beta.14 does not match FW_VERSION ...". The test runs the
+#     step itself, as the runner does (`bash -e`), in a folder with a sample
+#     src/app_config.h, and compares what it writes to $GITHUB_OUTPUT.
+READ_STEP = "Read version from app_config.h"
+ANCHORED = '^#define[[:space:]]+FW_VERSION[[:space:]]+"([^"]+)"'   # scripts/check.sh
+RELEASE_LITERAL = "v0.8.6-beta.14"
+SAMPLE_CONFIGS = {
+    "the suffix block and the version line": """#pragma once
+
+#if defined(SSC_DOC_BUILD) && !defined(SSC_ACCEPTANCE)
+#define SSC_ACCEPTANCE
+#endif
+#ifndef SSC_VERSION_SUFFIX
+#if defined(SSC_DOC_BUILD)
+#define SSC_VERSION_SUFFIX "-doku"
+#elif defined(SSC_ACCEPTANCE)
+#define SSC_VERSION_SUFFIX "-abnahme"
+#else
+#define SSC_VERSION_SUFFIX ""
+#endif
+#endif
+#define FW_VERSION  "v0.8.6-beta.14" SSC_VERSION_SUFFIX
+#define DONATION_URL "ko-fi.com/formfollowsfunction"
+""",
+    "lines that only look like the version line": """#pragma once
+
+// Read by the release run: #define FW_VERSION "v9.9.9" is not a definition here.
+#ifndef SSC_VERSION_SUFFIX
+#define SSC_VERSION_SUFFIX ""
+#endif
+#define FW_VERSION  "v0.8.6-beta.14" SSC_VERSION_SUFFIX
+#define FW_VERSION_SHOWN "v9.9.9"
+#define DONATION_URL "ko-fi.com/formfollowsfunction"
+""",
+}
+
+
+def run_block(step):
+    """The shell text of the step's `run: |` block (its lines without their
+    indentation, comments included), or None when the step has no such block."""
+    indent, block = step
+    start = next((at for at, (depth, line) in enumerate(block)
+                  if depth == indent + 2 and re.match(r"^run:\s*\|", line)), None)
+    if start is None:
+        return None
+    lines = []
+    for depth, line in block[start + 1:]:
+        if line and depth <= indent + 2:
+            break
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def run_bash(script, workdir, env):
+    """Runs the script the way the runner runs a step, `bash -e`, in workdir.
+    The script file lies beside the folder, not in it: a step that looks at
+    every file of its folder must not find itself. (returncode, output), or
+    (None, reason) when bash cannot be started."""
+    bash = shutil.which("bash")
+    if bash is None:
+        return None, "bash is not installed"
+    script_file = Path(workdir).parent / "step.sh"
+    with open(script_file, "w", encoding="utf-8", newline="\n") as handle:
+        handle.write(script + "\n")
+    environment = dict(os.environ)
+    environment.update(env)
+    try:
+        done = subprocess.run([bash, "-e", script_file.as_posix()], cwd=workdir, env=environment,
+                              capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
+    except (OSError, subprocess.SubprocessError) as problem:
+        return None, str(problem)
+    return done.returncode, (done.stdout + done.stderr).strip()
+
+
+read_step = step_lines(READ_STEP)
+expect(f"must have the step '{READ_STEP}'", read_step is not None)
+read_script = run_block(read_step) if read_step is not None else None
+if read_step is not None:
+    expect(f"step '{READ_STEP}' must have a `run: |` block", read_script is not None)
+if read_script is not None:
+    read_code = [line for line in read_script.splitlines() if line and not line.startswith("#")]
+    expect(f"step '{READ_STEP}' must read the version with the anchored pattern of scripts/check.sh "
+           f"({ANCHORED})", any(ANCHORED in line for line in read_code))
+    with tempfile.TemporaryDirectory() as tmp:
+        work = Path(tmp) / "work"
+        for what, config in SAMPLE_CONFIGS.items():
+            shutil.rmtree(work, ignore_errors=True)
+            (work / "src").mkdir(parents=True)
+            (work / "src" / "app_config.h").write_text(config, encoding="utf-8", newline="\n")
+            for ref_type, ref_name, kind in (("tag", RELEASE_LITERAL, "a tag push"),
+                                             ("branch", "feat/abnahme-firmware", "a manual run")):
+                (work / "out.txt").unlink(missing_ok=True)
+                code, output = run_bash(read_script, work, {"GITHUB_REF_TYPE": ref_type,
+                                                            "GITHUB_REF_NAME": ref_name,
+                                                            "GITHUB_OUTPUT": "out.txt"})
+                where = f"step '{READ_STEP}' on {kind}, app_config.h with {what}"
+                if code is None:
+                    expect(where, False, output)
+                    continue
+                written = (work / "out.txt").read_text(encoding="utf-8") if (work / "out.txt").exists() else ""
+                expect(f"{where}: must read exactly `{RELEASE_LITERAL}` and write version={RELEASE_LITERAL}",
+                       code == 0 and written.splitlines() == [f"version={RELEASE_LITERAL}"],
+                       f"exit {code}, wrote {written.splitlines()}, output: {output[-300:]}")
+        # The checks the step had before must still hold: a tag that is not the
+        # version is refused (on a tag push only), and a file without the
+        # definition is an error that names it, not an empty version.
+        shutil.rmtree(work, ignore_errors=True)
+        (work / "src").mkdir(parents=True)
+        (work / "src" / "app_config.h").write_text(next(iter(SAMPLE_CONFIGS.values())), encoding="utf-8", newline="\n")
+        code, output = run_bash(read_script, work, {"GITHUB_REF_TYPE": "tag", "GITHUB_REF_NAME": "v0.8.6-beta.13",
+                                                    "GITHUB_OUTPUT": "out.txt"})
+        if code is not None:
+            expect(f"step '{READ_STEP}' must refuse a tag that is not the version (v0.8.6-beta.13 against {RELEASE_LITERAL})",
+                   code != 0 and "::error::" in output, f"exit {code}, output: {output[-300:]}")
+        (work / "src" / "app_config.h").write_text("#pragma once\n#define DONATION_URL \"ko-fi.com/x\"\n",
+                                                   encoding="utf-8", newline="\n")
+        code, output = run_bash(read_script, work, {"GITHUB_REF_TYPE": "branch", "GITHUB_REF_NAME": "feat/x",
+                                                    "GITHUB_OUTPUT": "out.txt"})
+        if code is not None:
+            expect(f"step '{READ_STEP}' must fail with ::error:: when app_config.h has no FW_VERSION",
+                   code != 0 and "::error::" in output, f"exit {code}, output: {output[-300:]}")
+
+# 13. Verdict.
 if errors:
     print("release workflow: FAILED")
     for error in errors:
