@@ -17,6 +17,9 @@
 // A release gets the stubs of the #else branch: they do nothing and say "no
 // touch, no simulated weight", so display.cpp, scale.cpp and the main loop call
 // this without a switch of their own and compile to the code they had before.
+// The same goes for the version a screen shows (fwVersionShown() at the end):
+// the screens call it in every build, and only the documentation firmware
+// answers with something else than FW_VERSION.
 #if defined(SSC_ACCEPTANCE)
 
 // Starts t now; a touch still running is replaced.
@@ -37,6 +40,14 @@ float docSimGrams();
 // Called from the main loop with millis(): ends a simulated weight that ran out.
 void  docSimTick(uint32_t now_ms);
 
+// The version every text on the display shows (header line, info screen, the
+// firmware screens): FW_VERSION in the acceptance firmware, which says
+// "-abnahme" there, and FW_VERSION without "-doku" in the documentation
+// firmware, because a screenshot of the documentation shows the release one
+// can download. The web pages, the log, status.json and the update check keep
+// FW_VERSION: they name the build that runs.
+const char* fwVersionShown();
+
 #else
 
 static inline void  docTouchStart(const DocTouch&) {}
@@ -47,5 +58,8 @@ static inline void  docSimOff() {}
 static inline bool  docSimActive() { return false; }
 static inline float docSimGrams() { return 0.0f; }
 static inline void  docSimTick(uint32_t) {}
+
+// A release shows what it is.
+static inline const char* fwVersionShown() { return FW_VERSION; }
 
 #endif

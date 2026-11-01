@@ -4,6 +4,7 @@
 #include "navigation.h"
 #include "app/app_state.h"
 #include "app/deferred_actions.h"
+#include "app/doc_build.h"
 
 #include <Arduino.h>
 #include <lvgl.h>
@@ -468,7 +469,7 @@ static void ghBuildStatus(lv_obj_t *scr) {
 
   lv_obj_t *lbl_inst = lv_label_create(scr);
   char inst[48];
-  snprintf(inst, sizeof(inst), T(STR_GH_OTA_INSTALLED), FW_VERSION);
+  snprintf(inst, sizeof(inst), T(STR_GH_OTA_INSTALLED), fwVersionShown());
   lv_label_set_text(lbl_inst, inst);
   lv_obj_set_style_text_color(lbl_inst, lv_color_hex(UI_COL_INK_SOFT), 0);
   lv_obj_set_style_text_font(lbl_inst, UI_FONT_SMALL, 0);

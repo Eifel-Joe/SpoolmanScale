@@ -11,6 +11,7 @@
 
 #include "app_config.h"
 #include "app/deferred_actions.h"
+#include "app/doc_build.h"
 #include "bambu/bambu_scan.h"
 #include "bambu/bambu_tag.h"
 #include "hardware/scale.h"
@@ -165,7 +166,9 @@ void buildUI() {
   lv_obj_clear_flag(hdr, LV_OBJ_FLAG_SCROLLABLE);
 
   lv_obj_t *hdr_lbl = lv_label_create(hdr);
-  lv_label_set_text(hdr_lbl, "SpoolmanScale " FW_VERSION);
+  // Not a literal any more: the documentation firmware shows the release
+  // version here, not its own "-doku" (fwVersionShown(), app/doc_build.h).
+  lv_label_set_text_fmt(hdr_lbl, "SpoolmanScale %s", fwVersionShown());
   lv_obj_set_style_text_color(hdr_lbl, lv_color_hex(UI_COL_INK_FAINT), 0);
   lv_obj_set_style_text_font(hdr_lbl, &lv_font_montserrat_ext_12, 0);
   lv_obj_align(hdr_lbl, LV_ALIGN_LEFT_MID, 8, 0);

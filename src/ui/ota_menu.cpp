@@ -2,6 +2,7 @@
 #include "navigation.h"
 #include "app/app_state.h"
 #include "app/deferred_actions.h"
+#include "app/doc_build.h"
 
 #include <lvgl.h>
 #include <stdio.h>
@@ -99,7 +100,7 @@ void buildOtaScreen() {
   lbl_gh_btn_badge = createUpdateBadge(btn_gh);
 
   lv_obj_t *ver_ota = lv_label_create(scr_ota);
-  char ver_buf[32]; snprintf(ver_buf, sizeof(ver_buf), T(STR_OTA_CURRENT), FW_VERSION);
+  char ver_buf[32]; snprintf(ver_buf, sizeof(ver_buf), T(STR_OTA_CURRENT), fwVersionShown());
   lv_label_set_text(ver_ota, ver_buf);
   // Was --ink-4, a rule colour; as text it is unreadable on this ground.
   lv_obj_set_style_text_color(ver_ota, lv_color_hex(UI_COL_CAPTION), 0);

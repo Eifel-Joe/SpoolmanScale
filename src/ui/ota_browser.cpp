@@ -3,6 +3,7 @@
 #include "navigation.h"
 #include "app/app_state.h"
 #include "app/deferred_actions.h"
+#include "app/doc_build.h"
 
 #include <Arduino.h>
 #include <IPAddress.h>
@@ -415,7 +416,7 @@ static void webBuildFirmwareRow(lv_obj_t *scr) {
 
   lv_obj_align(webLabel(box, T(STR_OTA_INSTALLED_CAP), UI_FONT_CAPTION, UI_COL_CAPTION),
                LV_ALIGN_RIGHT_MID, 0, -WEB_FW_LINE_DY);
-  lv_obj_align(webLabel(box, FW_VERSION, UI_FONT_SMALL, UI_COL_INK_2),
+  lv_obj_align(webLabel(box, fwVersionShown(), UI_FONT_SMALL, UI_COL_INK_2),
                LV_ALIGN_RIGHT_MID, 0, WEB_FW_LINE_DY);
 }
 

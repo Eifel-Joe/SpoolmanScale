@@ -3,6 +3,7 @@
 #if defined(SSC_ACCEPTANCE)
 
 #include <Arduino.h>
+#include <string.h>
 
 #include "hardware/sd_logger.h"
 
@@ -66,6 +67,24 @@ void docSimTick(uint32_t now_ms) {
   if (!docSimExpired(s_sim_from, now_ms)) return;
   s_sim_on = false;
   logSD("Acceptance build: simulated weight off after 15 min");
+}
+
+// The release literal is cut out of FW_VERSION here instead of being written a
+// second time: it lives in app_config.h alone, the one place the release run
+// and scripts/check.sh read, and a copy would drift at the next version.
+// FW_VERSION is that literal followed by SSC_VERSION_SUFFIX ("-doku" in this
+// firmware), so the literal is the first sizeof(FW_VERSION) -
+// sizeof(SSC_VERSION_SUFFIX) characters, each sizeof counting its terminator.
+// The buffer is static and zeroed, so the copy leaves the end terminated; the
+// acceptance firmware keeps its "-abnahme" on purpose.
+const char* fwVersionShown() {
+#if defined(SSC_DOC_BUILD)
+  static char shown[sizeof(FW_VERSION) - sizeof(SSC_VERSION_SUFFIX) + 1];
+  if (shown[0] == '\0') memcpy(shown, FW_VERSION, sizeof(shown) - 1);
+  return shown;
+#else
+  return FW_VERSION;
+#endif
 }
 
 #endif  // SSC_ACCEPTANCE

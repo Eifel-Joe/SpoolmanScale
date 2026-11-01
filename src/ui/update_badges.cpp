@@ -70,11 +70,23 @@ lv_obj_t* createUpdateBadge(lv_obj_t* anchor) {
   lv_obj_align_to(badge, anchor, LV_ALIGN_OUT_TOP_RIGHT,
                   BADGE_SIZE / 2 - inset, BADGE_SIZE / 2 + inset);
 
+#if defined(SSC_DOC_BUILD)
+  // Documentation firmware: made hidden whatever the update check found. The
+  // settings, system and OTA screens are built when they are opened, long after
+  // the check, and showUpdateBadges() below only reaches badges that exist.
+  setBadgeVisible(badge, false);
+#else
   setBadgeVisible(badge, update_available);
+#endif
   return badge;
 }
 
 void showUpdateBadges(bool show) {
+#if defined(SSC_DOC_BUILD)
+  // Documentation firmware: the update check offers the real release (see
+  // version_compare.cpp), but no red dot may sit on a screenshot.
+  show = false;
+#endif
   setBadgeVisible(lbl_burger_badge, show);
   setBadgeVisible(lbl_system_badge, show);
   setBadgeVisible(lbl_fw_badge, show);
