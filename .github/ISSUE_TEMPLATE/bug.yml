@@ -7,8 +7,10 @@ body:
       value: |
         Thanks for reporting. A log of the moment it happened is the fastest way to a fix.
         Setup questions are often answered quicker
-        in the [manual](https://niko11111.github.io/SpoolmanScale-Docs/) or the
-        [Discord](https://discord.gg/K3KmKnrWhP).
+        in the [manual of this fork](https://eifel-joe.github.io/SpoolmanScale-Docs/),
+        which covers what it does differently, in the
+        [original's manual](https://niko11111.github.io/SpoolmanScale-Docs/) for everything else,
+        or on the [Discord](https://discord.gg/K3KmKnrWhP).
   - type: input
     id: version
     attributes:

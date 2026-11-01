@@ -1,8 +1,11 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Manual
+  - name: Manual of this fork
+    url: https://eifel-joe.github.io/SpoolmanScale-Docs/
+    about: What this fork does differently - Waveshare 7 and 7B, updates, creating spools, empty spools, Brother printer, Klipper printers
+  - name: Original manual
     url: https://niko11111.github.io/SpoolmanScale-Docs/
-    about: Build guide, setup of the backends, calibration and troubleshooting
+    about: Everything else - build guide, setup of the backends, calibration and troubleshooting
   - name: Discord
     url: https://discord.gg/K3KmKnrWhP
     about: Questions, help with a setup, show your build
