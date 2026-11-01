@@ -762,7 +762,16 @@ def part_end():
     body = body_of(BATCH, "batchLabelsStart")
     in_order(body, ["constboolsheet=from>0;", "if(sheet&&s_lr!=LR_SHEET)return;", "labelSpoolFromScan(&d)",
                     "batchRunOf(d.id,&ids)", "if(sheet&&!labelWentOut(printerLastLabelResult())){",
-                    'runLeftOut(ids,0,n,STR_BATCH_LABELS_MISSING,"");', "s_lr_data=d;", "s_lr_next=from;", "s_lr=LR_RUN;"], where)
+                    'runLeftOut(ids,0,n,STR_BATCH_LABELS_MISSING,"");', "s_lr_data=labelDataTake();", "if(!s_lr_data){",
+                    'runLeftOut(ids,from,n,STR_BATCH_LABELS_MISSING,"");', "return;}", "*s_lr_data=d;", "s_lr_next=from;",
+                    "s_lr=LR_RUN;"], where)
+    # The run's label data (n28): taken from PSRAM when the labels start and
+    # given back when they end, not a static of internal RAM for good.
+    code = code_of(BATCH)
+    assert "staticSpoolLabelData*s_lr_data=nullptr;" in code and "staticSpoolLabelDatas_lr_data" not in code,         f"src/{BATCH}: the run's label data is a static, not taken for the run"
+    assert "heap_caps_malloc(sizeof(SpoolLabelData),MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT)" in body_of(BATCH, "labelDataTake"),         f"src/{BATCH}: labelDataTake() does not ask PSRAM first"
+    in_order(body_of(BATCH, "labelsIdle"), ["if(s_lr_data){", "heap_caps_free(s_lr_data);", "s_lr_data=nullptr;"],
+             f"src/{BATCH}: labelsIdle() does not give the run's label data back")
     # After the sheet's print the screen no longer shows the run's first spool:
     # the rest is dropped and said in yellow like every other stop, before the
     # run of the spool now shown is asked for.
@@ -780,9 +789,9 @@ def part_end():
                     "return;}", "if(s_lr!=LR_RUN||printCardOpen())return;",
                     "if(s_lr_next>0&&!labelWentOut(printerLastLabelResult())){", "labelsIdle();",
                     'if(s_lr_next<n)runLeftOut(ids,s_lr_next,n,STR_BATCH_LABELS_MISSING,"");', "return;}",
-                    "if(s_lr_next>=n){", "labelsIdle();", "return;}", "s_lr_data.id=ids[s_lr_next];",
+                    "if(s_lr_next>=n){", "labelsIdle();", "return;}", "s_lr_data->id=ids[s_lr_next];",
                     "printCardSetStep(s_lr_next+1,n);",
-                    "constLabelPrintResultr=printerPrintSpoolData(s_lr_data,s_lr_kind);", "printCardSetStep(0,0);",
+                    "constLabelPrintResultr=printerPrintSpoolData(*s_lr_data,s_lr_kind);", "printCardSetStep(0,0);",
                     "if(r!=LP_OK&&r!=LP_NET_SENT){", "labelsIdle();", 'runLeftOut(ids,s_lr_next,n,STR_BATCH_LABELS_MISSING,"");', "return;}",
                     "s_lr_next++;"], where)
     # A Brother's reply after a label of the run (its card waits for OK, and
