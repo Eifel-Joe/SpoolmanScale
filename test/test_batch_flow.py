@@ -775,7 +775,8 @@ def part_end():
         f"src/{BATCH}: labelWentOut() is not 'printed or sent' as the print's own verdict text"
     where = f"src/{BATCH}: batchLabelsTick()"
     body = body_of(BATCH, "batchLabelsTick")
-    in_order(body, ["if(s_lr==LR_SHEET){", "if(!show_print_sheet_pending&&!printSheetOpen()){", "labelsIdle();",
+    in_order(body, ["if(s_lr==LR_SHEET){",
+                    "if(!show_print_sheet_pending&&!printSheetOpen()&&!printerScreenLeadsToSheet()){", "labelsIdle();",
                     "return;}", "if(s_lr!=LR_RUN||printCardOpen())return;",
                     "if(s_lr_next>0&&!labelWentOut(printerLastLabelResult())){", "labelsIdle();",
                     'if(s_lr_next<n)runLeftOut(ids,s_lr_next,n,STR_BATCH_LABELS_MISSING,"");', "return;}",
@@ -805,16 +806,26 @@ def part_end():
     in_order(body_of(BATCH, "batchLabelsAfterSheet"), ["if(n<2)return;", "s_lr=LR_SHEET;", "s_lr_first=first_id;",
                                                        "printCardSetStep(1,n);"], f"src/{BATCH}: batchLabelsAfterSheet()")
 
-    # 10. The sheet: its print goes on with the rest; closed by its own buttons
+    # 10. The sheet: its print goes on with the rest; closed by its back button
     # without printing, the rest goes; any other close the tick sees.
     where = f"src/{SHEET}: printSheetTick()"
     body = body_of(SHEET, "printSheetTick")
     printing, _ = block_after(body, "if (print_sheet_print_pending) {", where)
     in_order(printing, ["constLabelKindkind=s_kind;", "closePrintSheet();", "printerPrintLastLabel(kind);",
                         "batchLabelsStart(kind,1);"], where)
-    for head in ("if (print_sheet_close_pending) {", "if (print_sheet_printer_pending) {"):
-        inner, _ = block_after(body, head, where)
-        in_order(inner, ["closePrintSheet();", "batchLabelsForget();"], f"{where}: {head}")
+    head = "if (print_sheet_close_pending) {"
+    inner, _ = block_after(body, head, where)
+    in_order(inner, ["closePrintSheet();", "batchLabelsForget();"], f"{where}: {head}")
+    # The printer row is no way out (n27): the printer screen's back button
+    # leads to the sheet again, so the run waits for it, and only the printer
+    # screen closed another way (X, Devices) lets the tick drop the rest.
+    head = "if (print_sheet_printer_pending) {"
+    inner, _ = block_after(body, head, where)
+    assert "batchLabelsForget();" not in inner, f"{where}: {head} drops the rest of the run on the way to the printer"
+    in_order(inner, ["closePrintSheet();", "printerScreenFromSheet();", "show_printer_pending=true;"], f"{where}: {head}")
+    assert body_of(PRINTER, "printerScreenLeadsToSheet") == "returns_back_to_sheet;",         f"src/{PRINTER}: printerScreenLeadsToSheet() is not whether the back button leads to the sheet"
+    assert "boolprinterScreenLeadsToSheet();" in code_of(PRINTER_H), f"src/{PRINTER_H}: no printerScreenLeadsToSheet()"
+    assert "s_back_to_sheet=false;" in body_of(PRINTER, "closePrinterScreen"),         f"src/{PRINTER}: closePrinterScreen() keeps the way back to the sheet, a run would wait for good"
     assert body_of(SHEET, "printSheetOpen") == "returns_scr!=nullptr;", f"src/{SHEET}: printSheetOpen() is not the sheet's own pointer"
 
     # 11. The card: the place of the label in the run, only for two or more.
