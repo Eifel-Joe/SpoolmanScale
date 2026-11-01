@@ -11,6 +11,7 @@
 #include "hardware/sd_logger.h"
 #include "services/auto_weight_state.h"
 #include "services/bambuddy_api.h"
+#include "services/bambuddy_device_rules.h"
 #include "services/backend.h"
 #include "services/user_options.h"
 #include "services/wifi_manager.h"
@@ -38,6 +39,25 @@ static float         s_last_weight_g    = -9999.0f;
 static float         s_win_min          =  1e9f;
 static float         s_win_max          = -1e9f;
 static char          s_reported_tag[40] = "";
+
+// The version BamBuddy is told, in registration and heartbeat. Its schema
+// refuses more than BB_FIRMWARE_VERSION_MAX characters with HTTP 422, which the
+// acceptance firmware ("v0.8.6-beta.14-abnahme", 22) ran into on the scale:
+// never registered, heartbeat failing, no command could reach it. So BamBuddy
+// gets the release version when the whole one is too long
+// (services/bambuddy_device_rules.h); everything else keeps showing FW_VERSION.
+static const char* firmwareForBamBuddy() {
+  static char sent[BB_FIRMWARE_VERSION_MAX + 1];
+  static bool ready = false;
+  if (!ready) {
+    ready = true;
+    if (bbFirmwareVersion(FW_VERSION, SSC_VERSION_SUFFIX, sent, sizeof(sent))) {
+      logSDf("BamBuddy: firmware version sent as %s (BamBuddy takes %d characters)",
+             sent, BB_FIRMWARE_VERSION_MAX);
+    }
+  }
+  return sent;
+}
 
 void bambuddyDeviceReset() {
   s_registered = false;
@@ -132,7 +152,7 @@ void bambuddyDeviceTick() {
     s_last_register_ms = millis();
     int code = bbRegisterDevice(base, key,
                                 wifiManagerLocalIP().toString().c_str(),
-                                FW_VERSION, zero_offset, cal_factor);
+                                firmwareForBamBuddy(), zero_offset, cal_factor);
     if (code != 200) {
       logSDf("BamBuddy: registration failed (HTTP %d), retrying in %d s",
              code, BB_REGISTER_RETRY_MS / 1000);
@@ -156,7 +176,7 @@ void bambuddyDeviceTick() {
     int  code = bbHeartbeat(base, key, /*nfc_ok=*/true,
                             /*scale_ok=*/(!g_scale_fitted || scale_ready),
                             millis() / 1000,
-                            wifiManagerLocalIP().toString().c_str(), FW_VERSION,
+                            wifiManagerLocalIP().toString().c_str(), firmwareForBamBuddy(),
                             cmd, sizeof(cmd), &write_spool_id);
 
     if (code == 404) {
