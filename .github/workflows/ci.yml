@@ -9,6 +9,9 @@ on:
     paths-ignore: ['manifest.json', 'index.html', 'version.json', 'webflasher/**', 'images/**', '*.md']
   pull_request:
     paths-ignore: ['manifest.json', 'index.html', 'version.json', 'webflasher/**', 'images/**', '*.md']
+  # Run workflow in the Actions tab: builds the documentation firmware (job
+  # doc). The other jobs run as well, on the branch that was picked.
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -297,3 +300,139 @@ jobs:
           name: factory-${{ matrix.env }}-${{ github.sha }}
           path: SpoolmanScale-${{ matrix.env }}_factory.bin
           retention-days: 14
+
+  # The acceptance firmware: the 7B with the touch from the web and the
+  # simulated weight (SSC_ACCEPTANCE, set by the environment
+  # waveshare-s3-lcd7b-abnahme and by nothing else), built to be put on the
+  # scale for an acceptance. On a push to a work branch only: dev and main are
+  # what gets released, a pull request has no use for it, and a manual run is
+  # for the documentation firmware below. A job of its own and not a fourth
+  # entry of the matrix above, so that the three boards a release builds stay
+  # as they are.
+  #
+  # Its artifact is kept one day. This fork is public, and any signed-in GitHub
+  # user can download an artifact, remote control included: it must not stay
+  # around longer than the test needs it. It is never a release file, and the
+  # release workflow refuses any file that carries the routes.
+  acceptance:
+    name: Acceptance firmware (waveshare-s3-lcd7b)
+    if: github.event_name == 'push' && github.ref_name != 'dev' && github.ref_name != 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.platformio/.cache
+          key: ${{ runner.os }}-pio-${{ hashFiles('**/platformio.ini') }}
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # Pinned like in the Build job, for the same reasons: 6.2.0.post1 and
+      # the platform's own pioarduino>=6.2.0 both read as older than 6.2.0.
+      - name: Install PlatformIO
+        run: pip install platformio==6.2.0
+      - name: Pin PlatformIO inside the platform's environment
+        run: |
+          python -m venv ~/.platformio/penv
+          ~/.platformio/penv/bin/pip install --quiet pioarduino==6.2.0
+      - name: Build waveshare-s3-lcd7b-abnahme
+        run: pio run -e waveshare-s3-lcd7b-abnahme
+      - name: Refuse a binary an installed device could not take
+        # As in the Build job: more than the 6 MB app slot fits no device.
+        run: |
+          SIZE=$(stat -c %s .pio/build/waveshare-s3-lcd7b-abnahme/firmware.bin)
+          echo "firmware.bin: $SIZE bytes of 6291456"
+          if [ "$SIZE" -gt 6291456 ]; then
+            echo "::error::firmware.bin is $SIZE bytes, more than the 6 MB app slot"
+            exit 1
+          fi
+      - name: Check the board line
+        # The environment is named for the 7B but its image must still be the
+        # 7B's: the scale refuses an image of another board when it flashes.
+        run: python3 scripts/board_marker.py .pio/build/waveshare-s3-lcd7b-abnahme/firmware.bin waveshare-s3-lcd7b
+      - name: Check that the build holds the remote control
+        # The proof that this job built what its name says. A build whose
+        # switch got lost would still succeed, and the artifact would be flashed
+        # as the acceptance firmware and then answer nothing. /api/touch is
+        # spelled in src/web/web_doc.cpp only, which compiles to nothing
+        # without the switch, so the text is in the image or the switch was not.
+        run: |
+          FILE=.pio/build/waveshare-s3-lcd7b-abnahme/firmware.bin
+          if grep -a -q -F -e '/api/touch' "$FILE"; then
+            echo "$FILE holds /api/touch"
+          else
+            echo "::error::$FILE has no /api/touch, SSC_ACCEPTANCE did not reach this build"
+            exit 1
+          fi
+      - name: Upload firmware.bin
+        uses: actions/upload-artifact@v4
+        with:
+          name: acceptance-waveshare-s3-lcd7b-${{ github.sha }}
+          path: .pio/build/waveshare-s3-lcd7b-abnahme/firmware.bin
+          retention-days: 1
+
+  # The documentation firmware: the acceptance firmware that also writes
+  # nothing to any server and shows no update dot (SSC_DOC_BUILD, set by the
+  # environment waveshare-s3-lcd7b-doku), for the screenshots of the
+  # documentation. On request only (Run workflow, with the branch picked):
+  # nobody needs it with every push. Its artifact is kept one day for the
+  # reason given at the acceptance job, and it is never a release file either.
+  doc:
+    name: Documentation firmware (waveshare-s3-lcd7b)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.platformio/.cache
+          key: ${{ runner.os }}-pio-${{ hashFiles('**/platformio.ini') }}
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # Pinned like in the Build job, see there.
+      - name: Install PlatformIO
+        run: pip install platformio==6.2.0
+      - name: Pin PlatformIO inside the platform's environment
+        run: |
+          python -m venv ~/.platformio/penv
+          ~/.platformio/penv/bin/pip install --quiet pioarduino==6.2.0
+      - name: Build waveshare-s3-lcd7b-doku
+        run: pio run -e waveshare-s3-lcd7b-doku
+      - name: Refuse a binary an installed device could not take
+        run: |
+          SIZE=$(stat -c %s .pio/build/waveshare-s3-lcd7b-doku/firmware.bin)
+          echo "firmware.bin: $SIZE bytes of 6291456"
+          if [ "$SIZE" -gt 6291456 ]; then
+            echo "::error::firmware.bin is $SIZE bytes, more than the 6 MB app slot"
+            exit 1
+          fi
+      - name: Check the board line
+        run: python3 scripts/board_marker.py .pio/build/waveshare-s3-lcd7b-doku/firmware.bin waveshare-s3-lcd7b
+      - name: Check that the build holds the remote control
+        # SSC_DOC_BUILD implies SSC_ACCEPTANCE (src/app_config.h), so the
+        # routes are in this image as well; see the acceptance job.
+        run: |
+          FILE=.pio/build/waveshare-s3-lcd7b-doku/firmware.bin
+          if grep -a -q -F -e '/api/touch' "$FILE"; then
+            echo "$FILE holds /api/touch"
+          else
+            echo "::error::$FILE has no /api/touch, SSC_DOC_BUILD did not reach this build"
+            exit 1
+          fi
+      - name: Upload firmware.bin
+        uses: actions/upload-artifact@v4
+        with:
+          name: doc-waveshare-s3-lcd7b-${{ github.sha }}
+          path: .pio/build/waveshare-s3-lcd7b-doku/firmware.bin
+          retention-days: 1

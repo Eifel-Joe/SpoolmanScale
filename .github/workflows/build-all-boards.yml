@@ -237,6 +237,44 @@ jobs:
             python3 scripts/board_marker.py "SpoolmanScale-${BOARD}_${VERSION}.bin" "$BOARD"
             python3 scripts/board_marker.py "SpoolmanScale-${BOARD}_${VERSION}_factory.bin" "$BOARD"
           done
+      - name: Refuse a file that carries the acceptance firmware's routes
+        # The acceptance and the documentation firmware answer POST /api/touch
+        # and POST /api/sim/weight (src/web/web_doc.cpp, the only place in
+        # src/ that spells them). A release never sets the switches that build
+        # them in (SSC_ACCEPTANCE, SSC_DOC_BUILD; only two environments that
+        # no release builds set them), but a flag that slipped into [common]
+        # or a board's environment would put the remote control on every scale
+        # that updates, and nothing else here would notice. So every file the
+        # release attaches, named below by the patterns the release step uses,
+        # is searched for the two texts, as bytes: an image has them when its
+        # build had a switch, and has them from nowhere else. A hit stops the
+        # run before version.json takes the checksums, before the release and
+        # before the pages. On a manual run as well, like the check above: no
+        # `if:`, and the first failing call ends the step, hence
+        # `set -euo pipefail`. A file named outright that is not there, or a
+        # pattern that finds no file, is an error too and not a pass: grep
+        # then ends with 2, where "nothing found" is 1.
+        run: |
+          set -euo pipefail
+          VERSION=${{ steps.version.outputs.version }}
+          FILES=(SpoolmanScale.bin "SpoolmanScale_${VERSION}.bin" SpoolmanScale-*.bin)
+          STATUS=0
+          HITS=$(grep -a -l -e '/api/touch' -e '/api/sim/weight' -- "${FILES[@]}") || STATUS=$?
+          case "$STATUS" in
+            0)
+              while IFS= read -r HIT; do
+                echo "::error::$HIT carries /api/touch or /api/sim/weight, the remote control of the acceptance firmware"
+              done <<< "$HITS"
+              exit 1
+              ;;
+            1)
+              echo "None of ${#FILES[@]} files carries /api/touch or /api/sim/weight"
+              ;;
+            *)
+              echo "::error::the search of the release files for the acceptance routes failed (grep exit $STATUS), is a file missing?"
+              exit 1
+              ;;
+          esac
       - name: Update version.json
         if: github.ref_type == 'tag'
         run: |
