@@ -461,6 +461,69 @@ for rel in ("services/doc_build_rules.h",):
                re.search(r"\bbool\s+docSimExpired\s*\(\s*uint32_t\s+\w+\s*,\s*uint32_t\s+\w+\s*\)\s*;", source.code) is not None
                and re.search(r"#\s*define\s+DOC_SIM_MAX_MS\s+900000\b", source.code) is not None)
 
+# ------------------------------------------------------------------ 7. what the documentation build adds
+# Only the documentation firmware (SSC_DOC_BUILD) writes nothing to any server
+# and hides the red update dot: the screens that go into the documentation
+# must neither change a server nor show a dot. The acceptance firmware
+# (SSC_ACCEPTANCE alone) is the opposite case on purpose: an acceptance sends
+# weights, creates and deletes test spools, assigns slots, so a write lock
+# that reached it would fail every send of the acceptance. Hence each of
+# these is read for all three configurations.
+#   - the writing methods of BackendHttp (sendRequest, POST, PATCH, PUT) are
+#     overridden to ask docWriteAllowed() first, in the header and in the
+#     implementation
+#   - showUpdateBadges() sets show = false
+#   - the version in the header line of the main screen and on the info screen
+#     comes from fwVersionShown(), which is FW_VERSION in a release and in the
+#     acceptance firmware (it says -abnahme there) and the release version in
+#     the documentation firmware
+WRITE_METHODS = ("sendRequest", "POST", "PATCH", "PUT")
+for rel, pattern in (("services/backend_http.h", r"\bint\s+{name}\s*\("),
+                     ("services/backend_http.cpp", r"\bint\s+BackendHttp::{name}\s*\(")):
+    for config in CONFIGS:
+        text = visible(config, rel)
+        for name in WRITE_METHODS:
+            found = re.search(pattern.format(name=name), text) is not None
+            if config == "doc":
+                expect(f"src/{rel}: the documentation firmware (-DSSC_DOC_BUILD) must override {name}() to refuse a write", found)
+            else:
+                expect(f"src/{rel}: the {config} build must not override {name}() (the write lock belongs to -DSSC_DOC_BUILD only)",
+                       not found)
+backend = "services/backend_http.cpp"
+for config in CONFIGS:
+    asks = re.search(r"\bdocWriteAllowed\s*\(", visible(config, backend)) is not None
+    if config == "doc":
+        expect(f"src/{backend}: the documentation firmware must ask docWriteAllowed() before it sends", asks)
+    else:
+        expect(f"src/{backend}: the {config} build must not ask docWriteAllowed() (it would refuse a send)", not asks)
+
+badges = "ui/update_badges.cpp"
+for config in CONFIGS:
+    hides = re.search(r"\bshow\s*=\s*false\s*;", visible(config, badges)) is not None
+    if config == "doc":
+        expect(f"src/{badges}: the documentation firmware must set show = false in showUpdateBadges() (no red dot on a screenshot)", hides)
+    else:
+        expect(f"src/{badges}: the {config} build must not set show = false (the dot is what the update check shows)", not hides)
+
+SHOWN = r"\bconst\s+char\s*\*\s*fwVersionShown\s*\(\s*(?:void)?\s*\)"
+for config in CONFIGS:
+    text = visible(config, "app/doc_build.h")
+    expect(f"src/app/doc_build.h: the {config} build must have const char* fwVersionShown()", re.search(SHOWN, text) is not None)
+release_header = visible("release", "app/doc_build.h")
+expect("src/app/doc_build.h: in a release fwVersionShown() must be defined there and return FW_VERSION",
+       re.search(SHOWN + r"\s*\{[^{}]*\bFW_VERSION\b", release_header) is not None)
+for rel, name in (("ui/main_screen.cpp", "buildUI"), ("ui/info_screen.cpp", "infoVersionLine")):
+    source = source_of(rel)
+    if source is None:
+        continue
+    expect(f"src/{rel}: must show the version with fwVersionShown(), not FW_VERSION",
+           re.search(r"\bFW_VERSION\b", source.code) is None)
+    body = body_of(rel, name)
+    if body is not None:
+        expect(f"src/{rel}: {name}() must call fwVersionShown()", re.search(r"\bfwVersionShown\s*\(\s*\)", body) is not None)
+    expect(f"src/{rel}: must not mention a switch (fwVersionShown() carries it)",
+           re.search(r"\bSSC_(ACCEPTANCE|DOC_BUILD)\b", source.code_str) is None)
+
 # ------------------------------------------------------------------ Verdict
 if errors:
     print("test_build_variants: FAILED")
