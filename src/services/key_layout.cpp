@@ -287,6 +287,39 @@ static_assert(pageWhole(WIFI_FR_UPPER, WIFI_FR_TEXT_W, WIFI_FR_TEXT_F), "WiFi FR
 static_assert(pageWhole(WIFI_SPECIAL, WIFI_SPECIAL_W, WIFI_SPECIAL_F), "WiFi special is not whole");
 
 // ============================================================
+//  THE CONTROL WORDS, AT COMPILE TIME
+//
+//  Wurzel (n28): ui/key_maps.cpp built the words at run time into a static
+//  array, 2 x 4 x 48 words, 768 bytes of internal RAM, although LVGL only
+//  reads them.
+//  Fix: the words are constants beside the widths and flags they come from,
+//  in flash like LVGL's own maps.
+//  See test_key_layout.py (every word against LVGL's bits) and
+//  test_keyboards.py.
+// ============================================================
+
+template <size_t N>
+struct CtrlWords {
+  uint16_t w[N];
+};
+
+template <size_t N>
+static constexpr CtrlWords<N> ctrlWords(const uint8_t (&flags)[N], const uint8_t (&widths)[N]) {
+  CtrlWords<N> out{};
+  for (size_t i = 0; i < N; i++) out.w[i] = keyCtrlWord(flags[i], widths[i]);
+  return out;
+}
+
+static constexpr auto EN_TEXT_C      = ctrlWords(EN_TEXT_F, EN_TEXT_W);
+static constexpr auto SPECIAL_C      = ctrlWords(SPECIAL_F, SPECIAL_W);
+static constexpr auto DE_TEXT_C      = ctrlWords(DE_TEXT_F, DE_TEXT_W);
+static constexpr auto FR_TEXT_C      = ctrlWords(FR_TEXT_F, FR_TEXT_W);
+static constexpr auto FR_ACCENTS_C   = ctrlWords(FR_ACCENTS_F, FR_ACCENTS_W);
+static constexpr auto WIFI_TEXT_C    = ctrlWords(WIFI_TEXT_F, WIFI_TEXT_W);
+static constexpr auto WIFI_FR_TEXT_C = ctrlWords(WIFI_FR_TEXT_F, WIFI_FR_TEXT_W);
+static constexpr auto WIFI_SPECIAL_C = ctrlWords(WIFI_SPECIAL_F, WIFI_SPECIAL_W);
+
+// ============================================================
 //  THE INDEX
 // ============================================================
 
@@ -305,25 +338,25 @@ static constexpr int keyCount(const uint8_t (&)[N]) {
 }
 
 static const KeyPageEntry PAGES[] = {
-  { KL_EN, KP_LOWER,   false, { EN_LOWER,      EN_TEXT_W,      EN_TEXT_F,      keyCount(EN_TEXT_W) } },
-  { KL_EN, KP_UPPER,   false, { EN_UPPER,      EN_TEXT_W,      EN_TEXT_F,      keyCount(EN_TEXT_W) } },
-  { KL_EN, KP_SPECIAL, false, { SPECIAL,       SPECIAL_W,      SPECIAL_F,      keyCount(SPECIAL_W) } },
-  { KL_DE, KP_LOWER,   false, { DE_LOWER,      DE_TEXT_W,      DE_TEXT_F,      keyCount(DE_TEXT_W) } },
-  { KL_DE, KP_UPPER,   false, { DE_UPPER,      DE_TEXT_W,      DE_TEXT_F,      keyCount(DE_TEXT_W) } },
-  { KL_DE, KP_SPECIAL, false, { SPECIAL,       SPECIAL_W,      SPECIAL_F,      keyCount(SPECIAL_W) } },
-  { KL_FR, KP_LOWER,   false, { FR_LOWER,      FR_TEXT_W,      FR_TEXT_F,      keyCount(FR_TEXT_W) } },
-  { KL_FR, KP_UPPER,   false, { FR_UPPER,      FR_TEXT_W,      FR_TEXT_F,      keyCount(FR_TEXT_W) } },
-  { KL_FR, KP_SPECIAL, false, { SPECIAL,       SPECIAL_W,      SPECIAL_F,      keyCount(SPECIAL_W) } },
-  { KL_FR, KP_ACCENTS, false, { FR_ACCENTS,    FR_ACCENTS_W,   FR_ACCENTS_F,   keyCount(FR_ACCENTS_W) } },
-  { KL_EN, KP_LOWER,   true,  { WIFI_EN_LOWER, WIFI_TEXT_W,    WIFI_TEXT_F,    keyCount(WIFI_TEXT_W) } },
-  { KL_EN, KP_UPPER,   true,  { WIFI_EN_UPPER, WIFI_TEXT_W,    WIFI_TEXT_F,    keyCount(WIFI_TEXT_W) } },
-  { KL_EN, KP_SPECIAL, true,  { WIFI_SPECIAL,  WIFI_SPECIAL_W, WIFI_SPECIAL_F, keyCount(WIFI_SPECIAL_W) } },
-  { KL_DE, KP_LOWER,   true,  { WIFI_DE_LOWER, WIFI_TEXT_W,    WIFI_TEXT_F,    keyCount(WIFI_TEXT_W) } },
-  { KL_DE, KP_UPPER,   true,  { WIFI_DE_UPPER, WIFI_TEXT_W,    WIFI_TEXT_F,    keyCount(WIFI_TEXT_W) } },
-  { KL_DE, KP_SPECIAL, true,  { WIFI_SPECIAL,  WIFI_SPECIAL_W, WIFI_SPECIAL_F, keyCount(WIFI_SPECIAL_W) } },
-  { KL_FR, KP_LOWER,   true,  { WIFI_FR_LOWER, WIFI_FR_TEXT_W, WIFI_FR_TEXT_F, keyCount(WIFI_FR_TEXT_W) } },
-  { KL_FR, KP_UPPER,   true,  { WIFI_FR_UPPER, WIFI_FR_TEXT_W, WIFI_FR_TEXT_F, keyCount(WIFI_FR_TEXT_W) } },
-  { KL_FR, KP_SPECIAL, true,  { WIFI_SPECIAL,  WIFI_SPECIAL_W, WIFI_SPECIAL_F, keyCount(WIFI_SPECIAL_W) } },
+  { KL_EN, KP_LOWER,   false, { EN_LOWER,      EN_TEXT_W,      EN_TEXT_F,      EN_TEXT_C.w,      keyCount(EN_TEXT_W) } },
+  { KL_EN, KP_UPPER,   false, { EN_UPPER,      EN_TEXT_W,      EN_TEXT_F,      EN_TEXT_C.w,      keyCount(EN_TEXT_W) } },
+  { KL_EN, KP_SPECIAL, false, { SPECIAL,       SPECIAL_W,      SPECIAL_F,      SPECIAL_C.w,      keyCount(SPECIAL_W) } },
+  { KL_DE, KP_LOWER,   false, { DE_LOWER,      DE_TEXT_W,      DE_TEXT_F,      DE_TEXT_C.w,      keyCount(DE_TEXT_W) } },
+  { KL_DE, KP_UPPER,   false, { DE_UPPER,      DE_TEXT_W,      DE_TEXT_F,      DE_TEXT_C.w,      keyCount(DE_TEXT_W) } },
+  { KL_DE, KP_SPECIAL, false, { SPECIAL,       SPECIAL_W,      SPECIAL_F,      SPECIAL_C.w,      keyCount(SPECIAL_W) } },
+  { KL_FR, KP_LOWER,   false, { FR_LOWER,      FR_TEXT_W,      FR_TEXT_F,      FR_TEXT_C.w,      keyCount(FR_TEXT_W) } },
+  { KL_FR, KP_UPPER,   false, { FR_UPPER,      FR_TEXT_W,      FR_TEXT_F,      FR_TEXT_C.w,      keyCount(FR_TEXT_W) } },
+  { KL_FR, KP_SPECIAL, false, { SPECIAL,       SPECIAL_W,      SPECIAL_F,      SPECIAL_C.w,      keyCount(SPECIAL_W) } },
+  { KL_FR, KP_ACCENTS, false, { FR_ACCENTS,    FR_ACCENTS_W,   FR_ACCENTS_F,   FR_ACCENTS_C.w,   keyCount(FR_ACCENTS_W) } },
+  { KL_EN, KP_LOWER,   true,  { WIFI_EN_LOWER, WIFI_TEXT_W,    WIFI_TEXT_F,    WIFI_TEXT_C.w,    keyCount(WIFI_TEXT_W) } },
+  { KL_EN, KP_UPPER,   true,  { WIFI_EN_UPPER, WIFI_TEXT_W,    WIFI_TEXT_F,    WIFI_TEXT_C.w,    keyCount(WIFI_TEXT_W) } },
+  { KL_EN, KP_SPECIAL, true,  { WIFI_SPECIAL,  WIFI_SPECIAL_W, WIFI_SPECIAL_F, WIFI_SPECIAL_C.w, keyCount(WIFI_SPECIAL_W) } },
+  { KL_DE, KP_LOWER,   true,  { WIFI_DE_LOWER, WIFI_TEXT_W,    WIFI_TEXT_F,    WIFI_TEXT_C.w,    keyCount(WIFI_TEXT_W) } },
+  { KL_DE, KP_UPPER,   true,  { WIFI_DE_UPPER, WIFI_TEXT_W,    WIFI_TEXT_F,    WIFI_TEXT_C.w,    keyCount(WIFI_TEXT_W) } },
+  { KL_DE, KP_SPECIAL, true,  { WIFI_SPECIAL,  WIFI_SPECIAL_W, WIFI_SPECIAL_F, WIFI_SPECIAL_C.w, keyCount(WIFI_SPECIAL_W) } },
+  { KL_FR, KP_LOWER,   true,  { WIFI_FR_LOWER, WIFI_FR_TEXT_W, WIFI_FR_TEXT_F, WIFI_FR_TEXT_C.w, keyCount(WIFI_FR_TEXT_W) } },
+  { KL_FR, KP_UPPER,   true,  { WIFI_FR_UPPER, WIFI_FR_TEXT_W, WIFI_FR_TEXT_F, WIFI_FR_TEXT_C.w, keyCount(WIFI_FR_TEXT_W) } },
+  { KL_FR, KP_SPECIAL, true,  { WIFI_SPECIAL,  WIFI_SPECIAL_W, WIFI_SPECIAL_F, WIFI_SPECIAL_C.w, keyCount(WIFI_SPECIAL_W) } },
 };
 
 bool keyLayoutGet(KeyLang lang, KeyPage page, bool wifi, KeyMap* out) {

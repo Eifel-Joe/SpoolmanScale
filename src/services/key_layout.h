@@ -41,19 +41,43 @@ enum KeyFlag : uint8_t { KF_LETTER = 0, KF_CHECKED = 1, KF_CTRL = 2, KF_PLAIN = 
 // The key of the French accent page: the a grave and the e acute.
 #define KEY_ACCENTS        "\xC3\xA0\xC3\xA9"
 
-// The most keys on a page, row breaks not counted: the size of the control
-// map ui/key_maps.cpp builds for each page. key_layout.cpp holds every page
-// to it with a static_assert.
+// The most keys on a page, row breaks not counted. key_layout.cpp holds
+// every page to it with a static_assert.
 #define KEY_LAYOUT_MAX_KEYS  48
 
+// The bits of a key's control word as LVGL 8.3.11 has them (lv_btnmatrix.h
+// lines 36 to 42, lv_keyboard.h line 32), spelled here so the tables need no
+// LVGL; ui/key_maps.cpp holds each to LVGL's own with a static_assert. The
+// width is the low four bits.
+#define KEY_CTRL_NO_REPEAT   0x0020
+#define KEY_CTRL_CHECKED     0x0100
+#define KEY_CTRL_CLICK_TRIG  0x0200
+#define KEY_CTRL_POPOVER     0x0400
+#define KEY_CTRL_BTN_FLAGS   (KEY_CTRL_NO_REPEAT | KEY_CTRL_CLICK_TRIG | KEY_CTRL_CHECKED)
+
+// One key's control word, as LVGL's own maps write it (lv_keyboard.c 8.3.11,
+// lines 55 to 86). Its LV_KB_BTN() is defined in lv_keyboard.c alone, so the
+// popover bit of a letter is spelled out here. LVGL's signs on the letter
+// pages carry that bit as well; KF_CHECKED leaves it out, which shows the
+// same: no keyboard here turns popovers on, and while they are off
+// lv_keyboard_update_ctrl_map() strips the bit from every key.
+constexpr uint16_t keyCtrlWord(uint8_t flag, uint8_t width) {
+  return flag == KF_LETTER  ? (uint16_t)(KEY_CTRL_POPOVER | width)
+       : flag == KF_CHECKED ? (uint16_t)(KEY_CTRL_CHECKED | width)
+       : flag == KF_CTRL    ? (uint16_t)(KEY_CTRL_BTN_FLAGS | width)
+       :                      (uint16_t)width;   // KF_PLAIN, the space bar
+}
+
 // One page. keys in the format of lv_btnmatrix_set_map(): the rows split by
-// "\n", "" at the end. widths and flags hold one entry per key, without the
-// row breaks; count is the number of keys. All of it is static, so LVGL may
-// keep the pointer.
+// "\n", "" at the end. widths, flags and ctrl hold one entry per key, without
+// the row breaks; ctrl is each key's control word (keyCtrlWord()), the map
+// lv_keyboard_set_map() takes. count is the number of keys. All of it is
+// constant, in flash, so LVGL may keep the pointers.
 struct KeyMap {
   const char* const* keys;
   const uint8_t* widths;
   const uint8_t* flags;
+  const uint16_t* ctrl;
   int count;
 };
 

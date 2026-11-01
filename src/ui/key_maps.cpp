@@ -3,6 +3,7 @@
 #include <lvgl.h>
 #include <stdint.h>
 #include <string.h>
+#include <type_traits>
 
 #include "hardware/sd_logger.h"
 #include "services/key_layout.h"
@@ -42,35 +43,13 @@ static const lv_keyboard_mode_t KEY_MODE[KEY_PAGES] = {
   LV_KEYBOARD_MODE_USER_1,       // KP_ACCENTS
 };
 
-// The control words of the scale's language: text or WiFi, page. Built the
-// first time a page is set and kept, since LVGL reads them by pointer
-// whenever that page is shown. 2 x 4 x 48 words, 768 bytes of internal RAM.
-// One language is enough: g_lang is read once at boot (app_settings.cpp),
-// and both ways to change it (language_screen.cpp, setup_welcome_screen.cpp)
-// store the new one and restart.
-// NOT-TO-DO: a language changed without a restart would put the keys of the
-//   new language over the words built for the old one: widths and flags of
-//   another table, control keys without their flags, and no error at all. A
-//   switch made live has to clear s_built at the switch. Words for all three
-//   languages at once: 2304 bytes of internal RAM, about three quarters of
-//   them never written, where LVGL's own control maps are constants in flash.
-static lv_btnmatrix_ctrl_t s_ctrl[2][KEY_PAGES][KEY_LAYOUT_MAX_KEYS];
-static bool s_built[2][KEY_PAGES];
-
-// One key's control word, as LVGL's own maps write it (lv_keyboard.c 8.3.11,
-// lines 55 to 86). Its LV_KB_BTN() is defined in lv_keyboard.c alone, so the
-// popover bit of a letter is spelled out here. LVGL's signs on the letter
-// pages carry that bit as well; KF_CHECKED leaves it out, which shows the
-// same: no keyboard here turns popovers on, and while they are off
-// lv_keyboard_update_ctrl_map() strips the bit from every key.
-static lv_btnmatrix_ctrl_t keyCtrl(uint8_t flag, uint8_t width) {
-  switch (flag) {
-    case KF_LETTER:  return (lv_btnmatrix_ctrl_t)(LV_BTNMATRIX_CTRL_POPOVER | width);
-    case KF_CHECKED: return (lv_btnmatrix_ctrl_t)(LV_BTNMATRIX_CTRL_CHECKED | width);
-    case KF_CTRL:    return (lv_btnmatrix_ctrl_t)(LV_KEYBOARD_CTRL_BTN_FLAGS | width);
-    default:         return (lv_btnmatrix_ctrl_t)width;   // KF_PLAIN, the space bar
-  }
-}
+// The control words come with the tables, constants in flash like LVGL's
+// own maps (n28: built here at run time they took 768 bytes of internal
+// RAM). The bits the tables spell are LVGL's; the words are LVGL's type.
+static_assert(KEY_CTRL_POPOVER == LV_BTNMATRIX_CTRL_POPOVER, "KEY_CTRL_POPOVER is not LVGL's");
+static_assert(KEY_CTRL_CHECKED == LV_BTNMATRIX_CTRL_CHECKED, "KEY_CTRL_CHECKED is not LVGL's");
+static_assert(KEY_CTRL_BTN_FLAGS == LV_KEYBOARD_CTRL_BTN_FLAGS, "KEY_CTRL_BTN_FLAGS is not LVGL's");
+static_assert(std::is_same<lv_btnmatrix_ctrl_t, uint16_t>::value, "the control words are not LVGL's type");
 
 static KeyLang keyLang() {
   if (g_lang == LANG_DE) return KL_DE;
@@ -131,13 +110,8 @@ void keyMapsApply(lv_obj_t* kb, bool wifi) {
              KEY_LAYOUT_MAX_KEYS);
       continue;
     }
-    lv_btnmatrix_ctrl_t* ctrl = s_ctrl[set][p];
-    if (!s_built[set][p]) {
-      for (int i = 0; i < m.count; i++) ctrl[i] = keyCtrl(m.flags[i], m.widths[i]);
-      s_built[set][p] = true;
-    }
     // LVGL only reads the keys; its prototype takes them without the const.
-    lv_keyboard_set_map(kb, KEY_MODE[p], const_cast<const char**>(m.keys), ctrl);
+    lv_keyboard_set_map(kb, KEY_MODE[p], const_cast<const char**>(m.keys), m.ctrl);
   }
   // LVGL's handler is added by the keyboard's constructor; it goes only where
   // the accent key is. Ours is taken off first, so a second call does not
