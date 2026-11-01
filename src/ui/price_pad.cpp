@@ -63,7 +63,7 @@ static void onBackspace(lv_event_t*) {
   refreshInput();
 }
 
-static void buildHead(int title_id, int info_id) {
+static void buildHead(int title_id) {
   lv_obj_t* title = lv_label_create(s_pad);
   lv_label_set_text(title, T(title_id));
   lv_obj_set_style_text_color(title, lv_color_hex(UI_COL_ACCENT), 0);
@@ -85,7 +85,7 @@ static void buildHead(int title_id, int info_id) {
   lv_obj_center(s_lbl_input);
 
   lv_obj_t* info = lv_label_create(s_pad);
-  lv_label_set_text(info, T(info_id));
+  lv_label_set_text(info, T(STR_PRICE_PAD_INFO));
   lv_label_set_long_mode(info, LV_LABEL_LONG_WRAP);
   lv_obj_set_width(info, PP_COL_W);
   lv_obj_set_pos(info, PP_COL_X, 38);
@@ -112,25 +112,20 @@ static void buildKeys() {
 // OK and Cancel only park the answer: the pad is deleted from the loop, not
 // from inside its own button's callback.
 static void buildAnswers() {
-  // OK starts level with the second row of keys, so the hint above it has
-  // room to breathe; Cancel keeps the bottom.
   const int keys_h   = 4 * PP_KEY_H + 3 * PP_GAP;
   const int cancel_h = UI_TOUCH_MIN + 10;
-  const int ok_y     = PP_KEYS_Y + PP_KEY_H + PP_GAP;
-  const int cancel_y = PP_KEYS_Y + keys_h - cancel_h;
-  const int ok_h     = cancel_y - PP_GAP - ok_y;
+  const int ok_h     = keys_h - cancel_h - PP_GAP;
 
-  lv_obj_t* ok = padButton(s_pad, PP_COL_X, ok_y, PP_COL_W, ok_h, UI_COL_OK_BG, UI_COL_OK_BG_PRESSED);
+  lv_obj_t* ok = padButton(s_pad, PP_COL_X, PP_KEYS_Y, PP_COL_W, ok_h, UI_COL_OK_BG, UI_COL_OK_BG_PRESSED);
   padLabel(ok, T(STR_BTN_OK), UI_COL_OK_TEXT, UI_FONT_BODY);
   lv_obj_add_event_cb(ok, [](lv_event_t*) {
     if (s_pad) lv_obj_add_flag(s_pad, LV_OBJ_FLAG_HIDDEN);
     s_answer = PA_OK;
   }, LV_EVENT_CLICKED, NULL);
 
-  lv_obj_t* no = padButton(s_pad, PP_COL_X, cancel_y, PP_COL_W, cancel_h,
+  lv_obj_t* no = padButton(s_pad, PP_COL_X, PP_KEYS_Y + ok_h + PP_GAP, PP_COL_W, cancel_h,
                            UI_COL_BAD_BG, UI_COL_BAD_BG_PRESSED);
   padLabel(no, T(STR_CANCEL), UI_COL_BAD_TEXT, UI_FONT_SMALL);
-  styleLeaveButton(no);
   lv_obj_add_event_cb(no, [](lv_event_t*) {
     if (s_pad) lv_obj_add_flag(s_pad, LV_OBJ_FLAG_HIDDEN);
     s_answer = PA_CANCEL;
@@ -142,10 +137,6 @@ void showPricePad(float current, void (*done)(float price)) {
 }
 
 void showPricePadTitled(float current, int title_id, void (*done)(float price)) {
-  showPricePadInfo(current, title_id, STR_PRICE_PAD_INFO, done);
-}
-
-void showPricePadInfo(float current, int title_id, int info_id, void (*done)(float value)) {
   logSD("SHOW: PricePad");
   closePricePad();
   s_done = done;
@@ -160,7 +151,7 @@ void showPricePadInfo(float current, int title_id, int info_id, void (*done)(flo
   s_pad = buildOverlayScreen();
   lv_obj_clear_flag(s_pad, LV_OBJ_FLAG_HIDDEN);
 
-  buildHead(title_id, info_id);
+  buildHead(title_id);
   buildKeys();
   buildAnswers();
   refreshInput();

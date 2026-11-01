@@ -15,12 +15,8 @@
 #include "ui/confirm_popup.h"
 #include "ui/connection_screen.h"
 #include "ui/extra_fields_screen.h"
-#include "ui/factor_screen.h"
 #include "ui/language_screen.h"
 #include "ui/nfc_reset_popup.h"
-#include "ui/no_tag_create.h"
-#include "ui/num_pad.h"
-#include "ui/ota_browser.h"
 #include "ui/ota_github.h"
 #include "ui/pc_print_popup.h"
 #include "ui/printer_screen.h"
@@ -71,10 +67,9 @@ void hideAllOverlays() {
   if (scr_web)         lv_obj_add_flag(scr_web,         LV_OBJ_FLAG_HIDDEN);
   if (scr_ota)         lv_obj_add_flag(scr_ota,         LV_OBJ_FLAG_HIDDEN);
   if (scr_ota_browser) lv_obj_add_flag(scr_ota_browser, LV_OBJ_FLAG_HIDDEN);
-  otaBrowserEndVisit();
   if (scr_ota_github)  lv_obj_add_flag(scr_ota_github,  LV_OBJ_FLAG_HIDDEN);
   if (scr_factor)      lv_obj_add_flag(scr_factor,      LV_OBJ_FLAG_HIDDEN);
-  numPadHide();
+  if (scr_bag)         lv_obj_add_flag(scr_bag,         LV_OBJ_FLAG_HIDDEN);
   if (scr_lastused)    lv_obj_add_flag(scr_lastused,    LV_OBJ_FLAG_HIDDEN);
   if (scr_backend)     lv_obj_add_flag(scr_backend,     LV_OBJ_FLAG_HIDDEN);
   if (scr_filaman_options) lv_obj_add_flag(scr_filaman_options, LV_OBJ_FLAG_HIDDEN);
@@ -87,6 +82,7 @@ void hideAllOverlays() {
   if (scr_spoolman_options) lv_obj_add_flag(scr_spoolman_options, LV_OBJ_FLAG_HIDDEN);
   if (scr_tag_comp)      lv_obj_add_flag(scr_tag_comp, LV_OBJ_FLAG_HIDDEN);
   if (scr_tag_field)     lv_obj_add_flag(scr_tag_field, LV_OBJ_FLAG_HIDDEN);
+  if (scr_spoolman_fail) lv_obj_add_flag(scr_spoolman_fail, LV_OBJ_FLAG_HIDDEN);
   if (scr_wifi)        lv_obj_add_flag(scr_wifi,        LV_OBJ_FLAG_HIDDEN);
   if (scr_wifi_menu)   lv_obj_add_flag(scr_wifi_menu,   LV_OBJ_FLAG_HIDDEN);
   if (scr_bluetooth)   lv_obj_add_flag(scr_bluetooth,   LV_OBJ_FLAG_HIDDEN);
@@ -100,7 +96,7 @@ void hideAllOverlays() {
   if (scr_welcome)     lv_obj_add_flag(scr_welcome,     LV_OBJ_FLAG_HIDDEN);
   if (scr_first_boot)  lv_obj_add_flag(scr_first_boot,  LV_OBJ_FLAG_HIDDEN);
   if (scr_extra_fields) lv_obj_add_flag(scr_extra_fields, LV_OBJ_FLAG_HIDDEN);
-  if (scr_setup_done)  lv_obj_add_flag(scr_setup_done,  LV_OBJ_FLAG_HIDDEN);
+  if (scr_cal_reminder) lv_obj_add_flag(scr_cal_reminder, LV_OBJ_FLAG_HIDDEN);
   if (scr_wifi_setup)  lv_obj_add_flag(scr_wifi_setup,  LV_OBJ_FLAG_HIDDEN);
   if (scr_wifi_pass)   lv_obj_add_flag(scr_wifi_pass,   LV_OBJ_FLAG_HIDDEN);
   if (scr_wifi_connecting) lv_obj_add_flag(scr_wifi_connecting, LV_OBJ_FLAG_HIDDEN);
@@ -109,6 +105,7 @@ void hideAllOverlays() {
   hideSpoolFlowOverlays();
   hideMoreInfoOverlays();
   hideAmsViewOverlays();
+  webPinScreenHide();
   hideLanguageScreen();
   // The dialogs that used to be locals of whichever callback built them, so
   // nothing outside could reach them and a navigation left them standing over
@@ -125,15 +122,12 @@ void hideAllOverlays() {
   closeSpoolIdPad();
   closeTagView();
   closeBleDeviceCard();
-  // The question for a label belongs to the main screen it was asked on.
-  closeNoTagLabelAsk();
 }
 
 void deleteOtaScreens() {
   if (scr_ota)         { lv_obj_del(scr_ota);         scr_ota         = nullptr; }
   lbl_gh_btn_badge = nullptr;
   if (scr_ota_browser) { lv_obj_del(scr_ota_browser); scr_ota_browser = nullptr; }
-  otaBrowserEndVisit();
   lbl_ota_status = nullptr;      // written by the web upload from the loop
   if (scr_ota_github)  { lv_obj_del(scr_ota_github);  scr_ota_github  = nullptr; }
   otaGithubForgetLabels();       // written by the parked check from the loop
@@ -158,6 +152,7 @@ static void deleteSecondaryScreens() {
   closeWifiPortalScreen();
   if (scr_backend)  { lv_obj_del(scr_backend);  scr_backend  = nullptr; }
   if (scr_web)      { lv_obj_del(scr_web);      scr_web      = nullptr; }
+  webPinScreenClose();
   if (scr_timezone) { lv_obj_del(scr_timezone); scr_timezone = nullptr; }
   closeLanguageScreen();
 }
@@ -181,35 +176,35 @@ void showMainScreen() {
   if (scr_scale_sub)   { scaleSubScrollForget();
                          lv_obj_del(scr_scale_sub);   scr_scale_sub   = nullptr; }
   if (scr_drying_reminder) { lv_obj_del(scr_drying_reminder); scr_drying_reminder = nullptr; }
+  if (s_dry_numpad_scr)    { lv_obj_del(s_dry_numpad_scr);    s_dry_numpad_scr    = nullptr; }
+  s_dry_numpad_lbl = nullptr;
   if (scr_display)     { lv_obj_del(scr_display);     scr_display     = nullptr; }
   if (scr_system)      { lv_obj_del(scr_system);      scr_system      = nullptr; }
   lbl_fw_badge = nullptr;        // sat on the Firmware row, same
   deleteOtaScreens();
-  closeFactorScreen();   // its statics go with it
+  if (scr_factor)      { lv_obj_del(scr_factor);      scr_factor      = nullptr; }
   lbl_factor_result     = nullptr;   // written by cal_reset_pending from the loop
   lbl_factor_cal_weight = nullptr;
-  numPadClose();
+  if (scr_bag)         { lv_obj_del(scr_bag);         scr_bag         = nullptr; }
   if (scr_filaman_options) { lv_obj_del(scr_filaman_options); scr_filaman_options = nullptr; }
   if (scr_ams_assign)      { lv_obj_del(scr_ams_assign);      scr_ams_assign      = nullptr; }
   destroyAmsView();
   if (scr_filaman_fields)  { lv_obj_del(scr_filaman_fields);  scr_filaman_fields  = nullptr; }
+  if (s_ams_numpad_scr)    { lv_obj_del(s_ams_numpad_scr);    s_ams_numpad_scr    = nullptr; }
+  s_ams_numpad_lbl = nullptr;
   if (scr_spoolman_options) { lv_obj_del(scr_spoolman_options); scr_spoolman_options = nullptr; }
   if (scr_tag_comp)        { lv_obj_del(scr_tag_comp);        scr_tag_comp        = nullptr; }
   if (scr_bambuddy_options) { lv_obj_del(scr_bambuddy_options); scr_bambuddy_options = nullptr; }
   if (scr_bambuddy_dried)  { lv_obj_del(scr_bambuddy_dried);  scr_bambuddy_dried  = nullptr; }
   if (scr_tagwrite)        { lv_obj_del(scr_tagwrite);        scr_tagwrite        = nullptr; }
   if (scr_lastused)    { lv_obj_del(scr_lastused);    scr_lastused    = nullptr; }
+  if (scr_spoolman_fail){ lv_obj_del(scr_spoolman_fail); scr_spoolman_fail = nullptr; }
   if (scr_welcome)     { lv_obj_del(scr_welcome);     scr_welcome     = nullptr; }
   if (scr_first_boot)  { lv_obj_del(scr_first_boot);  scr_first_boot  = nullptr; }
   if (scr_extra_fields){ lv_obj_del(scr_extra_fields); scr_extra_fields = nullptr;
                          resetExtraFieldsScreenState(); }
   if (scr_tag_field)   { lv_obj_del(scr_tag_field);   scr_tag_field   = nullptr; }
-  if (scr_setup_done)  { lv_obj_del(scr_setup_done);  scr_setup_done  = nullptr; }
-  // Asynchronously: the X that brings us here sits on one of these two.
-  // Kept until the next settings visit, they held the scan list and the typed
-  // password in the pool.
-  releaseScreen(&scr_wifi_setup);
-  releaseScreen(&scr_wifi_pass);
+  if (scr_cal_reminder){ lv_obj_del(scr_cal_reminder); scr_cal_reminder = nullptr; }
   deleteSpoolFlowOverlays();
   resetActivityTimer();
   updateLinkButton();
@@ -218,24 +213,6 @@ void showMainScreen() {
   // SCL chip standing that nothing else would take down until the next scan -
   // and this is the one gate every way back to the main screen passes through.
   updateHeaderStatus();
-}
-
-// The setup's own screens, freed before its scale step: the calibration is
-// its most object-heavy screen, and these are done with - each is rebuilt if
-// the user goes back to it. The backend step stays, because going back from
-// the address asks whether it exists to know where back leads.
-void releaseSetupScreens() {
-  if (scr_welcome)    { lv_obj_del(scr_welcome);    scr_welcome    = nullptr; }
-  if (scr_first_boot) { lv_obj_del(scr_first_boot); scr_first_boot = nullptr; }
-  if (scr_wifi_setup) { lv_obj_del(scr_wifi_setup); scr_wifi_setup = nullptr; }
-  if (scr_wifi_pass)  { lv_obj_del(scr_wifi_pass);  scr_wifi_pass  = nullptr; }
-  closeWifiConnectingScreen();
-  closeSpoolmanScreen();
-  deleteOtaScreens();
-  if (scr_extra_fields) { lv_obj_del(scr_extra_fields); scr_extra_fields = nullptr;
-                          resetExtraFieldsScreenState(); }
-  if (scr_tag_field)  { lv_obj_del(scr_tag_field);  scr_tag_field  = nullptr; }
-  if (scr_timezone)   { lv_obj_del(scr_timezone);   scr_timezone   = nullptr; }
 }
 
 void showSettingsScreen() {
@@ -257,11 +234,12 @@ void showSettingsScreen() {
   if (scr_system)      { lv_obj_del(scr_system);      scr_system      = nullptr; }
   lbl_fw_badge = nullptr;
   deleteOtaScreens();
-  closeFactorScreen();   // its statics go with it
+  if (scr_factor)      { lv_obj_del(scr_factor);      scr_factor      = nullptr; }
   lbl_factor_result     = nullptr;
   lbl_factor_cal_weight = nullptr;
-  numPadClose();
+  if (scr_bag)         { lv_obj_del(scr_bag);         scr_bag         = nullptr; }
   if (scr_lastused)    { lv_obj_del(scr_lastused);    scr_lastused    = nullptr; }
+  if (scr_spoolman_fail){ lv_obj_del(scr_spoolman_fail); scr_spoolman_fail = nullptr; }
   buildSettingsScreen();
   lv_obj_clear_flag(scr_settings, LV_OBJ_FLAG_HIDDEN);
   resetActivityTimer();

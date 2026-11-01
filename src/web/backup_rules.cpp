@@ -7,16 +7,6 @@
 // in neither list is a setting.
 static const char* const SECRET_KEYS[] = {
   "wifi_ssid", "wifi_pass", "filaman_key", "filaman_dev", "bb_key", "sm_secret", "sm_bind",
-  // The AMS source's key, and the parked copy of every credential above and of
-  // that key (services/server_sets.cpp, SLOTS[]): a credential is as secret
-  // parked as it was active. The parked addresses, user name and set name
-  // stay settings, like their active counterparts.
-  "ams_src_key", "alt_fm_key", "alt_fm_dev", "alt_bb_key", "alt_sm_secret", "alt_sm_bind",
-  "alt_ams_key",
-  // All the API keys of the Klipper printers' Moonraker, in one entry
-  // (services/klipper_store.h): the printers' own records (kl_p0 .. kl_p63)
-  // hold none, so they travel as settings and this list only with secrets.
-  "kl_keys",
 };
 static const char* const DEVICE_KEYS[] = {
   "fw_ver", "fw_since", "upd_sha", "upd_ver",

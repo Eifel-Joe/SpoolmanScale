@@ -12,12 +12,9 @@
 #include "services/copy_bbs.h"      // what a copy behind Bambuddy on Spoolman takes over
 #include "services/spool_start.h"
 #include "lang.h"
-#include "services/no_tag_create_rules.h"   // the reading, the type list and the fill weight without a tag
 #include "services/spool_extras.h"
-#include "services/spool_types.h"   // spoolTypesActive()
-#include "ui/batch_create.h"        // the count of a create without a tag
+#include "services/spool_types.h"   // spoolTypesActive(), NEW_SPOOL_TARE_MIN_G
 #include "ui/info_popup.h"
-#include "ui/no_tag_create.h"       // noTagMode()
 #include "ui/price_pad.h"
 #include "ui/spool_type_list.h"
 #include "ui/theme.h"
@@ -30,18 +27,18 @@
 //  since v0.8.0-beta.49, when it moved onto the house card.
 //
 //  With Bambuddy on Spoolman and a spool on the pad, the maker's list of
-//  spool types comes first (rules L21, L22): the type picked is the
+//  spool types comes first (design notes L21, L22): the type picked is the
 //  copy's empty spool, on the card and on the server; "without type" leaves
 //  the template's (copy_bbs.h says which of it is sent); back goes where
 //  Cancel on the card goes. The card is built when the list answers.
 //
 //  With Bambuddy on Spoolman the template is read before all of that, for
-//  each of the three ways it can be chosen, so the card can show it, and
-//  copy_bbs.h holds what was read until the create or until the card is
+//  each of the three ways it can be chosen (design note J, Festlegung 15),
+//  and copy_bbs.h holds what was read until the create or until the card is
 //  left. The card then shows what the copy takes over - the profile, the
-//  place and the supplier - and has a price button between its answers.
-//  Every way off the card that creates nothing clears what was read:
-//  Cancel, back from the list of types, a read that failed; the create
+//  place and the supplier - and has a price button between its answers
+//  (section 3). Every way off the card that creates nothing clears what was
+//  read: Cancel, back from the list of types, a read that failed; the create
 //  clears it in doCopySpoolCreate(). A card closed from outside the flow
 //  (hideSpoolFlowOverlays()) leaves it to the next card: behind Bambuddy on
 //  Spoolman its read replaces it, outside it the card clears it as it opens.
@@ -54,11 +51,11 @@
 #define COPY_CARD_SWATCH   18
 #define COPY_CARD_GAP      8
 #define COPY_CARD_TEXT_W   (UI_POPUP_W - UI_CARD_TEXT_PAD)
-// Behind Bambuddy on Spoolman: two lines more in the small type of line 2,
-// and the card grows by them. Five lines do not fit the house card's 260 px,
-// so it is 304 of the screen's 320, with the answers at the same distance
-// from its bottom edge. The answers get the price between them, as on the
-// card for a new spool from a tag.
+// Behind Bambuddy on Spoolman (design note J, section 3): two lines more in
+// the small type of line 2, and the card grows by them. Festlegung 13: five
+// lines do not fit the house card's 260 px, so it is 304 of the screen's 320
+// with the answers at the same distance from its bottom edge. The answers get
+// the price between them, as on the card for a new spool from a tag.
 #define COPY_CARD_SMALL_PITCH  22   // UI_FONT_SMALL's 16 px line and 6 px of air
 #define COPY_CARD_BBS_GROW     (2 * COPY_CARD_SMALL_PITCH)
 #define COPY_CARD_PRICE_W      80
@@ -82,10 +79,10 @@ static float    s_copy_core            = 0.0f;
 // The template is behind Bambuddy on Spoolman and was read for this card
 // (copyBbsLoad()): the card shows what the copy takes over.
 static bool     s_copy_bbs             = false;
-// The price button (BBS), a price per kg as the server keeps it. copyBbsView()
-// gives the template's, never a typed one, so what was typed since the card
-// was asked for is kept here: for the button, and for a card built again
-// within the same copy, which must show what copy_bbs.h will send.
+// The price button (BBS), a price per kg (Festlegung 5). copyBbsView() gives
+// the template's, never a typed one, so what was typed since the card was
+// asked for is kept here: for the button, and for a card built again within
+// the same copy, which must show what copy_bbs.h will send.
 static lv_obj_t* s_copy_price_lbl      = nullptr;
 static float     s_copy_price_tpl      = 0.0f;   // the template's price per kg
 static bool      s_copy_price_typed    = false;
@@ -96,18 +93,7 @@ static float     s_copy_price          = 0.0f;   // typed per kg; 0: emptied, no
 // Set with s_copy_core, cleared with it for every new confirmation.
 static bool     s_copy_type_asked      = false;
 
-// The line the card shows while the template has no fill weight and the copy is
-// made without a tag (X): the question, or the range after an answer outside
-// it. Every confirmation starts with the question.
-static int      s_copy_fill_hint       = STR_NOTAG_FILL_ASK;
-
 bool copyTypeAsked() { return s_copy_type_asked; }
-
-// The maker of the template, for the note a copy made without a tag ends with
-// (noTagCreateFinish()). Read off the copy of the look kept at file scope:
-// copyFlowDeferredActions() closes the card before the create runs, and
-// closing it leaves that copy alone. No look, no vendor.
-const char* copyCardVendor() { return copy_template_has_look ? copy_template_look.vendor : ""; }
 
 void closeCopyConfirmPopup() {
   releaseScreen(&scr_copy_confirm);
@@ -131,7 +117,7 @@ static void copyBackToList() {
 
 // The price button shows the price per kg that goes to the server: the one
 // typed, else the template's ("10.99/kg"), and "Price" where there is none
-// (0 is no price).
+// (Festlegung 5: 0 is no price).
 //
 // Wurzel: the button is 80 px and its text gets 72 of them, and with cents a
 // price per kg of 100 or more can be wider than that in UI_FONT_SMALL
@@ -230,7 +216,7 @@ static lv_obj_t* copyAnswerButton(lv_obj_t* box, int x, int y, int w, bool ok) {
 // grows instead, and a long text wraps - a long place and supplier ran over
 // line 3. Fix: one line of height, as labelOneLine() gives its labels.
 // NOT-TO-DO: the same for line 2 of the card outside Bambuddy on Spoolman,
-// which is left as it was; the fix came with the two lines behind Spoolman.
+// which stays exactly as it was (ruling 16).
 static lv_obj_t* copyCardSmallLine(lv_obj_t* box, const char* text, int y, bool one_line) {
   lv_obj_t *lbl = lv_label_create(box);
   lv_label_set_text(lbl, text);
@@ -244,10 +230,10 @@ static lv_obj_t* copyCardSmallLine(lv_obj_t* box, const char* text, int y, bool 
   return lbl;
 }
 
-// The two lines a copy behind Bambuddy on Spoolman adds, from y down: the
-// profile with the profiles per printer model counted behind it, and the
-// place with the supplier. A dash for what the template has not; the line
-// stays, so the card says that nothing is taken over there.
+// The two lines a copy behind Bambuddy on Spoolman adds (section 3), from y
+// down: the profile with the profiles per printer model counted behind it,
+// and the place with the supplier. A dash for what the template has not; the
+// line stays, so the card says that nothing is taken over there.
 //
 // Wurzel: one label dots its end, and the end of the profile line is the
 // count - the one thing on it that says profiles per model go along ("Profil:
@@ -255,7 +241,7 @@ static lv_obj_t* copyCardSmallLine(lv_obj_t* box, const char* text, int y, bool 
 // 360 px line). Fix: the count is a label of its own that keeps its width,
 // and the name beside it gets the rest, as the swatch and the name of line 1
 // share theirs. NOT-TO-DO: putting the count first, which turns the line
-// round: the profile is what it is about, the count only adds to it.
+// round from the order the design note shows.
 static void buildCopyTakenOver(lv_obj_t* box, const CopyBbsView& v, int y) {
   char count[32] = "";
   if (v.model_presets > 0) {
@@ -293,15 +279,6 @@ static void buildCopyTakenOver(lv_obj_t* box, const CopyBbsView& v, int y) {
   snprintf(place, sizeof(place), "%s | %s", loc, sup);
   copyCardSmallLine(box, place, y + COPY_CARD_SMALL_PITCH, true);
 }
-
-// Whether the copy needs a fill weight typed in (X): made without a tag, from
-// a template that brings none (0 or less, in whole grams as the card shows
-// them). Without the flag a template without one goes on as it always did.
-static bool copyFillMissing() {
-  return noTagFillMissing(noTagMode(), (int)lroundf(copy_template_initial));
-}
-
-static void copyFillTyped(float grams);
 
 // The copy confirmation, on the house card for a question (400 x 260, the
 // answers in its bottom row): the template as a colour and a name, where it
@@ -350,8 +327,6 @@ static void buildCopyCard() {
   lv_obj_set_style_text_align(title, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_set_width(title, UI_POPUP_W - UI_CARD_TEXT_PAD);
   lv_obj_align(title, LV_ALIGN_TOP_MID, 0, UI_CARD_TITLE_Y);
-  // Without a tag, the count at the top right; a new one builds the card again.
-  if (noTagMode()) batchCountChip(box, buildCopyCard);
 
   // Line 1: the colour and the filament, as one centred group.
   lv_obj_t *row = lv_obj_create(box);
@@ -395,14 +370,11 @@ static void buildCopyCard() {
   // One line where the profile follows it (BBS); as it always was elsewhere.
   copyCardSmallLine(box, line2, y2, s_copy_bbs);
 
-  // Line 3: what the new spool starts with (spool_start.h), as every backend
-  // files it but Bambuddy's own inventory: that keeps the template's label,
-  // and at most that much is left (copy_bbs.cpp createAsBefore()). Weighed
-  // against the type chosen, else the template's empty spool (copyTare()), and
-  // read without the parts (spool_extras.h), 0 without a tag (noTagGross()).
-  const bool fill_missing = copyFillMissing();
-  const SpoolStart start = spoolStartValues(noTagGross(noTagMode(), spoolExtrasBareReading()),
-                                            (int)lroundf(tare),
+  // Line 3: what the new spool starts with, as doCopySpoolCreate() will file
+  // it (spool_start.h), and the empty spool it is weighed against: the type
+  // chosen, else the template's (copyTare()). The reading is the one without
+  // the parts on the spool (spool_extras.h), as doCopySpoolCreate() takes it.
+  const SpoolStart start = spoolStartValues(spoolExtrasBareReading(), (int)lroundf(tare),
                                             tare > 0.0f ? TARE_Q_KNOWN : TARE_Q_NONE,
                                             (int)lroundf(copy_template_initial));
 
@@ -415,10 +387,7 @@ static void buildCopyCard() {
     buildCopyTakenOver(box, view, y2 + COPY_CARD_SMALL_PITCH);
   }
   char line3[80];
-  if (fill_missing) {
-    // No numbers to show without a fill weight: the line asks for it.
-    snprintf(line3, sizeof(line3), "%s", T(s_copy_fill_hint));
-  } else if (start.verdict == START_PARTIAL) {
+  if (start.verdict == START_PARTIAL) {
     snprintf(line3, sizeof(line3), T(STR_COPY_CARD_WEIGHT), start.remaining_g, tare);
   } else {
     char weight[64];
@@ -430,12 +399,6 @@ static void buildCopyCard() {
   lv_label_set_text(lbl3, line3);
   lv_obj_set_style_text_color(lbl3, lv_color_hex(UI_COL_INK_2), 0);
   lv_obj_set_style_text_font(lbl3, UI_FONT_BODY, 0);
-  if (fill_missing) {
-    // One line of the small warning type, as the same hint on the card for a
-    // new spool; it names the button below it.
-    lv_obj_set_style_text_color(lbl3, lv_color_hex(UI_COL_WARN), 0);
-    lv_obj_set_style_text_font(lbl3, UI_FONT_SMALL, 0);
-  }
   lv_obj_set_style_text_align(lbl3, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_set_width(lbl3, UI_POPUP_W - UI_CARD_TEXT_PAD);
   lv_obj_align(lbl3, LV_ALIGN_TOP_MID, 0, UI_CARD_TEXT_Y - 4 + 2 * COPY_CARD_LINE_H + 8 + grow);
@@ -445,20 +408,7 @@ static void buildCopyCard() {
   const int row_y = UI_CARD_ROW_Y + grow;
   const int ans_w = s_copy_bbs ? COPY_CARD_ANSWER_W : UI_POPUP_BTN_W;
   lv_obj_t *btn_ok = copyAnswerButton(box, UI_CARD_ROW_X, row_y, ans_w, true);
-  // The label is the button's first child (copyAnswerButton()); the count, if
-  // any, after the fill weight.
-  char caption[32];
-  lv_label_set_text(lv_obj_get_child(btn_ok, 0),
-                    fill_missing ? T(STR_NOTAG_FILL_BTN) : batchCreateCaption(caption, sizeof(caption)));
   lv_obj_add_event_cb(btn_ok, [](lv_event_t *e) {
-    // No fill weight: the button asks for it on the price pad instead of
-    // creating, and the answer comes back through copyFillTyped(). Nothing is
-    // made from a copy that has no fill weight to file.
-    if (copyFillMissing()) {
-      logSD("BTN: CopyConfirm -> Fill weight");
-      showPricePadInfo(copy_template_initial, STR_NOTAG_FILL_TITLE, STR_NOTAG_FILL_INFO, copyFillTyped);
-      return;
-    }
     // The handler closes the three popups - this button's own among them -
     // and then creates the spool from the loop.
     copyCreateRequest(copy_template_spool_id, copy_template_filament_id,
@@ -472,27 +422,6 @@ static void buildCopyCard() {
     logSD("BTN: CopyConfirm -> Cancel (back to list)");
     copyBackToList();
   }, LV_EVENT_CLICKED, NULL);
-  styleLeaveButton(btn_no);
-}
-
-// The pad's answer for the fill weight (X), from the loop (pricePadTick()). As on
-// the card for a new spool: an emptied field types nothing and a cancelled pad
-// never calls; a value outside the range is not taken and the line says the
-// range; a valid one is the copy's fill weight (whole grams, as the backends
-// take it) and the card is built again with its numbers and "Create". A card
-// closed meanwhile takes nothing: nothing is created from it.
-static void copyFillTyped(float grams) {
-  if (!scr_copy_confirm || grams <= 0.0f) return;
-  if (!noTagFillPlausible(grams)) {
-    logSDf("Copy: fill weight %.0f g is out of range, not taken", grams);
-    s_copy_fill_hint = STR_NOTAG_FILL_RANGE;
-    buildCopyCard();
-    return;
-  }
-  copy_template_initial = (float)lroundf(grams);
-  logSDf("Copy: fill weight %.0f g typed for the copy of spool %d", copy_template_initial,
-         copy_template_spool_id);
-  buildCopyCard();
 }
 
 static void copyTypePicked(float grams, const char*) {
@@ -522,7 +451,6 @@ void showCopyConfirmPopup(int template_spool_id, int template_filament_id,
   if (look) copy_template_look = *look;
   s_copy_core       = 0.0f;
   s_copy_type_asked = false;
-  s_copy_fill_hint  = STR_NOTAG_FILL_ASK;
   // A new card starts from the template's price, as the read below forgets a
   // price typed for the one before.
   s_copy_price_typed = false;
@@ -532,10 +460,10 @@ void showCopyConfirmPopup(int template_spool_id, int template_filament_id,
   (void)template_remaining;   // the weight the template had is not the new spool's
 
   // Behind Bambuddy on Spoolman the template is read here, before the list of
-  // types, whichever way it was chosen, so the card can show what goes along;
-  // the loop stands still for it, as for the read of a row out of the cache
-  // (copyRowRefresh()). A template that cannot be read gets that read's hint,
-  // and the way back is Cancel's: no card for a copy that would create nothing.
+  // types, whichever way it was chosen (Festlegung 15); the loop stands still
+  // for it, as for the read of a row out of the cache (copyRowRefresh()). A
+  // template that cannot be read gets that read's hint, and the way back is
+  // Cancel's: no card for a copy that would create nothing (Festlegung 8).
   s_copy_bbs = spoolTypesActive();
   // A card outside it starts with nothing read: a BBS card closed from outside
   // the flow left its template and a typed price behind, and a create for the
@@ -557,11 +485,8 @@ void showCopyConfirmPopup(int template_spool_id, int template_filament_id,
   }
 
   // The list only with Bambuddy on Spoolman and a spool on the pad: an empty
-  // pad (or no number) has no net to take a type off (L22). Without a tag the
-  // list comes without the weight, for the copy has no type yet (0): the one
-  // rule decides (noTagTypeAsk()), the filter, the preselection and "without
-  // type" below stay as they are.
-  if (!noTagTypeAsk(spoolTypesActive(), noTagMode(), spoolExtrasBareReading(), 0)) {
+  // pad (or no number) has no net to take a type off (L22).
+  if (!spoolTypesActive() || !(spoolExtrasBareReading() > NEW_SPOOL_TARE_MIN_G)) {
     buildCopyCard();
     return;
   }

@@ -22,7 +22,6 @@
 #include "services/copy_bbs.h"
 #include "services/copy_rules.h"   // CopyMissing
 #include "services/list_limits.h"
-#include "services/no_tag_create_rules.h"
 #include "services/server_reach.h"
 #include "services/spool_start.h"
 #include "services/spool_cache.h"
@@ -30,13 +29,11 @@
 #include "services/spool_types.h"   // spoolTypesActive()
 #include "services/spoolman_actions.h"
 #include "services/tag_field.h"
-#include "ui/batch_create.h"
 #include "ui/info_popup.h"
 #include "ui/link_wait_card.h"
 #include "ui/loading_overlay.h"
 #include "ui/main_screen_helpers.h"
 #include "ui/navigation.h"
-#include "ui/no_tag_create.h"
 #include "ui/spoolman_lookup.h"
 #include "services/spool_tare.h"
 #include "ui/theme.h"
@@ -142,7 +139,7 @@ bool finishCopyFlow(int new_spool_id, const char* tray_uuid_override) {
 }
 
 // The parts of a copy behind Bambuddy on Spoolman that did not come across,
-// in the order of their bits, for the status line to name them. The log
+// in the order of their bits, for the status line (Festlegung 8). The log
 // has each of them with its HTTP code (copy_bbs.cpp).
 static const struct { uint8_t bit; int text; } COPY_MISSING_PARTS[] = {
   { CM_PRICE,     STR_COPY_PART_PRICE },
@@ -165,7 +162,7 @@ static const struct { uint8_t bit; int text; } COPY_MISSING_PARTS[] = {
 // own font and width, and "..." for the rest; the log has every part.
 // NOT-TO-DO: giving lbl_status one line of height from here - the fix for
 // every status message, but a change to the main screen of every backend.
-void copyCreatedStatus(uint8_t missing) {
+static void copyCreatedStatus(uint8_t missing) {
   if (missing == CM_NONE) {
     statusMessageShow(T(STR_COPY_OK), UI_COL_GOOD);
     return;
@@ -208,29 +205,27 @@ void doCopySpoolCreate(int template_spool_id, int template_filament_id, float te
   // What the card read for the copy (copy_bbs.h) goes on every way out of
   // here, a create that was never tried included.
   if (!wifi_ok) { copyBbsClear(); return; }
-  // The copy's empty spool (tare_g) is one someone stored: the type chosen,
-  // else the template's, at whichever level spoolTare() found it. The reading
+  // The copy's empty spool (tare_g: the type chosen, else the template's) is
+  // one someone stored, at whichever level spoolTare() found it: the reading
   // without the parts on the spool (spool_extras.h) is weighed against it,
   // and a full copy files what it weighs as its full weight (spool_start.h).
-  // Behind Bambuddy on Spoolman that full weight is the copy's label, the one
-  // line 3 of the card shows; in Bambuddy's own inventory the label stays the
-  // template's and only what is left comes from here (copy_bbs.h). A copy made
-  // without a tag weighs nothing: the reading is 0 for it (noTagGross()).
-  const float bare = noTagGross(noTagMode(), spoolExtrasBareReading());
+  // Behind Bambuddy on Spoolman that full weight is the copy's label, the
+  // one the card priced; in Bambuddy's own inventory the label stays the
+  // template's and only what is left comes from here (copy_bbs.h).
+  const float bare = spoolExtrasBareReading();
   const SpoolStart start = spoolStartValues(bare, (int)lroundf(tare_g),
                                             tare_g > 0.0f ? TARE_Q_KNOWN : TARE_Q_NONE,
                                             (int)lroundf(template_initial));
   logSDf("Copy: start %s gross=%.0f tare=%.0f label=%.0f -> initial=%d remaining=%.0f",
          spoolStartVerdictName(start.verdict), bare, tare_g, template_initial,
          start.initial_g, start.remaining_g);
-  if (noTagMode() && batchCount() > 1) { batchCopyCreate(template_spool_id, template_filament_id, start, tare_g, chosen_core_g); return; }
 
   int new_id = 0;
   int code = serverReachNote(backendCreateSpool(cfg_spoolman_base, template_spool_id, template_filament_id,
     (float)start.initial_g, tare_g, start.remaining_g, &new_id, 8000, chosen_core_g), true);
   // Read before the load is cleared. Elsewhere nothing goes missing, and the
-  // bits an earlier copy behind Spoolman left must not speak for this one:
-  // only copyBbsCreate() resets them, a Spoolman or FilaMan create does not.
+  // bits a copy behind Spoolman left before a switch of backend must not
+  // speak for this one: no other backend's create resets them.
   const uint8_t missing = spoolTypesActive() ? copyBbsLastMissing() : (uint8_t)CM_NONE;
   copyBbsClear();
   if ((code == 200 || code == 201) && new_id > 0) {
@@ -240,15 +235,6 @@ void doCopySpoolCreate(int template_spool_id, int template_filament_id, float te
     // A spool the kept list does not have, and a row for it cannot be made up
     // from here. The stamp would catch it; BamBuddy has none.
     spoolCacheForget("spool created by copy");
-    // No tag: no link and no mark for the first weighing, see
-    // noTagCreateFinish(). The green line gives way to what did not come
-    // across, unless the Bambu chip hint stands on it (noTagYellowLineAllowed());
-    // with nothing missing copyCreatedStatus() would say "copied".
-    if (noTagMode()) {
-      noTagCreateFinish(new_id, copyCardVendor());
-      if (missing != CM_NONE && noTagYellowLineAllowed(new_id, "copy parts not taken over", missing)) copyCreatedStatus(missing);
-      return;
-    }
     // The card's list asked this copy's type: the first weighing does not
     // ask it again (tare_entry.h).
     if (copy_create_asked) tareEntryFirstWeighDone(new_id);
@@ -665,9 +651,6 @@ static void copyEntryTiles(bool offer_from_tag, bool offer_from_db) {
 // Entry popup: choose ID / Active spools / Archived spools
 void showCopyEntryPopup() {
   logSD("SHOW: CopyEntryPopup");
-  // Decided here, once, from the pad as it is now: no Bambu tag and no id
-  // means a create without a tag (X). Before the tiles, which read it.
-  noTagModeSet(noTagModeAtEntry(strlen(g_tag.tray_uuid) == 32, link_tag_uid[0] != '\0'));
   linkPickerReset();  // clear so NTAG always goes via vendor/material picker
   closeCopyEntryPopup();
 
@@ -682,7 +665,7 @@ void showCopyEntryPopup() {
 
   // Title: named like the button that opens it, since it also offers new spools
   lv_obj_t *lbl_title = lv_label_create(scr_copy_entry);
-  lv_label_set_text(lbl_title, noTagEntryTitle());
+  lv_label_set_text(lbl_title, T(STR_BTN_COPY_SPOOL));
   lv_obj_set_style_text_color(lbl_title, lv_color_hex(UI_COL_ACCENT), 0);
   lv_obj_set_style_text_font(lbl_title, &lv_font_montserrat_ext_18, 0);
   lv_obj_set_style_text_align(lbl_title, LV_TEXT_ALIGN_CENTER, 0);
@@ -705,9 +688,7 @@ void showCopyEntryPopup() {
   // Context: material info if available
   lv_obj_t *lbl_ctx = lv_label_create(scr_copy_entry);
   char ctx_buf[56];
-  if (noTagMode()) {
-    copyT(ctx_buf, sizeof(ctx_buf), STR_NOTAG_CTX);   // no id to show
-  } else if (strlen(g_tag.material) > 0) {
+  if (strlen(g_tag.material) > 0) {
     char fmt_c[48]; backendText(T(STR_LINK_CTX_NOT_IN_SM), fmt_c, sizeof(fmt_c));
     snprintf(ctx_buf, sizeof(ctx_buf), fmt_c, g_tag.material);
   } else if (strlen(link_tag_uid) > 0) {

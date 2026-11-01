@@ -26,9 +26,6 @@
 #include "bambu/bambu_scan.h"
 #include "bambu/bambu_tag.h"
 #include "snapmaker/snapmaker_scan.h"
-#include "creality/creality_scan.h"
-#include "services/mifare_write.h"
-#include "services/tag_family.h"
 #include "hardware/display_power.h"
 #include "hardware/nfc.h"
 #include "hardware/scale.h"
@@ -39,7 +36,6 @@
 #include "ui/reboot_popup.h"
 #include "ui/info_popup.h"
 #include "ui/nfc_reset_popup.h"
-#include "services/auto_send_rules.h"
 #include "services/auto_weight_state.h"
 #include "services/location_state.h"
 #include "web/web_server.h"
@@ -49,7 +45,6 @@
 #include "services/tag_write.h"
 #include "services/tag_link.h"
 #include "ui/ota_github.h"
-#include "ui/weight_button.h"
 #include "services/ota_state.h"
 #include "services/update_check.h"
 #include "ui/ota_browser.h"
@@ -66,7 +61,6 @@
 #include "services/bambuddy_device.h"
 #include "services/ams_presence.h"
 #include "services/ams_pick.h"
-#include "services/no_tag_create_rules.h"   // amsInfoOffered()
 #include "ui/ams_detail_popup.h"
 #include "ui/status_picker.h"
 #include "ui/ams_view.h"
@@ -92,30 +86,25 @@
 #include "ui/backend_screen.h"
 #include "ui/filaman_options_screen.h"
 #include "ui/bag_screen.h"
+#include "ui/cal_reminder_screen.h"
 #include "ui/bambuddy_options_screen.h"
 #include "ui/spoolman_options_screen.h"
 #include "ui/tag_companion_screen.h"
 #include "services/prefs_store.h"
 #include "services/spool_extras.h"
 #include "web/web_jobs.h"
-#include "web/pages/page_klipper.h"   // klipperTestTick()
 #include "ui/confirm_popup.h"
 #include "ui/tare_entry.h"
-#include "ui/no_tag_create.h"   // noTagAfterCreateBusy()
-#include "ui/batch_create.h"    // batchLabelsTick()
 #include "ui/ble_devices_screen.h"
 #include "ui/bluetooth_screen.h"
 #include "ui/connection_screen.h"
 #include "ui/dried_action.h"
 #include "ui/drying_reminder_screen.h"
-#include "ui/num_pad.h"
 #include "ui/extra_fields_screen.h"
 #include "ui/tag_field_screen.h"
 #include "ui/timezone_screen.h"
 #include "ui/language_screen.h"
 #include "ui/factor_screen.h"
-#include "ui/live_zone.h"
-#include "ui/setup_done_screen.h"
 #include "ui/header_status.h"
 #include "ui/info_screen.h"
 #include "ui/last_used_screen.h"
@@ -192,27 +181,6 @@ static bool loc_left_pad = false;
 // They stay pending and fire when the weight goes, because the reader, having
 // lost the tag already, will report no removal when the spool is lifted.
 static bool loc_kept = false;
-// The tag went silent but the weight on the pad did not move: the spool is
-// still there, so it stays present (13.10.2026, hardware: tags read off-centre
-// on a side-mounted reader stop answering after a few seconds). Released the
-// moment the weight changes or the tag answers again. While set, the weight
-// reference stays frozen at what the pad carried when the tag was last read.
-static bool tag_kept_by_weight = false;
-// What the pad carried at the last poll that read the tag. A tag that stops
-// answering while the weight falls well below this was lifted, not lost.
-static float weight_at_last_read = 0.0f;
-
-// Something spool-sized lies on the pad, and it has not fallen to under half
-// of what the pad carried when the tag was last read. Independent of the
-// settled reference, which a spool put down a second ago does not have yet:
-// on 13.10.2026 a Bambu tag read once and went silent 1.5 s after the spool
-// was put down, before the weight had settled, so the spool was dropped and
-// never weighed although it lay there.
-static bool padCarriesSpool() {
-  if (!g_scale_fitted || !scale_ready) return false;
-  const float floor_g = fmaxf(LOC_WEIGHT_MIN_G, weight_at_last_read * LOC_WEIGHT_GONE_FRACTION);
-  return scale_weight_g >= floor_g;
-}
 
 // Did the spool actually leave, or did the reader merely lose the tag?
 //
@@ -233,52 +201,12 @@ static bool weightSaysSpoolStayed() {
 // this case does not have, so the intent is carried here instead.
 //
 // It needs an end as much as a beginning. "No tag" is also the condition that
-// clears auto_weight_done for the next spool, so marking the spool weighable without
+// clears aw_done for the next spool, so marking the spool weighable without
 // also saying when that stops would save it again on every pass through the
 // loop, for as long as it sat there.
 static bool aw_adopted      = false;
 static bool aw_adopted_seen = false;   // a real load has been on the pad since
-
-// The spool has lain still long enough. What happens to the reading depends
-// on how it compares with what the backend holds (Nikolai, 26.10.2026):
-// heavier by more than AUTO_WEIGHT_RISE_G is held back and the button asks,
-// since filament only ever leaves a spool; within AUTO_WEIGHT_MIN_CHANGE_G
-// is the same value and costs no request; anything else is written. Never
-// minus the bag: a spool in use is weighed bare, and the popup has the
-// switch for the other case.
-//
-// Fork: on the raw reading the parts on the spool (a clip, a tag holder)
-// count as filament: a 3 g holder is written as 3 g the spool does not have,
-// and parts over 5 g hold every weighing back as a rise. The verdict is
-// therefore taken on the reading without them (autoSendVerdict(),
-// auto_send_rules.h, test_auto_send_rules.py), with the parts remembered for
-// this spool, else the default: there is no chooser before the countdown.
-// The same bare reading goes into the AMS note, as the weight popup's button
-// sends it. NOT-TO-DO: no taking the parts off the thresholds or off
-// sm_remaining instead: the value written and the AMS note would still
-// carry them.
-static void autoWeightSettled(float gross) {
-  const float parts = spoolExtrasNow();
-  const AutoSendVerdict v = autoSendVerdict(gross, parts, (float)sm_spool_weight, sm_remaining);
-  if (v.kind == AUTO_SEND_RISE) {
-    logSDf("Auto-Weight: spool %d reads %.0f g, %.0f g over the backend - not sent",
-           sm_id, v.netto_g, v.diff_g);
-    weightButtonShow(WL_RISE, v.diff_g);
-    return;
-  }
-  const bool unchanged = v.kind == AUTO_SEND_UNCHANGED;
-  if (unchanged) {
-    logSDf("Auto-Weight: spool %d unchanged at %.0f g - not sent", sm_id, v.netto_g);
-    weightButtonShow(WL_UNCHANGED, v.netto_g);
-  } else {
-    weightButtonShow(WL_SENT, v.netto_g);
-    patchSpoolmanWeight(v.netto_g);
-  }
-  // Remembered either way, so a yes on removal can still open the window;
-  // an unchanged value has not gone out, and a yes is what sends it then.
-  if (amsAskActive()) amsNoteMeasurement(sm_id, v.netto_g, extrasBare(gross, parts), !unchanged);
-  if (amsPickActive()) amsPickNote(sm_id, sm_filament_name);
-}
+static bool aw_done         = false;   // this spool already saved
 
 // Lost more than half the reference. Nothing but taking the spool off does that.
 static bool weightSaysSpoolGone() {
@@ -289,8 +217,35 @@ static bool weightSaysSpoolGone() {
 // A gross weight that has demonstrably settled, tracked whether or not auto
 // weighing is switched on. The AMS question reports this when nothing was
 // weighed on purpose, and that value gets written to FilaMan - so it must not
-// be a number the average was still chasing: within AUTO_WEIGHT_THRESH_G for
-// AUTO_WEIGHT_STABLE_MS, stricter than the automatic weighing's own band.
+// be a number the average was still chasing. Same criterion the auto weight
+// path uses: within AUTO_WEIGHT_THRESH_G for AUTO_WEIGHT_STABLE_MS.
+// The weight button's countdown in auto mode, made visible beyond the number:
+// each second its border flashes, thicker and in the countdown's own label
+// colour, for a moment. Timed from the loop with millis(), not an lv_timer,
+// and on the button that is always there - nothing new on the main screen.
+#define AW_PULSE_MS         150
+#define AW_PULSE_BORDER_PX  3
+#define AW_REST_BORDER_PX   1
+static unsigned long aw_pulse_ms = 0;   // when the current flash began, 0 = none
+
+static void weightPulseStart() {
+  if (!btn_weight_main) return;
+  lv_obj_set_style_border_width(btn_weight_main, AW_PULSE_BORDER_PX, 0);
+  lv_obj_set_style_border_color(btn_weight_main, lv_color_hex(UI_COL_WEIGHT_COUNT), 0);
+  aw_pulse_ms = millis();
+  if (aw_pulse_ms == 0) aw_pulse_ms = 1;
+}
+
+// Back to the border main_screen.cpp gives the button, once the flash is
+// over - also when the countdown ended or broke off in the middle of one.
+static void weightPulseTick() {
+  if (!aw_pulse_ms || millis() - aw_pulse_ms < AW_PULSE_MS) return;
+  aw_pulse_ms = 0;
+  if (!btn_weight_main) return;
+  lv_obj_set_style_border_width(btn_weight_main, AW_REST_BORDER_PX, 0);
+  lv_obj_set_style_border_color(btn_weight_main, lv_color_hex(UI_COL_WEIGHT_BG_PRESSED), 0);
+}
+
 static float         ams_settle_last  = -9999.0f;
 static unsigned long ams_settle_since = 0;
 static float         ams_settled_g    = 0.0f;
@@ -378,18 +333,6 @@ constexpr int NFC_UID_PROBE_AFTER_RETRIES = 1;
 // count each time and re-scan forever. The counter is only cleared once the
 // tag has really been gone for a while, or when a different tag shows up.
 constexpr unsigned long NFC_RETRY_RESET_ABSENT_MS = 10000;
-
-// A Creality tag that stops answering right after its read is woken, but only
-// this long after it last answered: a spool turned so the tag is out of reach
-// (13.10.2026) does not come back from any wake. Beyond it the usual grace
-// period decides.
-constexpr unsigned long NFC_CFS_RECOVER_WINDOW_MS = 3000;
-// At most one wake per interval, so a spool that really left costs a few
-// wake attempts and not more.
-constexpr unsigned long NFC_CFS_RECOVER_EVERY_MS  = 400;
-// Wakes logged per tag: the first few, then one in this many.
-constexpr int NFC_CFS_RECOVER_LOG_FIRST = 3;
-constexpr int NFC_CFS_RECOVER_LOG_EVERY = 50;
 }
 
 // The WiFi setup screen scans for networks, and wifiManagerPrepareScan() calls
@@ -510,33 +453,6 @@ static int  loc_popup_pending_id = -1;              // debounced popup: sm_id sc
 static int  ams_popup_pending_id = -1;              // same, for the AMS question; answered first when both are due
 static int  pick_popup_pending_id = -1;             // same, for the AMS bay picker; only one of the three is ever set per backend
 
-// A spool shown by its id has no tag to leave the reader, so its own lift
-// raises the questions a lifted tag gets, by the same switches, and the block
-// in appLoop() asks them as it does for a tag. The tag path is untouched.
-// One rule is the id's own: the AMS question only follows a weight sent with
-// "Update weight". The settled reading the tag path stands in would be a
-// weight written, unasked, to a spool picked by a typed number.
-static void idSpoolLiftQuestions() {
-  float load_g = 0.0f;
-  if (!idSpoolTakeLift(&load_g)) return;
-  if (!wifi_ok || !sm_found || sm_archived || sm_id <= 0) return;
-  // The block cross-checks the lift against what the pad carried, as for a tag.
-  loc_weight_ref   = load_g;
-  loc_weight_valid = true;
-  loc_kept         = false;
-  if (g_auto_loc_popup && g_loc_popup_shown_for_id != sm_id) loc_popup_pending_id = sm_id;
-  if (amsAskActive() && amsHasPending() && amsPendingSpoolId() == sm_id) {
-    ams_popup_pending_id = sm_id;
-  }
-  if (amsPickActive()) {
-    if (!amsPickHasPending()) amsPickNote(sm_id, sm_filament_name);
-    if (amsPickPendingSpoolId() == sm_id) pick_popup_pending_id = sm_id;
-  }
-  logSDf("IdSpool: spool %d lifted from %.0fg, asking location=%d ams=%d bay=%d", sm_id,
-         load_g, (int)(loc_popup_pending_id > 0), (int)(ams_popup_pending_id > 0),
-         (int)(pick_popup_pending_id > 0));
-}
-
 // The AMS button on a device without a load cell, one pass after the tap.
 // Asked again rather than trusted: a spool can have left the screen between
 // the tap and this pass.
@@ -557,38 +473,6 @@ static void amsMainAssignRun() {
   if (!amsCommitWithWindow()) {
     showInfoPopup(STR_AMSV_TITLE, STR_AMSV_ASSIGN_FAIL, INFO_WARN);
   }
-}
-
-// "Into AMS" under "More info", one pass after the tap (which also closed the
-// page). The same question the page asked when it was built is asked again:
-// the NFC poll ran in between and a spool can have left the screen, landed in
-// its place or been archived, and the picker must not open for the wrong one.
-// Not folded into amsMainAssignRun(): that one is the button of the main
-// screen without a load cell and also serves FilaMan, which this does not.
-static void amsInfoAssignRun() {
-  if (!amsInfoOffered(backendCanAssignAmsSlot(), amsPresenceHasAms(), sm_found, sm_archived, sm_id)) {
-    logSDf("AMS: info button assign dropped, the spool is no longer offered, sm_id=%d", sm_id);
-    return;
-  }
-  amsPickOpenFor(sm_id, sm_filament_name);
-}
-
-// What a lifted tag left on the main screen goes the way the no-tag timer in
-// appLoop() takes it, and the timer's wait ends with it.
-//
-// Wurzel: the display of a lifted tag stays up for NO_TAG_CLEAR_MS (or until
-// the clear button), and for that long the main screen already offers "Create
-// spool" (nothing on the pad, nothing found), whose choice would read the
-// lifted tag's id. Fix: one function for the timer and for that button.
-// NOT-TO-DO: clearTagDisplay() alone from the button: last_tag_seen_ms would
-// still run, and the timer would clear the screen a second time in the middle
-// of the create. See test_no_tag_entry.py.
-void dropLiftedTagDisplay() {
-  // clearTagDisplay() drops sm_id, so the note loses the spool it refers
-  // to. Nothing is lost by forgetting it, the weight was written already.
-  if (amsHasPending() && !isAmsAssignPopupOpen()) amsDropPending();
-  clearTagDisplay();
-  last_tag_seen_ms = 0;
 }
 
 void appLoop() {
@@ -752,7 +636,6 @@ void appLoop() {
   perfSection("flashlog");
   flashLogTick();
   perfSection("jobs");
-  klipperTestTick();   // stores a finished Klipper test before webJobsTick() drops it
   webJobsTick();
   // Gives the kept spool list back once it is too old or was called off. Two
   // comparisons while there is none.
@@ -817,7 +700,6 @@ void appLoop() {
   handleBluetoothDeferredActions();
   handleBleDevicesDeferredActions();
   handlePrinterDeferredActions();
-  batchLabelsTick();   // the labels of several spools, one per pass (batch_create.h)
   handleConfirmPopupDeferredActions();
   handleDriedDeferredAction();
   // Bringing an archived spool back. Out here rather than in the button's
@@ -838,28 +720,33 @@ void appLoop() {
 
   if (cal_reminder_pending) {
     cal_reminder_pending = false;
-    // The setup's scale step, after its other screens have been freed. With
-    // no load cell there is nothing to calibrate, so the chain ends here.
-    if (g_scale_fitted) { releaseSetupScreens(); showFactorScreen(); }
-    else                showSetupDoneScreen();
-  }
-  if (setup_done_pending) {
-    setup_done_pending = false;
-    showSetupDoneScreen();
-  }
-  if (cal_setup_back_pending) {
-    cal_setup_back_pending = false;
-    factorBackToSetupStep();
+    // The last step of the setup asks whether to calibrate now. With no load
+    // cell there is nothing to calibrate, so the chain ends one screen early.
+    // showMainScreen() frees every setup screen itself - the same ones
+    // showCalReminderScreen() would have freed - so nothing is left standing.
+    if (g_scale_fitted) showCalReminderScreen();
+    else                showMainScreen();
   }
   handleSpoolFlowDeferredActions();
   // After the flow's own actions, so a way the card opens is taken this pass.
   unknownSpoolTick();
   if (show_bag_pending) {
     show_bag_pending = false;
-    showBagPad();
+    if (!scr_bag) buildBagScreen();
+    hideAllOverlays();
+    lv_obj_clear_flag(scr_bag, LV_OBJ_FLAG_HIDDEN);
   }
   if (show_factor_pending) {
     show_factor_pending = false;
+    showFactorScreen();
+  }
+  // "Calibrate now" on the reminder at the end of the setup. Two steps in a
+  // fixed order: showMainScreen() first, because it is what tears down the
+  // setup overlays and clears setup_active, and only then the calibration on
+  // top of a main screen that is actually there.
+  if (cal_now_pending) {
+    cal_now_pending = false;
+    showMainScreen();
     showFactorScreen();
   }
   // "Check again" in the diagnosis popup. The bus probe belongs to the loop
@@ -896,8 +783,11 @@ void appLoop() {
     resetScaleFilter();
     scale_weight_g = 0.0f;
     logSD("Calibration reset to defaults");
-    // Asked for on the scale menu, which shows the factor in its row.
-    scale_sub_rebuild_pending = true;
+    // Asked for on the calibration screen and answered there: the factor line
+    // says so and the screen stays put. The scale menu picks the new factor up
+    // from its subtitle when the user goes back, which rebuilds it anyway.
+    if (lbl_factor_result) lv_label_set_text(lbl_factor_result, T(STR_CAL_RESET_DONE));
+    if (lbl_factor_cal_weight) lv_label_set_text(lbl_factor_cal_weight, "-- g");
   }
   // A scale menu row changed a setting and wants the screen to say so. The
   // rebuild deletes the row that asked for it, so it cannot happen in that
@@ -912,10 +802,6 @@ void appLoop() {
       lv_obj_clear_flag(scr_scale_sub, LV_OBJ_FLAG_HIDDEN);
     }
   }
-  if (live_zone_rebuild_pending) {
-    live_zone_rebuild_pending = false;
-    rebuildLiveZone();
-  }
   // After the rebuild above, never before it: that one hides every overlay.
   if (show_reboot_pending) {
     show_reboot_pending = false;
@@ -929,14 +815,8 @@ void appLoop() {
   }
   if (show_drying_reminder_pending) {
     show_drying_reminder_pending = false;
-    numPadDropParked();   // the threshold pad, if it led back here
     showDryingReminderScreen();
     lv_obj_clear_flag(scr_drying_reminder, LV_OBJ_FLAG_HIDDEN);
-  }
-  if (dry_pad_pending >= 0) {
-    const int target = dry_pad_pending;
-    dry_pad_pending = -1;
-    showDryingPad(target);
   }
   if (show_lastused_pending) {
     show_lastused_pending = false;
@@ -952,14 +832,6 @@ void appLoop() {
   if (backend_mode_change_pending) {
     backend_mode_change_pending = false;
     backendApplyMode((BackendMode)pending_backend_mode);
-    if (scr_backend && !lv_obj_has_flag(scr_backend, LV_OBJ_FLAG_HIDDEN)) {
-      show_backend_pending = true;
-    }
-  }
-  // The same for the server set: the backend screen shows the new address.
-  if (server_set_swap_pending) {
-    server_set_swap_pending = false;
-    backendApplySetSwap();
     if (scr_backend && !lv_obj_has_flag(scr_backend, LV_OBJ_FLAG_HIDDEN)) {
       show_backend_pending = true;
     }
@@ -1045,29 +917,20 @@ void appLoop() {
   }
   if (show_welcome_pending) {
     show_welcome_pending = false;
-    // Back from the zone picker to the setup's welcome, rebuilt to show the pick.
-    buildFirstBootScreen();
+    // Rebuilt for the same reason as the language screen above.
+    buildWelcomeScreen();
     hideAllOverlays();
-    lv_obj_clear_flag(scr_first_boot, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(scr_welcome, LV_OBJ_FLAG_HIDDEN);
   }
   if (ams_main_assign_pending) {
     ams_main_assign_pending = false;
     amsMainAssignRun();
   }
-  if (ams_info_assign_pending) {
-    ams_info_assign_pending = false;
-    amsInfoAssignRun();
-  }
   if (show_ams_assign_pending) {
     show_ams_assign_pending = false;
-    numPadDropParked();            // the window pad, if it led back here
     buildAmsAssignScreen();        // releases the previous instance itself
     hideAllOverlays();
     lv_obj_clear_flag(scr_ams_assign, LV_OBJ_FLAG_HIDDEN);
-  }
-  if (ams_window_pad_pending) {
-    ams_window_pad_pending = false;
-    showAmsWindowPad();
   }
   if (show_filaman_fields_pending) {
     show_filaman_fields_pending = false;
@@ -1079,6 +942,7 @@ void appLoop() {
     show_spoolman_pending = false;
     // Always rebuild - sp_ip_input is reset on entry
     closeSpoolmanScreen();
+    if (scr_spoolman_fail) { lv_obj_del(scr_spoolman_fail); scr_spoolman_fail = nullptr; }
     buildSpoolmanScreen();
     hideAllOverlays();
     lv_obj_clear_flag(scr_spoolman, LV_OBJ_FLAG_HIDDEN);
@@ -1190,7 +1054,6 @@ void appLoop() {
   tareEntryTick();
   spoolIdPadTick();
   idSpoolTick();
-  idSpoolLiftQuestions();
   if (!tag_present && weightSaysSpoolGone()) loc_left_pad = true;
   // Debounced popups after a removal, cross-checked against the scale.
   // The AMS question and the location question hang off the same event, so
@@ -1199,16 +1062,9 @@ void appLoop() {
   // branch of that popup raises the location question again.
   // Held, not dropped, while the empty spool weight is being entered: the
   // questions wait for that dialog like for any other modal.
-  // Held the same way while the questions of a spool just created without a
-  // tag are still to come or open, the location picker and then "Print a
-  // label?" (design note U2, decision 9; noTagAfterCreateBusy()): they were
-  // asked first, and the spool may be lifted meanwhile, which raises these
-  // questions at once. They stay pending, and the pass after the last answer
-  // asks them; the spool is still shown then, since its lift clock
-  // (idSpoolTick()) starts over for as long. See test_no_tag_finish.py.
   if ((loc_popup_pending_id > 0 || ams_popup_pending_id > 0 ||
        pick_popup_pending_id > 0) && !tag_present &&
-      !isTareEntryOpen() && !isSpoolWeightScopeOpen() && !noTagAfterCreateBusy()) {
+      !isTareEntryOpen() && !isSpoolWeightScopeOpen()) {
     const unsigned long since = millis() - last_tag_seen_ms;
     const bool weight_says_gone = weightSaysSpoolGone();
     const bool weight_says_stay = weightSaysSpoolStayed();
@@ -1323,12 +1179,12 @@ void appLoop() {
       // one does not leave its "already saved" behind.
       aw_adopted      = true;
       aw_adopted_seen = false;
-      auto_weight_done = false;
+      aw_done         = false;
       // Start the settling window here rather than inheriting one. A spool
       // that had already been sitting still for three seconds when the
       // trigger arrived would otherwise be written on the very first pass,
       // with no countdown on the button and no moment to put a tag on after
-      // all. Now the quiet second and the countdown run from the adoption.
+      // all. Now the same three seconds run visibly from the adoption.
       auto_weight_stable_ms = millis();
       auto_weight_last_val  = scale_weight_g;
       if (lbl_status) {
@@ -1402,7 +1258,11 @@ void appLoop() {
   statusClearSync(lifted_on_screen || idSpoolActive());
   if (lifted_shown &&
       (millis() - last_tag_seen_ms > NO_TAG_CLEAR_MS || statusClearTaken())) {
-    dropLiftedTagDisplay();
+    // clearTagDisplay() drops sm_id, so the note loses the spool it refers
+    // to. Nothing is lost by forgetting it, the weight was written already.
+    if (amsHasPending() && !isAmsAssignPopupOpen()) amsDropPending();
+    clearTagDisplay();
+    last_tag_seen_ms = 0;
   }
 
   // Fill display with new tag data
@@ -1508,7 +1368,7 @@ void appLoop() {
     // reference followed the spool all the way down as it was lifted, which
     // also left the location cross-check below permanently mute.
     // nfc_fast_polls is the counter that actually rises on a missed read.
-    if (tag_present && nfc_fast_polls == 0 && !tag_kept_by_weight) {
+    if (tag_present && nfc_fast_polls == 0) {
       if (loc_weight_since_ms == 0) {
         // A fresh presence: start the stability window over, and do not carry
         // the previous spool's settled value into it.
@@ -1561,8 +1421,8 @@ void appLoop() {
     lv_label_set_text(lbl_scale_weight, w_str);
     // Also update live weight in calibration screen if open
     if (lbl_factor_cal_weight && scr_factor && !lv_obj_has_flag(scr_factor, LV_OBJ_FLAG_HIDDEN)) {
-      char cal_str[48];
-      factorLiveText(cal_str, sizeof(cal_str), scale_weight_g);
+      char cal_str[16];
+      fmtG(cal_str, sizeof(cal_str), scale_weight_g);  // Fix 6: raw weight
       lv_label_set_text(lbl_factor_cal_weight, cal_str);
     }
 
@@ -1635,6 +1495,7 @@ void appLoop() {
     }
   }
 
+  // aw_done: einmal gespeichert -> kein weiterer Patch bis Spule abgenommen
   // The adoption ends when the pad is empty again, or the moment a tag turns
   // up and takes over. Kept outside the g_auto_weight block on purpose: it
   // decides what the display is showing, and switching the automatic off must
@@ -1651,12 +1512,20 @@ void appLoop() {
   }
 
   if (g_auto_weight) {
-    // Spool taken off: ready for the next one.
-    if (!tag_present && !aw_adopted && auto_weight_done) {
-      auto_weight_done = false;
+    static int  aw_last_shown_s = -1;  // verhindert unnoetige Label-Updates
+
+    // Spule abgenommen -> Reset fuer naechste Spule
+    if (!tag_present && !aw_adopted && aw_done) {
+      aw_done = false;
       auto_weight_stable_ms = 0;
       auto_weight_last_val = -9999.0f;
-      weightButtonIdle();
+      aw_last_shown_s = -1;
+      if (lbl_weight_main_lbl) {
+        char wmbuf[48];
+        snprintf(wmbuf, sizeof(wmbuf), "%s (A)", T(STR_BTN_WEIGHT));
+        lv_label_set_text(lbl_weight_main_lbl, wmbuf);
+        lv_obj_set_style_text_color(lbl_weight_main_lbl, lv_color_hex(UI_COL_WEIGHT_AUTO), 0);
+      }
     }
 
     // A spool adopted without a tag counts as present: it was picked
@@ -1667,59 +1536,83 @@ void appLoop() {
     // stock. Bringing it back is a decision, and it has its own button.
     // Nor while an empty spool weight is entered, or the first weighing may
     // still ask about this spool or answered on this placement (tare_entry.h).
-    if (!auto_weight_done && !isConfirmPopupOpen() && !isTareEntryOpen() && !isSpoolWeightScopeOpen() &&
+    if (!aw_done && !isConfirmPopupOpen() && !isTareEntryOpen() && !isSpoolWeightScopeOpen() &&
         !tareEntryHoldsAutoWeigh() && sm_found && !sm_archived && sm_id > 0 && scale_ready &&
         (tag_present || aw_adopted)) {
-      const float cur = scale_weight_g;
-      const unsigned long now = millis();
-      if (auto_weight_stable_ms == 0 || fabsf(cur - auto_weight_last_val) > AUTO_WEIGHT_BAND_G) {
-        // First look, or still moving: the window starts again, and a
-        // countdown already on the button goes back to the waiting look.
+      float cur = scale_weight_g;
+      if (fabsf(cur - auto_weight_last_val) > AUTO_WEIGHT_THRESH_G) {
+        // Gewicht bewegt sich -> Timer neu starten
         auto_weight_last_val = cur;
-        auto_weight_stable_ms = now;
-        if (weightButtonLook() == WL_COUNTING) weightButtonIdle();
+        auto_weight_stable_ms = millis();
+        aw_last_shown_s = -1;
+      } else if (auto_weight_stable_ms > 0 &&
+                 millis() - auto_weight_stable_ms >= AUTO_WEIGHT_STABLE_MS) {
+        // 3 Sekunden stabil -> einmalig speichern
+        aw_done = true;
+        auto_weight_stable_ms = 0;
+        aw_last_shown_s = -1;
+        // What is remembered for this spool, else the default: there is no
+        // chooser before the countdown. The same bare reading goes into the
+        // AMS note below, as the weight popup's buttons do.
+        const float bare = extrasBare(cur, spoolExtrasNow());
+        float netto = bare - (float)sm_spool_weight;
+        if (netto < 0) netto = 0;
+        // Haekchen im Button - bleibt bis Spule abgenommen wird
+        if (lbl_weight_main_lbl) {
+          char wmbuf[48];
+          snprintf(wmbuf, sizeof(wmbuf), "%s " LV_SYMBOL_OK, T(STR_BTN_WEIGHT));
+          lv_label_set_text(lbl_weight_main_lbl, wmbuf);
+          lv_obj_set_style_text_color(lbl_weight_main_lbl, lv_color_hex(UI_COL_WEIGHT_SENT), 0);
+        }
+        patchSpoolmanWeight(netto);
+        // Remembered, not held back: the value is in FilaMan now, this only
+        // lets a yes on removal report it once more to open the window.
+        if (amsAskActive()) amsNoteMeasurement(sm_id, netto, bare, true);
+        if (amsPickActive()) amsPickNote(sm_id, sm_filament_name);
+      } else if (auto_weight_stable_ms == 0) {
+        auto_weight_last_val = cur;
+        auto_weight_stable_ms = millis();
       } else {
-        const unsigned long still_ms = now - auto_weight_stable_ms;
-        if (still_ms >= AUTO_WEIGHT_QUIET_MS + AUTO_WEIGHT_STABLE_MS) {
-          auto_weight_done = true;
-          auto_weight_stable_ms = 0;
-          autoWeightSettled(cur);
-        } else if (still_ms >= AUTO_WEIGHT_QUIET_MS) {
-          // The number autoWeightSettled() will act on, without the parts.
-          const AutoSendVerdict v = autoSendVerdict(cur, spoolExtrasNow(), (float)sm_spool_weight,
-                                                    sm_remaining);
-          weightButtonShow(WL_COUNTING, v.netto_g);
-          weightButtonFill(AUTO_WEIGHT_QUIET_MS + AUTO_WEIGHT_STABLE_MS - still_ms);
+        // Countdown: sekuendlich Button-Text aktualisieren
+        unsigned long elapsed = millis() - auto_weight_stable_ms;
+        int rem = (int)((AUTO_WEIGHT_STABLE_MS - elapsed) / 1000) + 1;
+        if (rem < 1) rem = 1;
+        if (rem != aw_last_shown_s && lbl_weight_main_lbl) {
+          aw_last_shown_s = rem;
+          char wmbuf[48];
+          snprintf(wmbuf, sizeof(wmbuf), "%s %ds", T(STR_BTN_WEIGHT), rem);
+          lv_label_set_text(lbl_weight_main_lbl, wmbuf);
+          lv_obj_set_style_text_color(lbl_weight_main_lbl, lv_color_hex(UI_COL_WEIGHT_COUNT), 0);
+          weightPulseStart();
         }
       }
-    } else if (!auto_weight_done && (tag_present || aw_adopted)) {
-      // A spool is there but weighing is held off: a popup that uses the
-      // weight, a scale that is not ready, a spool not looked up yet. The
-      // window starts again afterwards; left running it would send the
-      // moment the popup closed, without the quiet second or the countdown.
-      if (auto_weight_stable_ms > 0) {
-        auto_weight_stable_ms = 0;
-        auto_weight_last_val = -9999.0f;
-        if (weightButtonLook() == WL_COUNTING) weightButtonIdle();
-      }
-    } else if (!auto_weight_done && !tag_present && !idSpoolActive()) {
-      // No spool, no countdown: the idle look.
+    } else if (!aw_done && !tag_present && !idSpoolActive()) {
+      // Kein Tag, kein Countdown -> Idle-Text "(A)"
       // Not for a spool shown by its id: nothing is saved on its own there.
       if (auto_weight_stable_ms > 0) {
         auto_weight_stable_ms = 0;
         auto_weight_last_val = -9999.0f;
+        aw_last_shown_s = -1;
       }
       // While a window is running the button belongs to its countdown. A new
       // spool takes it back, which is right: that one matters more.
-      if (!amsWindowOpen()) weightButtonIdle();
+      if (aw_last_shown_s != 0 && lbl_weight_main_lbl && !amsWindowOpen()) {
+        aw_last_shown_s = 0;
+        char wmbuf[48];
+        snprintf(wmbuf, sizeof(wmbuf), "%s (A)", T(STR_BTN_WEIGHT));
+        lv_label_set_text(lbl_weight_main_lbl, wmbuf);
+        lv_obj_set_style_text_color(lbl_weight_main_lbl, lv_color_hex(UI_COL_WEIGHT_AUTO), 0);
+      }
     }
   } else {
-    // Auto off: keep the timer clean.
+    // Auto AUS: Timer sauber halten
     if (auto_weight_stable_ms > 0) {
       auto_weight_stable_ms = 0;
       auto_weight_last_val = -9999.0f;
     }
   }
+
+  weightPulseTick();
 
   // The offer goes stale when the spool is left sitting on the pad. Only the
   // note is dropped, the weight went out when it was measured.
@@ -1963,10 +1856,6 @@ void appLoop() {
     static unsigned long last_nfc_check_ms = 0;
     static bool bambu_uid_probed = false;   // see NFC_UID_PROBE_AFTER_RETRIES
     static bool snapmaker_decoded = false;  // this placement read as a Snapmaker tag
-    static bool creality_decoded = false;   // this placement read as a Creality CFS tag
-    static bool blank_mifare = false;       // this placement is a blank MIFARE tag
-    static char cfs_checked_uid[24] = "";   // own CFS tag compared with Spoolman this placement
-    static bool new_placement = false;      // same tag back after a long absence
     static unsigned long last_nfc_stats_ms = 0;
     static uint8_t last_uid_len = 0;   // 4 = Bambu, 7 = NTAG, for the removal delay
 
@@ -1988,8 +1877,6 @@ void appLoop() {
       nfc_stat_scans++;
       if (found) {
         last_uid_len = uidLen;
-        tag_kept_by_weight = false;
-        weight_at_last_read = scale_weight_g;
         // Only a genuinely long absence earns a fresh set of retries. Without
         // this a tag that keeps failing to authenticate would be re-scanned
         // indefinitely, five seconds per attempt.
@@ -1997,13 +1884,6 @@ void appLoop() {
           if (millis() - tag_absent_since_ms > NFC_RETRY_RESET_ABSENT_MS) {
             nfc_retry_count = 0;
             bambu_uid_probed = false;
-            // Back after a long absence: a new placement, even of the same
-            // tag. It goes through the family choice below like a new UID;
-            // until 12.10.2026 it only re-ran the Bambu scan, so a Creality
-            // tag put back after ten seconds was never tried with its key.
-            // Creality tags only: with them off, the same tag back gets its
-            // retries again and nothing else, as before.
-            new_placement = g_creality_tags;
           }
           tag_absent_since_ms = 0;
         }
@@ -2052,8 +1932,7 @@ void appLoop() {
         snprintf(uid_str, sizeof(uid_str), "%02X:%02X:%02X:%02X",
           uid[0], uid[1], uid[2], uid[3]);
 
-        bool uid_changed = new_placement || (strcmp(uid_str, g_tag.uid_str) != 0);
-        new_placement = false;
+        bool uid_changed = (strcmp(uid_str, g_tag.uid_str) != 0);
         int bambu_blocks_read = countBambuDataBlocksRead(g_tag);
         bool uuid_missing = (strlen(g_tag.tray_uuid) < 32);
         bool contents_incomplete = (bambu_blocks_read < 48);
@@ -2071,140 +1950,19 @@ void appLoop() {
           last_bambu_retry_ms = 0;
           bambu_uid_probed = false;
           snapmaker_decoded = false;
-          creality_decoded = false;
-          blank_mifare = false;
-          cfs_checked_uid[0] = '\0';
           lv_label_set_text(lbl_nfc_dot, LV_SYMBOL_BULLET);
           lv_obj_set_style_text_color(lbl_nfc_dot, lv_color_hex(UI_COL_GOOD), 0);
           lv_label_set_text(lbl_status, T(STR_READING_TAG));
           lv_obj_set_style_text_color(lbl_status, lv_color_hex(UI_COL_GOOD), 0);
-          // Which family to try first. A refused key leaves the card
-          // unreachable for a while (12.10.2026: Creality tags tried after the
-          // Bambu probe opened only now and then), so the first try has to be
-          // the right one. Known tags go straight to their family; see
-          // services/tag_family.h. An unknown tag gets Creality first when
-          // that is enabled: the key is a single AES derivation from the UID
-          // and a tag that opens with it is Creality's, so no Bambu scan and
-          // no Snapmaker probe, and the branch below for a plain 4 byte card
-          // looks the spool up by its UID. A tag that does not open is woken
-          // again inside scanCrealityTag(), so the Bambu scan still finds it.
-          TagFamily family = tagFamilyGet(uid);
-          // A tag known to be blank is asked with the factory key first, on
-          // the card the poll has just selected, so it never sees a refusal.
-          // One that has been written since (FilaStation, CFTag) refuses it
-          // and goes through the family choice as an unknown tag.
-          int factory = MIFARE_FACTORY_REFUSED;
-          // Refused the Creality key last time: the factory key goes first now,
-          // on the freshly selected card, ahead of the Bambu probe. A blank
-          // sticker that sits weakly on the reader may not come back from the
-          // refused Creality key at all (13.10.2026, 6E:C6:DB:4F: no answer to
-          // any wake), so asking it in second place found nothing. A Bambu tag
-          // pays one refusal on its first placement; after that its family is
-          // stored and it goes straight to the Bambu scan.
-          if (g_creality_tags && family == TAG_FAMILY_NOT_CREALITY) {
-            factory = mifareProbeFactory(uid, uid_str);
-          }
-          if (g_creality_tags && family == TAG_FAMILY_BLANK) {
-            factory = mifareProbeFactory(uid, uid_str);
-            if (factory != MIFARE_FACTORY_BLANK) {
-              tagFamilySet(uid, TAG_FAMILY_UNKNOWN);
-              family = TAG_FAMILY_UNKNOWN;
-            }
-          }
-          bool blank_now = (factory != MIFARE_FACTORY_REFUSED);
-          const bool creality_first = g_creality_tags &&
-              (family == TAG_FAMILY_UNKNOWN || family == TAG_FAMILY_CREALITY);
-          // An unknown tag alternates between placements: Creality first, then
-          // Bambu first, then Creality again, until one family reads it. On
-          // hardware (12.10.2026) one side of a Creality spool refused key A on
-          // the first try, was marked for Bambu, and never got Creality again:
-          // the mark was only dropped once the Bambu retries ran out, and a tag
-          // that keeps dropping out never runs them out. So the mark is used
-          // once and dropped right here.
-          if (family == TAG_FAMILY_NOT_CREALITY) tagFamilySet(uid, TAG_FAMILY_UNKNOWN);
-          if (blank_now) {
-            // Handled below, like a blank tag found after the Creality probe.
-          } else if (creality_first &&
-              scanCrealityTag(uid, uidLen, /*fresh=*/true) == CREALITY_SCAN_OK) {
-            creality_decoded = true;
-            tagFamilySet(uid, TAG_FAMILY_CREALITY);
-            nfc_retry_count = NFC_MAX_RETRIES;
-            last_nfc_check_ms = 0;
-          } else if (g_creality_tags && family == TAG_FAMILY_CREALITY &&
-                     (factory = mifareProbeFactory(uid, uid_str)) != MIFARE_FACTORY_REFUSED) {
-            // Remembered as Creality, but now on the factory key: erased
-            // since (CFtag, FilaStation). On 14.10.2026 both tags of spool 9
-            // were erased with CFtag and the scale kept trying the Creality
-            // key only, so it never offered to write them again. Treated like
-            // any blank sticker from here on. A weak Creality tag that did not
-            // answer refuses this key too and goes on below as before.
-            tagFamilySet(uid, TAG_FAMILY_UNKNOWN);
-            blank_now = true;
-          } else if (g_creality_tags && family == TAG_FAMILY_CREALITY) {
-            // A known Creality tag that did not open this time - one side of a
-            // spool lying badly on the pad (12.10.2026). The Bambu scan would
-            // only refuse it again. Start a clean record for this UID instead,
-            // so the retries below try Creality again on the next polls, and
-            // when they run out the spool is still looked up by its UID.
-            memset(&g_tag, 0, sizeof(g_tag));
-            memcpy(g_tag.uid, uid, 4);
-            snprintf(g_tag.uid_str, sizeof(g_tag.uid_str), "%s", uid_str);
-          } else if (creality_first && family == TAG_FAMILY_UNKNOWN &&
-                     (factory = mifareProbeFactory(uid, uid_str)) != MIFARE_FACTORY_REFUSED) {
-            // Refused the Creality key, opens with the factory key: a plain
-            // sticker, blank ones most likely waiting to be linked and written
-            // as a CFS tag. The Bambu probe would refuse it too and knock it
-            // off the reader (13.10.2026), so it is not run at all.
-            blank_now = true;
-          } else if (g_snapmaker_tags && family == TAG_FAMILY_SNAPMAKER) {
-            // Read as Snapmaker before: its own keys below, no Bambu probe
-            // that can only be refused. A clean record for this UID, so the
-            // Snapmaker scan below sees no blocks of the tag before it.
-            memset(&g_tag, 0, sizeof(g_tag));
-            memcpy(g_tag.uid, uid, 4);
-            snprintf(g_tag.uid_str, sizeof(g_tag.uid_str), "%s", uid_str);
-          } else {
-            // Bambu first on the next placement (once, see above).
-            if (creality_first && family == TAG_FAMILY_UNKNOWN) {
-              tagFamilySet(uid, TAG_FAMILY_NOT_CREALITY);
-            }
-            scanTag(uid, uidLen);
-            // Remembered as soon as any sector read, not only once the scan
-            // has settled on a later poll: on 13.10.2026 a Bambu spool read
-            // 6/48 blocks and dropped out before that poll ever came.
-            if (countBambuDataBlocksRead(g_tag) > 0) tagFamilySet(uid, TAG_FAMILY_BAMBU);
-          }
-          // Snapmaker: opt-in, off by default, and then none of this touches
-          // the reader. Once per placement, right after the first Bambu probe
-          // came back with nothing, or straight away for a tag read as
-          // Snapmaker before; never for one read as Bambu before. A tag that
-          // answers to Snapmaker's keys is no Bambu tag, so the Bambu retries
-          // are skipped and the branch below for a plain 4 byte card looks the
-          // spool up by its UID.
-          if (blank_now) {
-            // Opens with the factory key. Kept on the reader like a Creality
-            // tag either way; only an empty one is remembered as blank and
-            // offered the CFS write.
-            blank_mifare = true;
-            if (factory == MIFARE_FACTORY_BLANK) tagFamilySet(uid, TAG_FAMILY_BLANK);
-            // A clean record for this UID: looked up by its UID like any
-            // plain 4 byte card, once the retries count as spent.
-            memset(&g_tag, 0, sizeof(g_tag));
-            memcpy(g_tag.uid, uid, 4);
-            snprintf(g_tag.uid_str, sizeof(g_tag.uid_str), "%s", uid_str);
-            snprintf(g_tag.tray_uuid, sizeof(g_tag.tray_uuid), "%s", uid_str);
-            nfc_retry_count = NFC_MAX_RETRIES;
-            last_nfc_check_ms = 0;
-          }
-          if (creality_decoded || blank_now) {
-            // Already settled above.
-          } else if (g_snapmaker_tags && family != TAG_FAMILY_BAMBU &&
-              countBambuDataBlocksRead(g_tag) == 0 &&
+          scanTag(uid, uidLen);
+          // Opt-in, off by default, and then none of this touches the reader.
+          // Once per placement, right after the first Bambu probe came back
+          // with nothing. A tag that answers to Snapmaker's keys is no Bambu
+          // tag, so the Bambu retries are skipped and the branch below for a
+          // plain 4 byte card looks the spool up by its UID.
+          if (g_snapmaker_tags && countBambuDataBlocksRead(g_tag) == 0 &&
               scanSnapmakerTag(uid, uidLen) != SNAPMAKER_SCAN_NO_AUTH) {
             snapmaker_decoded = true;
-            // Next time straight to its own keys: no Bambu probe, and no
-            // Creality attempt when that switch is on too.
-            tagFamilySet(uid, TAG_FAMILY_SNAPMAKER);
             nfc_retry_count = NFC_MAX_RETRIES;
             last_nfc_check_ms = 0;
           }
@@ -2237,37 +1995,14 @@ void appLoop() {
           lv_obj_set_style_text_color(lbl_nfc_dot, lv_color_hex(UI_COL_GOOD), 0);
           lv_label_set_text(lbl_status, T(STR_READING_TAG));
           lv_obj_set_style_text_color(lbl_status, lv_color_hex(UI_COL_GOOD), 0);
-          if (g_creality_tags && tagFamilyGet(uid) == TAG_FAMILY_CREALITY) {
-            // A known Creality tag gets its own key again, on the card this
-            // poll has just selected, rather than the Bambu scan.
-            if (scanCrealityTag(uid, uidLen, /*fresh=*/true) == CREALITY_SCAN_OK) {
-              creality_decoded = true;
-              nfc_retry_count = NFC_MAX_RETRIES;
-              last_nfc_check_ms = 0;
-            }
-          } else if (g_snapmaker_tags && tagFamilyGet(uid) == TAG_FAMILY_SNAPMAKER) {
-            // The same for a known Snapmaker tag that did not read on its
-            // first try: its own keys again, not the Bambu scan.
-            if (scanSnapmakerTag(uid, uidLen) != SNAPMAKER_SCAN_NO_AUTH) {
-              snapmaker_decoded = true;
-              nfc_retry_count = NFC_MAX_RETRIES;
-              last_nfc_check_ms = 0;
-            }
-          } else {
-            scanTag(uid, uidLen);
-            if (countBambuDataBlocksRead(g_tag) > 0) tagFamilySet(uid, TAG_FAMILY_BAMBU);
-          }
+          scanTag(uid, uidLen);
         } else {
           // The "Tag placed" line waits until the scan has settled, so it
           // says what the scale concluded: Bambu once any sector has read,
           // MIFARE once the retries are spent with nothing. In between,
           // while the retries run, nothing is logged yet.
-          // Read as Bambu: remember it, so the next placement goes straight
-          // to the Bambu scan. No write when it is already known.
-          if (bambu_blocks_read > 0) tagFamilySet(uid, TAG_FAMILY_BAMBU);
           if (bambu_blocks_read > 0 || nfc_retry_count >= NFC_MAX_RETRIES) {
             TagSeen::note(uid_str, bambu_blocks_read > 0 ? "Bambu"
-                                   : creality_decoded    ? "Creality"
                                    : snapmaker_decoded   ? "Snapmaker" : "MIFARE");
           }
           // What the read attempts came to, once: read in full, or out of
@@ -2325,44 +2060,6 @@ void appLoop() {
           }
         }
 
-        // A blank tag that belongs to a spool already, and has not been asked
-        // about: offer the CFS write. Covers a write that found no tag (the
-        // card had dropped off the reader, 13.10.2026) once the spool is put
-        // back, and a blank tag linked from Spoolman's web page. Only while
-        // the tag answers right now and nothing else holds the screen.
-        if (blank_mifare && g_creality_tags && sm_found && sm_id > 0 &&
-            strcmp(g_tag.uid_str, uid_str) == 0 && lookupWasFor(uid_str) &&
-            tagFamilyGet(uid) == TAG_FAMILY_BLANK && !tagCfsAskedFor(uid_str) &&
-            !lookupPending() && !isTagWritePopupOpen() && !isConfirmPopupOpen() &&
-            !isSpoolFlowLinkEntryOpen() && !isSpoolFlowIdInputOpen() &&
-            !isSecondTagPopupOpen() && strcmp(tagWriteState(), "pending") != 0) {
-          logSDf("Tag write: %s is blank and belongs to spool %d, offering Creality CFS",
-                 uid_str, sm_id);
-          showTagWriteAskPopupFmt(sm_id, TAG_FMT_CREALITY);
-        }
-        // A Creality tag the scales wrote themselves (its UID in the spool's
-        // nfc_uid) whose spool has changed since - another colour, material
-        // or weight in Spoolman: offer to write it again. And an original tag
-        // that describes the spool's filament but carries Creality's serial
-        // instead of the spool id: offer to write the id, which is what
-        // CFSync links the CFS slot by. Once per placement; an original tag
-        // that describes another filament is only offered that after a link.
-        // lookupWasFor(): sm_id must be this tag's spool. On 14.10.2026 the
-        // tag of spool 13 was compared with spool 12, which had been lifted a
-        // moment before - with two spools of one filament that would have
-        // offered to write 12's id onto 13's tag.
-        if (creality_decoded && g_creality_tags && sm_found && sm_id > 0 &&
-            strcmp(cfs_checked_uid, uid_str) != 0 && strcmp(g_tag.uid_str, uid_str) == 0 &&
-            lookupWasFor(uid_str) && !lookupPending() && !isTagWritePopupOpen() && !isConfirmPopupOpen() &&
-            !isSpoolFlowLinkEntryOpen() && !isSpoolFlowIdInputOpen() &&
-            !isSecondTagPopupOpen() && strcmp(tagWriteState(), "pending") != 0) {
-          snprintf(cfs_checked_uid, sizeof(cfs_checked_uid), "%s", uid_str);
-          bool own = false, differs = false, serial_only = false;
-          if (tagCrealityCheck(sm_id, uid_str, &own, &differs, &serial_only) && differs) {
-            if (own)              showTagWriteAskPopupFmt(sm_id, TAG_FMT_CREALITY, 1);
-            else if (serial_only) showTagWriteAskPopupFmt(sm_id, TAG_FMT_CREALITY, 3);
-          }
-        }
       } else if (found && uidLen == 7) {
         // ── NTAG detected ──────────────────────────────────────
         last_tag_seen_ms = millis();
@@ -2430,7 +2127,7 @@ void appLoop() {
           lv_label_set_text(lbl_last_used, "-");
           lv_label_set_text(lbl_spoolman_dried_val, "-");
         if (lbl_dried_sym) lv_obj_add_flag(lbl_dried_sym, LV_OBJ_FLAG_HIDDEN);
-          mainSwatchPaint(SpoolColor{}, nullptr);
+          lv_obj_set_style_bg_color(lbl_color_swatch, lv_color_hex(UI_COL_SWATCH_NONE), 0);
           lv_label_set_text(lbl_status, T(STR_READING_TAG));
           lv_obj_set_style_text_color(lbl_status, lv_color_hex(UI_COL_GOOD), 0);
 
@@ -2467,63 +2164,7 @@ void appLoop() {
 
       } else {
         // No tag found
-        // A Creality tag that was read and then stops answering is most often
-        // still lying there: on hardware (13.10.2026) it went quiet right after
-        // the read and the spool was declared removed while it sat on the pad.
-        // Wake it before counting the miss; at most every 400 ms, so a spool
-        // that really left costs a few wake attempts and not more.
-        static unsigned long last_presence_recover_ms = 0;
-        static char recover_uid[24] = "";
-        static int recover_count = 0;
-        bool recovered = false;
-        // Held by the weight: nothing to count while the pad still carries
-        // what it carried when the tag was last read.
-        bool held = false;
-        if (tag_present && tag_kept_by_weight) {
-          if (padCarriesSpool()) {
-            held = true;
-            last_tag_seen_ms = millis();
-          } else {
-            tag_kept_by_weight = false;
-            logSDf("NFC: the pad lost the spool (%.0fg, %.0fg at the last read) - checking the tag again",
-                   scale_weight_g, weight_at_last_read);
-          }
-        }
-        // Only for the first seconds after the tag last answered: a Creality
-        // tag sits off-centre on the flange, and a spool turned so the tag is
-        // out of the reader's reach (13.10.2026) does not come back from any
-        // wake. Beyond that the usual grace period decides.
-        // Lifted, not lost: the weight fell well below what the pad carried
-        // at the last read. No wakes then, so the removal comes at once.
-        const bool lifted = g_scale_fitted && weight_at_last_read >= LOC_WEIGHT_MIN_G &&
-                            scale_weight_g < weight_at_last_read - LOC_WEIGHT_TOLERANCE_G;
-        if (!held && !lifted && tag_present && (creality_decoded || blank_mifare) && last_uid_len == 4 &&
-            millis() - last_tag_seen_ms < NFC_CFS_RECOVER_WINDOW_MS &&
-            millis() - last_presence_recover_ms >= NFC_CFS_RECOVER_EVERY_MS) {
-          last_presence_recover_ms = millis();
-          const int w = crealityRecoverCard(g_tag.uid, g_tag.uid_str);
-          if (strcmp(recover_uid, g_tag.uid_str) != 0) {
-            snprintf(recover_uid, sizeof(recover_uid), "%s", g_tag.uid_str);
-            recover_count = 0;
-          }
-          if (w) {
-            recovered = true;
-            if (++recover_count <= NFC_CFS_RECOVER_LOG_FIRST ||
-                recover_count % NFC_CFS_RECOVER_LOG_EVERY == 0) {
-              logSDf("NFC: %s stopped answering, woken again (woke=%d, %d so far)",
-                     g_tag.uid_str, w, recover_count);
-            }
-          }
-        }
-        if (held) {
-          nfc_fast_polls = 0;
-          nfc_miss_streak = 0;
-        } else if (recovered) {
-          last_tag_seen_ms = millis();
-          nfc_fast_polls = 0;
-          nfc_miss_streak = 0;
-          nfc_absent_count = 0;
-        } else if (tag_present) {
+        if (tag_present) {
           // First close the gap with a few short-interval retries. Most NTAG
           // dropouts are a single missed read and come back on the next one.
           // Neither branch leaves appLoop() early any more: the two returns
@@ -2550,18 +2191,7 @@ void appLoop() {
           // the fast re-polls, and the location question back by 2.5 s.
           const bool weight_gone = weightSaysSpoolGone() &&
                                    nfc_fast_polls >= NFC_GONE_MIN_MISSES;
-          if (!weight_gone && !retrying && millis() - first_miss_ms >= absent_limit &&
-              g_creality_tags && last_uid_len == 4 && padCarriesSpool()) {
-            // Silent tag, unchanged weight: the spool is still lying there.
-            // Creality tags only, and only for a 4 byte tag: the weak CFS tags
-            // on a side-mounted reader are what this is for, and with the
-            // switch off the removal works exactly as before.
-            tag_kept_by_weight = true;
-            nfc_fast_polls = 0;
-            last_tag_seen_ms = millis();
-            logSDf("NFC: tag silent, but the pad still carries %.0fg (%.0fg at the last read) - spool stays present",
-                   scale_weight_g, weight_at_last_read);
-          } else if (weight_gone || (!retrying && millis() - first_miss_ms >= absent_limit)) {
+          if (weight_gone || (!retrying && millis() - first_miss_ms >= absent_limit)) {
             nfc_stat_removals++;
             bambuScanReport();   // a Bambu tag that left before its reads settled
             Serial.printf("NFC: tag removed (gap %u ms, %d fast re-polls, %s)\n",

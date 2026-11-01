@@ -31,12 +31,6 @@
 //  In VENDOR and ALL the type nearest to preselect_g is marked, at any
 //  distance; the list scrolls to the marked row.
 //
-//  In VENDOR and ALL the header has the magnifier of the colour lists
-//  (ui/colour_search.h, V43). A word lists the types of the whole catalog
-//  that hold it, the maker's or not, and says so when none does; the mark is
-//  set on a row that is shown only. The word with its x in the header, back,
-//  "show all" and "only the maker's" end the search; a close forgets it.
-//
 //  The catalog is loaded fresh when the list opens, from the loop; a load
 //  that fails is no list here (the failure stands in the list, the buttons
 //  stay). The buttons that change the mode build the rows again from the
@@ -50,11 +44,8 @@
 //  the list and then calls back, from the loop. The name passed to on_pick
 //  is a copy that stays good until the next pick.
 //
-//  Bambuddy in Spoolman mode only (spoolTypesActive()), unless the request
-//  says any_inventory: then Bambuddy in either inventory mode is enough
-//  (spoolTypesCatalogActive(); V33, the card for a new spool from a Bambu tag
-//  alone). It belongs to no spool by itself: whoever opens it for a spool
-//  decides what closes it.
+//  Bambuddy in Spoolman mode only (spoolTypesActive()). It belongs to no
+//  spool by itself: whoever opens it for a spool decides what closes it.
 // ============================================================
 
 enum SpoolTypeListMode : uint8_t { STL_NEAR, STL_VENDOR, STL_ALL };
@@ -65,17 +56,12 @@ struct SpoolTypeListReq {
   float preselect_g;    // VENDOR/ALL: the type nearest to this is marked; 0: none
   float measured_g;     // > 0: "take measured" (NEAR) and "new" with this weight
   int   skip_text;      // STR_SPT_LATER, STR_SPT_WITHOUT or STR_CANCEL
-  // True: Bambuddy in either inventory mode opens the list. False (every
-  // request built with = {}): Bambuddy in Spoolman mode only. Every caller
-  // initialises its request with = {}, so the callers that do not know this
-  // field stay on Spoolman mode.
-  bool  any_inventory;
 };
 typedef void (*SpoolTypePicked)(float grams, const char* name);  // "" for the measured value
-// Not Bambuddy in Spoolman mode (any_inventory: not Bambuddy at all): logged,
-// nothing opens, and on_skip is called at once, so the caller goes on as after
-// a skip. "Take measured" and "add new" need a measured weight a spool can
-// have (spoolTypeTarePlausible); the name entry would refuse any other.
+// Not Bambuddy in Spoolman mode: logged, nothing opens, and on_skip is called
+// at once, so the caller goes on as after a skip. "Take measured" and "add
+// new" need a measured weight a spool can have (spoolTypeTarePlausible); the
+// name entry would refuse any other.
 void showSpoolTypeList(const SpoolTypeListReq& req, SpoolTypePicked on_pick,
                        void (*on_skip)(), void (*on_back)() = nullptr);  // null: back = skip
 bool isSpoolTypeListOpen();

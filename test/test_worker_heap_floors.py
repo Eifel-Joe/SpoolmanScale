@@ -26,10 +26,9 @@ FLOOR_USERS = {
     "services/backend_http.cpp": "backendJobMinHeap(backendBaseUrl())",
 }
 
-# The background requests to GitHub are kept apart from each other and from
-# the inventory list: their stacks would add up in the internal heap, and the
-# floor is for one of them. The daily update check waits for the web jobs and
-# for the inventory list, and the GitHub jobs of the web pages wait for the
+# Encrypted background requests do not run side by side: their stacks would
+# add up in the internal heap. The daily update check waits for the web jobs
+# and for the inventory list, and the GitHub jobs of the web pages wait for the
 # daily check and for the inventory list. The "Check" button on the scale
 # waits only for the daily check; its deferred retry in the loop waits for
 # the daily check and the web jobs.
@@ -78,12 +77,11 @@ BOTH_CALL = "backendJobMinHeapBoth("
 GATE_CALLS_MIN = 2
 GATE_CALL = "logGateDue("
 
-# A floor written as a number: "#define NAME 60000" or "#define NAME (60 * 1024)",
-# or a typed constant such as "constexpr uint32_t MIN_FREE_HEAP = 60000;",
-# "static const unsigned long NAME{60000};". The name has MIN and HEAP in it.
+# A floor written as a number: "#define NAME 60000", or a typed constant such
+# as "constexpr uint32_t MIN_FREE_HEAP = 60000;". The name has MIN and HEAP in it.
 FLOOR_DEFINE = re.compile(
-    r"^\s*(?:#define\s+(\w*MIN\w*HEAP\w*)\s+\(?\s*(\d+)"
-    r"|(?:(?:static|inline)\s+)*(?:constexpr|const)\s+(?:[\w:]+\s+)+(\w*MIN\w*HEAP\w*)\s*(?:=|\{)\s*\(?\s*(\d+))")
+    r"^\s*(?:#define\s+(\w*MIN\w*HEAP\w*)\s+(\d+)"
+    r"|(?:static\s+)?constexpr\s+[\w:]+\s+(\w*MIN\w*HEAP\w*)\s*=\s*(\d+))")
 
 # The list worker's floor follows the address the list request reads. That is
 # backendBaseUrl() in every mode; cfg_spoolman_base is the Spoolman address,
@@ -95,7 +93,7 @@ SPOOLMAN_FLOOR = re.compile(r"backendJobMinHeap\(\s*cfg_spoolman_base\s*\)")
 errors = []
 
 # 1. No file but the rules header defines a fixed floor, as a #define or as a
-# constant.
+# constexpr.
 for path in sorted(src.rglob("*")):
     if path.suffix not in (".h", ".cpp", ".hpp", ".c", ".ino"):
         continue
@@ -109,13 +107,12 @@ for path in sorted(src.rglob("*")):
             errors.append(f"src/{rel}:{number}: fixed heap floor {name} = {value}")
 
 # 2. Every worker asks the rules for its floor and gates its refusal line.
-# Here and in 3 to 5 a call counts in the code only, not named in a comment.
 for rel in WORKERS:
     path = src / rel
     if not path.is_file():
         errors.append(f"src/{rel}: file is missing")
         continue
-    text = cc.Source(path.read_text(encoding="utf-8", errors="replace")).code
+    text = path.read_text(encoding="utf-8", errors="replace")
     if not FLOOR_CALL.search(text):
         errors.append(f"src/{rel}: does not call backendJobMinHeap( or backendJobMinHeapBoth(")
     gates = text.count(GATE_CALL)
@@ -128,7 +125,7 @@ for rel in WORKERS:
 # 3. The list worker asks for the floor of the backend in use, and no file asks
 # for the floor of the Spoolman address.
 list_path = src / LIST_WORKER
-if list_path.is_file() and LIST_FLOOR not in cc.Source(list_path.read_text(encoding="utf-8", errors="replace")).code:
+if list_path.is_file() and LIST_FLOOR not in list_path.read_text(encoding="utf-8", errors="replace"):
     errors.append(f"src/{LIST_WORKER}: does not call {LIST_FLOOR}")
 for path in sorted(src.rglob("*")):
     if path.suffix not in (".h", ".cpp", ".hpp", ".c", ".ino"):
@@ -144,17 +141,17 @@ for rel, call in FLOOR_USERS.items():
     path = src / rel
     if not path.is_file():
         errors.append(f"src/{rel}: file is missing")
-    elif call not in cc.Source(path.read_text(encoding="utf-8", errors="replace")).code:
+    elif call not in path.read_text(encoding="utf-8", errors="replace"):
         errors.append(f"src/{rel}: does not call {call}")
 
-# 5. The daily check does not start beside a web job or the inventory list,
-# and the GitHub web jobs do not start beside the daily check (and the list, 6).
+# 5. Two TLS jobs never run side by side: the daily check waits for the web
+# jobs and the inventory list, the GitHub web jobs wait for the daily check.
 for rel, needles in WAITS.items():
     path = src / rel
     if not path.is_file():
         errors.append(f"src/{rel}: file is missing")
         continue
-    text = cc.Source(path.read_text(encoding="utf-8", errors="replace")).code
+    text = path.read_text(encoding="utf-8", errors="replace")
     for needle in needles:
         if needle not in text:
             errors.append(f"src/{rel}: does not wait on {needle}")
@@ -313,9 +310,8 @@ for rel, signatures in HEAP_LOW_REQUESTS.items():
 # that way on every run and on the 7B (57 kB free, floor 50 kB) locked itself
 # out after about two. Such a task calls a function that holds the objects
 # and returns, and only then deletes itself. Inner blocks count: a brace does
-# not destroy anything when the task never leaves it. A task that parks itself
-# for the loop to delete (workerTaskPark, worker_task.h) never returns either.
-SELF_DELETE = re.compile(r"\bvTaskDelete\(\s*(?:NULL|nullptr)\s*\)|\bworkerTaskPark\(")
+# not destroy anything when the task never leaves it.
+SELF_DELETE = re.compile(r"\bvTaskDelete\(\s*(?:NULL|nullptr)\s*\)")
 # The plain clients hold a socket the same way; BackendTls is a WiFiClientSecure.
 OWNING_TYPES = ("WiFiClientSecure", "NetworkClientSecure", "BackendTls", "WiFiClient", "NetworkClient",
                 "HTTPClient", "BackendHttp", "JsonDocument", "String")

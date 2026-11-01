@@ -8,7 +8,6 @@
 // Nothing here needs lang.h, so the plain includes are safe.
 #include "services/backend_http.h"
 #include "services/ams_presence.h"
-#include "services/ams_source.h"
 #include "services/backend_api.h"
 #include "services/bambuddy_device.h"
 #include "services/dried_batch.h"
@@ -23,7 +22,6 @@
 #include "services/ams_pick.h"
 #include "services/location_state.h"
 #include "services/remote_link.h"
-#include "services/server_sets.h"
 #include "services/spool_cache.h"
 #include "services/tag_field.h"
 #include "services/user_options.h"
@@ -51,18 +49,18 @@ void backendApplyHost(const char *host) {
   sm_reachable = false;          // unknown until the new address answers
 }
 
-bool backendApplyAmsSource(const char *host, const char *key) {
-  if (!amsSourceSet(host, key)) return false;
+void backendApplyMode(BackendMode mode) {
+  if (mode == backendMode()) return;
   s_generation++;
-  amsPresenceForget();
-  return true;
-}
+  backendConnClose();   // open to the old backend's server
+  // Before the mode changes under it: the rest of a drying batch would
+  // otherwise be written through the other backend.
+  driedBatchCancel();
 
-// ---- while the old backend is still the current one --------------------
-//
-// Shared by a change of mode and a change of server set: both leave the
-// servers the scale talked to until now.
-static void leaveServer() {
+  const char *from = backendName();
+
+  // ---- while the old backend is still the current one --------------------
+
   // An armed AMS window belongs to the server the scale is about to stop
   // talking to. Switching away would leave auto_assign_enabled set on it
   // until the next boot, because amsBootReconcile() runs once per boot behind
@@ -83,10 +81,14 @@ static void leaveServer() {
   // line, so the web dialog at the other end sits there until its own timeout.
   remoteLinkClear();
   remote_link_reject_pending = false;
-}
 
-// ---- caches and sessions that belong to the backend just left ----------
-static void forgetServerCaches(const char *why) {
+  // ---- the switch itself -------------------------------------------------
+
+  backendSetMode(mode);
+  logSDf("Backend: %s -> %s (full reset)", from, backendName());
+
+  // ---- caches and sessions that belong to the backend just left ----------
+
   // Keyed by nothing but a five minute TTL, so it would resolve and write ids
   // belonging to the other instance.
   filamanForgetLocations();
@@ -99,7 +101,7 @@ static void forgetServerCaches(const char *why) {
   // anyway: a spool id resolved against the wrong server is the most expensive
   // mistake there is here, and this gives the PSRAM back a loop pass later
   // instead of at the next link.
-  spoolCacheForget(why);
+  spoolCacheForget("backend changed");
 
   // Resets the BamBuddy registration and asks the new server whether it keeps
   // its own database or proxies to Spoolman. That answer decides where every
@@ -107,10 +109,9 @@ static void forgetServerCaches(const char *why) {
   // stale - during which the badge names the wrong one too. A no-op in the
   // other two modes.
   backendAfterConnect();
-}
 
-// ---- state on the panel ------------------------------------------------
-static void clearPanelState() {
+  // ---- state on the panel ------------------------------------------------
+
   sm_reachable = false;          // unknown until the new backend answers
 
   // The header abbreviation and the caption above the database weight name the
@@ -161,31 +162,4 @@ static void clearPanelState() {
   // protocol holds it up on its own. Ask the one owner of the socket to settle
   // now rather than within the next second.
   webServerSyncState();
-}
-
-void backendApplyMode(BackendMode mode) {
-  if (mode == backendMode()) return;
-  s_generation++;
-  backendConnClose();   // open to the old backend's server
-  // Before the mode changes under it: the rest of a drying batch would
-  // otherwise be written through the other backend.
-  driedBatchCancel();
-
-  const char *from = backendName();
-  leaveServer();
-  backendSetMode(mode);
-  logSDf("Backend: %s -> %s (full reset)", from, backendName());
-  forgetServerCaches("backend changed");
-  clearPanelState();
-}
-
-bool backendApplySetSwap() {
-  s_generation++;
-  backendConnClose();   // open to a server of the set being parked
-  driedBatchCancel();
-  leaveServer();
-  const bool ok = serverSetsSwap();
-  forgetServerCaches("server set changed");
-  clearPanelState();
-  return ok;
 }

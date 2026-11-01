@@ -73,15 +73,10 @@ struct TagCreateInput {
   int   spool_catalog_id;
   // The new spool's own empty weight (design note L20); spool_weight_g stays
   // what a filament or a vendor made on the way is given.
-  // Chosen at the scale for this spool alone (Bambuddy: BBS, and V33 for a
-  // Bambu tag, also without Spoolman), 0: none; never a filament's or vendor's.
-  int   spool_type_g;
+  int   spool_type_g;   // chosen at the scale for this spool alone (BBS), 0: none; never a filament's or vendor's
   // Our list of spool types was answered for this spool on the way (a type
-  // or "without type", db_pick_core_popup.cpp, or tag_create_popup.cpp for
-  // a Bambu tag): the first weighing does not ask it again
-  // (tareEntryFirstWeighDone()). False wherever the list was not shown: any
-  // other tag's input, another backend than Bambuddy, a scale that is not
-  // fitted or not ready, or a Bambu tag with nothing on the pad.
+  // or "without type", db_pick_core_popup.cpp): the first weighing does not
+  // ask it again (tareEntryFirstWeighDone()). False for a tag's input.
   bool  spool_type_asked;
   float diameter_mm;         // 0 when unknown
   int   temp_min;
@@ -96,7 +91,6 @@ struct TagCreateInput {
   char  db_name[96];         // a FilamentDB designation runs to 84 bytes
   char  db_color_hex[9];     // a single colour, spelled as the database does
   float db_density;
-  float density_typed;       // entered at the scale when none was known (V34), 0: none
   int   db_bed_temp;
   // The FilamentDB's own spellings, which a filament created from the entry
   // takes: the colour's name ("Cyan (12601)"), the product line

@@ -1,23 +1,16 @@
 #pragma once
 
 // The empty spool weight, weighed or typed in (issue #40). Opened from the
-// empty weight row of the weight popup's Options. Either way the value goes
-// on to the popup that asks where it is stored - spool, filament or brand.
-// With Bambuddy in Spoolman mode two by two (design L13): weigh and type in, a
+// weight popup's empty spool button. Either way the value goes on to the
+// popup that asks where it is stored - spool, filament or brand. With
+// Bambuddy in Spoolman mode two by two (design L13): weigh and type in, a
 // type from the list of spool types and the full spool, weighing and the full
 // spool only with the spool on the pad. A type goes to the spool as its empty
 // weight; the full spool asks for its filament, offers the types near the
 // reading less that, and stores the pick, then label weight and rest
 // (confirmParkFullSpool()). Every other backend keeps the column of weigh and
-// type in; the weight popup's Options carry those two as rows of their own
-// there and do not open this.
+// type in.
 void showTareChoice();
-
-// The empty spool weight typed in (issue #40), from the weight popup's
-// Options and from the choice above. The value goes on to the question where
-// it is stored - spool, filament or brand - the same one a weighed value goes
-// to.
-void showTareEntryPad();
 
 // The first weighing (Bambuddy in Spoolman mode, design 3): a spool with a
 // tag that lies still on the pad is asked once per session which empty spool
@@ -62,12 +55,11 @@ void tareEntryTick();
 void tareEntryForgetAsked();
 
 // A spool just created at the scale whose type our list asked on the way (a
-// type or "without type" answered, "new from database", the copy, or the card
-// for a Bambu tag, V33): the first weighing counts it as looked at, like a
-// spool it asked itself, so the same question does not come again right after
-// it (Jörg, 26.10.2026); like every spool looked at, until a restart or a
-// backend switch. Called with the new id at the create's success point, only
-// where the create's own input says the list was answered; a spool created
-// from a tag without the list (any other tag, or a Bambu tag with nothing on
-// the pad) is asked as before.
+// type or "without type" answered, "new from database" or the copy): the
+// first weighing counts it as looked at, like a spool it asked itself, so the
+// same question does not come again right after it (Jörg, 26.10.2026); like
+// every spool looked at, until a restart or a backend switch. Called with the
+// new id at the create's success point, only where the create's own input
+// says the list was answered; a spool created from a tag (no list) is asked
+// as before.
 void tareEntryFirstWeighDone(int spool_id);

@@ -12,9 +12,7 @@ void addBackButton(lv_obj_t *parent, lv_event_cb_t cb);
 // button - the one gap on a sub screen nothing else wants. Opens the info
 // popup with the two strings.
 lv_obj_t* addHeaderHelp(lv_obj_t *scr, int title_id, int text_id);
-// Returns the button, for a screen that has more to close than showMainScreen()
-// knows about.
-lv_obj_t* addCloseButton(lv_obj_t *parent);
+void addCloseButton(lv_obj_t *parent);
 void buildSubHeader(lv_obj_t *parent, const char *title,
                     lv_event_cb_t back_cb, const char *back_hint = nullptr);
 lv_obj_t* buildOverlayScreen();
@@ -24,20 +22,6 @@ lv_obj_t* buildOverlayScreen();
 // more than the light green primary beside it, so the button takes the
 // quiet row fill with the row's border.
 void uiSecondaryFill(lv_obj_t *btn);
-
-// A countdown drawn as a fill inside its button, `full_w` wide at the start.
-// It is the share of the time left and hangs from the button's right edge, so
-// its left edge travels with the reading direction as the time runs out. Set
-// from the loop on every pass rather than run as an lv_anim: a blocking fetch
-// would leave an animation running ahead of the time it shows. `drawn_w`
-// remembers the last width, so a pass without a change draws nothing.
-void uiCountdownFillSet(lv_obj_t *fill, lv_coord_t full_w, lv_coord_t *drawn_w,
-                        uint32_t remaining_ms, uint32_t total_ms);
-
-// Something lies over the main screen. Every overlay of this firmware covers
-// the whole panel, and nothing of the main screen does, so the size says it
-// without a list of screens that would fall behind the next one added.
-bool uiMainScreenCovered();
 
 // Frees a screen object that is about to be replaced and clears the pointer.
 // Call at the top of every build*Screen() function: without it the previous
@@ -127,19 +111,7 @@ lv_obj_t* labelOneLine(lv_obj_t* parent, const char* text, const lv_font_t* font
 // a flat button with a soft outline, and its caption centred in it. One look
 // for the three pads.
 lv_obj_t* padButton(lv_obj_t* parent, int x, int y, int w, int h, uint32_t bg, uint32_t bg_pressed);
-
-// A question's frame: the dimmed screen in *slot (an earlier one released
-// first) and, centred on it, the box that is returned - w by h, the popup
-// border and radius, no padding, so its children are placed in its content
-// area. The weight popup and the questions behind it share it.
-lv_obj_t* uiPopupBox(lv_obj_t** slot, int w, int h);
 lv_obj_t* padLabel(lv_obj_t* btn, const char* text, uint32_t col, const lv_font_t* font);
-
-// One of the line icons of icons.h, tinted ink, centred in a filled circle of
-// the given diameter. The caller places the circle. Clicks pass through to the
-// button it sits on.
-lv_obj_t* uiIconDisc(lv_obj_t* parent, const lv_img_dsc_t* icon, int diameter,
-                     uint32_t bg, uint32_t ink);
 
 // The colour in the middle of a painted swatch as 0xRRGGBB, for choosing the
 // colour of text drawn across it.
@@ -225,17 +197,3 @@ void addSettingRows(lv_obj_t* list);
 // search still runs, and spoolmanRecheckTick() keeps retrying it while an
 // unknown tag lies on the pad, which is what makes standing aside free.
 bool uiModalWaiting();
-
-// How loudly a list row warns. A restart costs the user twenty seconds and
-// takes nothing away; a factory reset erases every setting on the device.
-// Painting both red would say they are the same kind of mistake to make.
-enum ListTone { TONE_PLAIN, TONE_WARN, TONE_DANGER };
-// Paints a makeListBtn() row amber or red: border, fill, icon and title.
-void listBtnTone(lv_obj_t* btn, ListTone tone);
-
-// Cancel, Close and Back: a reddish outline and icon in front of a neutral
-// caption, so the way out is found without reading it. Quieter than the red
-// fill of a real danger (unlink, factory reset), which has to warn more.
-// Called on a finished button: takes its first label and its fill, so a
-// countdown fill added afterwards keeps working.
-void styleLeaveButton(lv_obj_t* btn, const char* icon = LV_SYMBOL_CLOSE);

@@ -4,14 +4,7 @@
 
 extern bool skip_setup_pending;
 extern bool finish_setup_pending;
-// The setup's scale step: the calibration, led through.
 extern bool cal_reminder_pending;
-// The setup's closing screen, once the calibration is done or put off.
-extern bool setup_done_pending;
-// Back from the calibration's first step in the setup: the calibration is
-// freed first, then the step before it opens. From the loop, because the
-// back button sits on the screen that goes.
-extern bool cal_setup_back_pending;
 extern bool show_bag_pending;
 extern bool show_factor_pending;
 // The calibration reset was confirmed. Deferred like every other write reached
@@ -27,9 +20,6 @@ extern bool scale_sub_rebuild_pending;
 // hideAllOverlays() - a popup opened first would be taken down by it. Drained
 // after the rebuild, so the order is fixed rather than hoped for.
 extern bool show_reboot_pending;
-// The bag weight crossed 0 g: the main screen's weight zone swaps between
-// its layout with and without the bag lines.
-extern bool live_zone_rebuild_pending;
 extern bool show_lastused_pending;
 extern bool show_backend_pending;
 
@@ -39,9 +29,6 @@ extern bool show_backend_pending;
 // task has 16 kB, and that nesting is what overflowed it before.
 extern bool backend_mode_change_pending;
 extern uint8_t pending_backend_mode;
-// The same for exchanging the active server set for the parked one
-// (backendApplySetSwap()), from the web page and later from the device.
-extern bool server_set_swap_pending;
 extern bool show_filaman_options_pending;
 extern bool show_ams_assign_pending;
 // The AMS view. A flag rather than a direct call because building it ends in
@@ -56,10 +43,6 @@ extern bool show_ams_view_scale_pending;
 // window, BamBuddy opens the bay picker - both make requests, so the button
 // only raises this and appLoop() does the rest.
 extern bool ams_main_assign_pending;
-// "Into AMS" under "More info", pressed for any spool on the screen (with or
-// without a load cell, with or without a tag): open the bay picker for it.
-// The page closes with the tap; the picker opens from appLoop().
-extern bool ams_info_assign_pending;
 // The tag view, from the NFC chip in the header. A flag like the AMS view's,
 // so the card is built on the loop and never inside the chip's callback.
 extern bool show_tag_view_pending;
@@ -97,12 +80,6 @@ extern bool show_system_pending;
 extern bool show_ota_pending;
 extern bool show_info_pending;
 extern bool show_drying_reminder_pending;
-// The numpads of the drying thresholds and of the AMS window. Opened from the
-// loop, which deletes the screen they replace in the same pass: built in the
-// row's callback, a pad stood in the pool next to its screen and pushed LVGL
-// into PSRAM (27.10.2026: 61 KB internal plus 11 KB PSRAM).
-extern int8_t dry_pad_pending;          // -1 none, 0 yellow, 1 red
-extern bool   ams_window_pad_pending;
 
 // The OTA screen asked for a check while the background task held the TLS
 // connection. Retried from appLoop() once it is free, and given up on after
@@ -140,6 +117,10 @@ extern float bb_cap_label_g;
 // way to confirm a repair is a restart, which is a poor answer to "I just
 // pushed the connector back in".
 extern bool i2c_rescan_pending;
+// "Calibrate now" on the reminder at the end of the setup. It has two steps in
+// a fixed order - leave the setup, then open the calibration - so it cannot be
+// expressed with show_factor_pending alone.
+extern bool cal_now_pending;
 
 // The WiFi menu behind the Connection tile, and the way back into it from
 // the WiFi setup and status screens: built on the loop, never from inside

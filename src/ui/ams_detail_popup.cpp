@@ -9,22 +9,17 @@
 #include "dried_action.h"
 #include "hardware/sd_logger.h"
 #include "loading_overlay.h"
-#include "ams_view.h"
-#include "more_info_screen.h"
 #include "services/backend.h"
-#include "services/ams_pick.h"
 #include "services/backend_api.h"
 #include "services/server_reach.h"
 #include "services/dried_batch.h"
 #include "services/filaman_api.h"
-#include "services/klipper_printers.h"
 #include "services/time_service.h"
 #include "services/user_options.h"
 #include "services/wifi_manager.h"
 #include "status_picker.h"
 #include "theme.h"
 #include "ui_common.h"
-#include "ui/color_tile_popup.h"
 
 // Last, and after everything that pulls in ArduinoJson: its template
 // parameter T collides with the T() macro this header defines.
@@ -53,7 +48,6 @@
 #define AMSD_VF           16
 
 #define AMSD_SWATCH       42
-#define AMSD_SWATCH_TAP_EXT_PX 10  // a tap this far past the swatch opens the colour tile
 #define AMSD_ID_X         60
 #define AMSD_ID_W         46
 #define AMSD_MAT_X        114
@@ -105,7 +99,6 @@ static AmsUnitSpools s_unit;
 static bool s_dried_pending     = false;
 static bool s_dried_all_pending = false;
 static bool s_status_pending    = false;
-static bool s_takeout_pending   = false;
 static int  s_status_pick       = 0;
 // Set when a write failed, so the redraw can say so instead of looking as if
 // nothing had happened.
@@ -146,16 +139,9 @@ static bool canEditStatus(const AmsSpoolDetail& d) {
 
 static void askCloseCb(lv_event_t* e) { releaseScreen(&s_ask); }
 
-// The card asks one of two questions in the same box: record today's drying,
-// or take the spool out of the AMS. Which one stands is kept here, so the
-// solid answer knows what it confirms.
-enum AmsdAsk : uint8_t { AMSD_ASK_DRIED, AMSD_ASK_TAKEOUT };
-static AmsdAsk s_ask_kind = AMSD_ASK_DRIED;
-
 static void askYesCb(lv_event_t* e) {
   releaseScreen(&s_ask);
-  if (s_ask_kind == AMSD_ASK_TAKEOUT) s_takeout_pending = true;
-  else                                s_dried_pending = true;
+  s_dried_pending = true;
 }
 
 static void askAllCb(lv_event_t* e) {
@@ -229,13 +215,11 @@ static bool offerDriedAll() {
 
 static void oneLine(lv_obj_t* l, int w, const lv_font_t* font);
 
-static void showSpoolAsk(AmsdAsk kind) {
+static void showDriedAsk() {
   releaseScreen(&s_ask);
   if (!lvPoolHasRoomForRow()) return;
-  s_ask_kind = kind;
-  const bool takeout = (kind == AMSD_ASK_TAKEOUT);
   // Decided once, so the whole box is drawn for one question or the other.
-  const bool all = !takeout && offerDriedAll();
+  const bool all = offerDriedAll();
   const int  box_h = all ? AMSD_ASK_H_ALL : AMSD_ASK_H;
 
   s_ask = lv_obj_create(lv_scr_act());
@@ -266,8 +250,8 @@ static void showSpoolAsk(AmsdAsk kind) {
   // font for a single glyph.
   lv_obj_t* icon = lv_label_create(box);
   if (icon) {
-    lv_label_set_text(icon, takeout ? LV_SYMBOL_UPLOAD : LV_SYMBOL_TINT);
-    lv_obj_set_style_text_color(icon, lv_color_hex(takeout ? UI_COL_ACCENT : UI_COL_DRY), 0);
+    lv_label_set_text(icon, LV_SYMBOL_TINT);
+    lv_obj_set_style_text_color(icon, lv_color_hex(UI_COL_DRY), 0);
     lv_obj_set_style_text_font(icon, UI_FONT_ICON, 0);
     lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, AMSD_ASK_ICON_Y);
   }
@@ -277,8 +261,7 @@ static void showSpoolAsk(AmsdAsk kind) {
     char buf[96];
     // "for this spool" only where the question is about one spool: with the
     // unit on offer, which spool is meant is what the answer says.
-    copyT(buf, sizeof(buf), takeout ? STR_AMSD_TAKEOUT_Q
-                          : all   ? STR_AMSD_DRIED_Q_ALL : STR_AMSD_DRIED_Q);
+    copyT(buf, sizeof(buf), all ? STR_AMSD_DRIED_Q_ALL : STR_AMSD_DRIED_Q);
     lv_label_set_text(q, buf);
     lv_obj_set_style_text_color(q, lv_color_hex(UI_COL_INK), 0);
     lv_obj_set_style_text_font(q, UI_FONT_HEADLINE, 0);
@@ -387,8 +370,7 @@ static void showSpoolAsk(AmsdAsk kind) {
   }
 
   struct { int str_id; bool primary; lv_event_cb_t cb; } b[2] = {
-    { takeout ? STR_AMSD_TAKEOUT_BTN
-      : all   ? STR_AMSD_DRIED_ONE : STR_BTN_CONFIRMED,    true,  askYesCb   },
+    { all ? STR_AMSD_DRIED_ONE : STR_BTN_CONFIRMED, true,  askYesCb   },
     { STR_CANCEL,                                   false, askCloseCb },
   };
   for (int i = 0; i < 2; i++) {
@@ -414,29 +396,13 @@ static void showSpoolAsk(AmsdAsk kind) {
         lv_color_hex(b[i].primary ? UI_COL_OK_TEXT : UI_COL_BAD_TEXT), 0);
       lv_obj_set_style_text_font(l, UI_FONT_TITLE, 0);
       lv_obj_center(l);
-      if (!b[i].primary) styleLeaveButton(btn);
     }
   }
 }
 
 static void driedCellCb(lv_event_t* e) {
   if (!canEdit(s_det) || driedBatchBusy()) return;
-  showSpoolAsk(AMSD_ASK_DRIED);
-}
-
-// Taking a spool out of the AMS: release the bay, then ask for a shelf. Only
-// where the backend can release a bay, and only for a bay with a spool on
-// file - an empty bay has nothing to take out. Never for a field of a Klipper
-// printer: the printer, or its web interface, takes a spool out (the scale only
-// puts one in), and backendCanTakeOutOfAms() answers for the backend, not for
-// the printer on the page.
-static bool canTakeOut(const AmsSpoolDetail& d) {
-  return canEdit(d) && backendCanTakeOutOfAms() && !klipperIsPrinterId(amsViewPrinterId());
-}
-
-static void locationCellCb(lv_event_t* e) {
-  if (!canTakeOut(s_det)) return;
-  showSpoolAsk(AMSD_ASK_TAKEOUT);
+  showDriedAsk();
 }
 
 // The answer comes back from status_picker.cpp a pass after its overlay is
@@ -620,13 +586,6 @@ static void buildDivider(lv_obj_t* box, int y) {
   lv_obj_set_style_pad_all(d, 0, 0);
 }
 
-// The bay's colour in large: its colour name where the backend has one,
-// the trade name otherwise.
-static ColorTileSpec amsTileSpec() {
-  const char* name = s_det.color_name[0] ? s_det.color_name : s_det.name;
-  return ColorTileSpec{s_det.color, SpoolColor{}, name};
-}
-
 // Swatch, id, material, trade name - what identifies the spool, on one line.
 static void buildIdentity(lv_obj_t* box, const AmsSpoolDetail& d) {
   lv_obj_t* sw = lv_obj_create(box);
@@ -640,7 +599,6 @@ static void buildIdentity(lv_obj_t* box, const AmsSpoolDetail& d) {
     lv_obj_clear_flag(sw, LV_OBJ_FLAG_SCROLLABLE);
     if (d.color.valid) swatchPaint(sw, d.color);
     else lv_obj_set_style_bg_color(sw, lv_color_hex(UI_COL_EMPTY), 0);
-    colorTileAttach(sw, amsTileSpec, AMSD_SWATCH_TAP_EXT_PX);
   }
 
   // The id caption doubles as the place the tag binding is reported: a spool
@@ -860,10 +818,7 @@ static void buildGrid(lv_obj_t* box, const AmsSpoolDetail& d) {
   char nozzle[24];
   nozzleText(d, nozzle, sizeof(nozzle));
   cell(box, AMSD_CA, AMSD_R2, STR_LBL_TEMP, nozzle, UI_COL_INK_2);
-  // A frame where the spool can be taken out of the AMS from here: its
-  // location is what changes when it is.
-  cell(box, AMSD_CB, AMSD_R2, STR_BTN_LOCATION, d.location, UI_COL_ACCENT,
-       UI_FONT_BODY, canTakeOut(d) ? locationCellCb : nullptr);
+  cell(box, AMSD_CB, AMSD_R2, STR_BTN_LOCATION, d.location, UI_COL_ACCENT);
 
   // Used on the left, dried on the right - the order the main screen puts
   // them in. The same two dates in the other order on the next screen is the
@@ -1046,45 +1001,16 @@ void showAmsDetailPopup(const AmsSpoolDetail& d) {
 }
 
 void handleAmsDetailDeferredActions() {
-  if (!s_dried_pending && !s_dried_all_pending && !s_status_pending &&
-      !s_takeout_pending) return;
+  if (!s_dried_pending && !s_dried_all_pending && !s_status_pending) return;
   // The card has to be up: every write redraws it, and a card taken down
   // while the question stood means the user moved on.
   if (!s_pop) {
     s_dried_pending = s_dried_all_pending = s_status_pending = false;
-    s_takeout_pending = false;
     return;
   }
 
   const int spool_id = s_det.spool_id;
   s_write_failed = false;
-
-  // Out of the AMS: the bay is released first, and only a released bay leads
-  // on to the shelf. Asking for a shelf while the source still holds the
-  // spool in the bay would put it in two places at once.
-  if (s_takeout_pending) {
-    s_takeout_pending = false;
-    loadingOverlayShow(T(STR_AMSD_SAVING));
-    const int code = serverReachNote(backendUnassignAmsSlot(spool_id, amsViewPrinterId(),
-                                       s_det.ams_id, s_det.tray_id, 8000), true);
-    loadingOverlayHide();
-    logSDf("AMSDETAIL: spool %d out of bay %d/%d, HTTP %d", spool_id,
-           (int)s_det.ams_id, (int)s_det.tray_id, code);
-    if (code == 200) {
-      // Copied first: closing the card is what frees s_det for the next one.
-      char loc[SD_LOCATION_MAX];
-      snprintf(loc, sizeof(loc), "%s", s_det.location);
-      // The name the assignment wrote is wrong the moment the bay is free.
-      // A shelf the user named stays, even if no new one is chosen.
-      char auto_loc[SD_LOCATION_MAX];
-      amsLocationName(auto_loc, sizeof(auto_loc), amsViewPrinterName(), s_det.ams_id);
-      const bool clear_on_cancel = (loc[0] && strcmp(loc, auto_loc) == 0);
-      closeAmsDetailPopup();
-      requestLocationPickerFor(spool_id, loc, clear_on_cancel);
-      return;
-    }
-    s_write_failed = true;
-  }
 
   // The whole unit, handed to a task of its own. Only started here: the card
   // is redrawn below showing it running, and amsDetailBatchTick() collects

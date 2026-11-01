@@ -26,7 +26,6 @@
 #include "info_popup.h"
 #include "ui_common.h"
 #include "tare_mark.h"
-#include "weight_button.h"
 #include "theme.h"
 
 
@@ -174,35 +173,13 @@ void buildScaleSubScreen() {
 
   // An empty spool without a database entry, weighed bare and added to
   // Bambuddy's catalog of spool types (design B). Only behind Bambuddy in
-  // Spoolman mode, like every spool type screen but the Bambu tag's card
-  // (design note L16, V33). The button builds the screen and nothing else; the
-  // server is asked from the loop.
+  // Spoolman mode, like every spool type screen (design note L16). The button
+  // builds the screen and nothing else; the server is asked from the loop.
   if (g_scale_fitted && spoolTypesActive())
   { lv_obj_t *btn = makeListBtn(list, LV_SYMBOL_PLUS, T(STR_SPT_EMPTY_BTN), T(STR_SPT_EMPTY_SUB));
     lv_obj_add_event_cb(btn, [](lv_event_t *e){
       logSD("BTN: Scale-Sub -> Empty spool type");
       showEmptySpoolType();
-    }, LV_EVENT_CLICKED, NULL); }
-
-  // Sending the weight on its own. Also a switch in the weight popup, where
-  // it is wanted on the spot; here is where it is looked for as a setting.
-  if (g_scale_fitted)
-  { char buf_s[8]; copyT(buf_s, sizeof(buf_s), g_auto_weight ? STR_ON : STR_OFF);
-    lv_obj_t *help = nullptr;
-    lv_obj_t *btn = makeListBtn(list, LV_SYMBOL_REFRESH, T(STR_WP_AUTO_ROW), T(STR_WP_AUTO_SUB),
-                                g_auto_weight, &help);
-    if (help) lv_obj_add_event_cb(help, infoPopupEventCb, LV_EVENT_CLICKED,
-                                  INFO_POPUP_ARG(STR_WP_AUTO_ROW, STR_AUTO_WEIGHT_INFO));
-    lv_obj_t *arr_lbl = lv_obj_get_child(btn, -1);
-    if (arr_lbl) {
-      lv_label_set_text(arr_lbl, buf_s);
-      lv_obj_set_style_text_color(arr_lbl, g_auto_weight ? lv_color_hex(UI_COL_ACCENT) : lv_color_hex(UI_COL_CAPTION), 0);
-      lv_obj_set_style_text_font(arr_lbl, &lv_font_montserrat_ext_14, 0);
-    }
-    lv_obj_add_event_cb(btn, [](lv_event_t *e){
-      logSD("BTN: Scale-Sub -> Auto-weight Toggle");
-      autoWeightSwitch(!g_auto_weight);
-      scale_sub_rebuild_pending = true;
     }, LV_EVENT_CLICKED, NULL); }
 
   // Only with a load cell, like the bag weight above it.
@@ -236,39 +213,6 @@ void buildScaleSubScreen() {
     lv_obj_add_event_cb(btn, [](lv_event_t *e){
       logSD("BTN: Scale-Sub -> Calibration");
       show_factor_pending = true;
-    }, LV_EVENT_CLICKED, NULL); }
-
-  // How the weight is shown, set once and then left alone: it sat on the
-  // calibration screen, where it had nothing to do with calibrating.
-  if (g_scale_fitted)
-  { char buf_s[8]; copyT(buf_s, sizeof(buf_s), g_whole_gram ? STR_ON : STR_OFF);
-    lv_obj_t *btn = makeListBtn(list, LV_SYMBOL_EYE_OPEN, T(STR_WHOLE_GRAM), T(STR_WHOLE_GRAM_SUB),
-                                g_whole_gram);
-    lv_obj_t *arr_lbl = lv_obj_get_child(btn, -1);
-    if (arr_lbl) {
-      lv_label_set_text(arr_lbl, buf_s);
-      lv_obj_set_style_text_color(arr_lbl, g_whole_gram ? lv_color_hex(UI_COL_ACCENT)
-                                                        : lv_color_hex(UI_COL_CAPTION), 0);
-      lv_obj_set_style_text_font(arr_lbl, &lv_font_montserrat_ext_14, 0);
-    }
-    lv_obj_add_event_cb(btn, [](lv_event_t *e){
-      logSD("BTN: Scale-Sub -> Whole grams Toggle");
-      g_whole_gram = !g_whole_gram;
-      prefsPutBool("whole_gram", g_whole_gram);
-      scale_sub_rebuild_pending = true;
-    }, LV_EVENT_CLICKED, NULL); }
-
-  // The way back from a calibration taken while the ADC was off the bus:
-  // every reading was -1 then, the stored factor is arithmetic on nonsense,
-  // and no amount of re-tareing fixes it. Asks first; the reset runs on the
-  // loop (cal_reset_pending) and rebuilds this screen with the new factor.
-  if (g_scale_fitted)
-  { lv_obj_t *btn = makeListBtn(list, LV_SYMBOL_TRASH, T(STR_CAL_RESET_ROW), T(STR_CAL_RESET_ROW_SUB));
-    listBtnTone(btn, TONE_DANGER);
-    lv_obj_add_event_cb(btn, [](lv_event_t *e){
-      logSD("BTN: Scale-Sub -> Reset calibration");
-      char ask[64]; copyT(ask, sizeof(ask), STR_CAL_RESET_CONFIRM);
-      showConfirmPopup(ask, 6);
     }, LV_EVENT_CLICKED, NULL); }
 
   // Last, because it is the row that decides what the rest of this screen even

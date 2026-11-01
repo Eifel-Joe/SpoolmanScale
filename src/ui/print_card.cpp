@@ -23,9 +23,6 @@
 #define PC_BUSY_TITLE_Y    76
 #define PC_BUSY_TEXT_Y     120
 #define PC_TEXT_W          (UI_POPUP_W - UI_CARD_TEXT_PAD)
-// "Label 2 of 5" in the top right corner, clear of the arc and the icon in
-// the middle of the box.
-#define PC_STEP_EDGE       12
 
 // The session calls back far more often than a frame is worth drawing.
 #define PC_TICK_MS         60
@@ -58,9 +55,6 @@ static uint16_t      s_angle      = 0;
 static int           s_shown_phase = -1;
 static int           s_shown_pct   = -1;
 static bool          s_close_req  = false;
-// The label's place in a run (printCardSetStep()).
-static int           s_step_i     = 0;
-static int           s_step_n     = 0;
 
 static lv_obj_t* makeLabel(lv_obj_t* parent, const lv_font_t* font, uint32_t color,
                            lv_coord_t y) {
@@ -122,22 +116,8 @@ static void buildCard() {
   s_title = makeLabel(s_box, UI_FONT_HEADLINE, UI_COL_INK, PC_BUSY_TITLE_Y);
   lv_label_set_text(s_title, T(STR_PRN_PH_RENDER));
   s_text = makeLabel(s_box, UI_FONT_BODY, UI_COL_INK_SOFT, PC_BUSY_TEXT_Y);
-  if (s_step_n >= 2) {
-    char buf[32];
-    snprintf(buf, sizeof(buf), T(STR_BATCH_LABEL_STEP), s_step_i, s_step_n);
-    lv_obj_t* step = lv_label_create(s_box);
-    lv_label_set_text(step, buf);
-    lv_obj_set_style_text_color(step, lv_color_hex(UI_COL_CAPTION), 0);
-    lv_obj_set_style_text_font(step, UI_FONT_SMALL, 0);
-    lv_obj_align(step, LV_ALIGN_TOP_RIGHT, -PC_STEP_EDGE, PC_STEP_EDGE);
-  }
 
   s_last_tick = millis();
-}
-
-void printCardSetStep(int i, int n) {
-  s_step_i = i;
-  s_step_n = n;
 }
 
 void printCardShow() {
@@ -298,9 +278,8 @@ void printCardResult(LabelPrintResult result, const char* detail, bool offer_own
   lv_obj_add_event_cb(btn, [](lv_event_t*) { s_close_req = true; }, LV_EVENT_CLICKED, NULL);
 
   if (ok || net_sent) {
-    // The house countdown (ui/info_popup.cpp): a lighter fill behind the
-    // label that hangs from the right edge, its left edge travelling with the
-    // reading direction; empty, it closes the card as OK does.
+    // The house countdown (ui/info_popup.cpp): a lighter fill that drains
+    // from the right behind the label; empty, it closes the card as OK does.
     // Closing itself stays with printCardLoop().
     const lv_coord_t btn_w = UI_POPUP_W - 2 * UI_CARD_ROW_X;
     lv_obj_t* fill = lv_obj_create(btn);
@@ -317,9 +296,7 @@ void printCardResult(LabelPrintResult result, const char* detail, bool offer_own
     lv_anim_set_values(&a, btn_w, 0);
     lv_anim_set_time(&a, ok ? PC_AUTOCLOSE_MS : PC_NET_SENT_CLOSE_MS);
     lv_anim_set_exec_cb(&a, [](void* obj, int32_t v) {
-      lv_obj_t* fill = (lv_obj_t*)obj;
-      lv_obj_set_width(fill, (lv_coord_t)v);
-      lv_obj_set_x(fill, lv_obj_get_content_width(lv_obj_get_parent(fill)) - (lv_coord_t)v);
+      lv_obj_set_width((lv_obj_t*)obj, (lv_coord_t)v);
     });
     lv_anim_set_ready_cb(&a, [](lv_anim_t*) { s_close_req = true; });
     lv_anim_start(&a);

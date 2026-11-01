@@ -19,5 +19,3 @@
 void printSheetTick();
 // Deletes the sheet and its picture. Safe when it is not open.
 void closePrintSheet();
-// Whether the sheet stands (built and not yet closed).
-bool printSheetOpen();

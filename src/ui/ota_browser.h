@@ -11,19 +11,10 @@ enum WebScreenContext : uint8_t {
   WEB_CTX_BACKEND  = 1,   // opened from the backend menu, back to that menu
   WEB_CTX_SETUP    = 2,   // credential step of the first time setup
   WEB_CTX_DRYING   = 3,   // drying thresholds, back to the reminder screen
-  WEB_CTX_ADDRESS  = 4,   // the server address screen, for what its pad cannot type
 };
 
 void showOtaBrowserScreen(WebScreenContext ctx = WEB_CTX_FIRMWARE);
 void buildOtaBrowserScreen();
-
-// Closes again what showing the screen had to switch on. Called by every path
-// that hides or deletes it; does nothing when the visit opened nothing.
-void otaBrowserEndVisit();
-
-// The firmware row after an upload or a GitHub install asked from the browser
-// failed: the status in red, what to do under it. Does nothing off screen.
-void otaBrowserShowUploadFailed();
 
 // Keeps the two credential rows current while the user types in the browser.
 // Cheap: it only reads values already held in memory, no request. Does

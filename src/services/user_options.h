@@ -77,14 +77,6 @@ extern bool g_wake_on_load;
 // Only in the web interface, the device has no screen to spare for it.
 extern bool g_snapmaker_tags;
 
-// Read Creality CFS tags (K2 Plus, K2 Pro, K2 Max, Hi): material, colour and
-// weight, and offer to write a blank MIFARE tag as one. Opt-in, off by
-// default like Snapmaker: the Creality key costs every other 4 byte tag one
-// refused authentication on its first placement, and that cost belongs to
-// the people who want the feature. Off, none of it touches the reader, the
-// data partition or the network.
-extern bool g_creality_tags;
-
 // Where the drying date goes in BamBuddy mode. BamBuddy has no field for it
 // at all - upstream issues #2863 and #1754 are open and waiting for votes -
 // so the scale needs somewhere to put it, and none of the choices is obvious
@@ -274,14 +266,6 @@ extern bool g_unk_ask;
 // and every weighing opens a window; here there is no window and no implicit
 // bay, so an "always" would have nothing to do.
 extern bool g_ams_pick_ask;
-// The same question on Spoolman, where an AMS source records the bay. A switch
-// of its own: that server configures the printer's bay as well, and a user who
-// allowed it for BamBuddy has not allowed it for another server.
-extern bool g_sm_ams_pick_ask;
-// Whether a spool assigned through the AMS source also gets the bay's unit as
-// its Spoolman location, "<printer> AMS 1". On by default: in Spoolman's own
-// interface the location is the only place a spool's whereabouts show.
-extern bool g_sm_ams_loc;
 
 // Whether the device may use Bluetooth Low Energy at all. Off by default, and
 // off means the BLE stack is never started: no radio time shared with WiFi,

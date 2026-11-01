@@ -8,11 +8,9 @@
 #include "services/filament_db.h"
 #include "hardware/sd_logger.h"
 #include "lang.h"
-#include "services/no_tag_create_rules.h"   // noTagTypeAsk()
 #include "services/spool_extras.h"
-#include "services/spool_types.h"   // spoolTypesActive(), spoolTypeGrams()
+#include "services/spool_types.h"   // spoolTypesActive(), spoolTypeGrams(), NEW_SPOOL_TARE_MIN_G
 #include "ui/entry_tile.h"
-#include "ui/no_tag_create.h"       // noTagMode()
 #include "ui/spool_type_list.h"
 #include "ui/tag_create_popup.h"
 #include "ui/theme.h"
@@ -116,7 +114,6 @@ static void bottomButton(lv_obj_t* box, int col, int y, int answer, int caption)
     lv_obj_set_style_border_width(b, 0, 0);
   }
   lv_obj_center(text(b, T(caption), UI_FONT_BODY, cancel ? UI_COL_BAD_TEXT : UI_COL_INK));
-  if (cancel) styleLeaveButton(b);
 }
 
 static void build() {
@@ -179,12 +176,9 @@ static void typeWithout() {
 static void typeBack() {}
 
 bool dbPickTypeAsk(TagCreateInput* in) {
-  if (!in) return false;
-  // Nothing on the pad (or no number): no net to take a type off (L22). Created
-  // without a tag nothing is weighed, so there the list comes without a weight;
-  // the one rule decides (noTagTypeAsk()), the request below is the same.
-  if (!noTagTypeAsk(spoolTypesActive(), noTagMode(), spoolExtrasBareReading(), in->spool_type_g))
-    return false;
+  if (!in || !spoolTypesActive() || in->spool_type_g > 0) return false;
+  // Nothing on the pad (or no number): no net to take a type off (L22).
+  if (!(spoolExtrasBareReading() > NEW_SPOOL_TARE_MIN_G)) return false;
   dbPickCoreClose();
   s_in = *in;
   SpoolTypeListReq req = {};

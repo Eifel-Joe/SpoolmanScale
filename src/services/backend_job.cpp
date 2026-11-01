@@ -8,7 +8,6 @@
 #include "services/backend.h"
 #include "services/backend_api.h"
 #include "services/backend_job_rules.h"
-#include "services/worker_task.h"
 #include "services/http_progress.h"
 #include "web/web_jobs.h"
 
@@ -21,10 +20,9 @@
 // connection is closed, and the warm-up task needs 14 kB for that very
 // handshake.
 // The floor is not one number: 50000 for https (stack and connection, TLS
-// itself lives in PSRAM) and 40000 for plain http (backend_job_rules.h). The
-// Waveshare 7B has about 58 620 bytes free in steady state, which the old
-// 60000 for everybody never cleared, so an unknown tag was never looked up on
-// a Bambuddy over http.
+// itself lives in PSRAM) and 40000 for plain http (backend_job_rules.h). The Waveshare 7B has about 58 620
+// bytes free in steady state, which the old 60000 for everybody never cleared,
+// so an unknown tag was never looked up on a Bambuddy over http.
 #define BACKEND_JOB_STACK_BYTES   16384
 #define BACKEND_JOB_PRIORITY      1
 #define BACKEND_JOB_CORE          0
@@ -139,7 +137,7 @@ bool backendJobStartList(bool allow_archived, const JsonDocument* filter,
   // address (cfg_spoolman_base) can be empty there. The copy in s_base below
   // only matters in Spoolman mode, where it is the same address.
   const uint32_t min_heap  = backendJobMinHeap(backendBaseUrl());
-  const uint32_t free_heap = workerFreeHeap();
+  const uint32_t free_heap = (uint32_t)ESP.getFreeHeap();
   if (free_heap < min_heap) {
     // The callers ask again on every pass of the loop; a line each time
     // filled the log (over 4000 of them, 25.10.2026), so one a minute.

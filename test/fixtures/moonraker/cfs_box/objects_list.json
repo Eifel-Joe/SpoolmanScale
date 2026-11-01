@@ -1,9 +1,0 @@
-{
-  "result": {
-    "objects": [
-      "webhooks", "configfile", "mcu", "heaters", "heater_bed", "extruder",
-      "gcode_move", "toolhead", "print_stats", "virtual_sdcard",
-      "box", "gcode_macro PRINT_START"
-    ]
-  }
-}

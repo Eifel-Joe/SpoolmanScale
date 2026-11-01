@@ -23,11 +23,8 @@
 #include "services/user_options.h"
 #include "services/wifi_manager.h"
 #include "ui/confirm_popup.h"
-#include "ui/weight_button.h"
-#include "ui/weight_popup.h"
 #include "ui/diag_banner.h"
 #include "ui/dried_action.h"
-#include "ui/no_tag_create.h"
 #include "ui/update_badges.h"
 #include "ui/tare_mark.h"
 #include "ui/live_zone.h"
@@ -39,11 +36,6 @@
 #include "ui/spool_id_pad.h"
 #include "ui/theme.h"
 #include "ui_common.h"
-
-// How far past the 42 px colour swatch a tap still opens the colour tile.
-// Upwards the status bar ends it at y=48, see below; what is left is 64 px
-// wide, from the panel edge to the ID column, and 57 px high.
-#define MAIN_SWATCH_TAP_EXT_PX  14
 
 // ============================================================
 //  FILL DISPLAY WITH TAG DATA
@@ -74,7 +66,7 @@ void updateDisplay() {
   char tag_hex[SPOOL_COLOR_HEX_MAX];
   spoolColorFormat(g_tag.color, tag_hex, sizeof(tag_hex));
   lv_label_set_text(lbl_color, tag_hex[0] ? tag_hex : "-");
-  if (g_tag.color.valid) mainSwatchPaint(g_tag.color, tagSecondColor(g_tag.color));
+  if (g_tag.color.valid) swatchPaint(lbl_color_swatch, g_tag.color);
 
   // Temp (Zone 3 Row B)
   char temp_str[24];
@@ -116,7 +108,7 @@ void showTagInfoOnDisplay(const TagInfo *ti) {
     char hex[SPOOL_COLOR_HEX_MAX];
     spoolColorFormat(c, hex, sizeof(hex));
     lv_label_set_text(lbl_color, hex);
-    mainSwatchPaint(c, nullptr);
+    swatchPaint(lbl_color_swatch, c);
   }
 
   // Both ends or neither: a range printed from a single value would read as a
@@ -359,11 +351,6 @@ void buildUI() {
   lv_obj_set_style_border_width(lbl_color_swatch, 1, 0);
   lv_obj_set_style_pad_all(lbl_color_swatch, 0, 0);
   lv_obj_clear_flag(lbl_color_swatch, LV_OBJ_FLAG_SCROLLABLE);
-  colorTileAttach(lbl_color_swatch, mainSwatchTileSpec, MAIN_SWATCH_TAP_EXT_PX);
-  // Behind everything else on the screen, so the header and the status bar,
-  // whose line switches between tag and spool, keep their taps where the
-  // wider touch area reaches into them. Nothing is drawn over the swatch.
-  lv_obj_move_to_index(lbl_color_swatch, 0);
 
   // Cap: ID (x=58, y=53)
   lv_obj_t *lbl_id_cap = lv_label_create(lv_scr_act());
@@ -798,15 +785,23 @@ void buildUI() {
     lv_obj_set_style_shadow_width(btn_weight_main, 0, 0);
     lv_obj_add_event_cb(btn_weight_main, [](lv_event_t *e) {
       logSD("UI: Button -> Update Weight");
-      showWeightPopup();
+      { char qb[64]; backendText(T(STR_POPUP_WEIGHT_Q), qb, sizeof(qb)); showConfirmPopup(qb, 2); }
     }, LV_EVENT_CLICKED, NULL);
     lv_obj_t *lbl_wm = lv_label_create(btn_weight_main);
     lbl_weight_main_lbl = lbl_wm;
+    {
+      char wmbuf[48];
+      if (g_auto_weight)
+        snprintf(wmbuf, sizeof(wmbuf), "%s (A)", T(STR_BTN_WEIGHT));
+      else {
+        copyT(wmbuf, sizeof(wmbuf), STR_BTN_WEIGHT);
+      }
+      lv_label_set_text(lbl_wm, wmbuf);
+    }
+    lv_obj_set_style_text_color(lbl_wm, g_auto_weight ? lv_color_hex(UI_COL_WEIGHT_AUTO) : lv_color_hex(UI_COL_WEIGHT_TEXT), 0);
     lv_obj_set_style_text_font(lbl_wm, &lv_font_montserrat_ext_16, 0);
     lv_obj_set_style_text_align(lbl_wm, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(lbl_wm, LV_ALIGN_CENTER, 0, 0);
-    // Caption, colours and the countdown fill: see weight_button.h.
-    weightButtonAttach(btn_weight_main, lbl_wm);
   } else {
     // Same geometry as the button it stands in for. The colours are the ones
     // the location button in More Info already wears, so the two read as one
@@ -900,7 +895,7 @@ void buildUI() {
   lv_obj_add_flag(btn_copy, LV_OBJ_FLAG_HIDDEN);
   lv_obj_add_event_cb(btn_copy, [](lv_event_t *e) {
     logSD("UI: Button -> Copy Spool");
-    noTagEntryTap();   // "Create spool" on an empty screen, else "New / Copy"
+    showCopyEntryPopup();
   }, LV_EVENT_CLICKED, NULL);
   lv_obj_t *lbl_cp = lv_label_create(btn_copy);
   char lbl_cp_buf[32]; copyT(lbl_cp_buf, sizeof(lbl_cp_buf), STR_BTN_COPY_SPOOL);

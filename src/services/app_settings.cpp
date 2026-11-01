@@ -97,7 +97,6 @@ void loadPrefs() {
   g_whole_gram = prefsGetBool("whole_gram", true);
   g_wake_on_load = prefsGetBool("wake_load", true);
   g_snapmaker_tags = prefsGetBool("snapmaker", false);
-  g_creality_tags = prefsGetBool("creality", false);
   g_ble_enabled = prefsGetBool("ble_on", false);
   // Same default and the same reason: a device that was never told otherwise
   // has a scale. Only one built without a load cell says so once.
@@ -136,7 +135,7 @@ void loadPrefs() {
   g_ams_window_s  = (int)prefsGetInt("ams_window", AMS_WINDOW_DEFAULT_S);
   g_auto_weight = prefsGetBool("auto_weight", false);
   g_auto_loc_popup = prefsGetBool("auto_loc_popup", false);
-  g_auto_tare = prefsGetBool("auto_tare", AUTO_TARE_DEFAULT);
+  g_auto_tare = prefsGetBool("auto_tare", false);
   // Three states now, where this used to be a yes/no switch. Nobody loses their
   // setting: an installation that had the question turned on comes back as
   // "ask", one that had it off as "off", and the old key is left in NVS rather

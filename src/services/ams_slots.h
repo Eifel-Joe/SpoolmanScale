@@ -52,17 +52,13 @@
 // "Charcoal", "Bambu Green", "Cyan" - the manufacturer's own colour name.
 #define AMS_COLOR_NAME_MAX   16
 #define AMS_PRINTER_NAME_MAX 24
-// The model of a Bambu printer as Bambuddy lists it: "A1 Mini", "X1C", "P1S",
-// "H2D". A few characters: 11 and a terminator.
-#define AMS_PRINTER_MODEL_MAX 12
 // "printing", "idle", "paused". Short on purpose: this is a state word, not
 // the name of the job.
 #define AMS_STATE_MAX        16
 
-// How many printers the picker offers, in all: the printers of the backend and
-// the stored Klipper printers (up to KL_PRINTERS_MAX = 64) share this list.
-// Beyond this it is cut with a log line rather than silently.
-#define AMS_MAX_PRINTERS     64
+// How many printers the picker offers. Beyond this the list is cut with a
+// log line rather than silently.
+#define AMS_MAX_PRINTERS     8
 
 // Sentinels for values the printer did not report. Bambu sends -1 for an
 // unknown fill level itself, so that one is passed through unchanged.
@@ -99,7 +95,6 @@ enum AmsModel : uint8_t {
   AMS_MODEL_AMS_2_PRO,     // "n3f" / "ams_2_pro", four bays and a heater
   AMS_MODEL_AMS_HT,        // "n3s" / "ams_ht", one bay and a heater
   AMS_MODEL_AMS_LITE,      // "ams_lite", the A1's four open bays
-  AMS_MODEL_KLIPPER,       // a unit of a Klipper printer (a run of up to four fields), no hardware of its own
 };
 
 // A single bay.
@@ -231,28 +226,11 @@ struct AmsSlotState {
 static_assert(sizeof(AmsSlotState) <= 1800,
               "AmsSlotState outgrew its budget, check where it is stored");
 
-// Whose printer an entry of the list is. Fixed numbers; zero is what every
-// list the backends fill starts with (AmsPrinter{}), so they need no change.
-enum AmsPrinterKind : uint8_t {
-  AMS_PRINTER_BAMBU = 0,    // a printer of Bambuddy, FilaMan or an AMS source
-  AMS_PRINTER_KLIPPER = 1   // a Klipper printer stored on the scale (id >= KL_ID_BASE)
-};
-
 struct AmsPrinter {
   int  id;
   char name[AMS_PRINTER_NAME_MAX];
-  // The Bambu model, for the second line of the printer's button in the
-  // window "Choose printer". Bambuddy only; FilaMan, the AMS source and the
-  // Klipper printers leave it empty (AmsPrinter{} zeroes it).
-  char model[AMS_PRINTER_MODEL_MAX];
   bool active;
   bool online;
-  // Klipper only (zero for the others): the layout (KlipperLayout) and the
-  // number of fields of the printer's last connection test, which the list
-  // can show before the printer is opened.
-  uint8_t kind;      // AmsPrinterKind
-  uint8_t layout;
-  uint8_t bays;
 };
 
 struct AmsPrinterList {

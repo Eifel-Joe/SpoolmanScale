@@ -145,9 +145,6 @@ def update_version_json(published: dict, version: str, images: dict[str, tuple[s
     # workflow wrote.
     data["url"] = RELEASES_URL
     _record(data, version, images[TOP_BOARD])
-    # A "boards" or a board node that is no JSON object is replaced, not
-    # refused: a board finds no release in it (versionFilePick() reads keys of
-    # an object), and check_newer() skipped it as well (_published_tags).
     boards = data.get("boards")
     if not isinstance(boards, dict):
         boards = data["boards"] = {}
@@ -175,20 +172,15 @@ def flasher_manifest(board: str, version: str) -> dict:
 
 
 def release_title(version: str, day: datetime.date) -> str:
-    """The title of the GitHub release: the fork's name in every one, because
-    the numbers are this fork's own and the original's 0.8.4 is a different
-    firmware; the date only behind a pre-release, where the tag alone does not
-    say when the build was made."""
-    title = "SpoolmanScale (Eifel-Joe fork) " + version
+    """The title of the GitHub release: the date only behind a pre-release,
+    where the tag alone does not say when the build was made."""
+    title = "SpoolmanScale " + version
     if is_prerelease(version):
         title += " (" + day.strftime("%d.%m.%Y") + ")"
     return title
 
 
 def image_name(board: str) -> str:
-    """The release asset a board's firmware downloads: the plain
-    SpoolmanScale.bin for the WT32, SpoolmanScale-<board>.bin for the others
-    (BOARD_OTA_ASSET in each board_config.h under src/boards)."""
     return "SpoolmanScale.bin" if board == TOP_BOARD else "SpoolmanScale-" + board + ".bin"
 
 

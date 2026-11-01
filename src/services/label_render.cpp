@@ -12,7 +12,6 @@
 #include "lang.h"
 #include "services/backend.h"
 #include "services/label_draw.h"
-#include "services/label_fact_size.h"
 #include "services/label_facts.h"
 #include "services/text_util.h"
 
@@ -22,7 +21,6 @@ using namespace labeldraw;
 // The label's geometry in dots at 203 dpi, 8 dots to the millimetre, and its
 // fonts at that resolution. A finer head prints the same millimetres: every
 // length goes through dots() and every font through sized() (label_draw.h).
-#define LR_BASE_DPI      203    // the head these lengths and fonts are for
 #define LR_MARGIN_PX       8    // 1 mm: the stock is never cut exactly
 #define LR_GAP_PX          4    // between the blocks
 #define LR_COLUMN_GAP_PX  12    // between two columns of facts
@@ -44,8 +42,6 @@ using namespace labeldraw;
 #define LR_QR_MIN_PX      64
 #define LR_WRAP_ROWS       4    // what a wrapped paragraph is sized for
 #define LR_QR_GOOD_PX     96    // under this, smaller fact lines buy code size
-#define LR_FACT_STYLES_MAX 11   // the most styles a head's list may have
-#define LR_FACTS_LOG_LEN  24    // "two lines of 40 px" and its end, with room
 // The calibration page's ruler, in dots from the top of the label.
 #define LC_NUM_Y          12    // the numbers' row, and the top of their ticks
 #define LC_NUM_EVERY       4    // a number every 4 mm
@@ -99,9 +95,8 @@ struct LabelArea {
 // One of two columns side by side.
 static lv_coord_t columnWidth(const LabelArea& a) { return (a.w - dots(LR_COLUMN_GAP_PX)) / 2; }
 
-// Where the body put the code and how it set the facts, for the log:
-// "small lines", "28 px lines", "two lines of 36 px".
-struct LabelBody { lv_coord_t qr; bool beside; char facts[LR_FACTS_LOG_LEN]; };
+// Where the body put the code and how it set the facts, for the log.
+struct LabelBody { lv_coord_t qr; bool beside; const char* facts; };
 
 // The name as the area sets it on two lines: one line would cut it even in
 // the wrap font, and it breaks into two that fit. False: one line.
@@ -297,73 +292,25 @@ static void drawOneLine(lv_obj_t* canvas, const LabelArea& a, const LabelContent
   }
 }
 
-// The larger sizes for the facts, tried in this order: by the size the
-// value prints in, from large to small, either two lines each (the caption
-// small, the value large under it) or one line, the two-line form first
-// where both print in the same size. A fact with no value, the project
-// name, stays in the small font. The largest is for the tall sizes only; on
-// the base size no fact outgrows the filament's name. `px` is the size the
-// value prints in on the list's head.
-// Root: one list for both heads named the one-line sizes by 203 dpi fonts,
-//   24 and 20. A 300 dpi head prints those as 36 and 30, and below 30 came
-//   the small lines (24): six facts two dots too wide for 30 fell to them,
-//   where 28 would have held them whole (V45). With the two-line rows all
-//   first, six short lines printed one-line 34 and five of them two-line
-//   30: smaller with one line fewer.
-// Fix: a list per head, ordered by print size (Joerg 29.10.2026: one line
-//   fewer never prints smaller). The two-line rows are the ones of before;
-//   one line goes in every even print size from the largest one-line size
-//   down to what the big-code arrangement's 14 px small lines leave, in the
-//   PRINTED_ fonts that print as themselves (label_draw.h). The usual small
-//   lines are larger, and planLarger() skips what is not. The last row is
-//   the small lines once more, for a label without a code only: in two
-//   columns they hold what one column would push off the label.
-// NOT-TO-DO: one list of 203 dpi fonts for both heads. On a 300 dpi head
-//   they print 1.48 times their size, so 26, 28 and 34 cannot be named and
-//   the 28 prints as 40. Nor all two-line rows first: they read well, but a
-//   label with one line fewer then fell from one-line 34 to two-line 30.
-// See test_label_fact_styles.py.
-struct FactStyle { const lv_font_t* value; const lv_font_t* caption; bool two_lines; uint8_t px; };
-static const FactStyle FACT_STYLES_203[] = {
-  { &lv_font_montserrat_ext_28, &lv_font_montserrat_ext_16, true, 28 },
-  { &lv_font_montserrat_ext_24, &lv_font_montserrat_ext_14, true, 24 },
-  { &PRINTED_24, &lv_font_montserrat_ext_14, false, 24 },
-  { &PRINTED_22, &lv_font_montserrat_ext_14, false, 22 },
-  { &lv_font_montserrat_ext_20, &lv_font_montserrat_ext_14, true, 20 },
-  { &PRINTED_20, &lv_font_montserrat_ext_14, false, 20 },
-  { &PRINTED_18, &lv_font_montserrat_ext_14, false, 18 },
-  { &PRINTED_16, &lv_font_montserrat_ext_14, false, 16 },
-  { &lv_font_montserrat_ext_16, &lv_font_montserrat_ext_14, false, 16 },   // no code only, last
+// The larger sizes for the facts, tried in this order: two lines each (the
+// caption small, the value large under it), then one line in a larger font.
+// A fact with no value, the project name, stays in the small font. The
+// largest is for the tall sizes only; on the base size no fact outgrows the
+// filament's name.
+struct FactStyle { const lv_font_t* value; const lv_font_t* caption; bool two_lines; };
+static const FactStyle FACT_STYLES[] = {
+  { &lv_font_montserrat_ext_28, &lv_font_montserrat_ext_16, true },
+  { &lv_font_montserrat_ext_24, &lv_font_montserrat_ext_14, true },
+  { &lv_font_montserrat_ext_20, &lv_font_montserrat_ext_14, true },
+  { &lv_font_montserrat_ext_24, &lv_font_montserrat_ext_14, false },
+  { &lv_font_montserrat_ext_20, &lv_font_montserrat_ext_14, false },
+  // The small lines once more, for a label without a code only: in two
+  // columns they hold what one column would push off the label.
+  { &lv_font_montserrat_ext_16, &lv_font_montserrat_ext_14, false },
 };
-static const FactStyle FACT_STYLES_300[] = {
-  { &lv_font_montserrat_ext_28, &lv_font_montserrat_ext_16, true, 40 },
-  { &lv_font_montserrat_ext_24, &lv_font_montserrat_ext_14, true, 36 },
-  { &PRINTED_36, &lv_font_montserrat_ext_14, false, 36 },
-  { &PRINTED_34, &lv_font_montserrat_ext_14, false, 34 },
-  { &PRINTED_32, &lv_font_montserrat_ext_14, false, 32 },
-  { &lv_font_montserrat_ext_20, &lv_font_montserrat_ext_14, true, 30 },
-  { &PRINTED_30, &lv_font_montserrat_ext_14, false, 30 },
-  { &PRINTED_28, &lv_font_montserrat_ext_14, false, 28 },
-  { &PRINTED_26, &lv_font_montserrat_ext_14, false, 26 },
-  { &PRINTED_24, &lv_font_montserrat_ext_14, false, 24 },
-  { &lv_font_montserrat_ext_16, &lv_font_montserrat_ext_14, false, 24 },   // no code only, last
-};
-static_assert(sizeof(FACT_STYLES_203) / sizeof(FACT_STYLES_203[0]) <= LR_FACT_STYLES_MAX,
-              "planLarger() measures at most LR_FACT_STYLES_MAX styles");
-static_assert(sizeof(FACT_STYLES_300) / sizeof(FACT_STYLES_300[0]) <= LR_FACT_STYLES_MAX,
-              "planLarger() measures at most LR_FACT_STYLES_MAX styles");
-
-// The list of the head being drawn for, the one whose fonts sized() leaves
-// as they are or the finer one, and its length. Its last row is the one
-// only a label without a code may take.
-static const FactStyle* factStyles(int* count) {
-  if (dpi() <= LR_BASE_DPI) {
-    *count = (int)(sizeof(FACT_STYLES_203) / sizeof(FACT_STYLES_203[0]));
-    return FACT_STYLES_203;
-  }
-  *count = (int)(sizeof(FACT_STYLES_300) / sizeof(FACT_STYLES_300[0]));
-  return FACT_STYLES_300;
-}
+static const int FACT_STYLE_COUNT = sizeof(FACT_STYLES) / sizeof(FACT_STYLES[0]);
+// The last one, which only a label without a code may take.
+static const FactStyle* const FACT_STYLE_NO_CODE = &FACT_STYLES[FACT_STYLE_COUNT - 1];
 
 // cols: 2 when the facts stand in two columns, the first half on the left.
 struct FactsPlan { const FactStyle* style; lv_coord_t code; lv_coord_t text_h; int cols; };
@@ -408,75 +355,42 @@ static lv_coord_t factsWidth(const LabelContent& c, const FactStyle& s) {
   return widest;
 }
 
-// The facts larger, when the label has the room: of the head's styles that
-// are larger than the small lines (and, on a label that is not tall, no
-// larger than what 24 prints in), the first in the list's order whose lines
+// The facts larger, when the label has the room: the first style whose lines
 // fit the height, whose lines fit the width whole, and that leaves the code
 // no smaller than the small lines did. So a label with few fields reads
 // larger, and one with all of them prints as before.
-// Root: the loop compared each style itself by the line heights of the
-//   203 dpi fonts. Those are not the sizes a 300 dpi head prints, and a
-//   PRINTED_ font is on no such scale; the choice is labelFactPick()'s now.
-// Fix: each style compared by lineHeight(), the size it prints in, and
-//   measured into one LabelFactFit, the plan it stands for in a second array
-//   of the same fixed size. Where one column does not fit and the label has
-//   no code, two columns: the width both take side by side, 2 w + gap (that
-//   is within a.w exactly when w is within columnWidth()), the taller column,
-//   no code. Else one column, its code measured only where the style spells
-//   and fits; 0 for the others, which cannot win anyway. Measuring stops at
-//   the first style the rule passes on its own: none after it can be
-//   chosen, so the code is encoded about once per pass, as before V45.
-// NOT-TO-DO: measuring every style before asking the rule: each code
-//   measured encodes the QR code once more, for styles that cannot win.
-//   Nor reordering here: the list is by print size, two lines first on
-//   equal size (Joerg 29.10.2026: one line fewer never prints smaller).
-// See test_label_fact_styles.py and test_label_fact_size.py.
 static bool planLarger(const LabelArea& a, bool tall, const LabelContent& c,
                        const BodyPlan& one, FactsPlan* out) {
   if (c.wrap || !c.facts || c.n == 0) return false;
   const lv_coord_t avail_h = a.bottom - a.y;
-  const LabelFactRoom room{ (int16_t)a.w, (int16_t)avail_h, (int16_t)one.code };
-  int count = 0;
-  const FactStyle* styles = factStyles(&count);
-  const FactStyle* no_code = &styles[count - 1];
-  LabelFactFit fits[LR_FACT_STYLES_MAX];
-  FactsPlan plans[LR_FACT_STYLES_MAX];
-  int n = 0;
-  for (int i = 0; i < count; i++) {
-    const FactStyle& s = styles[i];
-    if (&s == no_code ? !a.columns : lineHeight(s.value) <= lineHeight(one.font)) continue;
-    if (!tall && lineHeight(s.value) > lineHeight(&lv_font_montserrat_ext_24)) continue;
+  for (int i = 0; i < FACT_STYLE_COUNT; i++) {
+    const FactStyle& s = FACT_STYLES[i];
+    if (&s == FACT_STYLE_NO_CODE ? !a.columns : s.value->line_height <= one.font->line_height)
+      continue;
+    if (!tall && s.value->line_height > lv_font_montserrat_ext_24.line_height) continue;
     const lv_coord_t w = factsWidth(c, s);
+    if (w == 0) continue;
     const lv_coord_t h = factsHeight(c, s, 0, c.n);
-    LabelFactFit& f = fits[n];
-    f.spells = w != 0;
-    if ((w > a.w || h > avail_h) && a.columns && !one.code && c.n >= 2) {
+    if (w > a.w || h > avail_h) {
       // Two columns where the arrangement has no code to share the width with.
       const int half = (c.n + 1) / 2;
       const lv_coord_t h2 = LV_MAX(factsHeight(c, s, 0, half), factsHeight(c, s, half, c.n));
-      f.width = (int16_t)(2 * w + dots(LR_COLUMN_GAP_PX));
-      f.height = h2;
-      f.code = 0;
-      plans[n++] = FactsPlan{ &s, 0, h2, 2 };
-    } else {
-      lv_coord_t code = 0;
-      if (one.code && f.spells && w <= a.w && h <= avail_h) {
-        lv_coord_t box = one.beside ? a.w - w - dots(LR_GAP_PX) : avail_h - h - dots(LR_GAP_PX);
-        box = LV_MIN(box, one.beside ? avail_h : a.w);
-        box = LV_MIN(box, a.qr_max);
-        code = box >= dots(LR_QR_MIN_PX) ? drawQr(nullptr, 0, 0, box, c.qr, true) : 0;
-      }
-      f.width = w;
-      f.height = h;
-      f.code = code;
-      plans[n++] = FactsPlan{ &s, code, h, 1 };
+      if (!a.columns || one.code || c.n < 2 || w > columnWidth(a) || h2 > avail_h) continue;
+      *out = FactsPlan{ &s, 0, h2, 2 };
+      return true;
     }
-    if (labelFactPick(&fits[n - 1], 1, room) == 0) break;
+    lv_coord_t code = 0;
+    if (one.code) {
+      lv_coord_t box = one.beside ? a.w - w - dots(LR_GAP_PX) : avail_h - h - dots(LR_GAP_PX);
+      box = LV_MIN(box, one.beside ? avail_h : a.w);
+      box = LV_MIN(box, a.qr_max);
+      code = box >= dots(LR_QR_MIN_PX) ? drawQr(nullptr, 0, 0, box, c.qr, true) : 0;
+      if (code < one.code) continue;
+    }
+    *out = FactsPlan{ &s, code, h, 1 };
+    return true;
   }
-  const int pick = labelFactPick(fits, n, room);
-  if (pick < 0) return false;
-  *out = plans[pick];
-  return true;
+  return false;
 }
 
 // Facts from..to-1 one under the other from y, each cut to the width.
@@ -519,22 +433,12 @@ static LabelBody drawBody(lv_obj_t* canvas, const LabelArea& a, bool tall,
                           const LabelContent& c) {
   const BodyPlan one = planOneLine(a, tall, c);
   FactsPlan larger;
-  LabelBody body{};
-  body.beside = one.beside;
   if (planLarger(a, tall, c, one, &larger)) {
     drawLarger(canvas, a, c, larger, one.beside);
-    body.qr = larger.code;
-    // The size the values print in, as the head's list has it (V45).
-    if (larger.style->two_lines)
-      snprintf(body.facts, sizeof(body.facts), "two lines of %u px", (unsigned)larger.style->px);
-    else
-      snprintf(body.facts, sizeof(body.facts), "%u px lines", (unsigned)larger.style->px);
-    return body;
+    return LabelBody{ larger.code, one.beside, larger.style->two_lines ? "two lines" : "large lines" };
   }
   drawOneLine(canvas, a, c, one);
-  body.qr = one.code ? one.qr : (lv_coord_t)0;
-  snprintf(body.facts, sizeof(body.facts), "small lines");
-  return body;
+  return LabelBody{ one.code ? one.qr : (lv_coord_t)0, one.beside, "small lines" };
 }
 
 // The big-code arrangement: the code at the right edge, as tall as the label

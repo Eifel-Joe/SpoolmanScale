@@ -24,12 +24,11 @@
 
 // Issue #40: a spool that is still in use has no empty reel to weigh, but its
 // empty weight is often known - printed on the box, measured on a sister
-// spool, or listed by the maker. The weight popup's Options offer typing it in
-// next to weighing it, and a typed number then takes the same way to the
-// server as a weighed one. With Bambuddy in Spoolman mode the Options have one
-// empty weight row instead, which asks first how the number is to be had: it
-// also offers a type from the catalog of empty spools and the full spool,
-// whose empty weight is the reading less the filament on it.
+// spool, or listed by the maker. The weight popup's empty spool button
+// therefore asks first how the number is to be had, and a typed number then
+// takes the same way to the server as a weighed one. With Bambuddy in Spoolman
+// mode it also offers a type from the catalog of empty spools and the full
+// spool, whose empty weight is the reading less the filament on it.
 
 static lv_obj_t *s_choice = nullptr;   // weigh, type, spool type or full spool
 static lv_obj_t *s_pad    = nullptr;   // the keypad
@@ -394,16 +393,13 @@ static void showTarePad(bool fill) {
     }
   }
 
-  // Next starts level with the second row of keys, so the hint above it has
-  // room to breathe; Cancel keeps the bottom.
   const int KEYS_H = 4 * KEY_H + 3 * GAP;
   const int CANCEL_H = UI_TOUCH_MIN + 10;
-  const int CANCEL_Y = KEYS_Y + KEYS_H - CANCEL_H;
-  // On the full spool's pad the fill amounts take that room instead, two by
-  // two above Next, each a finger's height; Next starts below them.
+  // The fill amounts, two by two above Next, each a finger's height.
   const int PRESET_H = UI_TOUCH_MIN;
-  const int NEXT_Y = fill ? KEYS_Y + 2 * (PRESET_H + GAP) : KEYS_Y + KEY_H + GAP;
-  const int NEXT_H = CANCEL_Y - GAP - NEXT_Y;
+  const int PRESETS_H = fill ? 2 * (PRESET_H + GAP) : 0;
+  const int NEXT_Y = KEYS_Y + PRESETS_H;
+  const int NEXT_H = KEYS_H - PRESETS_H - CANCEL_H - GAP;
 
   if (fill) {
     const int PRESET_W = (COL_W - GAP) / 2;
@@ -425,22 +421,12 @@ static void showTarePad(bool fill) {
   padLabel(s_btn_next, next_buf, UI_COL_OK_TEXT, UI_FONT_BODY);
   lv_obj_add_event_cb(s_btn_next, fill ? onFullNext : onTareNext, LV_EVENT_CLICKED, NULL);
 
-  lv_obj_t *cancel = padButton(scr, COL_X, CANCEL_Y, COL_W, CANCEL_H,
+  lv_obj_t *cancel = padButton(scr, COL_X, NEXT_Y + NEXT_H + GAP, COL_W, CANCEL_H,
                                UI_COL_BAD_BG, UI_COL_BAD_BG_PRESSED);
   padLabel(cancel, T(STR_CANCEL), UI_COL_BAD_TEXT, UI_FONT_SMALL);
-  styleLeaveButton(cancel);
   lv_obj_add_event_cb(cancel, [](lv_event_t *e) { closeSpoolEntry(); }, LV_EVENT_CLICKED, NULL);
 
   refreshPad();
-}
-
-// Opened from the weight popup's Options, which offer weighing the empty
-// spool beside it, and from the choice below.
-void showTareEntryPad() {
-  closeSpoolEntry();
-  s_spool_id = sm_id;
-  s_open_g   = scale_weight_g;
-  showTarePad(false);
 }
 
 // ---------------------------------------------------------------------------
@@ -480,14 +466,14 @@ void showTareChoice() {
   // in, then spool type and full spool. Weighing and the full spool need the
   // spool on the pad, and a button not offered leaves its place empty. The
   // box is as wide as the weight popup this opens from, and its places are
-  // counted inside the border, where LVGL puts the children. Every other
-  // backend keeps its column: weigh and type in, one above the other, weighing
-  // offered with the pad empty too (the press takes the reading then, an empty
-  // reel may go down meanwhile). Both have two rows, so the cancel row and the
-  // box height share a sum.
-  //
-  // choiceButton() is upstream's (the column's x of 12); lv_obj_set_x() then
-  // places each button, so the grid needs no sixth parameter (house rule).
+  // counted inside the border, where LVGL puts the children.
+  // Every other backend keeps the column it always had: weigh and type in,
+  // one above the other, weighing offered with the pad empty as well (the
+  // press takes the reading then, an empty reel may be put down meanwhile).
+  // Both have two rows, so the cancel row and the box height share a sum.
+  // choiceButton() is upstream's and puts a button at the column's x of 12;
+  // every button here gets its own x right after it (lv_obj_set_x), so the
+  // grid needs no sixth parameter (house rule, at most five).
   const bool grid   = spoolTypesActive();
   const bool on_pad = padHoldsSpool();
   const int BORDER = 2, BTN_H = 70, TOP = 44, BOTTOM = 10;
@@ -533,7 +519,10 @@ void showTareChoice() {
   snprintf(type_buf, sizeof(type_buf), LV_SYMBOL_KEYBOARD "  %s", T(STR_TARE_CHOICE_TYPE));
   lv_obj_t *type = choiceButton(box, grid ? TOP : ROW2_Y, BTN_W, BTN_H, type_buf);
   lv_obj_set_x(type, grid ? X_R : EDGE);
-  lv_obj_add_event_cb(type, [](lv_event_t *e) { showTareEntryPad(); }, LV_EVENT_CLICKED, NULL);
+  lv_obj_add_event_cb(type, [](lv_event_t *e) {
+    releaseScreen(&s_choice);
+    showTarePad(false);
+  }, LV_EVENT_CLICKED, NULL);
 
   if (grid) {
     // The maker's types, the one nearest the spool's empty weight marked.
@@ -562,10 +551,8 @@ void showTareChoice() {
   lv_obj_t *cancel = padButton(box, EDGE, Y_CANCEL, grid ? 2 * BTN_W + GAP : BTN_W,
                                UI_TOUCH_MIN, UI_COL_BAD_BG, UI_COL_BAD_BG_PRESSED);
   lv_obj_set_style_radius(cancel, UI_RADIUS_BTN, 0);
+  lv_obj_set_style_border_width(cancel, 0, 0);
   padLabel(cancel, T(STR_CANCEL), UI_COL_BAD_TEXT, UI_FONT_SMALL);
-  // The original's way out: red outline and a cross in front, the fill and
-  // the caption colour are the style's own (the keypad's Cancel above).
-  styleLeaveButton(cancel);
   lv_obj_add_event_cb(cancel, [](lv_event_t *e) { closeSpoolEntry(); }, LV_EVENT_CLICKED, NULL);
 }
 

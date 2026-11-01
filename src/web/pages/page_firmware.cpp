@@ -18,7 +18,6 @@
 #include "services/prefs_store.h"
 #include "services/update_check.h"
 #include "services/version_compare.h"
-#include "ui/ota_browser.h"
 #include "ui/ota_github.h"
 #include "ui/update_badges.h"
 #include "web/web_access.h"
@@ -139,7 +138,7 @@ void otaWebGithubTick() {
   }
   otaGithubOverlayHide();
   logSDf("OTA: install failed - %s", err);
-  otaBrowserShowUploadFailed();
+  if (lbl_ota_status) lv_label_set_text(lbl_ota_status, T(STR_OTA_FAIL));
 }
 
 static String body() {
@@ -172,7 +171,7 @@ static String body() {
   }
   h += F("<div class='card wide'><h2>");
   h += T(STR_W_C_FIRMWARE);
-  h += F("</h2><div class='rows'>"
+  h += F("</h2><div class='rows' style='margin-bottom:16px'>"
          "<div class='row'><span class='k'>");
   h += T(STR_W_FW_INSTALLED);
   h += F("</span><span class='v mono'>");
@@ -222,7 +221,7 @@ static String body() {
   // two screens cannot end up looking at different release lists.
   h += F("<div class='card wide'><h2>");
   h += T(STR_W_C_FW_GITHUB);
-  h += F("</h2><div class='rows'>"
+  h += F("</h2><div class='rows' style='margin-bottom:16px'>"
          "<div class='row'><span class='k'>");
   h += T(STR_W_FW_CHANNEL);
   h += F("</span><span class='v'>"
@@ -285,7 +284,6 @@ static String body() {
   h += F(",fail:");       h += jsStr(T(STR_W_FW_CHECK_FAIL));
   h += F(",nowifi:");     h += jsStr(T(STR_W_FW_NOWIFI));
   h += F(",busy:");       h += jsStr(T(STR_W_FW_BUSY));
-  h += F(",lowmem:");     h += jsStr(T(STR_W_FW_LOWMEM));
   h += F(",installing:"); h += jsStr(T(STR_W_FW_INSTALLING));
   h += F(",keep:");       h += jsStr(T(STR_W_FW_HINT));
   h += F(",notes:");      h += jsStr(T(STR_W_FW_NOTES));
@@ -311,7 +309,6 @@ static String body() {
          "function ghSay(t,bad){var m=document.getElementById('ghmsg');"
          "m.className=bad?'msg bad':'msg';m.textContent=t;}"
          "function ghErr(d){return d.error==='nowifi'?G.nowifi:"
-         "d.error==='lowmem'?G.lowmem:"
          "(d.error==='busy'?G.busy:G.fail+(d.error?': '+d.error:''));}"
          "function fmtDate(s){if(!s)return G.unknown;"
          "var d=new Date(s);return isNaN(d)?s:d.toLocaleDateString();}"
@@ -585,14 +582,8 @@ static void routes(WebServer &srv) {
     // The request itself runs on the web worker: a TLS handshake held the
     // loop task, and with it the display, for up to eight seconds when it was
     // made here. 202 says "asked, not answered"; the page asks again.
-    // A start refused for the heap is no "busy": on the 7B the page said
-    // "the device is checking or writing" while it was short of internal
-    // heap (31.10.2026). It says so now, and names the two ways that need no
-    // job: the check on the scale and the file upload.
     if (!webJobStart(WJ_GH_CHECK, nullptr, gh_prerelease)) {
-      srv.send(200, "application/json", webJobLastRefusal() == WJR_LOW_HEAP
-                                            ? "{\"ok\":false,\"error\":\"lowmem\"}"
-                                            : "{\"ok\":false,\"error\":\"busy\"}");
+      srv.send(200, "application/json", "{\"ok\":false,\"error\":\"busy\"}");
       return;
     }
     srv.send(202, "application/json", "{\"ok\":true,\"pending\":true}");
@@ -620,15 +611,8 @@ static void routes(WebServer &srv) {
       srv.send(200, "application/json", "{\"ok\":false,\"error\":\"nowifi\"}");
       return;
     }
-    if (otaBusy()) {
+    if (otaBusy() || !webJobStart(WJ_GH_NOTES, tag.c_str(), false)) {
       srv.send(200, "application/json", "{\"ok\":false,\"error\":\"busy\"}");
-      return;
-    }
-    // As for the check: refused for the heap is not "busy".
-    if (!webJobStart(WJ_GH_NOTES, tag.c_str(), false)) {
-      srv.send(200, "application/json", webJobLastRefusal() == WJR_LOW_HEAP
-                                            ? "{\"ok\":false,\"error\":\"lowmem\"}"
-                                            : "{\"ok\":false,\"error\":\"busy\"}");
       return;
     }
     srv.send(202, "application/json", "{\"ok\":true,\"pending\":true}");
@@ -768,7 +752,8 @@ static void routesTail(WebServer &srv) {
         logSD("Reboot: OTA browser update success");
         ESP.restart();
       } else {
-        otaBrowserShowUploadFailed();
+        if (lbl_ota_status) lv_label_set_text(lbl_ota_status,
+          T(STR_OTA_FAIL));
       }
     },
     // Chunk handler.
@@ -841,7 +826,7 @@ static void routesTail(WebServer &srv) {
         ota_upload_total  = 0;
         otaGithubOverlayHide();
         logSD("OTA: upload aborted by the client");
-        otaBrowserShowUploadFailed();
+        if (lbl_ota_status) lv_label_set_text(lbl_ota_status, T(STR_OTA_FAIL));
       } else if (upload.status == UPLOAD_FILE_WRITE) {
         // An image for another board says so in itself, see board_image.h.
         // Nothing is committed before end(), so dropping it here leaves the
@@ -864,7 +849,7 @@ static void routesTail(WebServer &srv) {
           ota_upload_active = false;
           failed = true;
           otaGithubOverlayHide();
-          otaBrowserShowUploadFailed();
+          if (lbl_ota_status) lv_label_set_text(lbl_ota_status, T(STR_OTA_FAIL));
           return;
         }
         ota_upload_done += upload.currentSize;

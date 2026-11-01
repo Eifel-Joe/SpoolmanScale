@@ -75,7 +75,6 @@ struct AmsSpoolDetail {
   // one field that says what is physically there.
   char     printer_type[AMS_TYPE_MAX];
   SpoolColor color;                   // the bay's, see AmsSlotTray::color
-  SpoolColor spool_color;             // the spool's own colour from the database, invalid when unknown
   float    remaining_g;               // SD_WEIGHT_NA when unknown
   float    total_g;                   // SD_WEIGHT_NA when unknown
   int      spool_id;                  // 0 when the bay has no spool on file
@@ -93,19 +92,11 @@ struct AmsSpoolDetail {
   // still shows the spool the database names - that is what the backend
   // believes and what a write would go to - and says that the two disagree.
   bool     type_conflict;
-  // The bay itself, as the backend numbers it, so a write from the card can
-  // address it - the bay name above is display text. Last, beside the other
-  // single bytes, where it fills padding instead of growing the struct.
-  uint8_t  ams_id;
-  uint8_t  tray_id;
 };
 
 // Kept in BSS by its one holder, never on the stack: the loop task has 16 kB
 // and already warns about its high water mark.
-// Raised from 260 by the spool's own colour (8 bytes), which the weights task
-// hands on to a Klipper field; the struct is still a single static or a local
-// of a task with a 16 kB stack.
-static_assert(sizeof(AmsSpoolDetail) <= 268,
+static_assert(sizeof(AmsSpoolDetail) <= 260,
               "AmsSpoolDetail outgrew its budget, check where it is stored");
 
 // ------------------------------------------------------------

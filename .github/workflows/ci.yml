@@ -55,8 +55,6 @@ jobs:
         run: python3 test/test_backend_job_rules.py
       - name: Test worker heap floors
         run: python3 test/test_worker_heap_floors.py
-      - name: Test worker stack
-        run: python3 test/test_worker_stack.py
       - name: Test update source
         run: python3 test/test_update_source.py
       - name: Test update screen
@@ -79,28 +77,6 @@ jobs:
         run: python3 test/test_version_compare.py
       - name: Test spool type rules
         run: python3 test/test_spool_type_rules.py
-      - name: Test spool type gate
-        run: python3 test/test_spool_type_gate.py
-      - name: Test density rules
-        run: python3 test/test_density_rules.py
-      - name: Test density card
-        run: python3 test/test_density_card.py
-      - name: Test no tag create rules
-        run: python3 test/test_no_tag_create.py
-      - name: Test no tag entry
-        run: python3 test/test_no_tag_entry.py
-      - name: Test no tag weights
-        run: python3 test/test_no_tag_weights.py
-      - name: Test no tag finish
-        run: python3 test/test_no_tag_finish.py
-      - name: Test ams info
-        run: python3 test/test_ams_info.py
-      - name: Test no tag location
-        run: python3 test/test_no_tag_location.py
-      - name: Test colour search rules
-        run: python3 test/test_colour_search_rules.py
-      - name: Test colour search
-        run: python3 test/test_colour_search.py
       - name: Test copy rules
         run: python3 test/test_copy_rules.py
       - name: Test spool start rules
@@ -109,60 +85,6 @@ jobs:
         run: python3 test/test_sort_entry_rules.py
       - name: Test bambuddy name rules
         run: python3 test/test_bambuddy_name.py
-      - name: Test auto send rules
-        run: python3 test/test_auto_send_rules.py
-      - name: Test weight popup
-        run: python3 test/test_weight_popup.py
-      - name: Test print card
-        run: python3 test/test_print_card.py
-      - name: Test text fold
-        run: python3 test/test_text_fold.py
-      - name: Test list search
-        run: python3 test/test_list_search.py
-      - name: Test key layout
-        run: python3 test/test_key_layout.py
-      - name: Test keyboards
-        run: python3 test/test_keyboards.py
-      - name: Test spool colour RGB
-        run: python3 test/test_spool_color_rgb.py
-      - name: Test label RGB
-        run: python3 test/test_label_rgb.py
-      - name: Test leave buttons
-        run: python3 test/test_leave_buttons.py
-      - name: Test batch create rules
-        run: python3 test/test_batch_create_rules.py
-      - name: Test batch flow
-        run: python3 test/test_batch_flow.py
-      - name: Test label fact size
-        run: python3 test/test_label_fact_size.py
-      - name: Test label fact styles
-        run: python3 test/test_label_fact_styles.py
-      - name: Test Klipper rules
-        run: python3 test/test_klipper_rules.py
-      - name: Test Klipper store rules
-        run: python3 test/test_klipper_store_rules.py
-      - name: Test Klipper test rules
-        run: python3 test/test_klipper_test_rules.py
-      - name: Test Klipper store src
-        run: python3 test/test_klipper_store_src.py
-      - name: Test Klipper wiring
-        run: python3 test/test_klipper_wiring.py
-      - name: Test Klipper page
-        run: python3 test/test_klipper_page.py
-      - name: Test AMS Klipper
-        run: python3 test/test_ams_klipper.py
-      - name: Test AMS weights owed
-        run: python3 test/test_ams_weights_owed.py
-      - name: Test printer pick rules
-        run: python3 test/test_printer_pick_rules.py
-      - name: Test printer list
-        run: python3 test/test_printer_list.py
-      - name: Test Klipper location rules
-        run: python3 test/test_klipper_location_rules.py
-      - name: Test downloads in a frame
-        run: python3 test/test_download_embedded.py
-      - name: Test AMS grid redraw
-        run: python3 test/test_ams_grid_redraw.py
 
   build:
     name: Build ${{ matrix.env }}
@@ -187,27 +109,22 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      # Pinned like the platform and the libraries: 6.2.0.post1 reports itself
-      # as 6.2.0-post.1, which the pinned platform reads as older than the
-      # 6.2.0 it requires, and every build stopped there (27.10.2026).
       - name: Install PlatformIO
-        run: pip install platformio==6.2.0
-      # The platform builds part of the firmware in its own Python environment
-      # (~/.platformio/penv) and installs "pioarduino>=6.2.0" there, which
-      # now resolves to 6.2.0.post1 with the same version string problem.
-      # Created here with 6.2.0, the platform finds it satisfied and keeps it.
-      - name: Pin PlatformIO inside the platform's environment
+        run: pip install --upgrade platformio
+      # The platform (pioarduino 55.03.312-1) installs "pioarduino>=6.2.0"
+      # into a fresh ~/.platformio/penv on every run (builder/penv_setup.py),
+      # through uv or pip, and both read these constraint variables. Since
+      # 26.10.2026 PyPI's newest is 6.2.0.post1, which calls itself
+      # 6.2.0-post.1, and the platform (platform.json: platformio >=6.2.0)
+      # refuses it: every build failed with IncompatiblePlatform. Drop the pin
+      # once a pioarduino >= 6.2.0 is out that the platform accepts.
+      - name: Pin pioarduino to 6.2.0
         run: |
-          python -m venv ~/.platformio/penv
-          ~/.platformio/penv/bin/pip install --quiet pioarduino==6.2.0
+          echo "pioarduino==6.2.0" > "$RUNNER_TEMP/pio-constraints.txt"
+          echo "UV_CONSTRAINT=$RUNNER_TEMP/pio-constraints.txt" >> "$GITHUB_ENV"
+          echo "PIP_CONSTRAINT=$RUNNER_TEMP/pio-constraints.txt" >> "$GITHUB_ENV"
       - name: Build
         run: pio run -e ${{ matrix.env }}
-      # The test that reads Moonraker's answers with the production parser needs
-      # ArduinoJson's headers, which the build has fetched into libdeps; once is
-      # enough, the parser is the same on every board.
-      - name: Test Moonraker parse
-        if: matrix.env == 'wt32-sc01-plus'
-        run: python3 test/test_moonraker_parse.py .pio/libdeps/wt32-sc01-plus/ArduinoJson/src
       - name: Show the pioarduino the build ran with
         if: always()
         run: ls -d ~/.platformio/penv/lib/python3*/site-packages/pioarduino-*.dist-info || true

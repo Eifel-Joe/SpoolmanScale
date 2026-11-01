@@ -22,6 +22,7 @@ enum StringID {
   STR_CANCEL,
   STR_BACK,
   STR_CONFIRM,
+  STR_RETRY,
   STR_ENTER_NEW_ID,
 
   // Mainscreen Labels
@@ -64,9 +65,11 @@ enum StringID {
   STR_WIFI_TITLE,
   STR_WIFI_SCAN,
   STR_WIFI_NO_NET,
+  STR_WIFI_PASS_TITLE,
   STR_WIFI_PASS_HINT,
   STR_WIFI_PASS_PLACEHOLDER,
   STR_WIFI_CONNECTING,
+  STR_WIFI_SUCCESS,
 
   // Spoolman IP
   STR_SPOOLMAN_TITLE,
@@ -105,6 +108,8 @@ enum StringID {
 
   // Calibration
   STR_CAL_TITLE,
+  STR_CAL_FACTOR,
+  STR_CAL_OK,
   STR_CAL_ZERO_ERR,
   STR_BTN_CALCULATE,
 
@@ -141,11 +146,17 @@ enum StringID {
   STR_OTA_BROWSER_TITLE,
   STR_OTA_NO_WIFI,
   STR_OTA_OPEN_BROWSER,
+  STR_OTA_FILE_HINT,
   STR_OTA_WAITING,
   STR_OTA_UPLOADING,
   STR_OTA_SUCCESS,
   STR_OTA_FAIL,
+  STR_BTN_STOP_SERVER,
   STR_OTA_CURRENT,
+
+  // Info Screen
+  STR_INFO_VERSION,
+  STR_INFO_HINT,
 
   // QR Popups
   STR_QR_KOFI_DESC,
@@ -155,9 +166,16 @@ enum StringID {
 
   // Weight popup
   STR_POPUP_DRIED_Q,
+  STR_POPUP_WEIGHT_Q,
+  STR_BTN_EMPTY_SPOOL,
   STR_BTN_CONFIRMED,
 
   // Spool weight sub-popup
+  STR_SPOOL_WEIGHT_TITLE,
+  STR_BTN_THIS_SPOOL,
+  STR_BTN_THIS_FILAMENT,
+  STR_BTN_THIS_VENDOR,
+
   // Link Flow
   STR_LINK_BAMBU_TITLE,
   STR_LINK_NTAG_TITLE,
@@ -182,6 +200,7 @@ enum StringID {
   STR_LINK_OK,
 
   // Tare
+  STR_TARE_OK,
   STR_TARE_NOT_READY,
 
   STR_API_ERROR,
@@ -190,6 +209,9 @@ enum StringID {
   STR_REBOOT_TITLE,
   STR_REBOOT_MSG,
   STR_REBOOT_BTN,
+
+  // WiFi connecting result
+  STR_WIFI_CONN_FAILED,
 
   // WiFi quality
   STR_WIFI_QUAL_EXCELLENT,
@@ -212,6 +234,15 @@ enum StringID {
   STR_ARCHIVE_CONFIRM,
 
   // Weight popup archive button
+  STR_BTN_ARCHIVE_EMPTY,
+
+  // Welcome language select
+  STR_WELCOME_LANG_TITLE,
+  STR_WELCOME_LANG_HINT,
+
+  // WiFi scan count
+  STR_WIFI_NETWORKS_FOUND,
+
   // Bag weight current label
   STR_BAG_CURRENT,
 
@@ -223,8 +254,15 @@ enum StringID {
   STR_LINK_CTX_NOT_IN_SM,
 
   // Weight popup buttons (with snprintf)
+  STR_BTN_NO_BAG_VAL,
+  STR_BTN_WITH_BAG_VAL,
+  STR_BTN_NEW_SPOOL_VAL,
+
   // First boot welcome screen
   STR_FIRSTBOOT_TITLE,
+  STR_FIRSTBOOT_SUB,
+  STR_FIRSTBOOT_HINT,
+  STR_FIRSTBOOT_BTN,
 
   // Extra fields screen
   STR_EXTRA_FIELDS_TITLE,
@@ -238,9 +276,12 @@ enum StringID {
 
   // Calibration reminder screen (end of first setup)
   STR_CAL_REMINDER_TITLE,
+  STR_CAL_REMINDER_MSG,
+  STR_CAL_REMINDER_LATER,
   STR_CAL_REMINDER_NOW,
 
   // Calibration TARE hint
+  STR_CAL_TARE_HINT,
 
   // Extra fields test button
 
@@ -265,6 +306,7 @@ enum StringID {
   STR_GH_OTA_FLASH_OK,
   STR_GH_OTA_FLASH_FAIL,
   STR_GH_OTA_INSTALLED,
+  STR_GH_OTA_LATEST,
   STR_GH_OTA_PRERELEASE,
   STR_GH_OTA_AUTOCHECK,
   STR_GH_OTA_OLDER,
@@ -331,6 +373,7 @@ enum StringID {
   STR_AMSV_STATE_FAILED,
   STR_AMSV_STATE_IDLE,
   STR_AMSV_STATE_PREPARE,
+  STR_AMSV_PRN_OF,
   STR_AMSV_PICK_HEAD,
   STR_AMSV_ASSIGNED,
   STR_AMSV_MOVED,
@@ -358,6 +401,7 @@ enum StringID {
   STR_COPY_NO_SPOOLS,
 
   // First boot skip button
+  STR_BTN_SKIP_SETUP,
 
   // Unlink spool
   STR_UNLINK_BTN,
@@ -382,7 +426,11 @@ enum StringID {
   STR_LIST_MORE_MATS,
 
   // Auto-Weight
+  STR_AUTO_WEIGHT_TITLE,
   STR_AUTO_WEIGHT_INFO,
+  STR_AUTO_WEIGHT_ENABLE,
+  STR_AUTO_WEIGHT_DISABLE,
+
   // Location
   STR_BTN_LOCATION,
   STR_LOCATION_TITLE,
@@ -431,8 +479,13 @@ enum StringID {
 
   // Web interface, shared by the firmware upload and the credential entry
   STR_WEB_TITLE,
+  STR_WEB_SETUP_HINT,
+  STR_WEB_SETUP_HINT_BB,
   STR_BTN_WEB_SETUP,
+  STR_BTN_FINISH,
   STR_BTN_NEXT,
+  STR_SETUP_BACKEND_HINT,
+  STR_CONNECTED,
   STR_ON,
   STR_OFF,
   STR_BTN_OPEN_BROWSER,
@@ -495,6 +548,10 @@ enum StringID {
   STR_SCREENOFF_NEVER,
   STR_FLM_AUTOLINK_INFO,
   STR_FLM_TAGLESS_INFO,
+  STR_BTN_THIS_SPOOL_FM,
+  STR_BTN_THIS_FILAMENT_FM,
+  STR_BTN_THIS_VENDOR_FM,
+  STR_BTN_ARCHIVE_EMPTY_FM,
   // Auto AMS assignment (FilaMan)
   STR_AMS_TITLE,
   STR_AMS_SUB,
@@ -834,6 +891,8 @@ enum StringID {
 
   // Replaces the archive button on a spool that is already archived. Carries
   // the weight in its subtitle, so the button says what it will write.
+  STR_BTN_REACTIVATE,
+
   // The backend options, mirrored in the browser from the one registry.
   // Appended rather than grouped with the other web strings: the array in
   // lang.cpp is positional, so inserting in the middle moves every entry
@@ -856,6 +915,7 @@ enum StringID {
   // was off the bus stores a factor built from -1 samples, and until now the
   // only way back was erasing NVS.
   STR_CAL_RESET_CONFIRM,
+  STR_CAL_RESET_DONE,
   STR_CAL_RANGE_ERR,
   STR_CAL_IMPLAUSIBLE,
   STR_W_R_I2C,
@@ -877,6 +937,7 @@ enum StringID {
   STR_W_LOG_DOWNLOAD,
   // Same in both languages: it labels a 68px button and "Kalibrierung
   // zuruecksetzen" does not fit on one.
+  STR_BTN_CAL_RESET_SHORT,
   // Shown at the top of the link list when nothing matched the tag's material
   // and the filter was dropped to keep the list from being empty.
   STR_LIST_MAT_IGNORED,
@@ -1039,6 +1100,7 @@ enum StringID {
   STR_AMSV_WINDOW_HEAD,
   STR_AMSV_BTN_WINDOW,
   STR_W_HOST_SAVED_ONLY,      // the address took, the test could not run
+  STR_WIFI_ALREADY_CONNECTED, // setup, a link that was up before the WiFi step
   STR_BTN_WIFI_CHANGE,
   STR_BTN_WIFI_PORTAL,        // WiFi setup by phone: button, screen, page
   STR_PORTAL_TITLE,
@@ -1370,6 +1432,7 @@ enum StringID {
   STR_W_TLS_KEEP,
   STR_W_TLS_KEEP_HINT,
   // The address screen on the device
+  STR_SP_HTTPS_HINT,
   STR_SP_HTTPS_TITLE,
   // The printer page's print position card, and the calibration page
   STR_W_P_CAL_TITLE,
@@ -1593,6 +1656,7 @@ enum StringID {
   // The bag weight at 0: the menu row says so, and the weight popup has one
   // button instead of two
   STR_BAG_OFF_SUB,
+  STR_BTN_WEIGHT_VAL,
   STR_LBL_SPOOL_TARE_CAP,
   STR_BAG_HELP_TEXT,
   STR_W_C_EMBED,
@@ -1781,8 +1845,8 @@ enum StringID {
   STR_UNK_BTN_OTHER,     // button: the tiles with every way
   STR_UNK_BTN_WEIGH,     // button: close and only weigh
   STR_UNK_TILE_COPY,     // tile: the copy entry
-  STR_UNK_NET,           // the reading without the parts on the spool and the empty spool
-  STR_UNK_GROSS,         // the reading without the parts on the spool, empty spool unknown
+  STR_UNK_NET,           // what lies on the pad, without the empty spool
+  STR_UNK_GROSS,         // what lies on the pad, all of it
   STR_UNK_UID,           // an NTAG without data, by its chip
   STR_UNK_NO_COLOR,      // the swatch of a tag that names no colour
 
@@ -1815,95 +1879,6 @@ enum StringID {
   STR_IDPAD_NOT_FOUND,        // %d: the id that was typed
   STR_IDPAD_NOT_FOUND_HINT,   // under it
   STR_ID_SPOOL_STATUS,        // the status line while a spool is shown by its id
-  STR_SMAMS_ASK_INFO,
-  STR_W_C_AMS_SOURCE,
-  STR_W_AMS_SOURCE_HINT,
-  STR_W_AMS_SOURCE_ADDR,
-  STR_SMAMS_LOC,
-  STR_SMAMS_LOC_SUB,
-  STR_SMAMS_LOC_INFO,
-  STR_AMSV_ERR_READONLY,
-  STR_AMSV_ERR_UNKNOWN,
-  STR_AMSV_ERR_INVENTORY,
-  STR_AMSV_ERR_OFFLINE,
-  STR_AMSD_TAKEOUT_Q,
-  STR_AMSD_TAKEOUT_BTN,
-  STR_W_AMS_SOURCE_SEEN,
-  STR_W_AMS_SOURCE_RO,
-  STR_W_AMS_SOURCE_UNSEEN,
-  // Creality CFS tags
-  STR_W_CREALITY,
-  STR_W_CREALITY_HINT,
-  STR_TW_ERR_NOT_BLANK,
-  STR_TW_CFS_ASK_TITLE,
-  STR_TW_CFS_ASK_HINT,
-  STR_TW_CFS_REPLACE,
-  STR_TW_CFS_UPD_TITLE,
-  STR_TW_CFS_UPD_HINT,
-  STR_TW_CFS_OVR_TITLE,
-  STR_TW_CFS_OVR_HINT,
-  STR_TW_CFS_SID_TITLE,
-  STR_TW_CFS_SID_HINT,
-  // Backend page: a second, parked server set
-  STR_W_C_SERVER_SETS,
-  STR_W_SETS_HINT,
-  STR_W_SETS_ACTIVE,
-  STR_W_SETS_PARKED,
-  STR_SETS_SWITCH_TO,
-  STR_W_SETS_CREATE_ASK,
-  STR_W_SETS_NAME_PH,
-  STR_W_SETS_OFF_HINT,
-  STR_W_SETS_EDIT,
-  STR_W_SETS_DELETE,
-  STR_W_SETS_DELETE_ASK,
-  STR_COLOR_TILE_TWO,
-  STR_COLOR_TILE_CLEAR,
-  STR_W_SHOT_COPY,
-  STR_W_SHOT_COPIED,
-  STR_W_SHOT_COPY_HINT,
-  STR_GH_OTA_NOT_CHECKED,
-  STR_INFO_PRODUCT,
-  STR_INFO_SUB_KOFI,
-  STR_INFO_SUB_GITHUB,
-  STR_INFO_SUB_DISCORD,
-  STR_INFO_SUB_MAKER,
-  STR_QR_SCAN_HINT,
-  STR_WEB_QR_BTN,
-  STR_WEB_QR_HINT,
-  STR_WEB_OR,
-  STR_WEB_STEP_CREDS,
-  STR_WEB_STEP_CREDS_BB,
-  STR_WEB_DRY_HINT,
-  STR_OTA_FILE_NAME,
-  STR_OTA_INSTALLED_CAP,
-  STR_OTA_RETRY_HINT,
-  STR_WB_SENT,
-  STR_WB_UNCHANGED,
-  STR_WB_RISE,
-  STR_WP_RISE_LINE,
-  STR_WP_SEND,
-  STR_WP_SEND_ANYWAY,
-  STR_WP_BAG_MINUS,
-  STR_WP_REACTIVATE,
-  STR_WP_REACT_SUB,
-  STR_WP_BAG_ROW,
-  STR_WP_BAG_SUB,
-  STR_WP_BAG_HINT,
-  STR_WP_AUTO_ROW,
-  STR_WP_AUTO_SUB,
-  STR_WP_ARCHIVE,
-  STR_WP_OPTIONS,
-  STR_WP_FULL,
-  STR_WP_FULL_SUB,
-  STR_WP_WEIGH_EMPTY,
-  STR_WP_WEIGH_EMPTY_SUB,
-  STR_WP_TYPE_EMPTY,
-  STR_WP_TYPE_EMPTY_SUB,
-  STR_SW_SCOPE_TITLE,
-  STR_SW_ONLY_SPOOL,
-  STR_SW_ALL_FILAMENT,
-  STR_SW_ALL_VENDOR,
-  STR_SW_CURRENT,
 
   // A copy behind Bambuddy on Spoolman: what it takes over (design note J)
   STR_COPY_CARD_PROFILE,    // copy card: %s the template's profile, "-" without one
@@ -1958,202 +1933,6 @@ enum StringID {
   STR_SORT_TYPE_GRAMS,        // the last tile of the weight step: the keyboard for the grams
   STR_SORT_KEY_GRAMS,         // the keyboard's title for the grams
   STR_SORT_GRAMS_BAD,         // under the field when the grams are out of range
-
-  // A density typed at the scale when no source knows one (ui/tag_create_popup.cpp)
-  STR_DENSITY_BTN,            // the card's left button while a density is missing, in place of "Create"
-  STR_DENSITY_PAD_TITLE,      // the price pad's title when it asks for the density (g/cm3)
-  STR_DENSITY_RANGE,          // the card's status line after a density outside the plausible range
-  STR_DENSITY_PAD_INFO,       // the grey line beside the price pad's keys when it asks for the density
-
-  // A spool created without a tag and without weighing (ui/no_tag_create.cpp)
-  STR_BTN_CREATE_SPOOL,       // the main screen's right button with nothing on it, and the title of the choice it opens
-  STR_NOTAG_CTX,              // the choice's context line in place of the UID
-  STR_NOTAG_FILL_BTN,         // the card's left button while the fill weight is missing, in place of "Create"
-  STR_NOTAG_FILL_TITLE,       // the price pad's title when it asks for the fill weight (g)
-  STR_NOTAG_FILL_INFO,        // the grey line beside the price pad's keys when it asks for the fill weight
-  STR_NOTAG_FILL_ASK,         // the card's status line while the fill weight is missing
-  STR_NOTAG_FILL_RANGE,       // the card's status line after a fill weight outside the range
-  STR_NOTAG_CREATED,          // the status line once the spool exists, no tag (%d: its number)
-  STR_NOTAG_CREATED_BAMBU,    // the same for a Bambu Lab spool: the chip goes on before the first AMS
-  STR_LABEL_ASK,              // the title of the question for a label after the create
-
-  // The weight popup's Options behind Bambuddy in Spoolman mode: one row for
-  // the empty weight, which opens the choice of four (tare_entry.cpp)
-  STR_WP_TARE_ROW,
-  STR_WP_TARE_ROW_SUB,
-  // First setup frame and welcome (setup redesign)
-  STR_SETUP_STEP_OF,
-  STR_WELCOME_TRILINGUAL,
-  STR_WELCOME_STEPS_AHEAD,
-  STR_SETUP_TILE_WIFI,
-  STR_SETUP_TILE_BACKEND,
-  STR_SETUP_TILE_SERVER,
-  STR_SETUP_TILE_SCALE,
-  STR_SETUP_SKIP,
-  STR_SETUP_START,
-  STR_WIFI_RESCAN,
-  STR_WIFI_CONNECTED_TO,
-  STR_WIFI_CONN_DETAIL,
-  STR_WIFI_NO_LINK,
-  STR_WIFI_FAIL_HINT,
-  STR_WIFI_PASS_AGAIN,
-  STR_SETUP_SERVER_NEEDED,
-  STR_SETUP_NO_SERVER,
-  STR_HOSTING_SELF,
-  STR_HOSTING_ONLINE,
-  STR_BACKEND_DESC_SPOOLMAN,
-  STR_BACKEND_DESC_FILAMAN,
-  STR_BACKEND_DESC_BAMBUDDY,
-  STR_SP_EXAMPLE,
-  STR_SP_CONNECT,
-  STR_SP_IN_BROWSER,
-  STR_SP_CONNECTED,
-  STR_SP_REACHED,
-  STR_SP_NO_ANSWER,
-  STR_SP_NO_ANSWER_HINT,
-  STR_WIFI_24_ONLY,
-  STR_SETUP_LATER,
-  STR_SETUP_CREDS_TITLE,
-  STR_CAL_STEP_EMPTY,
-  STR_CAL_STEP_PLACE,
-  STR_CAL_STEP_CHECK,
-  STR_CAL_EMPTY_PAN,
-  STR_CAL_SCALE_NOW,
-  STR_CAL_LATER_WHERE,
-  STR_CAL_CUR_FACTOR,
-  STR_CAL_ZERO_BTN,
-  STR_CAL_PLACE_KNOWN,
-  STR_CAL_ABOUT_1KG,
-  STR_CAL_SHOWS_NOW,
-  STR_CAL_ENTERED,
-  STR_CAL_NEW_FACTOR,
-  STR_CAL_AGAIN,
-  STR_CAL_LOOKS_RIGHT,
-  STR_WHOLE_GRAM_SUB,
-  STR_CAL_RESET_ROW,
-  STR_CAL_RESET_ROW_SUB,
-  STR_SETUP_DONE_TITLE,
-  STR_SETUP_DONE_PATH,
-  STR_SETUP_DONE_CREDS,
-  STR_SETUP_DONE_UNCAL,
-  STR_SETUP_DONE_HINT,
-  STR_SETUP_GO,
-  STR_CAL_LIVE_G,
-  STR_CAL_LIVE_RAW,
-  STR_DRY_PAD_HINT_YELLOW,
-  STR_DRY_PAD_HINT_RED,
-  STR_AMS_PAD_HINT,
-  STR_ID_PAD_LINK_TITLE,
-  STR_ID_PAD_COPY_TITLE,
-  STR_ID_PAD_WHERE,
-  // The search in a colour list (ui/colour_search.cpp)
-  STR_COLOUR_FIND_KEY,        // the keyboard's title: the word the colour names are searched for
-  STR_COLOUR_FIND_NONE,       // across the list when no colour holds the word (%s: the word)
-  // The search in the list of spool types (ui/spool_type_list.cpp)
-  STR_SPT_FIND_KEY,           // the keyboard's title: the word the spool type names are searched for
-  STR_SPT_FIND_NONE,          // across the list when no spool type holds the word (%s: the word)
-  // The colour as RGB on a label (services/label_facts.cpp, the label editor)
-  STR_LBL_L_RGB,              // the caption of the line "RGB: 242, 242, 232", 16 px on the label
-  STR_LBL_F_COLOR_RGB,        // the label editor's switch for that line
-  // Several identical spools in one go: the count on the create cards (ui/batch_create.cpp)
-  STR_BATCH_COUNT_CHIP,       // the button at the top right of a create card without a tag (%d: the count)
-  STR_BATCH_COUNT_TITLE,      // the price pad's title when it asks for the count
-  STR_BATCH_COUNT_INFO,       // the grey line beside the price pad's keys when it asks for the count
-  STR_BATCH_COUNT_RANGE,      // the button's text after a count outside the range
-  STR_BATCH_CREATE_N,         // the create button for more than one spool (%d: the count)
-  // Several identical spools in one go: the run (ui/batch_create.cpp) and its end (ui/no_tag_create.cpp)
-  STR_BATCH_PROGRESS,         // the loading overlay before each create (%d: the spool's place in the run, %d: the count)
-  STR_BATCH_CREATED,          // the status line once several spools exist, no tag (%d: how many)
-  STR_BATCH_CREATED_BAMBU,    // the same for Bambu Lab spools: the chips go on before the first AMS (%d: how many)
-  STR_BATCH_STOP_FAILED,      // why the run stopped: the create failed (%d: the spool's place, %d: the HTTP code)
-  STR_BATCH_STOP_UNSURE,      // why the run stopped: no answer, the spool may exist (%d: the spool's place)
-  // Several identical spools in one go: after the run (ui/no_tag_create.cpp, ui/batch_create.cpp, ui/print_card.cpp)
-  STR_BATCH_OVERVIEW_ALL,     // the overview's title when every spool was made (%d: how many)
-  STR_BATCH_OVERVIEW_SOME,    // the overview's title after a stop (%d: how many were made, %d: the count asked for)
-  STR_BATCH_LOC_PROGRESS,     // the loading overlay before each spool gets the chosen location (%d: its place, %d: how many)
-  STR_BATCH_LOC_MISSING,      // the status line when the location could not be written to some (%s: their numbers)
-  STR_BATCH_LABEL_ASK,        // the question for the labels of a run (%d: how many)
-  STR_BATCH_LABEL_STEP,       // the print card's corner while a run prints (%d: the label's place, %d: how many)
-  STR_BATCH_LABELS_MISSING,   // the status line when the labels stopped (%s: the numbers left without)
-
-  // The Klipper page in the browser (web/pages/page_klipper.cpp)
-  STR_W_NAV_KLIPPER,          // the tab
-  STR_W_KL_C_PRINTERS,        // the list card's title
-  STR_W_KL_INTRO,             // what a printer needs: Moonraker with [spoolman], trusted or a key
-  STR_W_KL_NONE,              // the list while no printer is stored
-  STR_W_KL_ROOM,              // the line under the list (%d: how many more printers fit)
-  STR_W_KL_FULL,              // the same line when none fits, and the refusal of a save for lack of room (printers or keys)
-  STR_W_KL_ADD,               // the form's title for a new printer
-  STR_W_KL_EDIT,              // the form's title for a printer being changed
-  STR_W_KL_CHANGE,            // the list's button that opens a printer in the form
-  STR_W_KL_NAME_HINT,         // under the name field
-  STR_W_KL_HOST_HINT,         // under the address field
-  STR_W_KL_PORT,              // the port field's label
-  STR_W_KL_KEY_HINT,          // under the key field
-  STR_W_KL_KEY_DEL,           // the checkbox that takes a stored key away
-  STR_W_KL_KEY_SET,           // a printer has a key (in the list, and in the empty key field)
-  STR_W_KL_TEST,              // the list's button that runs the connection test
-  STR_W_KL_TESTING,           // the message while a test runs
-  STR_W_KL_TESTED,            // when the last test ran (%s: the date)
-  STR_W_KL_DELETE_ASK,        // the question before a printer is deleted (%s: its name)
-  STR_W_KL_BUSY,              // a test could not start
-  STR_W_KL_LOC,               // the switch for the location
-  STR_W_KL_LOC_HINT,          // under that switch
-  STR_W_KL_E_NAME,            // save refused: nothing left of the name
-  STR_W_KL_E_TAKEN,           // save refused: another printer has this name
-  STR_W_KL_E_HOST,            // save refused: no usable address
-  STR_W_KL_E_PORT,            // save refused: the port is no number up to 65535
-  STR_W_KL_E_KEY,             // save refused: characters a key may not have
-  STR_W_KL_E_GONE,            // no printer with that number
-  STR_W_KL_E_WRITE,           // the settings memory did not take the write
-  STR_W_KL_T_NONE,            // never tested
-  STR_W_KL_T_OK,              // test: all well (%s: what the printer has, see STR_W_KL_L_*)
-  STR_W_KL_T_UNREACHABLE,     // test: Moonraker does not answer
-  STR_W_KL_T_ACCESS,          // test: Moonraker answers but does not trust the scale
-  STR_W_KL_T_KLIPPY,          // test: Klipper is not ready (%s: its state)
-  STR_W_KL_T_NO_SPOOLMAN,     // test: no [spoolman] section in Moonraker
-  STR_W_KL_T_SM_OFFLINE,      // test: [spoolman] is there, Moonraker is not connected
-  STR_W_KL_T_OTHER,           // test: the printer talks to another Spoolman (%s: the scale's own address)
-  STR_W_KL_T_BAD_ANSWER,      // test: an answer that is none (%s: the HTTP code)
-  STR_W_KL_L_MMU,             // layout: Happy Hare (%d: the bays)
-  STR_W_KL_L_AFC,             // layout: AFC (%d: the bays)
-  STR_W_KL_L_TOOLS,           // layout: tool changer (%d: the tools)
-  STR_W_KL_L_SINGLE,          // layout: the one extruder
-  STR_W_KL_L_UNKNOWN,         // layout: a system the scale cannot drive (%s: its name)
-  STR_W_KL_N_NOVAR,           // hint: tool macros without a spool_id variable
-  STR_W_KL_N_TRUNC,           // hint: more fields than the scale shows
-
-  // The Klipper printers in the AMS view and the bay picker (ui/ams_view.cpp, services/ams_pick.cpp)
-  STR_AMSV_UNIT_KL_ACTIVE,    // the unit and the bay of a printer with only its one active spool
-  STR_AMSV_KL_FIRST16,        // the status line: the printer has more fields than the scale shows
-  STR_AMSV_KL_NOT_HELD,       // an assignment: the commands ran, the printer does not hold the spool
-  STR_AMSV_KL_OTHER_SM,       // an assignment: the printer talks to another Spoolman
-  STR_AMSV_KL_NOT_TESTED,     // an assignment: the printer has no passed connection test
-  STR_AMSV_KL_NO_ANSWER,      // an assignment: the printer gave no answer
-  STR_AMSV_KL_ACCESS,         // an assignment: Moonraker turned the scale down (401, 403)
-  STR_AMSV_KL_STATUS_SILENT,  // the status line: the printer does not answer (short: 314 px beside the chip)
-
-  // The window "Choose printer" over the AMS view (ui/printer_list.cpp)
-  STR_PRL_TITLE,              // the header's title, beside the search head
-  STR_PRL_FIND_KEY,           // the keyboard's title: the word the printers are searched for
-  STR_PRL_FIND_NONE,          // across the list when no printer holds the word (%s: the word)
-  STR_PRL_MORE,               // last line when the list was cut for memory: the magnifier finds the rest
-  STR_PRL_KLIPPER,            // a button's kind: a Klipper printer with one tool, or none counted
-  STR_PRL_TOOLS,              // a button's kind: a Klipper tool changer (%d: the tools)
-  STR_PRL_MMU,                // a button's kind: a Klipper printer with Happy Hare (%d: the slots)
-  STR_PRL_AFC,                // a button's kind: a Klipper printer with AFC (%d: the slots)
-
-  // The old location of a spool in a Klipper printer (services/klipper_location.cpp, V50)
-  STR_KL_PREV_LOC_FIELD,      // the name of the spool's extra field in Spoolman that remembers it
-
-  // Downloads of the web pages when a backend shows them in a frame (web/web_static.cpp, web/web_shell.cpp)
-  STR_W_DL_EMBEDDED,          // the download window could not be opened; {a} is the scale's address
-  STR_W_DL_SAVE,              // a link in the window that holds several downloads; {n} is the file name
-  STR_W_DL_SAVED,             // the line in the window of a single download, above its Close button; {n} is the file name
-
-  // A web job refused for the internal heap, told apart from "busy" (web/web_jobs.h)
-  STR_W_FW_LOWMEM,            // firmware page, GitHub check or release notes; names the check on the scale (STR_GH_OTA_CHECK_BTN) and the upload (STR_W_FW_FILE)
-  STR_W_BCAT_LOWMEM,          // tags page, loading BambuStudio's colour table
 
   STR_COUNT
 };

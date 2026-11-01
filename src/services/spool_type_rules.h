@@ -73,9 +73,8 @@ struct SpoolType {
 // list. STA_LIST: nothing can be read off this spool, show the list.
 enum SpoolTypeAsk : unsigned char { STA_NONE = 0, STA_SUGGEST, STA_IMPLAUSIBLE, STA_LIST };
 
-// True when the type name begins with the vendor, in any case (the fold of
-// textFoldNext(), umlauts and accents included, V43) and with the blanks
-// around both ignored, and the vendor ends where a word
+// True when the type name begins with the vendor, in any case (ASCII only)
+// and with the blanks around both ignored, and the vendor ends where a word
 // ends in the name: at its end, at a blank or at a dash. "Tin" is not
 // "Tinmorry". Nothing belongs to an empty vendor, and a null name or vendor
 // is no match. The name is read up to SPOOL_TYPE_NAME_MAX bytes.
@@ -86,10 +85,10 @@ bool spoolTypeOfVendor(const char* type_name, const char* vendor);
 // no out or a vendor that has none).
 int spoolTypeFilter(const SpoolType* list, int n, const char* vendor, int* out, int out_max);
 
-// What spoolTypeNear() looks for: the vendor, as spoolTypeFilter() takes it,
-// and the weight with how far from it a type may lie. One struct for the
-// three keeps spoolTypeNear() to five parameters (house rule); the list and
-// where the answer goes stay the pairs spoolTypeFilter() takes.
+// What spoolTypeNear() looks for. The list and where the answer goes are the
+// same pairs spoolTypeFilter() takes; what the near search asks on top of the
+// vendor (a weight and how far from it) goes into one struct with the vendor,
+// so the function keeps to five parameters (house rule).
 struct SpoolTypeNearQuery {
   const char* vendor;   // the maker whose types are looked at
   float grams;          // the weight the types are compared with
@@ -155,28 +154,15 @@ SpoolTypeAsk spoolTypeFirstAsk(float total, float remaining, float bare, bool ow
 // when it says Bambu's fixed 250 g (V25). NOT-TO-DO: treating a chosen 250 g
 // like the chain's 250 g (not trusted) gives the wrong nominal weight and 10 g
 // more tolerance; putting the type into the filament or vendor slot fails too,
-// since each holds one empty weight only (head of file). trusted may be null.
+// since each holds one empty weight only. trusted may be null.
 int spoolTypeCreateTare(int chosen_g, int chain_g, bool chain_trusted, bool* trusted);
 
-// The empty weight a new spool keeps as its own (L21). Wurzel: a tare the new
-// spool inherits from its filament or brand must not be written onto it as its
+// The empty weight a new spool keeps as its own (L21). Wurzel: a tare that the
+// new spool inherited from another spool must not be written onto it as its
 // own. Fix: an inherited one gives 0, which leaves the field out; otherwise the
 // tare, never negative. NOT-TO-DO: passing tare_g through unchanged writes the
 // inherited value onto the new spool, which L21 forbids.
 int spoolTypeOwnCore(int tare_g, bool inherited);
-
-// Whether the card for a new spool from a Bambu tag asks the spool type first
-// (V33, "docs/entwurf/2026-10-27-m-typ-aus-aufkleber.md"). Wurzel: the card
-// made the spool on Bambu's fixed 250 g core and never asked for the type, so
-// a refill on another spool was weighed against 250 g. Fix: the question comes
-// first when all four hold: a Bambu tag; Bambuddy, with or without Spoolman
-// behind it (its catalog of spool types is Bambuddy's own in both); a spool on
-// the pad, a reading above NEW_SPOOL_TARE_MIN_G (a reading that is not a number
-// counts as nothing on the pad); and no type chosen yet (type_g 0 or less).
-// NOT-TO-DO: asking for any tag, or without Bambuddy: Spoolman direct and
-// FilaMan have no such catalog, so there is nothing to show (the list refuses
-// to open, and the caller goes on as "without type").
-bool spoolTypeTagAsk(bool bambu_tag, bool bambuddy, float bare, int type_g);
 
 // src without the blanks on both sides, cut to n - 1 bytes and never in the
 // middle of a UTF-8 character (a cut that would leave half of one drops the
@@ -184,9 +170,8 @@ bool spoolTypeTagAsk(bool bambu_tag, bool bambuddy, float bare, int type_g);
 // may be dst. Nothing if dst is null or n is 0.
 void spoolTypeTrimName(char* dst, size_t n, const char* src);
 
-// True when the list has that name, in any case (the fold of textFoldNext(),
-// umlauts and accents included, V43) and with the blanks around either
-// ignored. A longer name is another one; an empty name
+// True when the list has that name, in any case (ASCII only) and with the
+// blanks around either ignored. A longer name is another one; an empty name
 // or a null list is never taken. Names in the list are read up to
 // SPOOL_TYPE_NAME_MAX bytes.
 bool spoolTypeNameTaken(const SpoolType* list, int n, const char* name);

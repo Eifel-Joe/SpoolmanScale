@@ -16,24 +16,17 @@
 #include "app_config.h"
 #include "hardware/sd_logger.h"
 #include "lang.h"
-#include "services/density_rules.h"
-#include "services/no_tag_create_rules.h"
 #include "services/server_reach.h"
 #include "services/spool_cache.h"
 #include "services/spool_extras.h"
 #include "services/spool_start.h"
-#include "services/spool_type_rules.h"
 #include "services/tag_create.h"
 #include "services/tag_db_match.h"
-#include "services/tag_field.h"
 #include "services/user_options.h"
-#include "ui/batch_create.h"
 #include "ui/main_screen_helpers.h"
-#include "ui/no_tag_create.h"
 #include "ui/price_pad.h"
 #include "ui/sort_twin_popup.h"
 #include "ui/spool_flow_internal.h"
-#include "ui/spool_type_list.h"
 #include "ui/tag_db_diff_popup.h"
 #include "ui/tare_entry.h"
 #include "ui/theme.h"
@@ -115,8 +108,8 @@ void closeTagCreatePopup() {
 // ------------------------------------------------------------
 
 // The empty spool labelWeight() guesses the nominal size with: a spool type
-// chosen at the scale for this spool (BBS, design note L20; for a Bambu tag
-// the list asked in front of the card, V33), else the entry's or the tag's.
+// chosen at the scale for this spool (BBS, design note L20), else the
+// entry's or the tag's.
 static float cardCore() {
   return (float)(s_in.spool_type_g > 0 ? s_in.spool_type_g : s_in.spool_weight_g);
 }
@@ -129,14 +122,8 @@ static float cardCore() {
 // spool's nor the filament's, and the raw one would count them as filament.
 static uint8_t s_tare_from = TARE_NONE;
 
-// Wurzel: for a spool created without a tag the pad holds the wrapped roll that
-// is being entered (a roll, a box, a bag of desiccant), nothing that is this
-// spool's weight, and the start rule would file it as a measured net. Fix: in
-// the flag the reading is 0 (noTagGross), whatever lies on the dish.
-// NOT-TO-DO: reading it when it "looks like a spool"; a roll is no empty spool.
-// See test_no_tag_weights.py.
 static float startGross() {
-  return noTagGross(noTagMode(), (g_scale_fitted && scale_ready) ? spoolExtrasBareReading() : 0.0f);
+  return (g_scale_fitted && scale_ready) ? spoolExtrasBareReading() : 0.0f;
 }
 
 static SpoolStart startValues() {
@@ -148,11 +135,8 @@ static SpoolStart startValues() {
 static bool tareInherited() { return s_tare_from == TARE_FILAMENT || s_tare_from == TARE_VENDOR; }
 
 // The tag's own net weight; without it the nominal size nearest the reading.
-// In the flag only what the input says, 0 when it says nothing: the guess
-// below takes the reading for the spool, and the reading is the wrapped roll
-// (see startGross()). A fill weight that stays 0 is asked for (fillAskDue()).
 static int labelWeight() {
-  if (noTagMode() || s_in.net_weight_g > 0) return s_in.net_weight_g;
+  if (s_in.net_weight_g > 0) return s_in.net_weight_g;
   static const int choices[NEWTAG_LABEL_COUNT] = NEWTAG_LABEL_CHOICES;
   const float netto = spoolExtrasBareReading() - cardCore();
   int best = choices[NEWTAG_LABEL_COUNT - 1], best_diff = -1;
@@ -167,74 +151,19 @@ static int labelWeight() {
 //  The status line and the create button
 // ------------------------------------------------------------
 
-// The text on the left answer button: "Create" (with the count of a create
-// without a tag, batch_create.h), or "Density" / "Fill weight" while the card
-// asks for one of them. The label is the button's first child (answerButton()).
-// The id is kept, so that a new count can put the same text on again.
-static int s_ok_text = STR_COPY_CARD_CREATE;
-static void setOkText(int text_id) {
-  s_ok_text = text_id;
-  if (!s_btn_ok) return;
-  lv_obj_t* lbl = lv_obj_get_child(s_btn_ok, 0);
-  char caption[32];
-  if (lbl) lv_label_set_text(lbl, text_id == STR_COPY_CARD_CREATE ? batchCreateCaption(caption, sizeof(caption)) : T(text_id));
-}
-
-// button_free: the left button can be pressed, to create or to ask for the
-// density or the fill weight.
-static void showStatus(const char* text, uint32_t color, bool button_free) {
+static void showStatus(const char* text, uint32_t color, bool can_create) {
   if (!s_status) return;
   lv_label_set_text(s_status, text);
   lv_obj_set_style_text_color(s_status, lv_color_hex(color), 0);
-  // Every line is one body line; the two hints set their own after this.
+  // Every line is one body line; the no-density hint sets its own after this.
   lv_obj_set_style_text_font(s_status, UI_FONT_BODY, 0);
   if (!s_btn_ok) return;
-  // Every line but the two hints is about creating, so the button goes back to
-  // "Create" whenever the status changes; showAsk() puts its text on after this.
-  setOkText(STR_COPY_CARD_CREATE);
-  if (button_free) lv_obj_clear_state(s_btn_ok, LV_STATE_DISABLED);
-  else             lv_obj_add_state(s_btn_ok, LV_STATE_DISABLED);
-}
-
-// What the create button can act on.
-static bool planCanCreate(TagFilamentState state) {
-  return state == TFS_FOUND || state == TFS_CREATE_DB ||
-         state == TFS_CREATE_TAG || state == TFS_NOT_NEEDED;
-}
-
-// The card needs something the scale cannot supply (a density, V34; a fill
-// weight, X): the hint is the line's text, and the left button asks for it
-// instead of creating, free to be pressed. One line of the small font (the hint
-// names the button, so it must not wrap away from it); the line ends above the
-// answer row.
-static void showAsk(int hint_id, int button_id) {
-  showStatus(T(hint_id), UI_COL_WARN, true);
-  if (s_status) lv_obj_set_style_text_font(s_status, UI_FONT_SMALL, 0);
-  setOkText(button_id);
-}
-
-// No source knows a density (or the one typed was out of range).
-static void showDensityAsk(int hint_id) { showAsk(hint_id, STR_DENSITY_BTN); }
-
-// No tag and no fill weight (or the one typed was out of range).
-static void showFillAsk(int hint_id) { showAsk(hint_id, STR_NOTAG_FILL_BTN); }
-
-// Whether the card asks for the fill weight now (X): it is missing, and the
-// plan would otherwise let the card create or ask for a density. A plan that
-// failed, or waits for the catalog, says so and keeps its button; the question
-// comes with the plan that works. The fill weight goes before the density, so
-// with both missing the density is asked once the fill weight is kept.
-static bool fillAskDue() {
-  return noTagFillMissing(noTagMode(), s_label_weight) && (planCanCreate(s_plan.state) || s_plan.no_density);
+  if (can_create) lv_obj_clear_state(s_btn_ok, LV_STATE_DISABLED);
+  else            lv_obj_add_state(s_btn_ok, LV_STATE_DISABLED);
 }
 
 static void showPlan() {
   char buf[96];
-  // Before everything else the plan has to say, the density included.
-  if (fillAskDue()) {
-    showFillAsk(STR_NOTAG_FILL_ASK);
-    return;
-  }
   switch (s_plan.state) {
     case TFS_FOUND:
       snprintf(buf, sizeof(buf), T(STR_TAGNEW_FOUND), s_plan.filament_id);
@@ -255,8 +184,9 @@ static void showPlan() {
     case TFS_NEEDS_CATALOG: showStatus(T(STR_TAGNEW_NEEDS_CATALOG), UI_COL_WARN, false);    break;
     default:
       if (s_plan.no_density) {
-        // A filament cannot be made without a density: the card asks for one.
-        showDensityAsk(STR_SORT_NO_DENSITY);
+        // Two lines of the small font end where the answer row starts.
+        showStatus(T(STR_SORT_NO_DENSITY), UI_COL_WARN, false);
+        if (s_status) lv_obj_set_style_text_font(s_status, UI_FONT_SMALL, 0);
         break;
       }
       snprintf(buf, sizeof(buf), T(STR_TAGNEW_FAILED), s_plan.http_code);
@@ -453,75 +383,11 @@ static void buildPriceButton(lv_obj_t* box) {
   refreshPrice();
 }
 
-// The answer of the price pad when it asked for a density (V34), handed on from
-// the loop (pricePadTick()), where the plan may be asked. An emptied field
-// types nothing and Cancel never gets here, so the card stays as it was. A
-// value outside the plausible range (a point in the wrong place, 11.6 for 1.16)
-// is not taken: the line says the range and the button keeps asking.
-static void onDensity(float density) {
-  if (density <= 0.0f) return;
-  if (!densityPlausible(density)) {
-    logSDf("TagCreate: density %.2f is out of range, not taken", density);
-    showDensityAsk(STR_DENSITY_RANGE);
-    return;
-  }
-  // The density stays in the input, not in the plan: the plan is made again
-  // from the input (here, and before a create that finds it stale), and the
-  // typed density counts last there (spoolman_filament.cpp), so one that a
-  // source knows by now still wins.
-  s_in.density_typed = density;
-  logSDf("TagCreate: density %.2f typed at the scale, plan asked again", density);
-  showStatus(T(STR_TAGNEW_SEARCHING), UI_COL_INK_SOFT, false);
-  s_plan_stale = true;
-  s_job = TCP_PLAN;
-}
-
-// The answer of the price pad when it asked for the fill weight (X, no tag),
-// handed on from the loop (pricePadTick()). Like the density's: an emptied
-// field types nothing and Cancel never gets here, so the card stays as it was;
-// a value outside NO_TAG_FILL_MIN_G to NO_TAG_FILL_MAX_G is not taken, the line
-// says the range and the button keeps asking. A valid one is the card's label
-// weight from here on (rounded to whole grams, as the backends take it). The
-// plan is asked again before the create: it keys on the weight (a database
-// entry of another weight no longer fits, nor the density found for it).
-static void onFill(float grams) {
-  if (grams <= 0.0f) return;
-  if (!noTagFillPlausible(grams)) {
-    logSDf("TagCreate: fill weight %.0f g is out of range, not taken", grams);
-    showFillAsk(STR_NOTAG_FILL_RANGE);
-    return;
-  }
-  s_in.net_weight_g = (int)lroundf(grams);
-  s_label_weight = labelWeight();
-  s_plan_stale = true;
-  logSDf("TagCreate: fill weight %d g typed at the scale", s_in.net_weight_g);
-  refreshMeta();
-  showPlan();
-}
-
 static void buildAnswers(lv_obj_t* box) {
   s_btn_ok = answerButton(box, UI_CARD_ROW_X, TCP_ANSWER_W, true, STR_COPY_CARD_CREATE);
-  setOkText(STR_COPY_CARD_CREATE);                 // with the count, from the first paint
   lv_obj_add_state(s_btn_ok, LV_STATE_DISABLED);   // until the lookup has answered
   lv_obj_add_event_cb(s_btn_ok, [](lv_event_t*) {
     if (s_job != TCP_IDLE) return;
-    // No tag and no fill weight: the button asks for it on the price pad
-    // instead of creating, ahead of the density, and the answer comes back
-    // through onFill().
-    if (fillAskDue()) {
-      logSD("BTN: TagCreate -> Fill weight");
-      showPricePadInfo((float)s_in.net_weight_g, STR_NOTAG_FILL_TITLE, STR_NOTAG_FILL_INFO, onFill);
-      return;
-    }
-    // No density known: the button asks for it on the price pad instead of
-    // creating, and the answer comes back through onDensity().
-    if (s_plan.no_density) {
-      logSD("BTN: TagCreate -> Density");
-      // The pad's grey line says what empty means and the range: the one for a
-      // price talks about the currency.
-      showPricePadInfo(s_in.density_typed, STR_DENSITY_PAD_TITLE, STR_DENSITY_PAD_INFO, onDensity);
-      return;
-    }
     logSD("BTN: TagCreate -> Create");
     showStatus(T(STR_TAGNEW_CREATING), UI_COL_INK_SOFT, false);
     s_job = TCP_CREATE;
@@ -531,7 +397,6 @@ static void buildAnswers(lv_obj_t* box) {
 
   lv_obj_t* no = answerButton(box, UI_POPUP_W - TCP_ANSWER_W - UI_CARD_ROW_X, TCP_ANSWER_W,
                               false, STR_CANCEL);
-  styleLeaveButton(no);
   lv_obj_add_event_cb(no, [](lv_event_t*) {
     logSD("BTN: TagCreate -> Cancel");
     // Hidden here, deleted by the loop: this is the button's own callback.
@@ -553,91 +418,17 @@ static void buildCard() {
   buildIdentity(box);
   buildLines(box);
   buildAnswers(box);
-  // Without a tag, the count at the top right. A new one only puts the text on
-  // the left button again: after a lost answer it stays disabled.
-  if (noTagMode()) batchCountChip(box, []() { setOkText(s_ok_text); });
   s_job = TCP_PLAN;
-}
-
-// ---- the spool type, asked first (V33) ----
-
-// A roll with a Bambu tag is made on Bambu's fixed 250 g core, but a refill
-// sits on another spool and was weighed against 250 g, so the card for a Bambu
-// tag asks the type of the spool first, when one is on the pad (the rule is
-// spoolTypeTagAsk()). The list comes from Bambuddy's own catalog, with or
-// without Spoolman behind it (any_inventory). The vendor's types come first
-// ("show all" is offered; all types are shown when the vendor has none, the
-// list's own behaviour), "without type" is the way out; no measured weight, so
-// no "take measured" and no new type. The input waits in s_in while the list
-// is up.
-// NOT-TO-DO: dbPickTypeAsk() (db_pick_core_popup.cpp). It goes on into
-// showTagCreatePopupFor(), which makes the card a database pick (title, colour
-// source, status line), and that is not what a tag's card is.
-
-// Called from the loop (spoolTypeListTick()), where the card may be built. A
-// card still standing is closed first, as showTagCreatePopup() does.
-static void tagTypeGoOn() {
-  closeTagCreatePopup();
-  buildCard();
-}
-
-// Both answers (a type, or "without type") travel with the input to the card,
-// whose create marks the new spool for the first weighing
-// (tareEntryFirstWeighDone()).
-static void tagTypePicked(float grams, const char* name) {
-  s_in.spool_type_g     = spoolTypeGrams(grams);
-  s_in.spool_type_asked = true;
-  logSDf("TagCreate: spool type '%s' %d g for this spool alone", name ? name : "", s_in.spool_type_g);
-  tagTypeGoOn();
-}
-
-// Without a type the card goes on exactly as it did before the list: the
-// input keeps Bambu's core as the maker's figure, and only the flag is set so
-// that the first weighing does not ask again.
-static void tagTypeWithout() {
-  s_in.spool_type_g     = 0;
-  s_in.spool_type_asked = true;
-  logSD("TagCreate: without a spool type, the card goes on as before");
-  tagTypeGoOn();
-}
-
-// Back leaves the whole create: no card, nothing made. A function of its own,
-// not null, which the list would take as "without type".
-static void tagTypeBack() {
-  logSD("TagCreate: spool type list left, nothing created");
-}
-
-// True when the list was opened (the card follows the answer, or does not
-// follow at all after Back). The reading is the one the card takes, so a scale
-// that is not fitted or not ready asks nothing.
-static bool tagTypeAsk() {
-  const float bare = startGross();
-  if (!spoolTypeTagAsk(tagIsBambu(s_in.link_id), backendIsBamBuddy(), bare, s_in.spool_type_g))
-    return false;
-  SpoolTypeListReq req = {};
-  req.mode = STL_VENDOR;
-  utf8Cut(s_in.vendor, sizeof(req.vendor) - 1, req.vendor, sizeof(req.vendor));
-  req.preselect_g   = (float)s_in.spool_weight_g;
-  req.skip_text     = STR_SPT_WITHOUT;
-  req.any_inventory = true;
-  logSDf("TagCreate: Bambu tag with %.0f g on the pad, spool type asked first", bare);
-  showSpoolTypeList(req, tagTypePicked, tagTypeWithout, tagTypeBack);
-  return true;
 }
 
 void showTagCreatePopup() {
   logSD("SHOW: TagCreatePopup");
-  // The card for the tag on the pad is not a create without a tag; a flag left
-  // on by a cancelled one would drop the tag's link. showTagCreatePopupFor()
-  // keeps it: the database and the sort entry come in with the flag on.
-  noTagModeSet(false);
   closeTagCreatePopup();
   if (!tagCreateInputFromTag(&s_in)) {
     logSD("TagCreate: no tag to create from");
     return;
   }
   s_picked = false;
-  if (tagTypeAsk()) return;
   buildCard();
 }
 
@@ -678,8 +469,6 @@ static void mergeDbEntry() {
   logSDf("TagCreate: database entry #%s merged, %d difference(s)", s_plan.db.id, s_diff_n);
   s_label_weight = labelWeight();
   refreshMeta();
-  // The entry may bring the fill weight the line was still asking for.
-  if (noTagMode()) showPlan();
   if (s_diff_n > 0) showTagDbDiffPopup(s_diffs, s_diff_n, onDiffAnswer);
 }
 
@@ -729,14 +518,7 @@ static void settleTwin() {
 static void runPlan() {
   s_plan_stale = false;
   s_plan_gen   = backendGeneration();
-  if (!wifi_ok) {
-    // The plan is not asked, so it still holds the last answer's flags: a
-    // no_density from before would show the density ask instead of the failure.
-    s_plan.no_density = false;
-    s_plan.state = TFS_FAILED;
-    showPlan();
-    return;
-  }
+  if (!wifi_ok) { s_plan.state = TFS_FAILED; showPlan(); return; }
   backendPlanTagFilament(s_in, &s_plan);
   serverReachNote(s_plan.state == TFS_FAILED ? s_plan.http_code : 200, true);
   showPlan();
@@ -748,8 +530,16 @@ static void runPlan() {
   refreshTitle();
 }
 
-// See tag_create_popup.h.
-bool tagCreateAnswerLost(int code) {
+// What the create button can act on.
+static bool planCanCreate(TagFilamentState state) {
+  return state == TFS_FOUND || state == TFS_CREATE_DB ||
+         state == TFS_CREATE_TAG || state == TFS_NOT_NEEDED;
+}
+
+// The request reached the server but its answer did not come back, so the
+// server may have done it: a read timeout, a dropped link, a proxy that gave
+// up waiting. A refused connection or a 502 never got that far.
+static bool answerLost(int code) {
   return code == HTTPC_ERROR_READ_TIMEOUT || code == HTTPC_ERROR_CONNECTION_LOST ||
          code == HTTP_CODE_GATEWAY_TIMEOUT;
 }
@@ -770,25 +560,15 @@ static void runCreate() {
          spoolStartVerdictName(start.verdict), startGross(), start.tare_g,
          tareSourceName(s_tare_from), s_label_weight, start.initial_g, start.remaining_g);
   const TagSpoolValues values = { start.initial_g, start.remaining_g, s_price };
-  if (noTagMode() && batchCount() > 1) { batchTagCreate(s_in, &s_plan, values, s_in.vendor); return; }
   const int code = serverReachNote(backendCreateFromTag(s_in, s_plan, values, &r), true);
   logSDf("TagCreate: HTTP %d, spool %d, filament %d, full %d g, price %.2f, link %s",
          code, r.spool_id, r.filament_id, start.initial_g, s_price, s_in.link_id);
+  char buf[96];
   if ((code == 200 || code == 201) && r.spool_id > 0) {
     spoolCacheForget("spool created from a tag");
-    // No tag: no link and no mark for the first weighing, see
-    // noTagCreateFinish(). A price the server did not keep is still said, over
-    // the green line, unless the Bambu chip hint stands on it (noTagYellowLineAllowed()).
-    if (noTagMode()) {
-      closeTagCreatePopup();
-      noTagCreateFinish(r.spool_id, s_in.vendor);
-      if (r.price_lost && noTagYellowLineAllowed(r.spool_id, "price not saved", 0)) statusMessageShow(T(STR_TAGNEW_PRICE_LOST), UI_COL_WARN);
-      return;
-    }
-    // Our list asked this spool's type on the way here ("new from database",
-    // or in front of the card for a Bambu tag, tagTypeAsk()): the first
-    // weighing does not ask it again (tare_entry.h). A tag's input carries
-    // it only from that list.
+    // Our list asked this spool's type on the way here ("new from database"):
+    // the first weighing does not ask it again (tare_entry.h). A tag's input
+    // never carries it.
     if (s_in.spool_type_asked) tareEntryFirstWeighDone(r.spool_id);
     char link_id[sizeof(s_in.link_id)];
     memcpy(link_id, s_in.link_id, sizeof(link_id));
@@ -802,14 +582,9 @@ static void runCreate() {
     else statusMessageShow(T(with_filament ? STR_TAGNEW_OK_BOTH : STR_NEWTAG_OK), UI_COL_GOOD);
     return;
   }
-  tagCreateFailed(code, r);
-}
-
-void tagCreateFailed(int code, const TagCreateResult& r) {
-  char buf[96];
   // The spool may exist without the tag's link. Another try would make a
   // second one, so the card stops here and the inventory has the answer.
-  if (r.spool_sent && tagCreateAnswerLost(code)) {
+  if (r.spool_sent && answerLost(code)) {
     showStatus(T(STR_TAGNEW_SPOOL_UNSURE), UI_COL_BAD_TEXT, false);
     return;
   }

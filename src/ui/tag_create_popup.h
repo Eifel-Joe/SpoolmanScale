@@ -21,10 +21,7 @@ bool tagCreateOffered();
 // closes the popup and opens the card.
 void tagCreateEntryTap(lv_event_t* e);
 
-// Builds the card for the tag that was scanned last. Loop task only. A Bambu
-// tag with a roll on the pad, behind Bambuddy (with or without Spoolman), asks
-// the spool type first (V33): the card follows the answer, "without type"
-// included, and Back closes both, nothing made.
+// Builds the card for the tag that was scanned last. Loop task only.
 void showTagCreatePopup();
 
 // The same card for a filament picked from the backend's database
@@ -41,16 +38,3 @@ void closeTagCreatePopup();
 
 // The card's screen while it is open, for hiding it with the link overlays.
 lv_obj_t* tagCreatePopupScreen();
-
-// The request reached the server but its answer did not come back, so the
-// server may have done it: a read timeout, a dropped link, a proxy that gave
-// up waiting. A refused connection or a 502 never got that far. Also for the
-// run of several spools (batch_create.h).
-bool tagCreateAnswerLost(int code);
-
-// A create from the card that made no spool, with the code and the result of
-// backendCreateFromTag(): the card says why and stays. After a lost answer the
-// button stays off (the spool may exist); a filament made on the way is kept
-// for the next try. Also the run's end when it made nothing.
-struct TagCreateResult;
-void tagCreateFailed(int code, const TagCreateResult& r);

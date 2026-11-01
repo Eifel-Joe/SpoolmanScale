@@ -8,7 +8,6 @@
 #include "app/app_state.h"
 #include "app_config.h"
 #include "hardware/sd_logger.h"
-#include "services/ams_source.h"
 #include "services/backend.h"
 #include "services/bambuddy_api.h"
 #include "services/bambuddy_device.h"
@@ -19,7 +18,6 @@
 #include "services/filaman_filament_db.h"
 #include "services/filaman_labels.h"
 #include "services/http_progress.h"
-#include "services/klipper_printers.h"
 #include "services/last_dried.h"
 #include "services/list_limits.h"
 #include "services/device_name.h"
@@ -934,8 +932,8 @@ static int bambuddyCreateUnderSpoolman(const TagCreateInput& in, const TagFilame
   // from the filament or the brand would turn into the spool's own, and a
   // later correction at the filament or the brand would no longer reach it.
   // Inherited gives 0, which leaves the field out and the spool inheriting
-  // (spoolTypeOwnCore(), L21, test_spool_type_rules.py). The type chosen at
-  // the scale (TARE_SPOOL) and the input's own are still written.
+  // (spoolTypeOwnCore(), L21). The type chosen at the scale (TARE_SPOOL) and
+  // the input's own are still written.
   uint8_t tare_from = TARE_NONE;
   const int tare = tagCreateTare(in, plan, &tare_from, nullptr);
   ns.core_weight  = spoolTypeOwnCore(tare, tare_from == TARE_FILAMENT || tare_from == TARE_VENDOR);
@@ -1418,78 +1416,35 @@ bool backendCanPatchLastDried() {
 //  AMS SLOTS
 // ------------------------------------------------------------
 
-// Spoolman itself knows no printers. With an AMS source set up beside it,
-// that server answers for them instead, against the same spool ids.
-static bool spoolmanHasAmsSource() {
-  return backendMode() == BACKEND_SPOOLMAN && amsSourceConfigured();
-}
-
 bool backendHasAmsView() {
-  if (klipperHasPrinters()) return true;
   switch (backendMode()) {
     case BACKEND_FILAMAN:
     case BACKEND_BAMBUDDY: return backendIsConfigured();
-    default:               return spoolmanHasAmsSource();
+    default:               return false;
   }
 }
 
 bool backendCanAssignAmsSlot() {
-  return klipperHasPrinters() ||
-         (backendMode() == BACKEND_BAMBUDDY && backendIsConfigured()) ||
-         (spoolmanHasAmsSource() && amsSourceCanAssign());
-}
-
-bool backendCanTakeOutOfAms() {
-  return spoolmanHasAmsSource() && amsSourceCanUnassign();
+  return backendMode() == BACKEND_BAMBUDDY && backendIsConfigured();
 }
 
 int backendListPrinters(AmsPrinterList& out, uint32_t timeout_ms) {
   HttpStallTime stall(__func__);   // the loop stands still for this call
-  int code = BACKEND_NOT_SUPPORTED;
   switch (backendMode()) {
     case BACKEND_FILAMAN:
-      code = filamanListPrinters(backendBaseUrl(), filamanApiKey(), out, timeout_ms);
-      break;
+      return filamanListPrinters(backendBaseUrl(), filamanApiKey(), out, timeout_ms);
     case BACKEND_BAMBUDDY:
-      code = bbListPrinters(backendBaseUrl(), bambuddyApiKey(), out, timeout_ms);
-      break;
+      return bbListPrinters(backendBaseUrl(), bambuddyApiKey(), out, timeout_ms);
     default:
       // Spoolman keeps filament, not printers. location is free text about
-      // shelves and nothing an AMS bay may be mapped onto; the printers come
-      // from an AMS source, where one is set up.
-      if (spoolmanHasAmsSource()) {
-        code = amsSourceListPrinters(out, timeout_ms);
-      } else {
-        memset(&out, 0, sizeof(out));
-        code = notSupported("ListPrinters");
-      }
-      break;
+      // shelves and nothing an AMS bay may be mapped onto.
+      out = AmsPrinterList{};
+      return notSupported("ListPrinters");
   }
-  // Root: the Klipper printers live on the scale and need no server. A list
-  // that returned the backend's failure straight away took them down with it,
-  // and the picker stood at "no connection" while three of them were stored.
-  // Fix: the answer is kept, the stored printers are added behind it, and the
-  // list is a success as soon as it holds a printer.
-  // NOT-TO-DO: returning a backend error code with printers in the list; the
-  // view would show the error and drop them.
-  if (klipperHasPrinters()) {
-    if (code != 200) {
-      // Spoolman alone has no printer list at all: that is no failure to log.
-      if (code != BACKEND_NOT_SUPPORTED) {
-        logSDf("KLIPPER: the printer list of the backend failed (%d), the stored printers alone", code);
-      }
-      memset(&out, 0, sizeof(out));
-    }
-    klipperAppendPrinters(out);
-    if (out.count > 0) code = 200;
-  }
-  return code;
 }
 
 int backendGetAmsState(int printer_id, AmsSlotState& out, uint32_t timeout_ms) {
   HttpStallTime stall(__func__);   // the loop stands still for this call
-  // A Klipper printer is read by its own code, with its own time limits.
-  if (klipperIsPrinterId(printer_id)) return klipperGetAmsState(printer_id, out);
   switch (backendMode()) {
     case BACKEND_FILAMAN:
       return filamanGetAmsState(backendBaseUrl(), filamanApiKey(), printer_id,
@@ -1498,7 +1453,6 @@ int backendGetAmsState(int printer_id, AmsSlotState& out, uint32_t timeout_ms) {
       return bbGetAmsState(backendBaseUrl(), bambuddyApiKey(), printer_id,
                            out, timeout_ms);
     default:
-      if (spoolmanHasAmsSource()) return amsSourceGetState(printer_id, out, timeout_ms);
       out = AmsSlotState{};
       return notSupported("GetAmsState");
   }
@@ -1507,10 +1461,6 @@ int backendGetAmsState(int printer_id, AmsSlotState& out, uint32_t timeout_ms) {
 int backendAssignAmsSlot(int spool_id, int printer_id, int ams_id, int tray_id,
                          uint32_t timeout_ms) {
   HttpStallTime stall(__func__);   // the loop stands still for this call
-  if (klipperIsPrinterId(printer_id)) return klipperAssign(spool_id, printer_id, ams_id, tray_id);
-  if (spoolmanHasAmsSource()) {
-    return amsSourceAssign(spool_id, printer_id, ams_id, tray_id, timeout_ms);
-  }
   if (backendMode() != BACKEND_BAMBUDDY) {
     // FilaMan is the interesting no here. It does have an AMS assignment,
     // but no model in which the scale names a bay and the database takes it:
@@ -1526,11 +1476,6 @@ int backendAssignAmsSlot(int spool_id, int printer_id, int ams_id, int tray_id,
 int backendUnassignAmsSlot(int spool_id, int printer_id, int ams_id, int tray_id,
                            uint32_t timeout_ms) {
   HttpStallTime stall(__func__);   // the loop stands still for this call
-  // A Klipper number never reaches the Bambuddy or AMS source way below.
-  if (klipperIsPrinterId(printer_id)) return notSupported("UnassignAmsSlot");
-  if (spoolmanHasAmsSource()) {
-    return amsSourceUnassign(printer_id, ams_id, tray_id, timeout_ms);
-  }
   if (backendMode() != BACKEND_BAMBUDDY) return notSupported("UnassignAmsSlot");
   return bbUnassignSlot(backendBaseUrl(), bambuddyApiKey(), spool_id, printer_id,
                         ams_id, tray_id, timeout_ms);
@@ -1541,7 +1486,6 @@ int backendFindSpoolSlot(int spool_id, int printer_id, int* out_ams,
   HttpStallTime stall(__func__);   // the loop stands still for this call
   if (out_ams)  *out_ams  = -1;
   if (out_tray) *out_tray = -1;
-  if (klipperIsPrinterId(printer_id)) return notSupported("FindSpoolSlot");
   if (backendMode() != BACKEND_BAMBUDDY) return notSupported("FindSpoolSlot");
   return bbFindSpoolSlot(backendBaseUrl(), bambuddyApiKey(), spool_id, printer_id,
                          out_ams, out_tray, timeout_ms);
@@ -1550,7 +1494,6 @@ int backendFindSpoolSlot(int spool_id, int printer_id, int* out_ams,
 int backendFindBaySpool(int printer_id, int ams_id, int tray_id,
                         uint32_t timeout_ms) {
   HttpStallTime stall(__func__);   // the loop stands still for this call
-  if (klipperIsPrinterId(printer_id)) return notSupported("FindBaySpool");
   if (backendMode() != BACKEND_BAMBUDDY) return notSupported("FindBaySpool");
   return bbFindBaySpool(backendBaseUrl(), bambuddyApiKey(), printer_id,
                         ams_id, tray_id, timeout_ms);
@@ -1560,7 +1503,6 @@ int backendFindPrinterSpools(int printer_id, AmsSlotSpool* out, uint8_t max,
                              uint8_t* out_count, uint32_t timeout_ms) {
   HttpStallTime stall(__func__);   // the loop stands still for this call
   if (out_count) *out_count = 0;
-  if (klipperIsPrinterId(printer_id)) return notSupported("FindPrinterSpools");
   if (backendMode() != BACKEND_BAMBUDDY) return notSupported("FindPrinterSpools");
   return bbFindPrinterSpools(backendBaseUrl(), bambuddyApiKey(), printer_id,
                              out, max, out_count, timeout_ms);
@@ -1572,7 +1514,6 @@ int backendFindUnitSpools(int printer_id, int ams_id, int* out_by_tray,
   if (out_by_tray) {
     for (uint8_t i = 0; i < n; i++) out_by_tray[i] = 0;
   }
-  if (klipperIsPrinterId(printer_id)) return notSupported("FindUnitSpools");
   if (backendMode() != BACKEND_BAMBUDDY) return notSupported("FindUnitSpools");
   return bbFindUnitSpools(backendBaseUrl(), bambuddyApiKey(), printer_id,
                           ams_id, out_by_tray, n, timeout_ms);
@@ -1661,10 +1602,6 @@ int backendGetSpoolDetail(int spool_id, AmsSpoolDetail& out, uint32_t timeout_ms
   // no longer shows it. That is a real loss, and the place to put it back is
   // a caption of its own, not a word stuck onto another field.
   keepStr(fil["material"], out.material, sizeof(out.material));
-
-  // The spool's own colour, next to the bay's (out.color stays what the bay
-  // reports): the weights task hands it to a Klipper field that has none.
-  spoolColorParse(fil["color_hex"] | "", &out.spool_color);
 
   // A tag of any kind counts: the card says whether this spool can be found
   // by holding it against the scale, not which field holds the binding. So

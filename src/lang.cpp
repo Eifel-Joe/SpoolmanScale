@@ -14,10 +14,11 @@ uint8_t g_date_fmt = DATE_FMT_DMY;
 const char* const STRINGS[][3] = {
 
   // Navigation
-  { "Abbrechen",       "Cancel",       "Annuler" },  // STR_CANCEL
-  { "Zurück",          "Back",         "Retour" },  // STR_BACK
-  { "Bestätigen",      "Confirm",      "Confirmer" },  // STR_CONFIRM
-  { "ID neu eingeben", "Enter new ID", "Ressaisir l'ID" },  // STR_ENTER_NEW_ID
+  { "Abbrechen",        "Cancel",       "Annuler" },  // STR_CANCEL
+  { "Zurück",           "Back",         "Retour" },  // STR_BACK
+  { "Bestätigen",       "Confirm",      "Confirmer" },  // STR_CONFIRM
+  { "Erneut versuchen", "Try again",    "Réessayer" },  // STR_RETRY
+  { "ID neu eingeben",  "Enter new ID", "Ressaisir l'ID" },  // STR_ENTER_NEW_ID
 
   // Mainscreen Labels
   { "Spoolman",         "Spoolman",    "Spoolman" },  // STR_LBL_SPOOLMAN
@@ -58,9 +59,11 @@ const char* const STRINGS[][3] = {
   { "WLAN einrichten",          "WiFi setup",           "Réglage du WiFi" },  // STR_WIFI_TITLE
   { "Netzwerke suchen...",      "Scanning networks...", "Recherche des réseaux..." },  // STR_WIFI_SCAN
   { "Keine Netzwerke gefunden", "No networks found",    "Aucun réseau trouvé" },  // STR_WIFI_NO_NET
+  { "WLAN-Passwort",            "WiFi password",        "Mot de passe WiFi" },  // STR_WIFI_PASS_TITLE
   { "Passwort für: %s",         "Password for: %s",     "Pour le réseau %s" },  // STR_WIFI_PASS_HINT
   { "Passwort...",              "Password...",          "Mot de passe..." },  // STR_WIFI_PASS_PLACEHOLDER
   { "Verbinde mit %s...",       "Connecting to %s...",  "Connexion à %s..." },  // STR_WIFI_CONNECTING
+  { "Verbunden!",               "Connected!",           "Connecté !" },  // STR_WIFI_SUCCESS
 
   // Spoolman IP
   { "Spoolman Server", "Spoolman Server", "Serveur Spoolman" },  // STR_SPOOLMAN_TITLE
@@ -115,6 +118,8 @@ const char* const STRINGS[][3] = {
 
   // Calibration
   { "Kalibrierung",             "Calibration",              "Étalonnage" },  // STR_CAL_TITLE
+  { "Faktor: --",               "Factor: --",               "Facteur : --" },  // STR_CAL_FACTOR
+  { "Faktor: %.4f",             "Factor: %.4f",             "Facteur : %.4f" },  // STR_CAL_OK
   { "Fehler: Gewicht = 0",      "Error: weight = 0",        "Erreur : poids = 0" },  // STR_CAL_ZERO_ERR
   { LV_SYMBOL_OK "  Berechnen", LV_SYMBOL_OK "  Calculate", LV_SYMBOL_OK "  Calculer" },  // STR_BTN_CALCULATE
 
@@ -177,6 +182,9 @@ const char* const STRINGS[][3] = {
   { "Browser öffnen und aufrufen:",
     "Open browser and go to:",
     "Ouvrez un navigateur et allez à :" },  // STR_OTA_OPEN_BROWSER
+  { "Datei auswählen: SpoolmanScale vX.Y.Z.bin",
+    "Select file: SpoolmanScale vX.Y.Z.bin",
+    "Choisissez le fichier : SpoolmanScale vX.Y.Z.bin" },  // STR_OTA_FILE_HINT
   { LV_SYMBOL_WIFI "  Warte auf Upload...",
     LV_SYMBOL_WIFI "  Waiting for upload...",
     LV_SYMBOL_WIFI "  Attente de l'envoi..." },  // STR_OTA_WAITING
@@ -189,7 +197,16 @@ const char* const STRINGS[][3] = {
   { LV_SYMBOL_WARNING "  Update fehlgeschlagen",
     LV_SYMBOL_WARNING "  Update failed",
     LV_SYMBOL_WARNING "  Échec de la mise à jour" },  // STR_OTA_FAIL
+  { LV_SYMBOL_CLOSE "  Server stoppen",
+    LV_SYMBOL_CLOSE "  Stop server",
+    LV_SYMBOL_CLOSE "  Arrêter le serveur" },  // STR_BTN_STOP_SERVER
   { "Aktuell: %s", "Current: %s", "Actuelle : %s" },  // STR_OTA_CURRENT
+
+  // Info Screen
+  { "SpoolmanScale  %s", "SpoolmanScale  %s", "SpoolmanScale  %s" },  // STR_INFO_VERSION
+  { "Tippe einen Button um den QR-Code anzuzeigen.",
+    "Tap a button to show the QR code.",
+    "Touchez un bouton pour afficher le QR code." },  // STR_INFO_HINT
 
   // QR Popups
   { "Projekt gefällt dir? Kauf mir einen Kaffee!",
@@ -208,8 +225,22 @@ const char* const STRINGS[][3] = {
   // Weight popup
   { "Heute getrocknet\nspeichern?", "Save dried\ntoday?",
     "Enregistrer le séchage\nd'aujourd'hui ?" },  // STR_POPUP_DRIED_Q
-  { "Ja, bestätigen",               "Yes, confirm",       "Oui, confirmer" },  // STR_BTN_CONFIRMED
+  { "Gewicht in\nSpoolman updaten?", "Update weight\nin Spoolman?",
+    "Mettre le poids à jour\ndans Spoolman ?" },  // STR_POPUP_WEIGHT_Q
+  { "Leergewicht\nmessen / eingeben", "Empty spool weight\nweigh / type in",
+    "Poids à vide\nmesurer / saisir" },  // STR_BTN_EMPTY_SPOOL
+  { "Ja, bestätigen",                 "Yes, confirm",                        "Oui, confirmer" },  // STR_BTN_CONFIRMED
 
+  // Spool weight sub-popup
+  { "Spulengewicht: %.0f g speichern als...",
+    "Save spool weight: %.0f g as...",
+    "Poids à vide %.0f g : enregistrer pour..." },  // STR_SPOOL_WEIGHT_TITLE
+  { "Diese Spule\n(spool_weight)", "This spool\n(spool_weight)",
+    "Cette bobine\n(spool_weight)" },  // STR_BTN_THIS_SPOOL
+  { "Dieses Filament\n(spool_weight)", "This filament\n(spool_weight)",
+    "Ce filament\n(spool_weight)" },  // STR_BTN_THIS_FILAMENT
+  { "Hersteller\n(empty_spool_weight)", "Vendor\n(empty_spool_weight)",
+    "Fabricant\n(empty_spool_weight)" },  // STR_BTN_THIS_VENDOR
 
   // Link Flow
   { "Bambu-Spule verknüpfen", "Link Bambu spool",  "Lier une bobine Bambu" },  // STR_LINK_BAMBU_TITLE
@@ -248,6 +279,7 @@ const char* const STRINGS[][3] = {
     LV_SYMBOL_OK "  Lier" },  // STR_LINK_OK
 
   // Tare
+  { LV_SYMBOL_OK "  Tare gesetzt!", LV_SYMBOL_OK "  Tare set!", LV_SYMBOL_OK "  Tare faite !" },  // STR_TARE_OK
   { LV_SYMBOL_WARNING "  Waage nicht bereit",
     LV_SYMBOL_WARNING "  Scale not ready",
     LV_SYMBOL_WARNING "  Balance non prête" },  // STR_TARE_NOT_READY
@@ -261,6 +293,11 @@ const char* const STRINGS[][3] = {
   { LV_SYMBOL_REFRESH "  Jetzt neu starten",
     LV_SYMBOL_REFRESH "  Restart now",
     LV_SYMBOL_REFRESH "  Redémarrer" },  // STR_REBOOT_BTN
+
+  // WiFi connecting result
+  { LV_SYMBOL_WARNING "  Verbindung fehlgeschlagen.\nSSID: %s",
+    LV_SYMBOL_WARNING "  Connection failed.\nSSID: %s",
+    LV_SYMBOL_WARNING "  Échec de la connexion.\nSSID : %s" },  // STR_WIFI_CONN_FAILED
 
   // WiFi quality
   { "Ausgezeichnet", "Excellent",    "Excellent" },  // STR_WIFI_QUAL_EXCELLENT
@@ -283,6 +320,19 @@ const char* const STRINGS[][3] = {
   { "Spule wirklich\narchivieren?", "Really archive\nthis spool?",
     "Voulez-vous vraiment\narchiver cette bobine ?" },  // STR_ARCHIVE_CONFIRM
 
+  // Weight popup archive button
+  { LV_SYMBOL_CLOSE " leer / Archivieren\nremaining=0",
+    LV_SYMBOL_CLOSE " empty / Archive\nremaining=0",
+    LV_SYMBOL_CLOSE " vide / Archiver\nremaining=0" },  // STR_BTN_ARCHIVE_EMPTY
+
+  // Welcome language select screen
+  { "Sprache und Zeitzone", "Language and time zone", "Langue et fuseau horaire" },  // STR_WELCOME_LANG_TITLE
+  { "Beides lässt sich später in den Einstellungen ändern.\nWeiter startet das Gerät einmal neu.",
+    "Both can be changed later in Settings.\nNext restarts the device once.",
+    "Langue et fuseau horaire restent modifiables dans les réglages.\nSuivant enregistre les deux choix et redémarre l'appareil une fois." },  // STR_WELCOME_LANG_HINT
+
+  // WiFi scan count
+  { "%d Netzwerke gefunden", "%d networks found", "%d réseaux trouvés" },  // STR_WIFI_NETWORKS_FOUND
 
   // Bag weight current label
   { "Aktuell: %.0f g", "Current: %.0f g", "Actuel : %.0f g" },  // STR_BAG_CURRENT
@@ -298,11 +348,32 @@ const char* const STRINGS[][3] = {
   // Link entry context
   { "%s | nicht in Spoolman", "%s | not in Spoolman", "%s | absente de Spoolman" },  // STR_LINK_CTX_NOT_IN_SM
 
+  // Weight popup buttons (with snprintf)
+  { LV_SYMBOL_OK " Ohne Beutel\n%.0fg",
+    LV_SYMBOL_OK " No bag\n%.0fg",
+    LV_SYMBOL_OK " Sans sachet\n%.0fg" },  // STR_BTN_NO_BAG_VAL
+  { LV_SYMBOL_OK " Mit Beutel\n%.0fg - %.0fg",
+    LV_SYMBOL_OK " With bag\n%.0fg - %.0fg",
+    LV_SYMBOL_OK " Avec sachet\n%.0fg - %.0fg" },  // STR_BTN_WITH_BAG_VAL
+  { LV_SYMBOL_PLUS " Neue Spule\n%.0fg netto",
+    LV_SYMBOL_PLUS " New spool\n%.0fg net",
+    LV_SYMBOL_PLUS " Nouvelle bobine\n%.0fg net" },  // STR_BTN_NEW_SPOOL_VAL
 
   // First boot welcome screen
   { "Willkommen!",
     "Welcome!",
     "Bienvenue !" },  // STR_FIRSTBOOT_TITLE
+  { "Deine SpoolmanScale ist fast bereit.",
+    "Your SpoolmanScale is almost ready.",
+    "Votre SpoolmanScale est presque prête." },  // STR_FIRSTBOOT_SUB
+  // Both backends are named here because this screen appears before the user
+  // has chosen one. It must therefore not go through backendText().
+  { "In wenigen Schritten richten wir\nWLAN, Server und die Waage ein.",
+    "In a few steps we will set up\nWiFi, the server and the scale.",
+    "En quelques étapes, nous allons configurer\nle WiFi, le serveur et la balance." },  // STR_FIRSTBOOT_HINT
+  { LV_SYMBOL_RIGHT "  Los geht's",
+    LV_SYMBOL_RIGHT "  Get started",
+    LV_SYMBOL_RIGHT "  C'est parti" },  // STR_FIRSTBOOT_BTN
 
   // Extra fields screen
   { "Spoolman Extra-Felder",
@@ -334,11 +405,20 @@ const char* const STRINGS[][3] = {
   { "Waage kalibrieren",
     "Calibrate scale",
     "Étalonner la balance" },  // STR_CAL_REMINDER_TITLE
+  { "Für genaue Messungen muss die Waage\nkalibriert werden.\n\nLege ein bekanntes Gewicht auf\nund gehe zu Einstellungen > Waage\n> Kalibrierung.\n\nDies kann auch später gemacht werden.",
+    "For accurate measurements the scale\nneeds to be calibrated.\n\nPlace a known weight on the scale\nand go to Settings > Scale > Calibration.\n\nYou can also do this later.",
+    "Pour des mesures précises, la balance\ndoit être étalonnée.\n\nPrévoyez un objet de poids connu\npuis allez dans Réglages > Balance\n> Étalonnage.\n\nVous pouvez aussi le faire plus tard." },  // STR_CAL_REMINDER_MSG
+  { "Verstanden",
+    "Got it!",
+    "Compris" },  // STR_CAL_REMINDER_LATER
   { LV_SYMBOL_EDIT "  Jetzt kalibrieren",
     LV_SYMBOL_EDIT "  Calibrate now",
     LV_SYMBOL_EDIT "  Étalonner" },  // STR_CAL_REMINDER_NOW
 
   // Calibration TARE hint
+  { "Erst TARE ohne Gewicht, dann Gewicht auflegen und berechnen.",
+    "First TARE with nothing on the pad, then place the weight and calculate.",
+    "Plateau vide, appuyez sur TARE, puis posez le poids et calculez." },  // STR_CAL_TARE_HINT
 
   // Extra fields test button
 
@@ -395,10 +475,13 @@ const char* const STRINGS[][3] = {
   { "Installiert: %s",
     "Installed: %s",
     "Installée : %s" },  // STR_GH_OTA_INSTALLED
-  { "Vorabversionen",
+  { "Neueste: %s",
+    "Latest: %s",
+    "Dernière : %s" },  // STR_GH_OTA_LATEST
+  { "Pre-release",
     "Pre-release",
-    "Pré-versions" },  // STR_GH_OTA_PRERELEASE
-  { "Automatisch suchen",
+    "Pré-version" },  // STR_GH_OTA_PRERELEASE
+  { "Autom. Suche",
     "Auto check",
     "Recherche auto" },  // STR_GH_OTA_AUTOCHECK
   { "Ältere Version verfügbar: %s",
@@ -608,6 +691,11 @@ const char* const STRINGS[][3] = {
   { "bereitet vor",
     "preparing",
     "en préparation" },  // STR_AMSV_STATE_PREPARE
+  // Which of several printers is on screen. Same in both languages, but
+  // it goes through T() so a language that numbers differently can change it.
+  { "%d/%d",
+    "%d/%d",
+    "%d/%d" },  // STR_AMSV_PRN_OF
   { "%s -> in welches Fach?",
     "%s -> into which bay?",
     "%s -> dans quel bac ?" },  // STR_AMSV_PICK_HEAD
@@ -645,6 +733,7 @@ const char* const STRINGS[][3] = {
   { "Spule erstellt!",       "Spool created!",        "Bobine créée !" },  // STR_COPY_OK
   { "Fehler beim Erstellen", "Error creating spool",  "Échec de la création" },  // STR_COPY_FAIL
   { "Keine Spulen gefunden", "No spools found",       "Aucune bobine trouvée" },  // STR_COPY_NO_SPOOLS
+  { "Setup überspringen",    "Skip setup",            "Passer la config." },  // STR_BTN_SKIP_SETUP
   { "Unlink",                "Unlink",                "Dissocier" },  // STR_UNLINK_BTN
   { "Spule unlinken?",       "Unlink spool?",         "Dissocier la bobine ?" },  // STR_UNLINK_TITLE
   { "Löscht den Eintrag im Tag-Feld in Spoolman.\nDie Spule bleibt erhalten.",
@@ -669,10 +758,19 @@ const char* const STRINGS[][3] = {
   { "Mehr Materialien gefunden - nicht gelistet? Per Spool-ID verknüpfen", "More materials found - not listed? Use Spool-ID",
     "Liste incomplète - matériau absent ? Liez par l'ID de bobine" },  // STR_LIST_MORE_MATS
 
-  // Auto-Weight: the help text behind the switch in the scale menu
-  { "Liegt eine erkannte Spule 4 Sekunden still, wird ihr Gewicht ohne Beutel gesendet. Unter 1 g Änderung wird nichts gesendet. Ist sie mehr als 5 g schwerer als gespeichert, sendet die Waage nicht und fragt nach.",
-    "When a recognised spool lies still for 4 seconds, its weight is sent, without the bag. Under 1 g of change nothing is sent. If it is more than 5 g heavier than stored, the scale sends nothing and asks.",
-    "Quand une bobine reconnue reste immobile 4 secondes, son poids est envoyé, sans le sachet. En dessous de 1 g de différence, rien n'est envoyé. Si elle pèse plus de 5 g de plus que la valeur enregistrée, la balance n'envoie rien et demande." },  // STR_AUTO_WEIGHT_INFO
+  // Auto-Weight
+  { "Auto-Gewichtsupdate",
+    "Auto weight update",
+    "Envoi auto du poids" },  // STR_AUTO_WEIGHT_TITLE
+  { "Sobald eine Spule erkannt und das Gewicht\n3 Sekunden stabil ist, wird es automatisch\ngespeichert (ohne Beutel).",
+    "Once a spool is detected and the weight\nis stable for 3 seconds, it will be saved\nautomatically (without bag).",
+    "Dès qu'une bobine est reconnue et que le poids\nest stable pendant 3 secondes, il est enregistré\nautomatiquement (sachet non déduit)." },  // STR_AUTO_WEIGHT_INFO
+  { LV_SYMBOL_REFRESH " Auto aktivieren",
+    LV_SYMBOL_REFRESH " Enable auto",
+    LV_SYMBOL_REFRESH " Activer le mode auto" },  // STR_AUTO_WEIGHT_ENABLE
+  { LV_SYMBOL_REFRESH " Auto deaktivieren",
+    LV_SYMBOL_REFRESH " Disable auto",
+    LV_SYMBOL_REFRESH " Arrêter le mode auto" },  // STR_AUTO_WEIGHT_DISABLE
   { "Lagerort",
     "Location",
     "Emplacement" },  // STR_BTN_LOCATION
@@ -751,11 +849,24 @@ const char* const STRINGS[][3] = {
 
   // Web interface. The same server serves the firmware upload and the
   // FilaMan credentials, so the screen title stays neutral.
-  { "Weboberfläche",         "Web interface",     "Interface web" },  // STR_WEB_TITLE
+  { "Weboberfläche", "Web interface", "Interface web" },  // STR_WEB_TITLE
+  { "Adresse am Rechner im Browser öffnen und dort API-Key und Gerätecode eintragen. Der Status unten aktualisiert sich von selbst.",
+    "Open this address in a browser on your computer and enter the API key and device code there. The status below updates on its own.",
+    "Ouvrez cette adresse dans un navigateur sur votre ordinateur, et saisissez-y la clé d'API et le code d'appareil. L'état ci-dessous se met à jour tout seul." },  // STR_WEB_SETUP_HINT
+  // BamBuddy has one credential where FilaMan has two, so the sentence that
+  // tells the user what to type differs.
+  { "Adresse am Rechner im Browser öffnen und dort den API-Key eintragen. Der Status unten aktualisiert sich von selbst.",
+    "Open this address in a browser on your computer and enter the API key there. The status below updates on its own.",
+    "Ouvrez cette adresse dans un navigateur sur votre ordinateur, et saisissez-y la clé d'API. L'état ci-dessous se met à jour tout seul." },  // STR_WEB_SETUP_HINT_BB
   { "Im Browser einrichten", "Set up in browser", "Config. navigateur" },  // STR_BTN_WEB_SETUP
+  { "Fertig",                "Done",              "Terminer" },  // STR_BTN_FINISH
   { "Weiter",                "Next",              "Suivant" },  // STR_BTN_NEXT
+  { "Welche Filamentverwaltung benutzt du? Das lässt sich später jederzeit im Menü ändern.",
+    "Which filament manager do you use? This can be changed in the menu at any time.",
+    "Quel gestionnaire de filament utilisez-vous ? Vous pourrez le changer à tout moment dans le menu." },  // STR_SETUP_BACKEND_HINT
   // Shown instead of a spool count when the server answered but the number
   // could not be asked for yet, which is the normal FilaMan setup case.
+  { "verbunden",         "connected",       "connecté" },  // STR_CONNECTED
   { "AN",                "ON",              "ON" },  // STR_ON
   { "AUS",               "OFF",             "OFF" },  // STR_OFF
   { "Im Browser öffnen", "Open in browser", "Navigateur" },  // STR_BTN_OPEN_BROWSER
@@ -858,6 +969,17 @@ const char* const STRINGS[][3] = {
   { "Wird nach einer Verknüpfung aus FilaMan innerhalb von 10 Sekunden kein Tag aufgelegt, lädt die Waage die dort gewählte Spule trotzdem und zeigt sie an. Gewogen wird sie danach wie jede andere: bei eingeschalteter Automatik von selbst, sonst über den Gewichtsknopf. FilaMans eigener Dialog meldet dabei einen Fehler, weil dort kein Tag geschrieben wurde - geladen ist die Spule trotzdem. Auf einen Tag wird nie etwas geschrieben, und die Zuordnung endet, sobald die Spule wieder heruntergenommen wird.",
     "If no tag is presented within 10 seconds of a link from FilaMan, the scale loads the spool chosen there anyway and shows it. Weighing then works as for any other spool: on its own when automatic weighing is on, otherwise through the weight button. FilaMan's own dialog reports an error because no tag was written there - the spool is loaded regardless. Nothing is ever written to a tag, and the spool is released as soon as it is taken off the pad.",
     "Si aucun tag n'est posé dans les 10 secondes qui suivent une liaison lancée depuis FilaMan, la balance charge quand même la bobine choisie dans FilaMan et l'affiche. La pesée se fait ensuite comme pour toute autre bobine : toute seule si la pesée automatique est activée, sinon avec le bouton Envoyer le poids. FilaMan affiche de son côté une erreur, puisqu'aucun tag n'a été écrit, mais la bobine est bien chargée. Rien n'est jamais écrit sur un tag, et cette association temporaire prend fin dès que la bobine est retirée de la balance." },  // STR_FLM_TAGLESS_INFO
+  // FilaMan variants of the spool-weight scope buttons. The Spoolman ones
+  // carry the REST field name in brackets, which is a real reading aid there
+  // because the three scopes use three different names. In FilaMan two of
+  // the three are called the same thing, so the bracket helps nobody and is
+  // simply wrong on top. FilaMan also calls a vendor a manufacturer.
+  { "Diese Spule",     "This spool",    "Cette bobine" },  // STR_BTN_THIS_SPOOL_FM
+  { "Dieses Filament", "This filament", "Ce filament" },  // STR_BTN_THIS_FILAMENT_FM
+  { "Hersteller",      "Manufacturer",  "Fabricant" },  // STR_BTN_THIS_VENDOR_FM
+  { LV_SYMBOL_CLOSE " leer / Archivieren\nRest wird 0",
+    LV_SYMBOL_CLOSE " empty / Archive\nremaining set to 0",
+    LV_SYMBOL_CLOSE " vide / Archiver\nreste mis à 0" },  // STR_BTN_ARCHIVE_EMPTY_FM
 
   // Auto AMS assignment. FilaMan marks a freshly weighed spool as pending on
   // every printer driver for a few seconds, so the next tray to be loaded
@@ -1768,9 +1890,9 @@ const char* const STRINGS[][3] = {
 
   // Web access. The first line is an LVGL label and stays one row wide; the
   // other two are the web footer and carry HTML.
-  { "Für diesen Schritt freigeschaltet",
-    "Switched on for this step",
-    "Activée pour cette étape" },  // STR_WEB_GATE_OPENED
+  { "Weboberfläche dafür freigeschaltet",
+    "Web interface switched on for this",
+    "Interface web activée pour cette action" },  // STR_WEB_GATE_OPENED
   { "sind am Gerät ausgeschaltet und werden nicht ausgeliefert. Einschalten unter",
     "are switched off on the device and are not being served. Switch them on under",
     "sont désactivés sur l'appareil et ne sont pas servis. Activez-les dans" },  // STR_W_FOOT_GATE_OFF
@@ -1778,6 +1900,12 @@ const char* const STRINGS[][3] = {
     "Which sections are served is decided on the device under",
     "Les sections proposées se choisissent sur l'appareil, dans" },  // STR_W_FOOT_GATE_ALL
 
+  // Weight popup, in place of the archive button when the spool is archived.
+  // The %.0f is the net weight on the pad: the button names the number it is
+  // about to write, so nothing is decided out of sight.
+  { LV_SYMBOL_REFRESH " Reaktivieren\nRest wird %.0f g",
+    LV_SYMBOL_REFRESH " Reactivate\nremaining set to %.0f g",
+    LV_SYMBOL_REFRESH " Réactiver\nrestant mis à %.0f g" },  // STR_BTN_REACTIVATE
 
   // Backend options, mirrored in the browser
   { "Wird geladen ...",
@@ -1816,6 +1944,9 @@ const char* const STRINGS[][3] = {
   { "Kalibrierung und Tara zurücksetzen?",
     "Reset calibration and tare?",
     "Réinitialiser l'étalonnage et la tare ?" },  // STR_CAL_RESET_CONFIRM
+  { LV_SYMBOL_OK "  Kalibrierung zurückgesetzt",
+    LV_SYMBOL_OK "  Calibration reset",
+    LV_SYMBOL_OK "  Étalonnage réinitialisé" },  // STR_CAL_RESET_DONE
   { "Referenz: 10 - 20000 g", "Reference: 10 - 20000 g", "Référence : 10 - 20000 g" },  // STR_CAL_RANGE_ERR
   { LV_SYMBOL_WARNING "  Messwert unplausibel, nicht gespeichert",
     LV_SYMBOL_WARNING "  Reading implausible, not saved",
@@ -1879,7 +2010,8 @@ const char* const STRINGS[][3] = {
     "Applies to what the scale does on its own after a link. Writing from this "
     "page has its own format selector.",
     "Ces réglages concernent ce que la balance fait d'elle-même après avoir lié un tag à une bobine. L'écriture lancée depuis cette page a son propre choix de format, plus haut." },  // STR_W_TAGOPT_NOTE
-  { "Speichern", "Download", "Enregistrer" },  // STR_W_LOG_DOWNLOAD
+  { "Speichern",    "Download",   "Enregistrer" },  // STR_W_LOG_DOWNLOAD
+  { "Kal. löschen", "Reset cal.", "RAZ étal." },  // STR_BTN_CAL_RESET_SHORT
   { "Kein Material passte - Filter aufgehoben",
     "No material matched - filter dropped",
     "Aucun matériau ne correspondait - filtre levé" },  // STR_LIST_MAT_IGNORED
@@ -2057,18 +2189,18 @@ const char* const STRINGS[][3] = {
     "La mesure varie en permanence de plus de %d g alors que rien ne bouge sur le plateau.\n\nC'est typique d'un fil mal fixé sur le NAU7802. Vérifiez E+ (rouge), E- (noir), A+ (blanc) et A- (vert), à la recherche d'une soudure froide.\n\nVérifiez aussi qu'aucun câble n'appuie contre le plateau de pesée." },  // STR_DIAG_NOISY_TEXT
 
   { "So kalibrierst du", "How to calibrate", "Comment étalonner" },  // STR_CAL_HELP_TITLE
-  { "1. Plattform leer räumen und auf Nullen drücken. Die Anzeige muss auf 0 gehen.\n\n"
+  { "1. Plattform leer räumen und TARE drücken. Die Anzeige muss auf 0 gehen.\n\n"
     "2. Ein Gewicht auflegen, das du genau kennst. Ideal sind etwa 1000 g - "
     "eine volle Spule, auf einer Küchenwaage nachgewogen, reicht völlig.\n\n"
     "3. Dieses Gewicht in Gramm eintippen und auf Berechnen drücken.\n\n"
     "Je genauer das Referenzgewicht, desto genauer misst die Waage danach.",
-    "1. Clear the platform and press Zero. The reading has to go to 0.\n\n"
+    "1. Clear the platform and press TARE. The reading has to go to 0.\n\n"
     "2. Place a weight you know exactly. Around 1000 g is ideal - a full spool "
     "checked on a kitchen scale is plenty.\n\n"
     "3. Type that weight in grams and press Calculate.\n\n"
     "The more precise the reference weight, the more accurate the scale is "
     "afterwards.",
-    "1. Videz le plateau et appuyez sur Mettre à zéro. L'affichage doit passer à 0.\n\n2. Posez un poids que vous connaissez exactement. L'idéal est un poids d'environ 1000 g - une bobine pleine, pesée sur une balance de cuisine, suffit amplement.\n\n3. Saisissez ce poids en grammes et appuyez sur Calculer.\n\nPlus le poids de référence est précis, plus les mesures de la balance seront précises ensuite." },  // STR_CAL_HELP_TEXT
+    "1. Videz le plateau et appuyez sur TARE. L'affichage doit passer à 0.\n\n2. Posez un poids que vous connaissez exactement. L'idéal est un poids d'environ 1000 g - une bobine pleine, pesée sur une balance de cuisine, suffit amplement.\n\n3. Saisissez ce poids en grammes et appuyez sur Calculer.\n\nPlus le poids de référence est précis, plus les mesures de la balance seront précises ensuite." },  // STR_CAL_HELP_TEXT
 
   { "Diagnose",    "Diagnosis",     "Diagnostic" },  // STR_W_R_DIAG
   { "ohne Befund", "nothing found", "rien à signaler" },  // STR_W_S_DIAG_OK
@@ -2296,13 +2428,18 @@ const char* const STRINGS[][3] = {
   { "Gespeichert - Test übersprungen, das Gerät ist beschäftigt",
     "Saved - test skipped, the device is busy",
     "Enregistré - test ignoré, l'appareil est occupé" },  // STR_W_HOST_SAVED_ONLY
-  { "WLAN ändern",                  "Change WiFi",             "Autre réseau" },  // STR_BTN_WIFI_CHANGE
-  { "Per Handy einrichten",         "Set up by phone",         "Configurer par mobile" },  // STR_BTN_WIFI_PORTAL
-  { "WLAN per Handy einrichten",    "Set up WiFi by phone",    "Configurer le WiFi par mobile" },  // STR_PORTAL_TITLE
-  { "WLAN beitreten",               "Join the WiFi",           "Rejoignez le WiFi" },  // STR_PORTAL_STEP_JOIN
-  { "Seite öffnen",                 "Open the page",           "Ouvrez la page" },  // STR_PORTAL_STEP_OPEN
-  { "WLAN: %s",                     "WiFi: %s",                "WiFi : %s" },  // STR_PORTAL_NET_FMT
-  { "Passwort: %s",                 "Password: %s",            "Mot de passe : %s" },  // STR_PORTAL_PASS_FMT
+  { "Bereits mit einem WLAN verbunden.",
+    "Already connected to WiFi.",
+    "Déjà connectée à un réseau WiFi." },  // STR_WIFI_ALREADY_CONNECTED
+  { "WLAN ändern",                  "Change WiFi",              "Changer de WiFi" },  // STR_BTN_WIFI_CHANGE
+  { "Per Handy einrichten",         "Set up by phone",          "Configurer par mobile" },  // STR_BTN_WIFI_PORTAL
+  { "WLAN per Handy einrichten", "Set up WiFi by phone",
+    "Configurer le WiFi par mobile" },  // STR_PORTAL_TITLE
+  { "1. WLAN der Waage beitreten", "1. Join the scale's WiFi",
+    "1. Rejoignez le WiFi affiché" },  // STR_PORTAL_STEP_JOIN
+  { "2. Seite öffnen",              "2. Open the page",         "2. Ouvrez la page" },  // STR_PORTAL_STEP_OPEN
+  { "WLAN: %s",                     "WiFi: %s",                 "WiFi : %s" },  // STR_PORTAL_NET_FMT
+  { "Passwort: %s",                 "Password: %s",             "Mot de passe : %s" },  // STR_PORTAL_PASS_FMT
   { "Öffnet sich meist von selbst", "Usually opens by itself",
     "S'ouvre le plus souvent tout seul" },  // STR_PORTAL_OPENS_ITSELF
   { "Meldet das Handy \"kein Internet\", verbunden bleiben.",
@@ -2888,7 +3025,6 @@ const char* const STRINGS[][3] = {
     "Peser la bobine vide\nsur la balance : %.0f g" },  // STR_TARE_CHOICE_WEIGH
   { "Wert eingeben\nbekannt oder vom Hersteller", "Type in a value\nknown or from the maker",
     "Saisir une valeur\nconnue ou du fabricant" },  // STR_TARE_CHOICE_TYPE
-  // Empty spool weight typed in (issue #40)
   { "Leergewicht eingeben", "Enter empty spool weight",
     "Saisir le poids à vide" },  // STR_TARE_ENTER_TITLE
   { "Waage %.0f g\n- Spule %.0f g\n= Rest %.0f g", "Scale %.0f g\n- spool %.0f g\n= %.0f g left",
@@ -2933,7 +3069,8 @@ const char* const STRINGS[][3] = {
     "Opening an https connection takes the scale about 0.6 s, an open connection answers in about 30 ms. The scale opens it as soon as a spool is put on, and closes it after the chosen time without a request. 30 minutes only pay off if your server keeps the connection open that long.",
     "Ouvrir une connexion https prend environ 0,6 s à la balance, une connexion ouverte répond en 30 ms environ. La balance l'ouvre dès qu'une bobine est posée et la ferme si aucune requête n'arrive pendant le délai choisi. 30 minutes ne servent que si votre serveur garde la connexion ouverte aussi longtemps." },  // STR_W_TLS_KEEP_HINT
   // The address screen on the device
-  { "https-Adresse", "https address", "Adresse https" },  // STR_SP_HTTPS_TITLE
+  { "https: im Browser", "https: in the browser", "https : navigateur" },  // STR_SP_HTTPS_HINT
+  { "https-Adresse",     "https address",         "Adresse https" },  // STR_SP_HTTPS_TITLE
   // The printer page's print position card, and the calibration page
   { "Druckposition",          "Print position",         "Position d'impression" },  // STR_W_P_CAL_TITLE
   { "Lage der Rolle",         "Roll position",          "Position du rouleau" },  // STR_W_P_CAL_ROLL
@@ -3482,17 +3619,20 @@ const char* const STRINGS[][3] = {
     "Corrige la dérive lente du zéro tant que le plateau est vide.\n\nSi le poids reste stable entre 0,5 et 5 g (positif ou négatif) pendant 3 secondes, cette valeur devient le nouveau zéro. Rien ne se passe tant qu'un tag est détecté ou qu'une bobine est posée. Plus de 5 g n'est jamais corrigé, et il s'écoule au moins une minute entre deux corrections.\n\nLe bouton TARE fonctionne toujours comme avant." },  // STR_BTN_AUTO_TARE_INFO
   // The mark on the TARE button while auto-tare is on
   { "A", "A", "A" },  // STR_TARE_AUTO_MARK
-  // The bag weight at 0: the menu row says so, and the weight popup leaves
-  // out its bag switch
+  // The bag weight at 0: the menu row says so, and the weight popup has one
+  // button instead of two
   { "Aus - kein Beutel", "Off - no bag", "Sans sachet" },  // STR_BAG_OFF_SUB
+  { LV_SYMBOL_OK " Übernehmen\n%.0fg",
+    LV_SYMBOL_OK " Apply\n%.0fg",
+    LV_SYMBOL_OK " Valider\n%.0fg" },  // STR_BTN_WEIGHT_VAL
   // The empty spool weight the netto subtracts, shown in the live zone
   // without a bag
   { "Spule", "Spool", "Bobine" },  // STR_LBL_SPOOL_TARE_CAP
   // Behind the help circle on the bag screen: what the value does to the
   // main screen and the weight popup, and that crossing 0 needs a restart
-  { "Für Spulen, die im Vakuumbeutel auf der Waage liegen. Der Wert ist das Gewicht des leeren Beutels samt Silikagelpack und wird von jeder Messung abgezogen.\n\nMit Beutel (Wert über 0 g): Der Hauptschirm zeigt vier Zeilen: Waage minus Spule, Diff, Gesamt und das Gewicht ohne Beutel mit eigener Diff. Beim Übertragen fragt die Waage, ob die Spule mit oder ohne Beutel aufliegt.\n\nOhne Beutel (0 g): Der Hauptschirm zeigt Waage minus Spule, Diff, Gesamt und das Spulengewicht, größer und mit mehr Platz. Übertragen geht mit einem Knopf, ohne Rückfrage.\n\nAb Werk steht hier 0 g. Ein neuer Wert wirkt sofort, auch der Wechsel zwischen 0 g und einem Wert: Der Hauptschirm stellt dann seine Zeilen um.",
-    "For spools that sit on the scale in a vacuum bag. The value is the weight of the empty bag with its silica gel pack, and it is subtracted from every reading.\n\nWith a bag (value above 0 g): the main screen shows four lines: scale minus spool, diff, total and the weight without the bag with a diff of its own. When sending the weight, the scale asks whether the spool is on the pad with or without its bag.\n\nWithout a bag (0 g): the main screen shows scale minus spool, diff, total and the spool weight, larger and with more room. Sending takes one button, no question asked.\n\nThe factory setting is 0 g. A new value takes effect at once, the change between 0 g and a value too: the main screen then rearranges its lines.",
-    "Pour les bobines pesées dans un sachet sous vide. La valeur est le poids du sachet vide avec son gel de silice, soustrait de chaque mesure.\n\nAvec sachet (plus de 0 g) : l'écran principal affiche quatre lignes : balance moins bobine, écart, total et le poids sans sachet avec son propre écart. À l'envoi du poids, la balance demande si la bobine est posée avec ou sans sachet.\n\nSans sachet (0 g) : l'écran principal affiche balance moins bobine, écart, total et le poids de la bobine, en plus grand. L'envoi se fait d'un seul bouton, sans question.\n\nRéglage d'usine : 0 g. Une nouvelle valeur agit aussitôt, le passage entre 0 g et une valeur aussi : l'écran principal réorganise alors ses lignes." },  // STR_BAG_HELP_TEXT
+  { "Für Spulen, die im Vakuumbeutel auf der Waage liegen. Der Wert ist das Gewicht des leeren Beutels samt Silikagelpack und wird von jeder Messung abgezogen.\n\nMit Beutel (Wert über 0 g): Der Hauptschirm zeigt vier Zeilen: Waage minus Spule, Diff, Gesamt und das Gewicht ohne Beutel mit eigener Diff. Beim Übertragen fragt die Waage, ob die Spule mit oder ohne Beutel aufliegt.\n\nOhne Beutel (0 g): Der Hauptschirm zeigt Waage minus Spule, Diff, Gesamt und das Spulengewicht, größer und mit mehr Platz. Übertragen geht mit einem Knopf, ohne Rückfrage.\n\nAb Werk steht hier 0 g. Ein neuer Wert wirkt sofort. Nur der Wechsel zwischen 0 g und einem Wert braucht einen Neustart, weil der Hauptschirm dafür neu aufgebaut wird.",
+    "For spools that sit on the scale in a vacuum bag. The value is the weight of the empty bag with its silica gel pack, and it is subtracted from every reading.\n\nWith a bag (value above 0 g): the main screen shows four lines: scale minus spool, diff, total and the weight without the bag with a diff of its own. When sending the weight, the scale asks whether the spool is on the pad with or without its bag.\n\nWithout a bag (0 g): the main screen shows scale minus spool, diff, total and the spool weight, larger and with more room. Sending takes one button, no question asked.\n\nThe factory setting is 0 g. A new value takes effect at once. Only the change between 0 g and a value needs a restart, because the main screen is rebuilt for it.",
+    "Pour les bobines pesées dans un sachet sous vide. La valeur est le poids du sachet vide avec son gel de silice, soustrait de chaque mesure.\n\nAvec sachet (plus de 0 g) : l'écran principal affiche quatre lignes : balance moins bobine, écart, total et le poids sans sachet avec son propre écart. À l'envoi du poids, la balance demande si la bobine est posée avec ou sans sachet.\n\nSans sachet (0 g) : l'écran principal affiche balance moins bobine, écart, total et le poids de la bobine, en plus grand. L'envoi se fait d'un seul bouton, sans question.\n\nRéglage d'usine : 0 g. Une nouvelle valeur agit aussitôt. Seul le passage entre 0 g et une valeur demande un redémarrage, car l'écran principal est reconstruit." },  // STR_BAG_HELP_TEXT
   { "In %s anzeigen",
     "Show in %s",
     "Afficher dans %s" },  // STR_W_C_EMBED
@@ -3941,230 +4081,6 @@ const char* const STRINGS[][3] = {
   { "Per ID geladen - kein Tag",
     "Loaded by ID - no tag",
     "Chargée par ID - sans tag" },  // STR_ID_SPOOL_STATUS
-  { "An: nach dem Wiegen einer bekannten Spule fragt die Waage beim Abheben, in welches Fach sie geht.\n\nBeim AMS meldet sie das der AMS-Quelle, die die Spule in Spoolman einträgt und das Fach über MQTT am Drucker mitkonfiguriert - Material, Farbe und Temperaturen. Bei einem Klipper-Drucker setzt die Waage die Spule selbst über Moonraker. Das ist gewollt, wirkt aber auf den Drucker, nicht nur auf die Datenbank.",
-    "On: after a known spool has been weighed, the scale asks on removal which bay it goes into.\n\nFor an AMS it reports that to the AMS source, which records the spool in Spoolman and also configures the bay on the printer over MQTT - material, colour and temperatures. For a Klipper printer the scale sets the spool itself through Moonraker. That is intended, but it acts on the printer, not only on the database.",
-    "Activé : après la pesée d'une bobine connue, la balance demande au retrait dans quel bac elle va.\n\nPour un AMS, elle le transmet à la source AMS, qui enregistre la bobine dans Spoolman et configure aussi le bac sur l'imprimante par MQTT : matériau, couleur, températures. Pour une imprimante Klipper, la balance règle la bobine via Moonraker. C'est voulu, mais cela agit sur l'imprimante, pas seulement sur la base." },  // STR_SMAMS_ASK_INFO
-  { "AMS-Quelle", "AMS source", "Source AMS" },  // STR_W_C_AMS_SOURCE
-  { "Spoolman kennt keine Drucker. Die AMS-Ansicht braucht deshalb einen zweiten Server, der den Drucker mithört und in dieselbe Spoolman-Datenbank bucht, zum Beispiel OpenSpoolman. Leer lassen schaltet die AMS-Ansicht ab.",
-    "Spoolman knows no printers. The AMS view therefore needs a second server that listens to the printer and books into the same Spoolman database, OpenSpoolman for example. Leave it empty to switch the AMS view off.",
-    "Spoolman ne connaît aucune imprimante. La vue AMS a donc besoin d'un second serveur qui écoute l'imprimante et enregistre dans la même base Spoolman, par exemple OpenSpoolman. Laissez vide pour désactiver la vue AMS." },  // STR_W_AMS_SOURCE_HINT
-  { "Adresse",                    "Address",                   "Adresse" },  // STR_W_AMS_SOURCE_ADDR
-  { "Lagerort beim Zuweisen",     "Location on assignment",    "Emplacement AMS" },  // STR_SMAMS_LOC
-  { "Zum Beispiel \"X1C AMS 1\"", "For example \"X1C AMS 1\"", "Par exemple « X1C AMS 1 »" },  // STR_SMAMS_LOC_SUB
-  { "An: wer eine Spule einem AMS-Fach zuweist, setzt damit auch ihren Lagerort in Spoolman auf die Einheit, etwa \"X1C AMS 1\". So sieht man auch in Spoolman, wo sie steckt.\n\nWird die Spule auf der Fachkarte wieder entnommen, fragt die Waage nach dem neuen Lagerort.",
-    "On: assigning a spool to an AMS bay also sets its Spoolman location to the unit, for example \"X1C AMS 1\". That way Spoolman shows where it is too.\n\nWhen the spool is taken out again on the bay card, the scale asks for the new location.",
-    "Activé : affecter une bobine à un bac AMS règle aussi son emplacement dans Spoolman sur l'unité, par exemple « X1C AMS 1 ». Spoolman montre ainsi où elle se trouve.\n\nSi la bobine est retirée depuis la fiche du bac, la balance demande le nouvel emplacement." },  // STR_SMAMS_LOC_INFO
-  { "Server nimmt keine Zuweisung an", "The server accepts no assignment",
-    "Le serveur refuse l'affectation" },  // STR_AMSV_ERR_READONLY
-  { "Drucker, Spule oder Fach unbekannt", "Printer, spool or bay unknown",
-    "Imprimante, bobine ou bac inconnu" },  // STR_AMSV_ERR_UNKNOWN
-  { "Spoolman antwortet dem Server nicht", "Spoolman is not answering the server",
-    "Spoolman ne répond pas au serveur" },  // STR_AMSV_ERR_INVENTORY
-  { "Drucker nicht verbunden", "Printer not connected",
-    "Imprimante hors ligne" },  // STR_AMSV_ERR_OFFLINE
-  { "Spule aus dem AMS nehmen?", "Take the spool out of the AMS?",
-    "Retirer la bobine de l'AMS ?" },  // STR_AMSD_TAKEOUT_Q
-  { "Entnehmen", "Take out",
-    "Retirer" },  // STR_AMSD_TAKEOUT_BTN
-  { "Erkannt: %s %s", "Found: %s %s",
-    "Détecté : %s %s" },  // STR_W_AMS_SOURCE_SEEN
-  { "nur lesend, kann nicht zuweisen", "read only, cannot assign",
-    "lecture seule, pas d'affectation" },  // STR_W_AMS_SOURCE_RO
-  { "Noch nicht erreicht. Die Waage fragt etwa 20 s nach dem Start und beim Öffnen der AMS-Ansicht.", "Not reached yet. The scale asks about 20 s after starting and when the AMS view opens.",
-    "Pas encore joint. La balance interroge environ 20 s après le démarrage et à l'ouverture de la vue AMS." },  // STR_W_AMS_SOURCE_UNSEEN
-  { "Creality-CFS-Tags lesen", "Read Creality CFS tags",
-    "Lire les tags Creality CFS" },  // STR_W_CREALITY
-  { "Liest Creality-CFS-Tags (K2 Plus, K2 Pro, K2 Max, Hi): Material, Farbe und Gewicht. Ein unbekannter 4-Byte-Tag wird zuerst als Creality-Tag versucht, danach als Bambu-Tag. Die Waage merkt sich je Tag, was er ist, und liest ihn beim nächsten Mal direkt.",
-    "Reads Creality CFS tags (K2 Plus, K2 Pro, K2 Max, Hi): material, colour and weight. An unknown 4 byte tag is tried as a Creality tag first, then as a Bambu tag. The scale remembers per tag which it is and reads it directly the next time.",
-    "Lit les tags Creality CFS (K2 Plus, K2 Pro, K2 Max, Hi) : matériau, couleur et poids. Un tag de 4 octets inconnu est d'abord essayé comme tag Creality, puis comme tag Bambu. La balance retient pour chaque tag de quel type il est et le lit directement la fois suivante." },  // STR_W_CREALITY_HINT
-  { "Kein leerer Tag. Er wurde nicht verändert.",
-    "Not a blank tag. It was left as it is.",
-    "Tag non vierge. Il est resté tel quel." },  // STR_TW_ERR_NOT_BLANK
-  { "Als CFS-Tag beschreiben?", "Write as a CFS tag?", "Écrire comme tag CFS ?" },  // STR_TW_CFS_ASK_TITLE
-  { "Der leere Tag bekommt die Daten dieser Spule, damit das Creality CFS sie erkennt.",
-    "The blank tag gets this spool's data, so the Creality CFS recognises it.",
-    "Le tag vierge reçoit les données de la bobine, que le CFS Creality reconnaîtra." },  // STR_TW_CFS_ASK_HINT
-  { "Der Tag antwortet nicht. Spule kurz anheben und wieder genauso hinstellen.",
-    "The tag does not answer. Lift the spool briefly and put it back the same way.",
-    "Le tag ne répond pas. Soulevez un instant la bobine et reposez-la pareil." },  // STR_TW_CFS_REPLACE
-  { "CFS-Tag aktualisieren?", "Update the CFS tag?", "Actualiser le tag CFS ?" },  // STR_TW_CFS_UPD_TITLE
-  { "In Spoolman stehen andere Daten als auf dem Tag. Er wird mit den aktuellen Daten neu beschrieben.",
-    "Spoolman holds different data than the tag. It is written again with the current data.",
-    "Spoolman contient d'autres données que le tag. Il est réécrit avec les données actuelles." },  // STR_TW_CFS_UPD_HINT
-  { "Creality-Tag überschreiben?", "Overwrite the Creality tag?",
-    "Écraser le tag Creality ?" },  // STR_TW_CFS_OVR_TITLE
-  { "Der Tag trägt die Daten eines anderen Filaments. Nur überschreiben, wenn die Spule neu bespult wurde.",
-    "The tag carries another filament's data. Only overwrite it if the spool has been refilled.",
-    "Le tag porte les données d'un autre filament. À n'écraser que si la bobine a été rembobinée." },  // STR_TW_CFS_OVR_HINT
-  { "Spool-ID auf den Tag schreiben?", "Write the spool ID to the tag?",
-    "Écrire l'ID de bobine sur le tag ?" },  // STR_TW_CFS_SID_TITLE
-  { "Der Original-Tag trägt Crealitys Seriennummer statt der Spool-ID. Damit verknüpft CFSync die falsche Spule. Material und Farbe bleiben gleich.",
-    "The original tag carries Creality's serial instead of the spool ID, so CFSync links the wrong spool. Material and colour stay the same.",
-    "Le tag d'origine porte le numéro de Creality au lieu de l'ID de bobine, CFSync lie donc la mauvaise bobine. Matériau et couleur restent." },  // STR_TW_CFS_SID_HINT
-  // Backend page: a second, parked server set
-  // %s is the parked set's name, or its address when it has none.
-  { "Zweiter Server",
-    "Second server",
-    "Second serveur" },  // STR_W_C_SERVER_SETS
-  { "Die Waage merkt sich zwei Server-Sätze: Adressen und Zugangsdaten aller drei Backends und die AMS-Quelle. Wechseln tauscht sie aus, zum Beispiel zwischen Heimserver und Test-Pi. Welches Backend aktiv ist, bleibt gleich.",
-    "The scale keeps two server sets: the addresses and credentials of all three backends and the AMS source. Switching exchanges them, between a home server and a test Pi, say. Which backend is active stays the same.",
-    "La balance garde deux jeux de serveurs : adresses et identifiants des trois backends, et la source AMS. Basculer les échange, par exemple entre un serveur maison et un Pi de test. Le backend actif reste le même." },  // STR_W_SETS_HINT
-  { "Aktiv",
-    "Active",
-    "Actif" },  // STR_W_SETS_ACTIVE
-  { "Geparkt",
-    "Parked",
-    "En réserve" },  // STR_W_SETS_PARKED
-  { "Wechseln zu: %s",
-    "Switch to: %s",
-    "Passer à : %s" },  // STR_SETS_SWITCH_TO
-  { "Den jetzigen Satz parken? Danach sind alle Adressen leer, bis die des zweiten Servers eingetragen sind.",
-    "Park the current set? Every address is empty afterwards, until the second server's are entered.",
-    "Mettre le jeu actuel en réserve ? Toutes les adresses restent ensuite vides jusqu'à ce que vous saisissiez celles du second serveur." },  // STR_W_SETS_CREATE_ASK
-  { "z. B. Zuhause",
-    "e.g. Home",
-    "p. ex. Maison" },  // STR_W_SETS_NAME_PH
-  { "Für zwei Installationen, etwa Heimserver und Test-Pi: Die Waage merkt sich beide und wechselt mit einem Klick.",
-    "For two installations, a home server and a test Pi, say: the scale keeps both and switches with one click.",
-    "Pour deux installations, par exemple un serveur maison et un Pi de test : la balance garde les deux et bascule en un clic." },  // STR_W_SETS_OFF_HINT
-  { "Bearbeiten",
-    "Edit",
-    "Modifier" },  // STR_W_SETS_EDIT
-  { "Zweiten Server löschen",
-    "Remove second server",
-    "Supprimer le second serveur" },  // STR_W_SETS_DELETE
-  // %s is the parked set's name, or its address when it has none.
-  { "Den geparkten Satz %s löschen? Seine Adressen und Zugangsdaten sind dann weg. Der aktive Satz bleibt.",
-    "Delete the parked set %s? Its addresses and credentials are gone then. The active set stays.",
-    "Supprimer le jeu en réserve %s ? Ses adresses et identifiants sont alors perdus. Le jeu actif reste." },  // STR_W_SETS_DELETE_ASK
-  // The colour tile a tap on a swatch opens: what kind of colour it shows,
-  // beside its codes. A Bambu tag does not say gradient or dual colour.
-  { "Zwei Farben",
-    "Two colours",
-    "Deux couleurs" },  // STR_COLOR_TILE_TWO
-  { "Transluzent",
-    "Translucent",
-    "Translucide" },  // STR_COLOR_TILE_CLEAR
-  // The screenshot card's copy button, its tooltip and what it turns into for
-  // two seconds; the hint stands under a picture when the browser refuses.
-  { "Bild kopieren",
-    "Copy image",
-    "Copier l'image" },  // STR_W_SHOT_COPY
-  { "Kopiert",
-    "Copied",
-    "Copiée" },  // STR_W_SHOT_COPIED
-  { "Über http lässt der Browser kein Bild kopieren. Rechtsklick aufs Bild, dann \"Bild kopieren\".",
-    "Over http the browser does not let a page copy an image. Right-click the picture, then \"Copy image\".",
-    "En http, le navigateur ne laisse pas copier une image. Clic droit sur l'image, puis « Copier l'image »." },  // STR_W_SHOT_COPY_HINT
-  // The GitHub update screen's headline before anything was searched for.
-  { "Noch nicht gesucht",
-    "Not checked yet",
-    "Pas encore vérifié" },  // STR_GH_OTA_NOT_CHECKED
-  // The product name beside the version chip on Info & Support.
-  { "SpoolmanScale",
-    "SpoolmanScale",
-    "SpoolmanScale" },  // STR_INFO_PRODUCT
-  // Info & Support: the line under each tile's name.
-  { "Projekt unterstützen",
-    "Support the project",
-    "Soutenir le projet" },  // STR_INFO_SUB_KOFI
-  { "Code und Fehler melden",
-    "Code and bug reports",
-    "Code et signalements" },  // STR_INFO_SUB_GITHUB
-  { "Fragen und Austausch",
-    "Questions and chat",
-    "Questions et échanges" },  // STR_INFO_SUB_DISCORD
-  { "Gehäuse zum Drucken",
-    "Case to print",
-    "Boîtier à imprimer" },  // STR_INFO_SUB_MAKER
-  // Under a QR code.
-  { "Mit der Handykamera scannen",
-    "Scan with your phone camera",
-    "Scannez avec votre téléphone" },  // STR_QR_SCAN_HINT
-  // The web hand-off: the button that shows the address as a QR code, and its page.
-  { "QR-Code",
-    "QR code",
-    "QR code" },  // STR_WEB_QR_BTN
-  { "Mit der Handykamera scannen, Tippen schließt",
-    "Scan with your phone camera, tap to close",
-    "Scannez avec votre téléphone, touchez pour fermer" },  // STR_WEB_QR_HINT
-  // Before the IP address under the name.
-  { "oder",
-    "or",
-    "ou" },  // STR_WEB_OR
-  { "Im Browser API-Key und Gerätecode eintragen:",
-    "Enter the API key and device code in a browser:",
-    "Saisissez clé d'API et code d'appareil dans le navigateur :" },  // STR_WEB_STEP_CREDS
-  { "Im Browser den API-Key eintragen:",
-    "Enter the API key in a browser:",
-    "Saisissez la clé d'API dans le navigateur :" },  // STR_WEB_STEP_CREDS_BB
-  { "Dort die Grenzwerte für die Trocknungserinnerung einstellen.",
-    "Set the limits for the drying reminder there.",
-    "Réglez-y les seuils du rappel de séchage." },  // STR_WEB_DRY_HINT
-  // The file the firmware upload expects, under its status.
-  { "SpoolmanScale vX.Y.Z.bin",
-    "SpoolmanScale vX.Y.Z.bin",
-    "SpoolmanScale vX.Y.Z.bin" },  // STR_OTA_FILE_NAME
-  // Over the running version, right in the firmware upload's status row.
-  { "Installiert", "Installed", "Installée" },  // STR_OTA_INSTALLED_CAP
-  // Replaces the file name under the status once an upload failed.
-  { "Im Browser erneut versuchen", "Try again in the browser",
-    "Réessayez dans le navigateur" },  // STR_OTA_RETRY_HINT
-  // The weight button on the main screen, after the automatic weighing has
-  // looked at a spool that lay still. 202 px at f16, behind an icon.
-  { "%.0f g gesendet",     "%.0f g sent",       "%.0f g envoyés" },  // STR_WB_SENT
-  { "%.0f g, unverändert", "%.0f g, unchanged", "%.0f g, inchangé" },  // STR_WB_UNCHANGED
-  // Heavier than the backend by this much: nothing sent, a tap asks.
-  { "%+.0f g, prüfen", "%+.0f g, check", "%+.0f g, à vérifier" },  // STR_WB_RISE
-  // The weight popup (weight_popup.cpp). Its first line when the spool
-  // reads heavier than stored; %s is the backend's name. 344 px at f14,
-  // beside the parts chip, with the longest backend name in it.
-  { "Mehr als in %s: Beutel? Andere Spule?",
-    "Heavier than in %s: bag? Other spool?",
-    "Plus que %s : sachet ? Autre bobine ?" },  // STR_WP_RISE_LINE
-  // The large button, f24, 436 px with a tick before it.
-  { "%.0f g senden",          "Send %.0f g",        "Envoyer %.0f g" },  // STR_WP_SEND
-  { "%.0f g trotzdem senden", "Send %.0f g anyway", "Envoyer %.0f g quand même" },  // STR_WP_SEND_ANYWAY
-  // Under it while the bag switch is on: the reading, and what came off it.
-  { "%.0f g abzüglich %.0f g Beutel", "%.0f g less %.0f g for the bag",
-    "%.0f g moins %.0f g de sachet" },  // STR_WP_BAG_MINUS
-  { "Reaktivieren",                   "Reactivate",                     "Réactiver" },  // STR_WP_REACTIVATE
-  { "Rest wird %.0f g", "Remaining becomes %.0f g",
-    "Le reste passe à %.0f g" },  // STR_WP_REACT_SUB
-  // The two switch rows under it: title f16, subtitle f12.
-  { "Im Beutel gewogen",          "Weighed in the bag",              "Pesée dans le sachet" },  // STR_WP_BAG_ROW
-  { "zieht %.0f g ab",            "takes off %.0f g",                "retire %.0f g" },  // STR_WP_BAG_SUB
-  { "mit Beutel wären es %.0f g", "with the bag it would be %.0f g", "avec le sachet : %.0f g" },  // STR_WP_BAG_HINT
-  { "Automatisch senden",         "Send automatically",              "Envoi automatique" },  // STR_WP_AUTO_ROW
-  { "nach 4 s Ruhe, ohne Beutel", "after 4 s at rest, without bag",
-    "après 4 s immobile, sans sachet" },  // STR_WP_AUTO_SUB
-  // The bottom row: 120 px for Archive, 150 px each for the other two, f14.
-  { "Archivieren", "Archive", "Archiver" },  // STR_WP_ARCHIVE
-  { "Optionen",    "Options", "Options" },  // STR_WP_OPTIONS
-  // The popup's Options, f16 titles and f12 subtitles.
-  { "Als volle Spule übernehmen", "Take as a full spool",
-    "Reprendre comme bobine pleine" },  // STR_WP_FULL
-  { "Startgewicht wird %.0f g, Rest voll", "Initial weight becomes %.0f g, full",
-    "Poids initial %.0f g, bobine pleine" },  // STR_WP_FULL_SUB
-  { "Leere Spule wiegen", "Weigh the empty spool",
-    "Peser la bobine vide" },  // STR_WP_WEIGH_EMPTY
-  { "jetzt auf der Waage: %.0f g", "on the scale now: %.0f g",
-    "sur la balance : %.0f g" },  // STR_WP_WEIGH_EMPTY_SUB
-  { "Leergewicht eingeben", "Enter the empty weight",
-    "Saisir le poids à vide" },  // STR_WP_TYPE_EMPTY
-  { "bekannt oder vom Hersteller", "known, or from the maker",
-    "connu ou donné par le fabricant" },  // STR_WP_TYPE_EMPTY_SUB
-  // Where an empty spool weight goes. Title f16 on 436 px.
-  { "%.0f g als Leergewicht speichern für", "Store %.0f g as the empty weight of",
-    "Enregistrer %.0f g comme poids à vide pour" },  // STR_SW_SCOPE_TITLE
-  { "Nur diese Spule", "This spool only",
-    "Cette bobine seulement" },  // STR_SW_ONLY_SPOOL
-  { "Alle Spulen dieses Filaments", "Every spool of this filament",
-    "Toutes les bobines de ce filament" },  // STR_SW_ALL_FILAMENT
-  { "Alle Spulen des Herstellers", "Every spool of this brand",
-    "Toutes les bobines de la marque" },  // STR_SW_ALL_VENDOR
-  // On the row whose value applies now, f14 right of the title.
-  { "gilt: %.0f g", "now: %.0f g", "actuel : %.0f g" },  // STR_SW_CURRENT
   // ── A copy behind Bambuddy on Spoolman: what it takes over ──
   { "Profil: %s",
     "Profile: %s",
@@ -4204,9 +4120,9 @@ const char* const STRINGS[][3] = {
   { "Neues Filament - Farbton merken",
     "New filament - note its colour",
     "Nouveau filament - notez la teinte" },  // STR_SORT_NEW_FILAMENT
-  { "Dichte unbekannt: mit \"Dichte\" eingeben",
-    "Density unknown: enter it with \"Density\"",
-    "Densité inconnue : saisissez-la avec \"Densité\"" },  // STR_SORT_NO_DENSITY
+  { "Dichte unbekannt: Material in Spoolman anlegen oder ein vorhandenes wählen",
+    "Density unknown: add the material in Spoolman or pick one it has",
+    "Densité inconnue : ajoutez le matériau à Spoolman ou prenez-en un existant" },  // STR_SORT_NO_DENSITY
   { "Gleicher Farbton",
     "Same colour",
     "Même teinte" },  // STR_SORT_TWIN_TITLE
@@ -4294,457 +4210,6 @@ const char* const STRINGS[][3] = {
   { "50 bis 10000 g",
     "50 to 10000 g",
     "50 à 10000 g" },  // STR_SORT_GRAMS_BAD
-  { "Dichte",
-    "Density",
-    "Densité" },  // STR_DENSITY_BTN
-  { "Dichte (g/cm3)",
-    "Density (g/cm3)",
-    "Densité (g/cm3)" },  // STR_DENSITY_PAD_TITLE
-  { "Dichte nur von 0,50 bis 4,00 g/cm3",
-    "Density only from 0.50 to 4.00 g/cm3",
-    "Densité de 0,50 à 4,00 g/cm3 seulement" },  // STR_DENSITY_RANGE
-  { "Leer = keine Dichte. Bereich 0,50 bis 4,00 g/cm3.",
-    "Empty = no density. Range 0.50 to 4.00 g/cm3.",
-    "Vide = sans densité. Plage 0,50 à 4,00 g/cm3." },  // STR_DENSITY_PAD_INFO
-  { "Spule anlegen",
-    "Create spool",
-    "Créer bobine" },  // STR_BTN_CREATE_SPOOL
-  { "Ohne Tag - wird nicht gewogen",
-    "No tag - not weighed",
-    "Sans tag - non pesée" },  // STR_NOTAG_CTX
-  { "Füllmenge",
-    "Filament",
-    "Filament" },  // STR_NOTAG_FILL_BTN
-  { "Füllmenge (g)",
-    "Filament weight (g)",
-    "Poids de filament (g)" },  // STR_NOTAG_FILL_TITLE
-  { "Filament einer vollen Rolle, ohne Spule",
-    "Filament on a full spool, without the spool",
-    "Filament seul d'une bobine pleine" },  // STR_NOTAG_FILL_INFO
-  { "Füllmenge fehlt: mit \"Füllmenge\" eingeben",
-    "Filament weight missing: use \"Filament\"",
-    "Poids de filament inconnu : utilisez \"Filament\"" },  // STR_NOTAG_FILL_ASK
-  { "Füllmenge nur von 100 bis 5000 g",
-    "Filament weight only from 100 to 5000 g",
-    "Poids de filament de 100 à 5000 g seulement" },  // STR_NOTAG_FILL_RANGE
-  { "Spule %d angelegt - ohne Tag",
-    "Spool %d created - no tag",
-    "Bobine %d créée - sans tag" },  // STR_NOTAG_CREATED
-  { "Spule %d - Chip vor AMS auflegen",
-    "Spool %d - read chip before AMS",
-    "Bobine %d - lire la puce avant l'AMS" },  // STR_NOTAG_CREATED_BAMBU
-  { "Etikett drucken?",
-    "Print label?",
-    "Imprimer l'étiquette ?" },  // STR_LABEL_ASK
-  // The empty weight row of the weight popup's Options behind Bambuddy in
-  // Spoolman mode: one row for the four ways of the choice it opens
-  // (tare_entry.cpp). Title f16, subtitle f12, both beside the icon at 50 px.
-  { "Leergewicht der Spule", "Empty spool weight",
-    "Poids de la bobine vide" },  // STR_WP_TARE_ROW
-  { "wiegen, eintippen, Spulentyp, volle Spule", "weigh, type in, spool type, full spool",
-    "peser, saisir, type de bobine, bobine pleine" },  // STR_WP_TARE_ROW_SUB
-  // The first setup frame: n of N right in the header, f14.
-  { "%d von %d", "%d of %d", "%d sur %d" },  // STR_SETUP_STEP_OF
-  // Under the logo on the language screen, before any language is chosen,
-  // so it reads the same in every column. f16 on 456 px.
-  { "Welcome / Willkommen / Bienvenue", "Welcome / Willkommen / Bienvenue",
-    "Welcome / Willkommen / Bienvenue" },  // STR_WELCOME_TRILINGUAL
-  // Above the four step tiles of the welcome screen, f14.
-  { "Diese Schritte folgen:", "The steps ahead:", "Les étapes à venir :" },  // STR_WELCOME_STEPS_AHEAD
-  // The step tiles, f14 under a number disc, 100 px.
-  { "WLAN",       "WiFi",    "Wi-Fi" },  // STR_SETUP_TILE_WIFI
-  { "Verwaltung", "Backend", "Gestion" },  // STR_SETUP_TILE_BACKEND
-  { "Server",     "Server",  "Serveur" },  // STR_SETUP_TILE_SERVER
-  { "Waage",      "Scale",   "Balance" },  // STR_SETUP_TILE_SCALE
-  // The welcome screen's two answers, f16: quiet 150 px, main 306 px.
-  { "Überspringen", "Skip",     "Passer" },  // STR_SETUP_SKIP
-  { "Los geht's",   "Let's go", "C'est parti" },  // STR_SETUP_START
-  // WiFi step. The rescan button, quiet, f16 in 150 px.
-  { LV_SYMBOL_REFRESH "  Neu suchen", LV_SYMBOL_REFRESH "  Rescan",
-    LV_SYMBOL_REFRESH "  Actualiser" },  // STR_WIFI_RESCAN
-  // The connect card: its title f16 and the line under it f12, 420 px each.
-  { "Verbunden mit %s", "Connected to %s",
-    "Connecté à %s" },  // STR_WIFI_CONNECTED_TO
-  { "IP %s  |  Signal: %s", "IP %s  |  Signal: %s",
-    "IP %s  |  Signal : %s" },  // STR_WIFI_CONN_DETAIL
-  { "Keine Verbindung zu %s", "Could not connect to %s",
-    "Pas de connexion à %s" },  // STR_WIFI_NO_LINK
-  { "Passwort falsch oder Router zu weit weg.", "Wrong password, or the router is too far away.",
-    "Mot de passe erroné ou routeur trop loin." },  // STR_WIFI_FAIL_HINT
-  // After a failed connect, the main button, f16.
-  { "Passwort ändern", "Change password", "Modifier le mot de passe" },  // STR_WIFI_PASS_AGAIN
-  // Backend step. The note above the tiles f14 on 430 px, the docs button
-  // across the bar f16.
-  { "Dafür brauchst du einen laufenden Server.", "This needs a server that is running.",
-    "Il faut un serveur en marche." },  // STR_SETUP_SERVER_NEEDED
-  { "Noch keinen Server? Zur Anleitung", "No server yet? See the guide",
-    "Pas encore de serveur ? Le guide" },  // STR_SETUP_NO_SERVER
-  // The outline beside a backend's name, f12.
-  { "Selbst gehostet", "Self-hosted", "Auto-hébergé" },  // STR_HOSTING_SELF
-  { "Online",          "Online",      "En ligne" },  // STR_HOSTING_ONLINE
-  // One line under a backend's name, f12 in 350 px.
-  { "Weit verbreitet, für Klipper und OctoPrint", "Widely used, works with Klipper and OctoPrint",
-    "Très répandu, pour Klipper et OctoPrint" },  // STR_BACKEND_DESC_SPOOLMAN
-  { "Filamentverwaltung mit Plugins", "Filament manager with plugins",
-    "Gestion de filament avec plugins" },  // STR_BACKEND_DESC_FILAMAN
-  { "Bambu-Lab-Druckerverwaltung mit Inventar", "Bambu Lab printer manager with inventory",
-    "Gestion Bambu Lab avec inventaire" },  // STR_BACKEND_DESC_BAMBUDDY
-  // Address step: the example under the field, f12 in 200 px, %s the port.
-  { "z. B. 192.168.1.20:%s", "e.g. 192.168.1.20:%s", "ex. 192.168.1.20:%s" },  // STR_SP_EXAMPLE
-  // The bar: main f16, quiet f16 in 150 px.
-  { "Verbinden",  "Connect",    "Connecter" },  // STR_SP_CONNECT
-  { "Im Browser", "In browser", "Navigateur" },  // STR_SP_IN_BROWSER
-  // The result card: title f16 in 180 px, the line under it f12, wraps.
-  { "Verbunden", "Connected",
-    "Connecté" },  // STR_SP_CONNECTED
-  { "Server gefunden", "Server found",
-    "Serveur trouvé" },  // STR_SP_REACHED
-  { "Keine Antwort", "No answer",
-    "Pas de réponse" },  // STR_SP_NO_ANSWER
-  { "Läuft der Server? Stimmt der Port?", "Is the server running? Is the port right?",
-    "Serveur lancé ? Port correct ?" },  // STR_SP_NO_ANSWER_HINT
-  // WiFi list, above the networks, f12: the ESP32-S3 has no 5 GHz radio.
-  { "Nur 2,4-GHz-WLAN", "2.4 GHz WiFi only", "Wi-Fi 2,4 GHz uniquement" },  // STR_WIFI_24_ONLY
-  // The quiet answer of a step that can wait, f16 in 150 px.
-  { "Später", "Later", "Plus tard" },  // STR_SETUP_LATER
-  // The credentials step's title, f18 in 300 px.
-  { "Zugangsdaten", "Credentials", "Identifiants" },  // STR_SETUP_CREDS_TITLE
-  // Guided calibration. The three step chips, f14.
-  { "Leeren",   "Empty", "Vider" },  // STR_CAL_STEP_EMPTY
-  { "Auflegen", "Place", "Poser" },  // STR_CAL_STEP_PLACE
-  { "Prüfen",   "Check", "Vérifier" },  // STR_CAL_STEP_CHECK
-  // Step 1: the instruction f16 in 270 px, the caption over the live weight f12.
-  { "Bitte Auflagefläche leeren.", "Please clear the scale.", "Videz le plateau." },  // STR_CAL_EMPTY_PAN
-  { "Waage jetzt",                 "Scale now",               "Balance" },  // STR_CAL_SCALE_NOW
-  // Step 1, the line over the bar, f12 in 456 px: in the setup where to find
-  // the calibration later (settings, scale menu, row), in the settings the
-  // factor that stands.
-  { "Kein Gewicht zur Hand? Später unter %s > %s > %s.",
-    "No weight at hand? Later under %s > %s > %s.",
-    "Pas de poids ? Plus tard : %s > %s > %s." },  // STR_CAL_LATER_WHERE
-  { "Aktueller Faktor: %.2f", "Current factor: %.2f", "Facteur actuel : %.2f" },  // STR_CAL_CUR_FACTOR
-  { "Nullen",                 "Zero",                 "Mettre à zéro" },  // STR_CAL_ZERO_BTN
-  // Step 2: f16 in 200 px, wraps to two lines; the hint under it f14.
-  { "Bekanntes Gewicht auflegen.", "Place a known weight.", "Posez un poids connu." },  // STR_CAL_PLACE_KNOWN
-  { "Optimal ca. 1 kg.",           "Ideally about 1 kg.",   "Idéalement 1 kg." },  // STR_CAL_ABOUT_1KG
-  // Step 3: the caption over the live weight f12, the entered weight f14,
-  // the new factor f12.
-  { "Die Waage zeigt jetzt", "The scale now reads", "La balance affiche" },  // STR_CAL_SHOWS_NOW
-  { "Eingegeben: %s g",      "Entered: %s g",       "Saisi : %s g" },  // STR_CAL_ENTERED
-  { "Neuer Faktor: %.2f",    "New factor: %.2f",    "Nouveau facteur : %.2f" },  // STR_CAL_NEW_FACTOR
-  // Step 3's answers, f16: quiet 150 px, main 290 px.
-  { "Nochmal", "Again",       "Refaire" },  // STR_CAL_AGAIN
-  { "Passt",   "Looks right", "C'est juste" },  // STR_CAL_LOOKS_RIGHT
-  // Scale menu rows, the line under the title f12.
-  { "552 g statt 551,8 g", "552 g instead of 551.8 g",
-    "552 g au lieu de 551,8 g" },  // STR_WHOLE_GRAM_SUB
-  { "Kalibrierung zurücksetzen", "Reset calibration",
-    "Réinitialiser l'étalonnage" },  // STR_CAL_RESET_ROW
-  { "Faktor und Tara auf Anfang, mit Rückfrage", "Factor and tare back to the start, asks first",
-    "Facteur et tare remis à zéro, après confirmation" },  // STR_CAL_RESET_ROW_SUB
-  // The setup's closing screen. Title f18 in 300 px.
-  { "Fertig eingerichtet", "All set", "Configuration terminée" },  // STR_SETUP_DONE_TITLE
-  // Where something left open is found: settings > menu > row, f12.
-  { "%s > %s > %s", "%s > %s > %s", "%s > %s > %s" },  // STR_SETUP_DONE_PATH
-  // Under a summary row, f12 in 220 px; a row title f16 in 220 px.
-  { "Zugangsdaten fehlen noch", "Credentials still missing", "Identifiants manquants" },  // STR_SETUP_DONE_CREDS
-  { "Waage nicht kalibriert",   "Scale not calibrated",      "Balance non étalonnée" },  // STR_SETUP_DONE_UNCAL
-  // Over the bar, f14 in 456 px.
-  { "Spule auflegen und NFC-Tag zum Leser ausrichten.", "Place a spool and turn its NFC tag to the reader.",
-    "Posez une bobine, tag NFC face au lecteur." },  // STR_SETUP_DONE_HINT
-  { "Los", "Start",
-    "C'est parti" },  // STR_SETUP_GO
-  { "Waage jetzt: %s", "Scale now: %s",
-    "Balance : %s" },  // STR_CAL_LIVE_G
-  { "Messwert: %.0f", "Reading: %.0f",
-    "Mesure : %.0f" },  // STR_CAL_LIVE_RAW
-  { "Ab so vielen Tagen seit der letzten Trocknung wird die Spule gelb.", "After this many days since the last drying the spool turns yellow.",
-    "Jaune après ce nombre de jours sans séchage." },  // STR_DRY_PAD_HINT_YELLOW
-  { "Ab so vielen Tagen seit der letzten Trocknung wird die Spule rot.", "After this many days since the last drying the spool turns red.",
-    "Rouge après ce nombre de jours sans séchage." },  // STR_DRY_PAD_HINT_RED
-  { "So lange bleibt eine abgenommene Spule vorgemerkt, 5 bis 600 s.", "How long a lifted spool stays noted, 5 to 600 s.",
-    "Durée pendant laquelle une bobine retirée reste notée, 5 à 600 s." },  // STR_AMS_PAD_HINT
-  { "Spule per ID verlinken", "Link spool by ID",
-    "Lier une bobine par ID" },  // STR_ID_PAD_LINK_TITLE
-  { "Spule per ID kopieren", "Copy spool by ID",
-    "Copier une bobine par ID" },  // STR_ID_PAD_COPY_TITLE
-  { "Die ID steht in Spoolman und auf dem Etikett.", "The ID is shown in Spoolman and on the label.",
-    "L'ID figure dans Spoolman et sur l'étiquette." },  // STR_ID_PAD_WHERE
-  { "Farbe suchen",
-    "Search colour",
-    "Rechercher une couleur" },  // STR_COLOUR_FIND_KEY
-  { "Keine Farbe mit \"%s\"",
-    "No colour with \"%s\"",
-    "Pas de couleur \"%s\"" },  // STR_COLOUR_FIND_NONE
-  { "Spulentyp suchen",
-    "Find spool type",
-    "Chercher un type" },  // STR_SPT_FIND_KEY
-  { "Kein Spulentyp mit \"%s\"",
-    "No spool type with \"%s\"",
-    "Aucun type avec \"%s\"" },  // STR_SPT_FIND_NONE
-  { "RGB",           "RGB",           "RVB" },  // STR_LBL_L_RGB
-  { "Farbe als RGB", "Colour as RGB", "Couleur en RVB" },  // STR_LBL_F_COLOR_RGB
-  // Several identical spools in one go: the count on the create cards
-  { "Anzahl %d",
-    "Quantity %d",
-    "Quantité %d" },  // STR_BATCH_COUNT_CHIP
-  { "Anzahl gleicher Spulen",
-    "Number of identical spools",
-    "Nombre de bobines identiques" },  // STR_BATCH_COUNT_TITLE
-  { "1 bis 10 gleiche Spulen, jede mit eigener Nummer",
-    "1 to 10 identical spools, each with its own number",
-    "1 à 10 bobines identiques, chacune numérotée" },  // STR_BATCH_COUNT_INFO
-  { "1 bis 10",
-    "1 to 10",
-    "1 à 10" },  // STR_BATCH_COUNT_RANGE
-  { "%d anlegen",
-    "Create %d",
-    "Créer %d" },  // STR_BATCH_CREATE_N
-  // Several identical spools in one go: the run and its end
-  { "Spule %d von %d ...",
-    "Spool %d of %d ...",
-    "Bobine %d sur %d ..." },  // STR_BATCH_PROGRESS
-  { "%d Spulen angelegt - ohne Tag",
-    "%d spools created - no tag",
-    "%d bobines créées - sans tag" },  // STR_BATCH_CREATED
-  { "%d Spulen - Chips vor AMS auflegen",
-    "%d spools - read chips before AMS",
-    "%d bobines - puces à lire avant l'AMS" },  // STR_BATCH_CREATED_BAMBU
-  { "Spule %d: nicht angelegt (HTTP %d)",
-    "Spool %d: not created (HTTP %d)",
-    "Bobine %d : non créée (HTTP %d)" },  // STR_BATCH_STOP_FAILED
-  { "Spule %d: ohne Antwort - Inventar prüfen",
-    "Spool %d: no answer - check inventory",
-    "Bobine %d : sans réponse - voir l'inventaire" },  // STR_BATCH_STOP_UNSURE
-  // Several identical spools in one go: after the run
-  { "%d Spulen angelegt",
-    "%d spools created",
-    "%d bobines créées" },  // STR_BATCH_OVERVIEW_ALL
-  { "%d von %d angelegt",
-    "%d of %d created",
-    "%d sur %d créées" },  // STR_BATCH_OVERVIEW_SOME
-  { "Lagerort %d von %d ...",
-    "Location %d of %d ...",
-    "Emplacement %d sur %d ..." },  // STR_BATCH_LOC_PROGRESS
-  { "Ohne Lagerort: %s",
-    "No location: %s",
-    "Sans emplacement : %s" },  // STR_BATCH_LOC_MISSING
-  { "%d Etiketten drucken?",
-    "Print %d labels?",
-    "Imprimer %d étiquettes ?" },  // STR_BATCH_LABEL_ASK
-  { "Etikett %d von %d",
-    "Label %d of %d",
-    "Étiquette %d sur %d" },  // STR_BATCH_LABEL_STEP
-  { "Ohne Etikett: %s",
-    "No label: %s",
-    "Sans étiquette : %s" },  // STR_BATCH_LABELS_MISSING
-  // The Klipper page in the browser (web/pages/page_klipper.cpp)
-  { "Klipper",
-    "Klipper",
-    "Klipper" },  // STR_W_NAV_KLIPPER
-  { "Klipper-Drucker",
-    "Klipper printers",
-    "Imprimantes Klipper" },  // STR_W_KL_C_PRINTERS
-  { "Die Waage ordnet Spulen den Fächern oder Werkzeugen eines "
-    "Klipper-Druckers zu. Moonraker braucht dafür einen Abschnitt [spoolman] "
-    "mit demselben Spoolman wie die Waage. Außerdem muss Moonraker der Waage "
-    "vertrauen: ihre Adresse unter trusted_clients eintragen oder hier einen "
-    "API-Schlüssel angeben.",
-    "The scale assigns spools to the bays or tools of a Klipper printer. For "
-    "that, Moonraker needs a [spoolman] section pointing to the same Spoolman "
-    "as the scale. Moonraker must also trust the scale: add its address under "
-    "trusted_clients or enter an API key here.",
-    "La balance affecte des bobines aux bacs ou aux outils d'une imprimante Klipper. Pour cela, Moonraker a besoin d'une section [spoolman] pointant vers le même Spoolman que la balance. Moonraker doit aussi faire confiance à la balance : ajoutez son adresse sous trusted_clients ou indiquez ici une clé d'API." },  // STR_W_KL_INTRO
-  { "Noch kein Drucker eingetragen.",
-    "No printer added yet.",
-    "Aucune imprimante ajoutée pour l'instant." },  // STR_W_KL_NONE
-  { "Platz für noch %d Drucker",
-    "Room for %d more printer(s)",
-    "Place pour %d imprimante(s) de plus" },  // STR_W_KL_ROOM
-  { "Kein Platz mehr für weitere Drucker",
-    "No room for more printers",
-    "Plus de place pour d'autres imprimantes" },  // STR_W_KL_FULL
-  { "Drucker hinzufügen",
-    "Add printer",
-    "Ajouter une imprimante" },  // STR_W_KL_ADD
-  { "Drucker ändern",
-    "Change printer",
-    "Modifier l'imprimante" },  // STR_W_KL_EDIT
-  { "Ändern",
-    "Change",
-    "Modifier" },  // STR_W_KL_CHANGE
-  { "Höchstens 23 Zeichen, Umlaute zählen doppelt. Der Name ist auch der "
-    "Lagerort der Spulen in Spoolman.",
-    "At most 23 characters, umlauts and accents count double. The name is "
-    "also the spools' location in Spoolman.",
-    "23 caractères au plus, les lettres accentuées comptent double. Le nom sert aussi d'emplacement des bobines dans Spoolman." },  // STR_W_KL_NAME_HINT
-  { "IP-Adresse oder Rechnername, ohne http:// und ohne Port.",
-    "IP address or host name, without http:// and without a port.",
-    "Adresse IP ou nom d'hôte, sans http:// et sans port." },  // STR_W_KL_HOST_HINT
-  { "Port",
-    "Port",
-    "Port" },  // STR_W_KL_PORT
-  { "Nur nötig, wenn Moonraker der Waage nicht vertraut. Leer lassen: der "
-    "gespeicherte Schlüssel bleibt.",
-    "Only needed if Moonraker does not trust the scale. Leave empty to keep "
-    "the stored key.",
-    "Nécessaire seulement si Moonraker ne fait pas confiance à la balance. Laissez vide pour garder la clé enregistrée." },  // STR_W_KL_KEY_HINT
-  { "Schlüssel löschen",
-    "Delete key",
-    "Supprimer la clé" },  // STR_W_KL_KEY_DEL
-  { "Schlüssel gesetzt",
-    "Key set",
-    "Clé définie" },  // STR_W_KL_KEY_SET
-  { "Verbindung testen",
-    "Test connection",
-    "Tester la connexion" },  // STR_W_KL_TEST
-  { "Teste ...",
-    "Testing ...",
-    "Test en cours ..." },  // STR_W_KL_TESTING
-  { "Getestet: %s",
-    "Tested: %s",
-    "Testé : %s" },  // STR_W_KL_TESTED
-  { "Drucker %s aus der Waage löschen? Am Drucker selbst ändert sich nichts.",
-    "Delete printer %s from the scale? Nothing changes on the printer itself.",
-    "Supprimer l'imprimante %s de la balance ? Rien ne change sur l'imprimante elle-même." },  // STR_W_KL_DELETE_ASK
-  { "Die Waage ist beschäftigt - gleich noch einmal versuchen",
-    "The scale is busy - try again in a moment",
-    "La balance est occupée - réessayez dans un instant" },  // STR_W_KL_BUSY
-  { "Lagerort = Druckername",
-    "Location = printer name",
-    "Emplacement = nom de l'imprimante" },  // STR_W_KL_LOC
-  { "Nach dem Zuordnen setzt die Waage den Lagerort der Spule in Spoolman auf "
-    "den Namen des Druckers. Happy Hare im Modus push oder pull schreibt ihn "
-    "selbst.",
-    "After assigning, the scale sets the spool's location in Spoolman to the "
-    "printer's name. Happy Hare in push or pull mode writes it itself.",
-    "Après l'affectation, la balance met l'emplacement de la bobine dans Spoolman au nom de l'imprimante. Happy Hare en mode push ou pull l'écrit lui-même." },  // STR_W_KL_LOC_HINT
-  { "Name fehlt",
-    "The name is missing",
-    "Le nom manque" },  // STR_W_KL_E_NAME
-  { "Diesen Namen hat schon ein anderer Drucker",
-    "Another printer already has this name",
-    "Une autre imprimante porte déjà ce nom" },  // STR_W_KL_E_TAKEN
-  { "Adresse ungültig - nur Rechnername oder IP, ohne http:// und ohne Port",
-    "Invalid address - host name or IP only, without http:// and without a "
-    "port",
-    "Adresse non valide - nom d'hôte ou IP seulement, sans http:// ni port" },  // STR_W_KL_E_HOST
-  { "Port ungültig - Ziffern von 0 bis 65535 (0 = 7125)",
-    "Invalid port - digits from 0 to 65535 (0 = 7125)",
-    "Port non valide - chiffres de 0 à 65535 (0 = 7125)" },  // STR_W_KL_E_PORT
-  { "Schlüssel ungültig - nur Buchstaben, Ziffern, _ und -, höchstens 47 "
-    "Zeichen",
-    "Invalid key - letters, digits, _ and - only, at most 47 characters",
-    "Clé non valide - lettres, chiffres, _ et - seulement, 47 caractères au plus" },  // STR_W_KL_E_KEY
-  { "Drucker nicht gefunden",
-    "Printer not found",
-    "Imprimante introuvable" },  // STR_W_KL_E_GONE
-  { "Speichern fehlgeschlagen",
-    "Saving failed",
-    "Échec de l'enregistrement" },  // STR_W_KL_E_WRITE
-  { "Noch nicht getestet",
-    "Not tested yet",
-    "Pas encore testé" },  // STR_W_KL_T_NONE
-  { "Verbunden: %s, Spoolman verbunden, derselbe Spoolman",
-    "Connected: %s, Spoolman connected, same Spoolman",
-    "Connecté : %s, Spoolman connecté, même Spoolman" },  // STR_W_KL_T_OK
-  { "Nicht erreichbar - Adresse und Port prüfen",
-    "Not reachable - check address and port",
-    "Injoignable - vérifier l'adresse et le port" },  // STR_W_KL_T_UNREACHABLE
-  { "Zugang verweigert - Adresse der Waage in Moonraker als vertraut "
-    "eintragen (trusted_clients) oder API-Schlüssel angeben",
-    "Access denied - add the scale's address in Moonraker as trusted "
-    "(trusted_clients) or enter an API key",
-    "Accès refusé - déclarer l'adresse de la balance comme de confiance dans Moonraker (trusted_clients) ou indiquer une clé d'API" },  // STR_W_KL_T_ACCESS
-  { "Klipper nicht bereit (%s)",
-    "Klipper not ready (%s)",
-    "Klipper pas prêt (%s)" },  // STR_W_KL_T_KLIPPY
-  { "Spoolman ist in Moonraker nicht eingerichtet ([spoolman])",
-    "Spoolman is not set up in Moonraker ([spoolman])",
-    "Spoolman n'est pas configuré dans Moonraker ([spoolman])" },  // STR_W_KL_T_NO_SPOOLMAN
-  { "Spoolman eingerichtet, aber nicht verbunden",
-    "Spoolman set up, but not connected",
-    "Spoolman configuré, mais pas connecté" },  // STR_W_KL_T_SM_OFFLINE
-  { "Anderer Spoolman als die Waage (%s) - Zuordnen gesperrt",
-    "Another Spoolman than the scale's (%s) - assigning blocked",
-    "Autre Spoolman que celui de la balance (%s) - affectation bloquée" },  // STR_W_KL_T_OTHER
-  { "Unerwartete Antwort (HTTP %s)",
-    "Unexpected answer (HTTP %s)",
-    "Réponse inattendue (HTTP %s)" },  // STR_W_KL_T_BAD_ANSWER
-  { "Happy Hare, %d Fächer",
-    "Happy Hare, %d bays",
-    "Happy Hare, %d bacs" },  // STR_W_KL_L_MMU
-  { "AFC, %d Fächer",
-    "AFC, %d bays",
-    "AFC, %d bacs" },  // STR_W_KL_L_AFC
-  { "Werkzeugwechsler, %d Werkzeuge",
-    "Toolchanger, %d tools",
-    "Changeur d'outils, %d outils" },  // STR_W_KL_L_TOOLS
-  { "ein Extruder",
-    "one extruder",
-    "un extrudeur" },  // STR_W_KL_L_SINGLE
-  { "unbekanntes System %s, ein Feld",
-    "unknown system %s, one field",
-    "système inconnu %s, un champ" },  // STR_W_KL_L_UNKNOWN
-  { "Werkzeug-Makros ohne Variable spool_id - nur die aktive Spule (Anleitung "
-    "von Mainsail oder Fluidd)",
-    "Tool macros without a spool_id variable - the active spool only (see the "
-    "Mainsail or Fluidd guide)",
-    "Macros d'outil sans variable spool_id - seulement la bobine active (voir le guide de Mainsail ou Fluidd)" },  // STR_W_KL_N_NOVAR
-  { "mehr als 16 Felder - die ersten 16",
-    "more than 16 fields - the first 16",
-    "plus de 16 champs - les 16 premiers" },  // STR_W_KL_N_TRUNC
-  // The Klipper printers in the AMS view and the bay picker (ui/ams_view.cpp, services/ams_pick.cpp)
-  { "Aktive Spule",
-    "Active spool",
-    "Bobine active" },  // STR_AMSV_UNIT_KL_ACTIVE
-  { "nur die ersten 16 Felder",
-    "first 16 fields only",
-    "seulement les 16 premiers champs" },  // STR_AMSV_KL_FIRST16
-  { "Drucker hat die Spule nicht übernommen",
-    "The printer did not take the spool",
-    "L'imprimante n'a pas pris la bobine" },  // STR_AMSV_KL_NOT_HELD
-  { "Anderer Spoolman - Zuordnen gesperrt",
-    "Another Spoolman - assigning blocked",
-    "Autre Spoolman - affectation bloquée" },  // STR_AMSV_KL_OTHER_SM
-  { "Erst die Verbindung testen (Weboberfläche, Klipper)",
-    "Test the connection first (web interface, Klipper)",
-    "Testez d'abord la connexion (interface web, Klipper)" },  // STR_AMSV_KL_NOT_TESTED
-  { "Keine Antwort - bitte am Drucker prüfen",
-    "No answer - please check the printer",
-    "Pas de réponse - vérifiez l'imprimante" },  // STR_AMSV_KL_NO_ANSWER
-  { "Zugang verweigert",
-    "Access denied",
-    "Accès refusé" },  // STR_AMSV_KL_ACCESS
-  { "Drucker antwortet nicht",
-    "Printer does not answer",
-    "L'imprimante ne répond pas" },  // STR_AMSV_KL_STATUS_SILENT
-  // The window "Choose printer" over the AMS view (ui/printer_list.cpp)
-  { "Drucker wählen",          "Choose printer",         "Choisir l'imprimante" },  // STR_PRL_TITLE
-  { "Drucker suchen",          "Find a printer",         "Chercher une imprimante" },  // STR_PRL_FIND_KEY
-  { "Kein Drucker mit \"%s\"", "No printer with \"%s\"", "Aucune imprimante avec \"%s\"" },  // STR_PRL_FIND_NONE
-  { "Nicht alle Drucker passen - mit der Lupe suchen",
-    "Not all printers fit - search with the magnifier",
-    "Toutes les imprimantes ne tiennent pas - chercher avec la loupe" },  // STR_PRL_MORE
-  { "Klipper",                 "Klipper",                "Klipper" },  // STR_PRL_KLIPPER
-  { "Klipper, %d Werkzeuge",   "Klipper, %d tools",      "Klipper, %d outils" },  // STR_PRL_TOOLS
-  { "Klipper, MMU, %d Fächer", "Klipper, MMU, %d slots", "Klipper, MMU, %d emplacements" },  // STR_PRL_MMU
-  { "Klipper, AFC, %d Fächer", "Klipper, AFC, %d slots", "Klipper, AFC, %d emplacements" },  // STR_PRL_AFC
-  // The old location of a spool in a Klipper printer (services/klipper_location.cpp, V50)
-  { "Lagerort vor dem Drucker", "Location before the printer",
-    "Emplacement avant l'imprimante" },  // STR_KL_PREV_LOC_FIELD
-  // Downloads of the web pages when a backend shows them in a frame
-  { "Download im eingebetteten Fenster nicht möglich - die Waage direkt öffnen: http://{a}",
-    "Download not possible in an embedded window - open the scale directly: http://{a}",
-    "Téléchargement impossible dans une fenêtre intégrée - ouvrez directement la balance : http://{a}" },  // STR_W_DL_EMBEDDED
-  { "Speichern: {n}",   "Download: {n}", "Enregistrer : {n}" },  // STR_W_DL_SAVE
-  { "Gespeichert: {n}", "Saved: {n}",    "Enregistré : {n}" },  // STR_W_DL_SAVED
-  { "Zu wenig freier Speicher für die Abfrage. Am Gerät „Auf Updates prüfen“ nutzen oder die Datei hochladen.",
-    "Not enough free memory for the check. Use “Check for Updates” on the device, or upload the file.",
-    "Pas assez de mémoire libre pour la recherche. Utilisez « Rechercher des mises à jour » sur l'appareil ou envoyez le fichier." },  // STR_W_FW_LOWMEM
-  { "Zu wenig freier Speicher zum Laden. Später oder nach einem Neustart der Waage erneut versuchen.",
-    "Not enough free memory to load it. Try again later or after restarting the scale.",
-    "Pas assez de mémoire libre pour le chargement. Réessayez plus tard ou après un redémarrage de la balance." },  // STR_W_BCAT_LOWMEM
 };
 
 StringID tagWriteResultString(uint8_t code) {
@@ -4755,7 +4220,6 @@ StringID tagWriteResultString(uint8_t code) {
     case TW_ERR_BACKEND:   return STR_TW_ERR_BACKEND;
     case TW_ERR_SPACE:     return STR_TW_ERR_SPACE;
     case TW_ERR_OTHER_TAG: return STR_TW_ERR_OTHER_TAG;
-    case TW_ERR_NOT_BLANK: return STR_TW_ERR_NOT_BLANK;
     default:               return STR_TW_ERR_WRITE;
   }
 }

@@ -14,14 +14,9 @@
 #include "bambu/bambu_scan.h"
 #include "bambu/bambu_tag.h"
 #include "bambu/material_match.h"
-#include "creality/creality_scan.h"
-#include "creality/creality_write.h"
 #include "services/backend.h"
 #include "services/backend_api.h"
 #include "services/filaman_api.h"
-#include "services/mifare_formats.h"
-#include "services/mifare_write.h"
-#include "services/spoolman_actions.h"
 #include "services/tag_field.h"
 #include "services/tag_link.h"
 #include "services/tag_uid.h"
@@ -618,7 +613,6 @@ static const char* fmtLabel(TagFormat fmt) {
   switch (fmt) {
     case TAG_FMT_ACE:     return "ACE";
     case TAG_FMT_FILAMAN: return "FilaMan";
-    case TAG_FMT_CREALITY: return "Creality CFS";
     default:              return "OpenSpool";
   }
 }
@@ -632,7 +626,6 @@ const char* tagFormatLabel(uint8_t fmt) {
     case TAG_FMT_ACE:       return "Anycubic ACE";
     case TAG_FMT_FILAMAN:   return "FilaMan";
     case TAG_FMT_ERASE:     return "erase";
-    case TAG_FMT_CREALITY:  return "Creality CFS";
     default:                return "OpenSpool";
   }
 }
@@ -1065,8 +1058,7 @@ static void infoFromMifare(TagInfo *ti) {
     snprintf(ti->fmt, sizeof(ti->fmt), "unsupported");
     return;
   }
-  const bool creality = !bambu && !strcmp(g_tag.decoder, "Creality");
-  snprintf(ti->fmt, sizeof(ti->fmt), "%s", bambu ? "Bambu" : creality ? "Creality" : "Snapmaker");
+  snprintf(ti->fmt, sizeof(ti->fmt), "%s", bambu ? "Bambu" : "Snapmaker");
   // Most Bambu tags carry no vendor string, but a tag that reads with the
   // Bambu keys can only be theirs - the answer scanTick() gives as well.
   copyPrintable(ti->brand, sizeof(ti->brand),
@@ -1158,14 +1150,6 @@ static void refreshCache(bool force = false) {
         (double)g_tag.spool_weight, (double)g_tag.diameter_mm, g_tag.length_m,
         g_tag.dry_temp_c, g_tag.dry_hours,
         g_tag.production_date, countBambuDataBlocksRead(g_tag));
-    } else if (!strcmp(cached_info.fmt, "Creality")) {
-      snprintf(cached_raw, sizeof(cached_raw),
-        "{\"format\":\"Creality CFS\",\"uid\":\"%s\",\"vendor\":\"%s\",\"filament\":\"%s\","
-        "\"filament_id\":\"%s\",\"material\":\"%s\",\"color\":\"#%s\",\"nozzle\":\"%d-%d\","
-        "\"weight_g\":%.0f,\"serial\":\"%s\",\"date\":\"%s\"}",
-        g_tag.uid_str, g_tag.vendor, g_tag.detailed_filament, g_tag.material_id,
-        g_tag.material, chex, g_tag.temp_min, g_tag.temp_max,
-        (double)g_tag.spool_weight, g_tag.serial, g_tag.production_date);
     } else if (!strcmp(cached_info.fmt, "Snapmaker")) {
       snprintf(cached_raw, sizeof(cached_raw),
         "{\"format\":\"Snapmaker\",\"uid\":\"%s\",\"material\":\"%s\",\"color\":\"#%s\","
@@ -1361,130 +1345,16 @@ static bool writeSpoolRecord(int spool_id, TagFormat fmt,
   return true;
 }
 
-// A MIFARE format (services/mifare_formats.h) onto the 4 byte tag on the
-// reader. Its own path: selectWritableTag() turns every 4 byte UID away, and
-// none of the NTAG page code applies. Reports through finish() either way.
-static bool         s_mf_has_expect = false;
-static uint8_t      s_mf_expect[4];
-static MifareWaitFn s_mf_wait = nullptr;
-static bool         s_mf_overwrite = false;
-
-void tagWriteMifareTarget(const char* uid_str, void (*wait)(int phase), bool overwrite) {
-  unsigned b[4];
-  s_mf_has_expect = uid_str && sscanf(uid_str, "%2x:%2x:%2x:%2x", &b[0], &b[1], &b[2], &b[3]) == 4;
-  if (s_mf_has_expect) for (int i = 0; i < 4; i++) s_mf_expect[i] = (uint8_t)b[i];
-  s_mf_wait = wait;
-  s_mf_overwrite = overwrite;
-}
-
-bool tagFormatIsMifare(uint8_t fmt) { return mifareFormatFor(fmt) != nullptr; }
-
-bool tagCrealityCheck(int spool_id, const char* uid_str, bool* own, bool* differs,
-                      bool* serial_only) {
-  *own = false;
-  *differs = false;
-  if (serial_only) *serial_only = false;
-  unsigned b[4];
-  if (!uid_str || sscanf(uid_str, "%2x:%2x:%2x:%2x", &b[0], &b[1], &b[2], &b[3]) != 4) return false;
-  const uint8_t uid[4] = {(uint8_t)b[0], (uint8_t)b[1], (uint8_t)b[2], (uint8_t)b[3]};
-  char on_tag[41];
-  if (!crealityLastRecord(uid, on_tag)) return false;
-  JsonDocument doc;
-  if (backendGetSpoolJson(backendBaseUrl(), spool_id, doc) != 200 || doc.isNull()) return false;
-  JsonObjectConst sp = doc.as<JsonObjectConst>();
-  char want[41];
-  if (!crealityRecordForSpool(sp, spool_id, want)) return false;
-  const char* listed = sp["extra"]["nfc_uid"] | (const char*)nullptr;
-  *own = spoolNfcUidListed(listed, uid);
-  // Everything but the date: vendor, batch, filament, colour, length and
-  // serial. The serial is the spool id on a tag a scale wrote; on an original
-  // Creality tag it is Creality's own number, 000001 on every spool seen so
-  // far - and CFSync takes the serial for the Spoolman spool id, so it linked
-  // spool 5's slot to spool 1 on 14.10.2026. serial_only tells that case
-  // apart: the filament agrees, only the id is missing.
-  *differs = memcmp(on_tag + 5, want + 5, 29) != 0;
-  const bool filament_same = memcmp(on_tag + 5, want + 5, 23) == 0;
-  if (serial_only) *serial_only = *differs && filament_same && !*own;
-  logSDf("CFS check: %s spool %d, %s tag (nfc_uid '%s'), tag %.29s, Spoolman %.29s%s", uid_str,
-         spool_id, *own ? "own" : "foreign", listed ? listed : "<none>",
-         on_tag + 5, want + 5, *differs ? " - differs" : "");
-  return true;
-}
-
-// What mifareWrite() came to, for the web page and the device. True on OK.
-static bool mifareResultReported(MifareWriteResult r, uint8_t fmt) {
-  char m[96];
-  switch (r) {
-    case MIFARE_WRITE_OK:
-      return true;
-    case MIFARE_WRITE_NO_TAG:
-      finish("error", "No MIFARE tag on the reader", TW_ERR_NO_TAG);
-      return false;
-    case MIFARE_WRITE_IS_FORMAT:
-      snprintf(m, sizeof(m), "Already a %s tag, left as it is", fmtLabel((TagFormat)fmt));
-      finish("error", m, TW_ERR_NOT_BLANK);
-      return false;
-    case MIFARE_WRITE_NOT_BLANK:
-      finish("error", "Not a blank tag, left as it is", TW_ERR_NOT_BLANK);
-      return false;
-    case MIFARE_WRITE_VERIFY_FAILED:
-      finish("error", "Written, but it did not read back - try again", TW_ERR_WRITE);
-      return false;
-    default:
-      finish("error", "Write failed - keep the tag still on the reader", TW_ERR_WRITE);
-      return false;
-  }
-}
-
-static bool writeMifareJob(int spool_id, uint8_t fmt, char *name, size_t name_len) {
-  name[0] = 0;
-  const MifareFormat* mf = mifareFormatFor(fmt);
-  JsonDocument doc;
-  int code = backendGetSpoolJson(backendBaseUrl(), spool_id, doc);
-  if (code != 200 || doc.isNull()) {
-    char m[96];
-    snprintf(m, sizeof(m), "Spool %d not found on %s (HTTP %d)",
-             spool_id, backendName(), code);
-    finish("error", m, TW_ERR_BACKEND);
-    return false;
-  }
-  JsonObjectConst sp = doc.as<JsonObjectConst>();
-  MifareWriteJob job;
-  char text[MIFARE_RECORD_TEXT_BYTES];
-  if (!mf || !mf->build(sp, spool_id, &job, text, sizeof(text))) {
-    finish("error", "Could not build a record for this spool", TW_ERR_WRITE);
-    return false;
-  }
-  logSDf("%s write: spool %d as %s", job.label, spool_id, text);
-  uint8_t uid[4];
-  const MifareWriteResult r = mifareWrite(job, uid, s_mf_has_expect ? s_mf_expect : nullptr,
-                                          s_mf_wait, s_mf_overwrite);
-  s_mf_has_expect = false;
-  s_mf_wait = nullptr;
-  s_mf_overwrite = false;
-  cache_dirty = true;
-  if (!mifareResultReported(r, fmt)) return false;
-  mf->written(uid, text);
-  // Ours from now on: either scale may write it again when the spool changes.
-  spoolNfcUidAdd(spool_id, sp["extra"]["nfc_uid"] | (const char*)nullptr, uid);
-  const char *n = sp["filament"]["name"] | "";
-  snprintf(name, name_len, "%s", n[0] ? n : "spool");
-  return true;
-}
-
 // The whole write for a caller that has no parking slot to go through - the
 // device screen and the FilaMan trigger both land here when no record came
 // with the request.
 bool tagWriteSpoolNow(int spool_id, TagFormat fmt) {
   if (spool_id <= 0) return false;
+  uint8_t uid[NFC_UID_MAX], uid_len = 0;
+  if (!selectWritableTag(uid, &uid_len)) return false;
+
   char name[48];
-  if (mifareFormatFor(fmt)) {
-    if (!writeMifareJob(spool_id, fmt, name, sizeof(name))) return false;
-  } else {
-    uint8_t uid[NFC_UID_MAX], uid_len = 0;
-    if (!selectWritableTag(uid, &uid_len)) return false;
-    if (!writeSpoolRecord(spool_id, fmt, name, sizeof(name))) return false;
-  }
+  if (!writeSpoolRecord(spool_id, fmt, name, sizeof(name))) return false;
 
   char m[128];
   snprintf(m, sizeof(m), "Wrote spool %d (%s) as %s", spool_id, name,
@@ -1502,18 +1372,6 @@ void tagWriteTick() {
   scanTick();
   if (!pending) return;
   pending = false;
-
-  if (mifareFormatFor(pending_fmt)) {
-    // Follows a link that already happened, so there is nothing to link here.
-    char cname[48];
-    if (writeMifareJob(pending_id, pending_fmt, cname, sizeof(cname))) {
-      snprintf(report.name, sizeof(report.name), "%s", cname);
-      char m[128];
-      snprintf(m, sizeof(m), "Wrote spool %d (%s) as %s", pending_id, cname, fmtLabel(pending_fmt));
-      finish("ok", m, TW_OK);
-    }
-    return;
-  }
 
   uint8_t uid[NFC_UID_MAX], uid_len = 0;
   if (!selectWritableTag(uid, &uid_len)) return;

@@ -1,4 +1,3 @@
-#include <strings.h>
 #include "spoolman_lookup.h"
 #include "spoolman_lookup_internal.h"
 #include "app/app_state.h"
@@ -564,7 +563,7 @@ void applyServerColor(const String& sm_color, bool is_bambu_tag) {
   spoolColorParse(sm_color.c_str(), &server);
   const SpoolColor shown = is_bambu_tag ? spoolColorResolve(g_tag.color, server) : server;
   if (!shown.valid) return;
-  mainSwatchPaint(shown, is_bambu_tag ? tagSecondColor(shown) : nullptr);
+  swatchPaint(lbl_color_swatch, shown);
   // The raw server value rather than the parsed one, so a malformed colour is
   // visible in the log instead of silently reading as grey.
   Serial.printf("Color set: tag %s, server '%s'\n", g_tag.color_hex, sm_color.c_str());
@@ -782,10 +781,6 @@ void scheduleRescan(const char* uid, const char* format) {
 // cannot reconstruct it: for a Bambu tag it is the tray uuid, for an NTAG the
 // plain uid, and g_tag only carries the former reliably.
 static char s_last_query[48] = {0};
-
-bool lookupWasFor(const char* uid_str) {
-  return uid_str && uid_str[0] && strcasecmp(s_last_query, uid_str) == 0;
-}
 
 // Whether the last lookup ended in a real "not in the inventory", the only
 // answer that makes a later hit a binding made from outside. A lookup that
@@ -1198,7 +1193,7 @@ void querySpoolman(const char* tray_uuid, LookupOrigin origin) {
   if (!is_bambu_tag && !tagCachedHasRecord()) {
     lv_label_set_text(lbl_material, "-");
     lv_label_set_text(lbl_vendor, "-");
-    mainSwatchPaint(SpoolColor{}, nullptr);
+    swatchPaint(lbl_color_swatch, SpoolColor{});
   }
   sm_last_dried[0] = '\0';
   sm_article_nr[0] = '\0';

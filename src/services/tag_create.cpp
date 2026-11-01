@@ -9,7 +9,6 @@
 #include "../bambu/material_match.h"
 #include "spool_type_rules.h"
 #include "tag_create_bambu.h"
-#include "tag_create_creality.h"
 
 
 void tagFilamentPlanClear(TagFilamentPlan* plan) {
@@ -34,9 +33,8 @@ int tagCreateTare(const TagCreateInput& in, const TagFilamentPlan& plan,
   // is none better - the filament's and the brand's included, which the
   // scale filled with that core when it created them (spoolTareQuality()).
   TareQuality q = spoolTareQuality(w, in.spool_weight_default, in.spool_weight_g);
-  // A spool type chosen at the scale for this spool alone (Bambuddy: BBS,
-  // design note L20, and V33 for a Bambu tag, also without Spoolman) goes
-  // before the chain and counts as stored, even at Bambu's 250 g:
+  // A spool type chosen at the scale for this spool alone (BBS, design note
+  // L20) goes before the chain and counts as stored, even at Bambu's 250 g:
   // it is the new spool's own empty weight, so it is filed where the spool's
   // is (TARE_SPOOL). One step after the chain and its trust, which stay as
   // they are: folded into its input step instead, the filament's and the
@@ -58,7 +56,6 @@ int tagCreateTare(const TagCreateInput& in, const TagFilamentPlan& plan,
 typedef bool (*TagCreateBuilder)(TagCreateInput* out);
 static const TagCreateBuilder TAG_CREATE_BUILDERS[] = {
   tagCreateInputFromBambu,
-  tagCreateInputFromCreality,
 };
 
 bool tagCreateInputFromTag(TagCreateInput* in) {

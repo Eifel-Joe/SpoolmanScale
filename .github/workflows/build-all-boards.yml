@@ -14,9 +14,8 @@ name: Build and Release
 #                    factory image under the fixed name its manifest points at
 #
 # The pages of this fork are served from the branch gh-pages, so that is where
-# version.json and the flasher go. main (what has been released) and dev
-# (where pre-releases are made) are this fork's own branches, and this
-# workflow writes neither. The release comes first and the pages follow:
+# version.json and the flasher go. main stays a mirror of the original and is
+# not written by this workflow. The release comes first and the pages follow:
 # the device reads the tag from version.json and downloads from that tag's
 # release, so version.json must never name a release that does not exist, not
 # yet or not at all because its upload failed.
@@ -36,10 +35,8 @@ on:
 # read the same version.json from gh-pages, and the second push would be
 # refused or the older tag would land last. A run that has started is not
 # cancelled: it may have created its release already, and its pages must
-# follow. GitHub keeps one waiting run per group, and a manual run belongs to
-# it as well: a third run, tag or manual, started while one runs and one
-# waits cancels the waiting one. So tag one at a time, and start no manual
-# run while a tag is being released.
+# follow. GitHub keeps one waiting run per group: a third tag pushed while
+# one runs and one waits cancels the waiting one, so tag one at a time.
 concurrency:
   group: release
   cancel-in-progress: false
@@ -47,10 +44,8 @@ jobs:
   build:
     # This job builds and releases every board, but GitHub shows the job of a
     # matrix as "<name> (<matrix values>)", here "build (wt32-sc01-plus)", as
-    # if only the WT32 were released. GitHub leaves the suffix out when the
-    # name itself holds a matrix expression: not in its documentation, seen
-    # in the build-only run of 25.10.2026 (run 40236593752), whose job was
-    # "Build and release all boards". This one evaluates to the empty string
+    # if only the WT32 were released. The suffix is left out when the name
+    # itself holds a matrix expression. This one evaluates to the empty string
     # (`&&` returns its last operand), so the name stays as written. A plain
     # name would still get the suffix; test/test_release_workflow.py pins the
     # line.
@@ -62,8 +57,8 @@ jobs:
       # Every board but the matrix one, by its BOARD_ID. Built in "Build the
       # other boards", its factory image published in "Publish to gh-pages".
       # A new board is one more name here and in scripts/release_files.py
-      # (OTHER_BOARDS, MODELS); test/test_release_workflow.py holds this line
-      # and both of those to the boards in src/boards.
+      # (OTHER_BOARDS, MODELS); test/test_release_workflow.py holds both to
+      # the boards in src/boards.
       OTHER_BOARDS: waveshare-s3-lcd7 waveshare-s3-lcd7b
     strategy:
       matrix:
@@ -82,19 +77,21 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      # Pinned like the platform and the libraries: 6.2.0.post1 reports itself
-      # as 6.2.0-post.1, which the pinned platform reads as older than the
-      # 6.2.0 it requires, and every build stopped there (27.10.2026).
       - name: Install PlatformIO
-        run: pip install platformio==6.2.0
-      # The platform builds part of the firmware in its own Python environment
-      # (~/.platformio/penv) and installs "pioarduino>=6.2.0" there, which
-      # now resolves to 6.2.0.post1 with the same version string problem.
-      # Created here with 6.2.0, the platform finds it satisfied and keeps it.
-      - name: Pin PlatformIO inside the platform's environment
+        run: pip install --upgrade platformio
+      # The platform (pioarduino 55.03.312-1) installs "pioarduino>=6.2.0"
+      # into a fresh ~/.platformio/penv on every run (builder/penv_setup.py),
+      # through uv or pip, and both read these constraint variables. Since
+      # 26.10.2026 PyPI's newest is 6.2.0.post1, which calls itself
+      # 6.2.0-post.1, and the platform (platform.json: platformio >=6.2.0)
+      # refuses it: every build failed with IncompatiblePlatform. Drop the pin
+      # once a pioarduino >= 6.2.0 is out that the platform accepts. The
+      # variables hold for the other boards' builds below as well.
+      - name: Pin pioarduino to 6.2.0
         run: |
-          python -m venv ~/.platformio/penv
-          ~/.platformio/penv/bin/pip install --quiet pioarduino==6.2.0
+          echo "pioarduino==6.2.0" > "$RUNNER_TEMP/pio-constraints.txt"
+          echo "UV_CONSTRAINT=$RUNNER_TEMP/pio-constraints.txt" >> "$GITHUB_ENV"
+          echo "PIP_CONSTRAINT=$RUNNER_TEMP/pio-constraints.txt" >> "$GITHUB_ENV"
       - name: Build ${{ matrix.env }}
         run: pio run -e ${{ matrix.env }}
       - name: Refuse a binary an installed device could not take
@@ -258,10 +255,9 @@ jobs:
           # in release_files.py follows TZ.
           TZ: Europe/Berlin
         run: |
-          # "SpoolmanScale (Eifel-Joe fork) v0.8.4" for a stable tag: the
-          # numbers are this fork's own. A pre-release carries the day of the
-          # build, "SpoolmanScale (Eifel-Joe fork) v0.8.4-beta.1 (25.10.2026)":
-          # its tag alone does not say when it was made.
+          # "SpoolmanScale v0.8.4" for a stable tag. A pre-release carries the
+          # day of the build, "SpoolmanScale v0.8.4-beta.1 (25.10.2026)": its
+          # tag alone does not say when it was made.
           TITLE=$(python3 scripts/release_files.py title "${{ steps.version.outputs.version }}")
           echo "$TITLE"
           echo "title=$TITLE" >> "$GITHUB_OUTPUT"

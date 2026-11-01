@@ -1,6 +1,5 @@
 #pragma once
 
-#include <stddef.h>
 #include <stdint.h>
 
 // ============================================================
@@ -47,16 +46,9 @@ void          amsPickDropPending();
 void amsPickShow();
 
 // The same picker, asked for by a tap rather than by a removal: the AMS button
-// on a device without a load cell, and "Into AMS" under "More info" for any
-// spool on the screen. Notes the spool and opens the page whether or not the
-// removal question is switched on - the tap is the question. The order is
-// marked as opened by a tap: closed without an answer, it is not followed by
-// the location question (that one is for a spool lifted off the dish).
+// on a device without a load cell. Notes the spool and opens the page whether
+// or not the removal question is switched on - the tap is the question.
 void amsPickOpenFor(int spool_id, const char* spool_name);
 
 // Drops a note nobody acted on. Called from appLoop().
 void amsPickTick();
-
-// The Spoolman location an assignment writes for a bay's unit, "X1C AMS 1".
-// Public so taking a spool out can tell this name from one the user chose.
-void amsLocationName(char* out, size_t n, const char* printer, int ams_id);

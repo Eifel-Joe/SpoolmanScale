@@ -30,9 +30,6 @@
 // is the target when it switches between tag and spool.
 #define STATUS_TAP_EXT_PX       5
 
-static SpoolColor s_swatch_color  = {};
-static SpoolColor s_swatch_second = {};
-
 static unsigned long s_msg_ms = 0;                       // 0: nothing held
 static char          s_msg_uid[sizeof(g_tag.uid_str)] = "";
 
@@ -44,25 +41,6 @@ void statusMessageShow(const char* text, uint32_t color) {
   s_msg_ms = millis() ? millis() : 1;
 }
 
-void mainSwatchPaint(const SpoolColor& c, const SpoolColor* second) {
-  s_swatch_color  = c;
-  s_swatch_second = second ? *second : SpoolColor{};
-  swatchPaint(lbl_color_swatch, c);
-}
-
-const SpoolColor* tagSecondColor(const SpoolColor& shown) {
-  if (!shown.valid || g_tag.color_count < 2 || !g_tag.color2.valid) return nullptr;
-  if (shown.rgb != g_tag.color.rgb || shown.alpha != g_tag.color.alpha) return nullptr;
-  return &g_tag.color2;
-}
-
-ColorTileSpec mainSwatchTileSpec() {
-  // The name label holds "-" or nothing while no filament is known.
-  const char* name = lbl_filament_name ? lv_label_get_text(lbl_filament_name) : "";
-  if (strcmp(name, "-") == 0) name = "";
-  return ColorTileSpec{s_swatch_color, s_swatch_second, name};
-}
-
 void applyTagSpoolView() {
   if (!lbl_material || !lbl_vendor || !lbl_color_swatch) return;
   if (tagSpoolLookupShowsSpool()) {
@@ -71,7 +49,7 @@ void applyTagSpoolView() {
     lv_label_set_text(lbl_material, m[0] ? m : "-");
     lv_label_set_text(lbl_vendor,   v[0] ? v : "-");
     SpoolColor c;
-    if (spoolColorParse(tagSpoolLookupColor(), &c)) mainSwatchPaint(c, nullptr);
+    if (spoolColorParse(tagSpoolLookupColor(), &c)) swatchPaint(lbl_color_swatch, c);
     return;
   }
   // The tag's side, painted exactly as updateDisplay() and applyServerColor()
@@ -81,7 +59,7 @@ void applyTagSpoolView() {
   SpoolColor server;
   spoolColorParse(sm_color_global, &server);
   const SpoolColor shown = spoolColorResolve(g_tag.color, server);
-  if (shown.valid) mainSwatchPaint(shown, tagSecondColor(shown));
+  if (shown.valid) swatchPaint(lbl_color_swatch, shown);
 }
 
 void tagSpoolViewAttach(lv_obj_t* status_label) {
@@ -148,19 +126,6 @@ void paintTagStatus() {
       : sm_found ? UI_COL_GOOD : UI_COL_WARN), 0);
 }
 
-// The right-hand button is the copy button under two names: "Create spool"
-// while nothing is on the screen, "New / Copy" for an unknown tag and an
-// archived spool. The name is set each time the button is shown, so it never
-// keeps the one of the state before, and only written when it differs: this
-// runs on every change of the link bar.
-static void setCopyButtonLabel(StringID id) {
-  lv_obj_t *lbl = btn_copy ? lv_obj_get_child(btn_copy, 0) : nullptr;
-  if (!lbl) return;
-  char buf[32];
-  copyT(buf, sizeof(buf), id);
-  if (strcmp(lv_label_get_text(lbl), buf) != 0) lv_label_set_text(lbl, buf);
-}
-
 void updateLinkButton() {
   // Whichever button buildUI() put in the left slot. With a load cell that is
   // "update weight"; without one there is no weight to send and the slot holds
@@ -172,8 +137,6 @@ void updateLinkButton() {
 
   // Nothing on screen: the left slot offers a spool by its id, which is the
   // only thing it could do. Weighing needs a spool, the location one as well.
-  // The right slot offers a new spool (the copy button as "Create spool", X):
-  // "dried" has no spool to dry here.
   const bool empty = !tag_present && !sm_found;
   if (btn_by_id) {
     if (empty) lv_obj_clear_flag(btn_by_id, LV_OBJ_FLAG_HIDDEN);
@@ -181,10 +144,9 @@ void updateLinkButton() {
   }
   if (empty) {
     lv_obj_add_flag(slot1,             LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(btn_dried,         LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(btn_dried,       LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(btn_link,          LV_OBJ_FLAG_HIDDEN);
-    lv_obj_clear_flag(btn_copy,        LV_OBJ_FLAG_HIDDEN);
-    setCopyButtonLabel(STR_BTN_CREATE_SPOOL);
+    lv_obj_add_flag(btn_copy,          LV_OBJ_FLAG_HIDDEN);
     return;
   }
 
@@ -207,7 +169,6 @@ void updateLinkButton() {
     lv_obj_add_flag(btn_dried,         LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(btn_link,          LV_OBJ_FLAG_HIDDEN);
     lv_obj_clear_flag(btn_copy,        LV_OBJ_FLAG_HIDDEN);
-    setCopyButtonLabel(STR_BTN_COPY_SPOOL);
     return;
   }
 
@@ -226,7 +187,6 @@ void updateLinkButton() {
     lv_obj_add_flag(btn_dried,         LV_OBJ_FLAG_HIDDEN);
     lv_obj_clear_flag(btn_link,        LV_OBJ_FLAG_HIDDEN);
     lv_obj_clear_flag(btn_copy,        LV_OBJ_FLAG_HIDDEN);
-    setCopyButtonLabel(STR_BTN_COPY_SPOOL);
   } else {
     lv_obj_clear_flag(slot1,           LV_OBJ_FLAG_HIDDEN);
     lv_obj_clear_flag(btn_dried,       LV_OBJ_FLAG_HIDDEN);
@@ -328,8 +288,16 @@ void updateAmsMainButton() {
     }
   }
 
-  // Drains towards the right with the time the window has left.
-  const uint32_t window_ms = g_ams_window_s > 0 ? (uint32_t)g_ams_window_s * 1000UL : 0;
-  uiCountdownFillSet(bar_ams_main_fill, MAIN_AMS_FILL_W, &s_fill_w,
-                     window_ms ? rem_ms : 0, window_ms ? window_ms : 1);
+  // Drains from the right with the time the window has left, set from that
+  // time on every pass rather than run as an lv_anim: a blocking request
+  // would leave an animation running ahead of the window it shows.
+  lv_coord_t w = 0;
+  if (rem_ms > 0 && g_ams_window_s > 0) {
+    w = (lv_coord_t)((uint64_t)MAIN_AMS_FILL_W * rem_ms /
+                     ((uint64_t)g_ams_window_s * 1000UL));
+  }
+  if (w != s_fill_w) {
+    s_fill_w = w;
+    lv_obj_set_width(bar_ams_main_fill, w);
+  }
 }

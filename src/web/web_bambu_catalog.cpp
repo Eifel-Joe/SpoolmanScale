@@ -27,7 +27,6 @@ void bambuCatalogCard(String& h) {
   h += F(",state:");  h += jsStr(T(STR_W_BCAT_STATE));
   h += F(",busy:");   h += jsStr(T(STR_W_BCAT_BUSY));
   h += F(",fail:");   h += jsStr(T(STR_W_BCAT_FAIL));
-  h += F(",lowmem:"); h += jsStr(T(STR_W_BCAT_LOWMEM));
   h += F(",load:");   h += jsStr(T(STR_W_BCAT_LOAD));
   h += F(",upd:");    h += jsStr(T(STR_W_BCAT_UPDATE));
   h += F(",same:");   h += jsStr(T(STR_W_BCAT_UNCHANGED));
@@ -38,7 +37,7 @@ void bambuCatalogCard(String& h) {
          "b.disabled=false;b.textContent=d.count?M.upd:M.load;"
          "let t=d.count?M.state.replace('%d',d.count).replace('%s',d.date||'-')"
          ".replace('%s',d.checked||'-'):M.none;"
-         "if(d.error)t=(d.error==='lowmem'?M.lowmem:M.fail.replace('%s',d.error))+' '+t;"
+         "if(d.error)t=M.fail.replace('%s',d.error)+' '+t;"
          "else if(d.note==='unchanged')t=M.same+' '+t;"
          "s.textContent=t;}"
          "function poll(){fetch('/api/bambu/catalog').then(r=>r.json()).then(show).catch(()=>{});}"
@@ -102,13 +101,7 @@ void bambuCatalogRoutes(WebServer& srv) {
     const bool check = srv.arg("check") == "1";
     const bool started = check ? bambuCatalogSyncNow()
                                : webJobStart(WJ_BAMBU_CATALOG, nullptr, false);
-    // Refused for the heap is not "busy". The colour table keeps its stack in
-    // the internal heap and its whole floor (webJobStackMayGoOutside), so on
-    // the 7B in operation this is the answer it gets.
-    if (!started) {
-      sendStatus(srv, webJobLastRefusal() == WJR_LOW_HEAP ? "lowmem" : "busy");
-      return;
-    }
+    if (!started) { sendStatus(srv, "busy"); return; }
     srv.send(200, "application/json", "{\"busy\":true}");
   });
 }

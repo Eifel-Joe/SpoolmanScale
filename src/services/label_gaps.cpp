@@ -1,7 +1,6 @@
 #include "services/label_gaps.h"
 
 #include "services/label_layout.h"
-#include "services/spool_color.h"
 
 static uint32_t bit(LabelField f) { return 1u << f; }
 
@@ -19,9 +18,6 @@ uint32_t labelEmptyFields(const SpoolLabelData& s, uint32_t options) {
   if (none(s.material)) m |= bit(LF_MATERIAL);
   if (none(s.name))     m |= bit(LF_NAME);
   if (none(s.color))    m |= bit(LF_COLOR);
-  // The RGB line is the colour's text or nothing: no colour, a name, a clear filament.
-  char rgb[SPOOL_COLOR_RGB_TEXT_MAX];
-  if (!spoolColorRgbText(s.color, rgb, sizeof(rgb))) m |= bit(LF_COLOR_RGB);
   if (none(s.article))  m |= bit(LF_ARTICLE);
   if (dateMissing(s, options)) m |= bit(LF_DATE);
   if (s.spool_weight_g <= 0) m |= bit(LF_SPOOL_WEIGHT);

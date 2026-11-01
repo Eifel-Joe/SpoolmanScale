@@ -23,8 +23,6 @@
 #include "services/http_progress.h"
 #include "services/backend_api.h"
 #include "services/ble_service.h"
-#include "services/ams_presence.h"
-#include "services/no_tag_create_rules.h"   // amsInfoOffered()
 #include "services/label_printer.h"
 #include "services/server_reach.h"
 #include "services/filaman_api.h"
@@ -78,20 +76,6 @@ static bool unlink_erase_now = false;   // the erase was agreed to with the unli
 static char unlink_erase_uid[26] = "";  // ... and for this tag, as the question saw it
 static bool loc_patch_pending  = false;
 static char loc_patch_name[LOCATION_NAME_MAX] = "";   // empty: clear the location
-// The last end of the picker wrote loc_patch_name (locationPickerChosen()).
-static bool s_loc_chosen = false;
-
-// The spool the picker writes to when it is not the one on the pad, 0 while
-// the picker serves the pad as it always has. Set by
-// requestLocationPickerFor(), cleared whenever the picker closes.
-static int  s_loc_target_id = 0;
-static char s_loc_target_loc[LOCATION_NAME_MAX] = "";
-static bool s_loc_target_clear = false;   // Cancel empties the location
-
-static int locTargetId() { return s_loc_target_id > 0 ? s_loc_target_id : sm_id; }
-static const char* locTargetCurrent() {
-  return s_loc_target_id > 0 ? s_loc_target_loc : sm_location_name;
-}
 // The picker row is 370 px wide; its label keeps 10 px off each edge.
 #define LOC_ROW_LABEL_W  350
 // Most rows the picker shows, the upper bound of location_list_limit.
@@ -216,8 +200,8 @@ static lv_obj_t *loc_status_obj = nullptr;
 #define LOC_CANCEL_H    44
 #define LOC_CANCEL_GAP  8
 #define LOC_CANCEL_W    380
-#define LOC_FILL_W      (LOC_CANCEL_W - 2 * UI_LEAVE_BORDER_W)   // inside the leave outline
-#define LOC_FILL_H      (LOC_CANCEL_H - 2 * UI_LEAVE_BORDER_W)
+#define LOC_FILL_W      (LOC_CANCEL_W - 2)   // inside the button's 1 px border
+#define LOC_FILL_H      (LOC_CANCEL_H - 2)
 static lv_obj_t     *loc_cancel_fill   = nullptr;
 static lv_coord_t    loc_cancel_fill_w = -1;
 static unsigned long loc_count_ms      = 0;
@@ -236,7 +220,11 @@ static bool locCountTick() {
   const uint32_t stalled = httpStallTotalMs() - loc_count_stall;
   elapsed = (stalled >= elapsed) ? 0 : (elapsed - stalled);
   const unsigned long rem = (elapsed >= PICK_COUNTDOWN_MS) ? 0 : PICK_COUNTDOWN_MS - elapsed;
-  uiCountdownFillSet(loc_cancel_fill, LOC_FILL_W, &loc_cancel_fill_w, rem, PICK_COUNTDOWN_MS);
+  const lv_coord_t w = (lv_coord_t)((uint64_t)LOC_FILL_W * rem / PICK_COUNTDOWN_MS);
+  if (w != loc_cancel_fill_w) {
+    loc_cancel_fill_w = w;
+    lv_obj_set_width(loc_cancel_fill, w);
+  }
   if (rem > 0) return false;
   logSDf("LOC: no location chosen in %lus, closed as Cancel id=%d",
          (unsigned long)(PICK_COUNTDOWN_MS / 1000), sm_id);
@@ -244,89 +232,15 @@ static bool locCountTick() {
   return true;
 }
 
-// Who waits for the end of the picker, and for which spool
-// (requestLocationPickerThen()). Empty for every other request.
-struct LocEnded {
-  void (*fn)(int spool_id);
-  int spool_id;
-};
-static LocEnded s_loc_ended = { nullptr, 0 };
-
-// Taken before the picker's own way out navigates: showMainScreen() reaches
-// hideMoreInfoOverlays(), which forgets it.
-static LocEnded locEndedTake() {
-  const LocEnded e = s_loc_ended;
-  s_loc_ended = LocEnded{};
-  return e;
-}
-
-static void locEndedRun(const LocEnded& e) {
-  if (e.fn) e.fn(e.spool_id);
-}
-
 void requestLocationPicker(bool from_popup) {
   g_loc_picker_from_popup = from_popup;
   g_loc_picker_by_tap = false;
-  s_loc_chosen = false;   // every way the picker can open comes through here
-  s_loc_ended = LocEnded{};
   show_location_picker_pending = true;
-}
-
-// Wurzel (V39): the question for a label after a create without a tag waits
-// for this picker, whose own ways out end in showMainScreen(); its
-// hideAllOverlays() forgets every question armed on the main screen.
-// Fix: on every end of its own (see the header) who waits is taken before the
-// way back and called after it; a navigation and any other request forget it.
-// NOT-TO-DO: asking from outside whether the picker is still up: once it is
-// gone, an end and a navigation look the same.
-// See test_no_tag_location.py.
-void requestLocationPickerThen(int spool_id, void (*ended)(int spool_id)) {
-  requestLocationPicker(true);
-  s_loc_ended = LocEnded{ended, spool_id};
-}
-
-// Read only: the waiter is taken on an end and forgotten on a navigation or
-// another request, so it says what the picker's own state cannot (see above).
-bool locationPickerThenPending(void (*ended)(int spool_id)) {
-  return ended && s_loc_ended.fn == ended;
-}
-
-// Wurzel: the picker writes one spool and forgets the choice, and a run of
-// several spools wants it for the others (batch_create.h). Fix: its write's
-// answer is kept until the next request, and the name is what it wrote.
-// NOT-TO-DO: reading sm_location_name instead: it follows only a write to
-// the pad's spool, and is empty after "no location" and after a failure alike.
-bool locationPickerChosen(char* name, size_t cap, bool* cleared) {
-  if (!s_loc_chosen) return false;
-  if (name && cap) snprintf(name, cap, "%s", loc_patch_name);
-  if (cleared) *cleared = loc_patch_name[0] == '\0';
-  return true;
 }
 
 void tapLocationButton(bool from_popup) {
   requestLocationPicker(from_popup);
   g_loc_picker_by_tap = true;
-}
-
-void requestLocationPickerFor(int spool_id, const char* current, bool clear_on_cancel) {
-  if (spool_id <= 0) return;
-  s_loc_target_id = spool_id;
-  s_loc_target_clear = clear_on_cancel;
-  snprintf(s_loc_target_loc, sizeof(s_loc_target_loc), "%s", current ? current : "");
-  requestLocationPicker(true);
-  // Asked for, like a tap: the spool is named and need not be on the pad.
-  g_loc_picker_by_tap = true;
-}
-
-// A spool taken out of an AMS bay still carries the unit as its location
-// until a shelf is chosen. Closed without one, the unit is wrong, so it goes.
-static void clearLeftAmsLocation() {
-  if (s_loc_target_id <= 0 || !s_loc_target_clear) return;
-  s_loc_target_clear = false;
-  const int code = serverReachNote(backendPatchSpoolLocation(cfg_spoolman_base, s_loc_target_id,
-                                             nullptr, 8000), true);
-  logSDf("LOC: spool %d left the AMS without a shelf, '%s' cleared, HTTP %d",
-         s_loc_target_id, s_loc_target_loc, code);
 }
 
 void handleMoreInfoDeferredActions() {
@@ -337,31 +251,18 @@ void handleMoreInfoDeferredActions() {
   }
   if (loc_cancel_pending) {
     loc_cancel_pending = false;
-    const LocEnded ended = locEndedTake();
     closeLocationPicker();
-    clearLeftAmsLocation();
-    s_loc_target_id = 0;
     if (g_loc_picker_from_popup) showMainScreen();
     else                         showMoreInfoScreen();
-    locEndedRun(ended);
   }
   if (loc_patch_pending) {
     loc_patch_pending = false;
-    const LocEnded ended = locEndedTake();
     closeLocationPicker();
-    const int target = locTargetId();
-    // The pad's own fields only follow when the pad's spool was written.
-    const bool on_pad = (target == sm_id);
-    s_loc_target_id = 0;
-    s_loc_target_clear = false;   // a shelf was chosen
-    if (target > 0) {
+    if (sm_id > 0) {
       const bool clear = (loc_patch_name[0] == '\0');
-      const int code = serverReachNote(backendPatchSpoolLocation(cfg_spoolman_base, target,
+      const int code = serverReachNote(backendPatchSpoolLocation(cfg_spoolman_base, sm_id,
                                                  clear ? nullptr : loc_patch_name, 8000), true);
-      logSDf("LOC: spool %d -> '%s', HTTP %d%s", target, loc_patch_name, code,
-             on_pad ? "" : " (not on the pad)");
-      s_loc_chosen = backendWriteOk(code);
-      if (backendWriteOk(code) && on_pad) {
+      if (backendWriteOk(code)) {
         if (clear) {
           sm_location_id = 0;
           sm_location_name[0] = '\0';
@@ -379,7 +280,6 @@ void handleMoreInfoDeferredActions() {
     }
     if (g_loc_picker_from_popup) showMainScreen();
     else                         showMoreInfoScreen();
-    locEndedRun(ended);
   }
   if (show_location_picker_pending) {
     show_location_picker_pending = false;
@@ -419,15 +319,11 @@ void handleMoreInfoDeferredActions() {
 // Both pickers, from the one list hideAllOverlays() already is. Neither used
 // to be in it, so navigating away from the location picker left it standing.
 void hideMoreInfoOverlays() {
-  s_loc_target_id = 0;   // a picker left by navigating away wrote nothing
-  s_loc_target_clear = false;
   releaseScreen(&scr_location_picker);
   closeStatusPicker();
   loc_status_obj  = nullptr;
   loc_list_obj    = nullptr;
   loc_cancel_fill = nullptr;
-  // Taken down by a navigation, not ended: nobody hears of it.
-  s_loc_ended = LocEnded{};
 }
 
 // The picker and the two labels inside it, always together. The three buttons
@@ -479,13 +375,9 @@ void showLocationPicker() {
   // prompt was scheduled, the next spool's lookup may already have moved
   // sm_id - and then the question simply never appeared, with nothing on the
   // card to say why.
-  if (s_loc_target_id > 0) {
-    // Named by the caller; the pad's state says nothing about it.
-  } else if (!sm_found || (sm_archived && !g_loc_picker_by_tap) || sm_id <= 0) {
+  if (!sm_found || (sm_archived && !g_loc_picker_by_tap) || sm_id <= 0) {
     logSDf("LOC: picker not shown, sm_found=%d archived=%d sm_id=%d",
            (int)sm_found, (int)sm_archived, sm_id);
-    // Not shown is an end as well: who waits for the picker goes on.
-    locEndedRun(locEndedTake());
     return;
   }
 
@@ -610,7 +502,6 @@ void showLocationPicker() {
     lv_obj_set_style_text_color(lbl_c, lv_color_hex(UI_COL_INK_2), 0);
     lv_obj_set_style_text_font(lbl_c, UI_FONT_BODY, 0);
     lv_obj_center(lbl_c);
-    styleLeaveButton(btn_c);
     locCountRestart();
   }
 
@@ -619,17 +510,9 @@ void showLocationPicker() {
   loc_list_obj   = list;
 
   // Trigger async HTTP fetch via loop()
-  // Wurzel: without WLAN the text went into lbl_status, the main screen's
-  // status line, while the picker's own box went on saying "Loading...".
-  // After a create without a tag that line holds the note of the create, for
-  // a Bambu Lab spool the chip hint that nothing paints again (V39 brings the
-  // picker after every such create).
-  // Fix: the picker's own status line says it.
-  // NOT-TO-DO: both lines: the main screen's is not the picker's to write.
-  // See test_no_tag_location.py.
   if (!wifiManagerIsConnected()) {
     char buf[32]; copyT(buf, sizeof(buf), STR_LOCATION_NO_WIFI);
-    lv_label_set_text(lbl_loc_status, buf);
+    lv_label_set_text(lbl_status, buf);
     return;
   }
   fetch_locations_pending = true;
@@ -711,7 +594,7 @@ void fetchAndFillLocationList() {
   lv_obj_set_style_text_font(lbl_none, &lv_font_montserrat_ext_16, 0);
   lv_obj_center(lbl_none);
   lv_obj_add_event_cb(btn_none, [](lv_event_t *e) {
-    if (!wifiManagerIsConnected() || locTargetId() <= 0) return;
+    if (!wifiManagerIsConnected() || sm_id <= 0) return;
     loc_patch_name[0] = '\0';      // clear
     loc_patch_pending = true;
   }, LV_EVENT_CLICKED, NULL);
@@ -737,8 +620,7 @@ void fetchAndFillLocationList() {
     lv_obj_t *row = lv_btn_create(list);
     if (!row) { logSDf("LOC: no room for a row, list cut at %d", loc_shown); break; }
     lv_obj_set_size(row, 370, 44);
-    const char* current = locTargetCurrent();
-    bool is_current = (current[0] && strcmp(loc_name, current) == 0);
+    bool is_current = (strlen(sm_location_name) > 0 && strcmp(loc_name, sm_location_name) == 0);
     lv_obj_set_style_bg_color(row, is_current ? lv_color_hex(UI_COL_GO_BG) : lv_color_hex(UI_COL_CHIP), 0);
     lv_obj_set_style_bg_color(row, lv_color_hex(UI_COL_PRESS_FILL), LV_STATE_PRESSED);
     lv_obj_set_style_border_color(row, is_current ? lv_color_hex(UI_COL_ACCENT) : lv_color_hex(UI_COL_DIVIDER), 0);
@@ -759,7 +641,7 @@ void fetchAndFillLocationList() {
     lv_obj_set_user_data(row, (void*)(intptr_t)loc_shown);
 
     lv_obj_add_event_cb(row, [](lv_event_t *e) {
-      if (!s_loc_names || !wifiManagerIsConnected() || locTargetId() <= 0) return;
+      if (!s_loc_names || !wifiManagerIsConnected() || sm_id <= 0) return;
       const intptr_t idx = (intptr_t)lv_obj_get_user_data(lv_event_get_target(e));
       if (idx < 0 || idx >= LOC_ROWS_MAX) return;
       // Copied now: the picker is gone by the time the PATCH runs from the
@@ -861,21 +743,6 @@ static void openStatusPicker() {
 #define MI_SPOOL_SWATCH      18
 #define MI_SPOOL_SWATCH_DY    3
 #define MI_SPOOL_SWATCH_GAP   8
-// How far past the 42 px swatch a tap still opens the colour tile.
-#define MI_SWATCH_TAP_EXT_PX  10
-
-// The same colour the home screen shows: the tag's where it names one, the
-// server's where it does not. An NTAG has no tag colour here, so the server
-// decides alone. Painted on the swatch and shown by its colour tile.
-static ColorTileSpec moreInfoTileSpec() {
-  SpoolColor server_color;
-  spoolColorParse(sm_color_global, &server_color);
-  ColorTileSpec spec = mainSwatchTileSpec();   // for the name on screen
-  spec.color = spoolColorResolve(g_tag.color, server_color);
-  const SpoolColor* second = tagSecondColor(spec.color);
-  spec.second = second ? *second : SpoolColor{};
-  return spec;
-}
 
 void buildMoreInfoScreen() {
   logSD("BUILD: MoreInfoScreen");
@@ -938,44 +805,6 @@ void buildMoreInfoScreen() {
       if (!wifiManagerIsConnected()) return;
       show_status_picker_pending = true;
     });
-  }
-
-  // "Into AMS", in the same place as the chip above, which it never meets:
-  // backendCanAssignAmsSlot() is true for BamBuddy alone. The box below is
-  // full to the pixel and the left half of the header holds nothing else.
-  // Offered for any spool that is on the screen, not archived and has a
-  // number, with or without a load cell and with or without a tag (the main
-  // screen's own AMS button covers only the case without a load cell). The
-  // tap closes this page and raises a flag: the picker needs the loop, and
-  // the loop asks amsInfoOffered() once more.
-  if (amsInfoOffered(backendCanAssignAmsSlot(), amsPresenceHasAms(), sm_found, sm_archived, sm_id)) {
-    lv_obj_t *btn_ams = lv_btn_create(hdr);
-    lv_obj_set_size(btn_ams, 116, 34);
-    lv_obj_set_pos(btn_ams, 10, 9);
-    lv_obj_set_style_bg_color(btn_ams, lv_color_hex(UI_COL_ROW), 0);
-    lv_obj_set_style_bg_color(btn_ams, lv_color_hex(UI_COL_ROW_PRESS_FILL), LV_STATE_PRESSED);
-    lv_obj_set_style_border_color(btn_ams, lv_color_hex(UI_COL_ACCENT), 0);
-    lv_obj_set_style_border_width(btn_ams, 1, 0);
-    lv_obj_set_style_radius(btn_ams, UI_RADIUS_BTN, 0);
-    lv_obj_set_style_shadow_width(btn_ams, 0, 0);
-    lv_obj_add_event_cb(btn_ams, [](lv_event_t *e) {
-      logSD("BTN: MoreInfo -> into AMS");
-      ams_info_assign_pending = true;
-      // Wurzel: the page is closed from the callback of a button on it. The
-      // X above deletes it on the spot, which the project's rules forbid in
-      // a callback (the ratchet counts it).
-      // Fix: releaseScreen() hides the page at once and deletes it a timer
-      // pass later (lv_obj_del_async), as the status picker's archive branch
-      // does with this same page. Last in the handler, though: this button
-      // is hidden with the page and takes no further tap.
-      // NOT-TO-DO: copying the X's lv_obj_del() here.
-      releaseScreen(&scr_more_info);
-    }, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *lbl_ams = lv_label_create(btn_ams);
-    lv_label_set_text(lbl_ams, T(STR_AMS_MAIN_ASSIGN));
-    lv_obj_set_style_text_color(lbl_ams, lv_color_hex(UI_COL_ACCENT), 0);
-    lv_obj_set_style_text_font(lbl_ams, UI_FONT_SMALL, 0);
-    lv_obj_center(lbl_ams);
   }
 
   // Print label, left of the X. Only when it can do anything: a spool the
@@ -1058,10 +887,12 @@ void buildMoreInfoScreen() {
   lv_obj_set_style_border_width(swatch, 1, 0);
   lv_obj_set_style_pad_all(swatch, 0, 0);
   lv_obj_clear_flag(swatch, LV_OBJ_FLAG_SCROLLABLE);
-  swatchPaint(swatch, moreInfoTileSpec().color);
-  colorTileAttach(swatch, moreInfoTileSpec, MI_SWATCH_TAP_EXT_PX);
+  // The same colour the home screen shows: the tag's where it names one, the
+  // server's where it does not. An NTAG has no tag colour here, so the server
+  // decides alone.
   SpoolColor server_color;
   spoolColorParse(sm_color_global, &server_color);
+  swatchPaint(swatch, spoolColorResolve(g_tag.color, server_color));
 
   // SM-ID value
   lv_obj_t *lbl_id = lv_label_create(box);
@@ -1416,7 +1247,6 @@ void buildMoreInfoScreen() {
       lv_obj_set_style_text_color(lbl_no, lv_color_hex(UI_COL_CAPTION), 0);
       lv_obj_set_style_text_font(lbl_no, &lv_font_montserrat_ext_14, 0);
       lv_obj_align(lbl_no, LV_ALIGN_CENTER, 0, 0);
-      styleLeaveButton(btn_no);
 
       // Confirm unlink (rechts, rot)
       lv_obj_t *btn_yes = lv_btn_create(box2);

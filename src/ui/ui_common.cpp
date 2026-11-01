@@ -12,7 +12,6 @@
 #include "ams_detail_popup.h"
 #include "confirm_popup.h"
 #include "info_popup.h"
-#include "no_tag_create.h"
 #include "second_tag_popup.h"
 #include "spool_flow.h"
 #include "tag_write_popup.h"
@@ -42,8 +41,7 @@ bool uiModalWaiting() {
       || isSecondTagPopupOpen()
       || isSpoolFlowTagMoveOpen()
       || isAmsAssignPopupOpen()
-      || isAmsDetailPopupOpen()
-      || noTagLabelAskOpen();
+      || isAmsDetailPopupOpen();
 }
 
 // The hue a swatch is drawn in: its own, or glass for a filament that names
@@ -228,7 +226,7 @@ void addBackButton(lv_obj_t *parent, lv_event_cb_t cb) {
   lv_obj_center(lbl);
 }
 
-lv_obj_t* addCloseButton(lv_obj_t *parent) {
+void addCloseButton(lv_obj_t *parent) {
   lv_obj_t *btn = lv_btn_create(parent);
   lv_obj_set_size(btn, 44, 44);
   lv_obj_align(btn, LV_ALIGN_TOP_RIGHT, -4, 2);
@@ -243,7 +241,6 @@ lv_obj_t* addCloseButton(lv_obj_t *parent) {
   lv_obj_set_style_text_font(lbl, &lv_font_montserrat_ext_18, 0);
   lv_obj_set_style_text_color(lbl, lv_color_hex(UI_COL_BAD_TEXT), 0);
   lv_obj_center(lbl);
-  return btn;
 }
 
 void uiSecondaryFill(lv_obj_t *btn) {
@@ -257,30 +254,6 @@ void uiSecondaryFill(lv_obj_t *btn) {
   // Under the finger a shade darker than the row, not the dark frame colour
   // the callers set for the dark palettes: on a light one that flashed black.
   lv_obj_set_style_bg_color(btn, lv_color_hex(UI_COL_ROW_PRESS_FILL), LV_STATE_PRESSED);
-}
-
-void uiCountdownFillSet(lv_obj_t *fill, lv_coord_t full_w, lv_coord_t *drawn_w,
-                        uint32_t remaining_ms, uint32_t total_ms) {
-  if (!fill || total_ms == 0) return;
-  if (remaining_ms > total_ms) remaining_ms = total_ms;
-  const lv_coord_t w = (lv_coord_t)((uint64_t)full_w * remaining_ms / total_ms);
-  if (w == *drawn_w) return;
-  *drawn_w = w;
-  lv_obj_set_width(fill, w);
-  lv_obj_set_x(fill, full_w - w);
-}
-
-bool uiMainScreenCovered() {
-  lv_obj_t* const layers[] = { lv_scr_act(), lv_layer_top() };
-  for (lv_obj_t* layer : layers) {
-    const uint32_t n = lv_obj_get_child_cnt(layer);
-    for (uint32_t i = 0; i < n; i++) {
-      lv_obj_t* o = lv_obj_get_child(layer, i);
-      if (lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN)) continue;
-      if (lv_obj_get_width(o) >= LV_HOR_RES && lv_obj_get_height(o) >= LV_VER_RES) return true;
-    }
-  }
-  return false;
 }
 
 void buildSubHeader(lv_obj_t *parent, const char *title,
@@ -539,31 +512,6 @@ lv_obj_t* padButton(lv_obj_t* parent, int x, int y, int w, int h, uint32_t bg, u
   return b;
 }
 
-lv_obj_t* uiPopupBox(lv_obj_t** slot, int w, int h) {
-  releaseScreen(slot);
-  lv_obj_t* scrim = lv_obj_create(lv_scr_act());
-  *slot = scrim;
-  lv_obj_set_size(scrim, LV_HOR_RES, LV_VER_RES);
-  lv_obj_set_pos(scrim, 0, 0);
-  lv_obj_set_style_bg_color(scrim, lv_color_hex(UI_COL_SCRIM), 0);
-  lv_obj_set_style_bg_opa(scrim, UI_OPA_SCRIM, 0);
-  lv_obj_set_style_border_width(scrim, 0, 0);
-  lv_obj_set_style_radius(scrim, 0, 0);
-  lv_obj_set_style_pad_all(scrim, 0, 0);
-  lv_obj_clear_flag(scrim, LV_OBJ_FLAG_SCROLLABLE);
-
-  lv_obj_t* box = lv_obj_create(scrim);
-  lv_obj_set_size(box, w, h);
-  lv_obj_align(box, LV_ALIGN_CENTER, 0, 0);
-  lv_obj_set_style_bg_color(box, lv_color_hex(UI_COL_SURFACE), 0);
-  lv_obj_set_style_border_color(box, lv_color_hex(UI_COL_POPUP_BORDER), 0);
-  lv_obj_set_style_border_width(box, 2, 0);
-  lv_obj_set_style_radius(box, UI_RADIUS_BOX, 0);
-  lv_obj_set_style_pad_all(box, 0, 0);
-  lv_obj_clear_flag(box, LV_OBJ_FLAG_SCROLLABLE);
-  return box;
-}
-
 lv_obj_t* padLabel(lv_obj_t* btn, const char* text, uint32_t col, const lv_font_t* font) {
   lv_obj_t* l = lv_label_create(btn);
   lv_label_set_text(l, text);
@@ -572,24 +520,6 @@ lv_obj_t* padLabel(lv_obj_t* btn, const char* text, uint32_t col, const lv_font_
   lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_center(l);
   return l;
-}
-
-lv_obj_t* uiIconDisc(lv_obj_t* parent, const lv_img_dsc_t* icon, int diameter,
-                     uint32_t bg, uint32_t ink) {
-  lv_obj_t* disc = lv_obj_create(parent);
-  lv_obj_remove_style_all(disc);
-  lv_obj_set_size(disc, diameter, diameter);
-  lv_obj_set_style_radius(disc, LV_RADIUS_CIRCLE, 0);
-  lv_obj_set_style_bg_color(disc, lv_color_hex(bg), 0);
-  lv_obj_set_style_bg_opa(disc, LV_OPA_COVER, 0);
-  lv_obj_clear_flag(disc, LV_OBJ_FLAG_CLICKABLE);
-  lv_obj_add_flag(disc, LV_OBJ_FLAG_EVENT_BUBBLE);
-  lv_obj_t* img = lv_img_create(disc);
-  lv_img_set_src(img, icon);
-  lv_obj_set_style_img_recolor(img, lv_color_hex(ink), 0);
-  lv_obj_set_style_img_recolor_opa(img, LV_OPA_COVER, 0);
-  lv_obj_center(img);
-  return disc;
 }
 
 void spoolStartText(const SpoolStart& s, bool tare_inherited, char* out, size_t out_size) {
@@ -607,61 +537,4 @@ void spoolStartText(const SpoolStart& s, bool tare_inherited, char* out, size_t 
     // Used, or full on a default core: the label stays the full weight.
     snprintf(out, out_size, T(STR_TAGNEW_W_OF), s.remaining_g, s.label_g);
   }
-}
-
-void listBtnTone(lv_obj_t* btn, ListTone tone) {
-  if (tone == TONE_PLAIN) return;
-  // Amber is the same one the status bar and the web UI already warn in,
-  // red the same one the reset dialog uses, so neither introduces a colour.
-  const uint32_t border  = (tone == TONE_DANGER) ? UI_COL_BAD_BG_PRESSED : UI_COL_CAUTION_BG;
-  const uint32_t bg      = (tone == TONE_DANGER) ? UI_COL_DANGER_ROW : UI_COL_CAUTION_ROW;
-  const uint32_t pressed = (tone == TONE_DANGER) ? UI_COL_BAD_BG : UI_COL_AMBER_LINE;
-  const uint32_t text    = (tone == TONE_DANGER) ? UI_COL_DANGER_TEXT : UI_COL_WARN;
-  lv_obj_set_style_border_color(btn, lv_color_hex(border), 0);
-  lv_obj_set_style_bg_color(btn, lv_color_hex(bg), 0);
-  lv_obj_set_style_bg_color(btn, lv_color_hex(pressed), LV_STATE_PRESSED);
-  // Child 0 is the icon, child 1 the title. Both take the tone so the row
-  // reads as a warning before the text is read.
-  lv_obj_t *ico_lbl = lv_obj_get_child(btn, 0);
-  lv_obj_t *ttl_lbl = lv_obj_get_child(btn, 1);
-  if (ico_lbl) lv_obj_set_style_text_color(ico_lbl, lv_color_hex(text), 0);
-  if (ttl_lbl) lv_obj_set_style_text_color(ttl_lbl, lv_color_hex(text), 0);
-}
-
-// red_pct of `red`, the rest of `base`.
-static lv_color_t leaveMix(uint32_t red, uint32_t base, int red_pct) {
-  return lv_color_mix(lv_color_hex(red), lv_color_hex(base), (uint8_t)(red_pct * 255 / 100));
-}
-
-void styleLeaveButton(lv_obj_t* btn, const char* icon) {
-  if (!btn) return;
-  lv_obj_set_style_bg_color(btn, lv_color_hex(UI_COL_ROW), 0);
-  lv_obj_set_style_bg_color(btn, lv_color_hex(UI_COL_ROW_PRESS_FILL), LV_STATE_PRESSED);
-  lv_obj_set_style_border_width(btn, UI_LEAVE_BORDER_W, 0);
-  lv_obj_set_style_border_color(btn, leaveMix(UI_COL_BAD_TEXT, UI_COL_ROW, UI_LEAVE_BORDER_RED_PCT), 0);
-  lv_obj_set_style_border_opa(btn, LV_OPA_COVER, 0);
-  lv_obj_t* lbl = nullptr;
-  for (uint32_t i = 0; i < lv_obj_get_child_cnt(btn) && !lbl; i++) {
-    lv_obj_t* c = lv_obj_get_child(btn, i);
-    if (lv_obj_check_type(c, &lv_label_class)) lbl = c;
-  }
-  if (!lbl) return;
-  // LVGL 8.3 counts the recolour markup below when it shortens a line, so a
-  // caption with room to spare came out as "x ..." (the entry tiles). Sized
-  // to its text instead; the button clips one that really is too long.
-  const lv_label_long_mode_t mode = lv_label_get_long_mode(lbl);
-  if (mode == LV_LABEL_LONG_DOT || mode == LV_LABEL_LONG_SCROLL ||
-      mode == LV_LABEL_LONG_SCROLL_CIRCULAR) {
-    lv_label_set_long_mode(lbl, LV_LABEL_LONG_CLIP);
-    lv_obj_set_width(lbl, LV_SIZE_CONTENT);
-  }
-  // The icon in red through LVGL's recolour markup, the caption in the
-  // label's own colour; one label, so the pair stays centred as before.
-  char text[64];
-  const lv_color_t ic = leaveMix(UI_COL_BAD_TEXT, UI_COL_INK_2, UI_LEAVE_ICON_RED_PCT);
-  snprintf(text, sizeof(text), "#%06x %s#  %s", (unsigned)(lv_color_to32(ic) & 0xFFFFFFu), icon,
-           lv_label_get_text(lbl));
-  lv_label_set_recolor(lbl, true);
-  lv_label_set_text(lbl, text);
-  lv_obj_set_style_text_color(lbl, lv_color_hex(UI_COL_INK_2), 0);
 }

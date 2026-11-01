@@ -1,9 +1,7 @@
 #include "ams_view.h"
 
 #include <Arduino.h>
-#include <esp_heap_caps.h>
 #include <lvgl.h>
-#include <stdlib.h>
 #include <string.h>
 
 #include "app_config.h"
@@ -13,13 +11,11 @@
 #include "services/ams_weights.h"
 #include "services/backend_api.h"
 #include "services/http_progress.h"
-#include "services/klipper_printers.h"
 #include "services/server_reach.h"
 #include "services/prefs_store.h"
 #include "ui/ams_detail_popup.h"
 #include "ui/loading_overlay.h"
 #include "ui/navigation.h"
-#include "ui/printer_list.h"
 #include "ui/theme.h"
 #include "ui/ui_common.h"
 
@@ -42,7 +38,7 @@
 #define AMSV_BODY_TOP     40
 #define AMSV_HEADLINE_H   24
 // The status row: the printer's name, as a chip when there is more than one
-// printer to choose from, and what the printer is doing beside it. The row
+// printer to step through, and what the printer is doing beside it. The row
 // has the whole width since the reload chip moved up into the header - it
 // used to share this row, which squeezed the printer into 12 px of text that
 // was hard to read and, with two printers, did not look like the switch it is.
@@ -125,28 +121,18 @@ static AmsSlotState s_state;
 
 static bool s_build_pending = false;
 static bool s_fetch_pending = false;
-// Weights came in while the detail card or the window "Choose printer" stood
-// over the grid. Drawn as soon as it is gone; without this they would wait
-// for the next fetch.
+// Weights came in while the detail card stood over the grid. Drawn as soon
+// as the card is gone; without this they would wait for the next fetch.
 static bool s_weights_redraw = false;
-// A weights start was refused only because the task of the printer before was
-// still busy. Made up by the loop once the task is idle (startWeights()).
-static bool s_weights_owed = false;
 static bool s_close_pending = false;
 // The printers, fetched once and kept: their names are what the status line
 // shows, and asking again on every redraw would double the cost of a reload.
-// In the PSRAM: the list holds AMS_MAX_PRINTERS (64) printers, the Bambu ones
-// and the stored Klipper printers together, about 3 kB that the internal RAM
-// (BSS) should not carry for a page that is open now and then. Made on the
-// first opening and never freed, so the pointer never dangles.
-static AmsPrinterList* s_printers = nullptr;
+static AmsPrinterList s_printers;
+static uint8_t s_printer_idx = 0;
 static bool s_pick_pending  = false;
 static int  s_pick_ams      = -1;
 static int  s_pick_tray     = -1;
 static int  s_printer_id    = 0;
-// The printer chip was tapped. The window "Choose printer" is a screen of its
-// own (ui/printer_list.h), so the loop opens it, not the tap.
-static bool s_list_pending  = false;
 // A bay was tapped for its detail card. Carried like every other answer:
 // parked here, acted on from the loop, because the fetch behind it blocks.
 static bool s_detail_pending = false;
@@ -187,18 +173,11 @@ void requestAmsView(AmsViewMode mode, AmsPickCb cb, const char* headline) {
   s_cb   = cb;
   s_headline[0] = '\0';
   if (headline) snprintf(s_headline, sizeof(s_headline), "%s", headline);
-  if (!s_printers) {
-    void* mem = heap_caps_calloc(1, sizeof(AmsPrinterList), MALLOC_CAP_SPIRAM);
-    if (!mem) mem = calloc(1, sizeof(AmsPrinterList));   // no PSRAM on this board, or it is full
-    s_printers = static_cast<AmsPrinterList*>(mem);
-  }
   // Re-read on every opening. One request more per visit, and in exchange a
   // backend switch, a renamed printer or a removed one can never leave a
   // stale name on the line - this screen is opened rarely enough that the
-  // trade is not close. The window "Choose printer" is closed first: it reads
-  // this list while it is open, and its buttons would point into an emptied one.
-  closePrinterList();
-  if (s_printers) s_printers->count = 0;
+  // trade is not close.
+  s_printers.count = 0;
   // A fresh question. An answer parked by an earlier page must not be handed
   // to this one's callback.
   s_pick_pending = false;
@@ -213,7 +192,6 @@ void requestAmsView(AmsViewMode mode, AmsPickCb cb, const char* headline) {
   s_detail_pending = false;
   s_detail_ams     = -1;
   s_detail_tray    = -1;
-  s_list_pending   = false;
   s_return_to_scale_menu = false;
   s_build_pending = true;
 }
@@ -226,18 +204,14 @@ void requestAmsViewFromScaleMenu() {
 bool isAmsViewOpen() { return s_scr != nullptr; }
 
 int  amsViewPrinterId() { return s_printer_id; }
-const char* amsViewPrinterName() { return s_state.valid ? s_state.printer : ""; }
 
 // One place that lets go of the page. The fetch pumps LVGL, so the pointers
 // have to be cleared together with the screen: a stale s_body outliving its
 // parent is the kind of leftover that writes into freed memory later.
 static void closeAmsView() {
   // The card sits on lv_scr_act(), not inside the page, so freeing the page
-  // would leave it standing over whatever comes next. The window "Choose
-  // printer" as well, and it reads the page's list of printers.
+  // would leave it standing over whatever comes next.
   closeAmsDetailPopup();
-  closePrinterList();
-  s_weights_owed = false;   // nothing left to draw the grams on
   releaseScreen(&s_scr);
   s_body     = nullptr;
   s_status   = nullptr;
@@ -251,8 +225,6 @@ static void closeAmsView() {
 
 void hideAmsViewOverlays() {
   closeAmsDetailPopup();
-  // The X of the window "Choose printer" goes through showMainScreen() to here.
-  closePrinterList();
   if (s_scr) lv_obj_add_flag(s_scr, LV_OBJ_FLAG_HIDDEN);
 }
 
@@ -295,7 +267,7 @@ void destroyAmsView() {
 // Keyed on the printer count rather than on the chip's visibility, so a
 // reload - which lays the row plain while it loads - does not bounce the
 // grid up and down by eight pixels every time.
-static int rowDrop() { return (s_printers && s_printers->count > 1) ? AMSV_CHIP_AIR : 0; }
+static int rowDrop() { return (s_printers.count > 1) ? AMSV_CHIP_AIR : 0; }
 
 static void applyRowDrop() {
   const int drop   = rowDrop();
@@ -309,57 +281,8 @@ static void applyRowDrop() {
   }
 }
 
-// The chosen printer in the list, or nullptr. Looked up by its id: that is
-// what the window hands back and what the memory keeps.
-static const AmsPrinter* chosenPrinter() {
-  if (!s_printers) return nullptr;
-  for (uint8_t i = 0; i < s_printers->count; i++) {
-    if (s_printers->p[i].id == s_printer_id) return &s_printers->p[i];
-  }
-  return nullptr;
-}
-
-// The printer chip: the name and an arrow down at the left of the row, sized
-// to the text, and the status label to its right. The arrow says that a tap
-// opens a choice (the window "Choose printer"). Shared by the drawn state and
-// by a message that keeps the chip (statusRowPlain); the caller sets the
-// status text. The callback of the chip is attached once, in buildScreen().
-static void showPrinterChip(const char* printer) {
+static void statusRowPlain() {
   applyRowDrop();
-  char name[AMS_PRINTER_NAME_MAX + 4];   // the name, a blank, the arrow's 3 bytes
-  snprintf(name, sizeof(name), "%s " LV_SYMBOL_DOWN, printer);
-  lv_label_set_text(s_printer_lbl, name);
-  // Sized to the name. A name of the user's choosing can be long; the chip
-  // stops where the status would have no room left, and the label inside
-  // cuts with dots.
-  lv_coord_t w = lv_txt_get_width(name, (uint32_t)strlen(name), UI_FONT_BODY,
-                                  0, LV_TEXT_FLAG_NONE) + 2 * AMSV_CHIP_PAD_X;
-  const lv_coord_t w_max = AMSV_STATUS_W - AMSV_CHIP_GAP - AMSV_STATUS_MIN_W;
-  if (w > w_max) w = w_max;
-  lv_obj_set_width(s_printer_btn, w);
-  lv_obj_set_size(s_printer_lbl, w - 2 * AMSV_CHIP_PAD_X + AMSV_CHIP_TXT_SLACK,
-                  lv_font_get_line_height(UI_FONT_BODY));
-  lv_obj_clear_flag(s_printer_btn, LV_OBJ_FLAG_HIDDEN);
-
-  const int x = AMSV_MARGIN + w + AMSV_CHIP_GAP;
-  lv_obj_set_x(s_status, x);
-  lv_obj_set_width(s_status, 480 - AMSV_MARGIN_R - x);
-}
-
-// keep_chip: a message that does not mean the printer is gone (no connection,
-// no AMS, a failed fetch) leaves the chip where it is, with the name of the
-// printer that was chosen: it is the way to the window that chooses another.
-// A printer that does not answer must not hold the page on itself. Only with
-// several printers, since on one the chip does not exist.
-static void statusRowPlain(bool keep_chip) {
-  applyRowDrop();
-  // The name from the list, not from s_state: after a failed fetch that holds
-  // the previous printer, or nothing.
-  const AmsPrinter* chosen = chosenPrinter();
-  if (keep_chip && chosen && s_printer_btn && s_printer_lbl && s_status) {
-    showPrinterChip(chosen->name);
-    return;
-  }
   if (s_printer_btn) lv_obj_add_flag(s_printer_btn, LV_OBJ_FLAG_HIDDEN);
   if (s_status) {
     lv_obj_set_x(s_status, AMSV_MARGIN);
@@ -367,29 +290,19 @@ static void statusRowPlain(bool keep_chip) {
   }
 }
 
-// A message that keeps the chip is shown under a chip that names the printer
-// that was chosen; the grid of the printer before must not stay under it. The
-// state goes with it: a weights result of the same printer that is still on its
-// way would otherwise draw the old tiles again (applyWeights() finds no bay).
-static void dropGrid() {
-  if (s_body) lv_obj_clean(s_body);
-  s_state.unit_count = 0;
-  s_weights_redraw = false;
-}
-
-static void setStatus(const char* text, bool keep_chip = false) {
+static void setStatus(const char* text) {
   if (!s_status) return;
-  statusRowPlain(keep_chip);
-  char buf[96];
+  statusRowPlain();
+  char buf[64];
   strncpy(buf, text ? text : "", sizeof(buf) - 1);
   buf[sizeof(buf) - 1] = '\0';
   lv_label_set_text(s_status, buf);
   lv_obj_clear_flag(s_status, LV_OBJ_FLAG_HIDDEN);
 }
 
-static void setStatusFmt(int str_id, int value, bool keep_chip = false) {
+static void setStatusFmt(int str_id, int value) {
   if (!s_status) return;
-  statusRowPlain(keep_chip);
+  statusRowPlain();
   char fmt[48], buf[64];
   copyT(fmt, sizeof(fmt), str_id);
   snprintf(buf, sizeof(buf), fmt, value);
@@ -590,8 +503,6 @@ static void buildUnitHeader(lv_obj_t* parent, const AmsSlotUnit& unit,
   if (unit.label[0]) {
     strncpy(title, unit.label, sizeof(title) - 1);
     title[sizeof(title) - 1] = '\0';
-  } else if (unit.model == AMS_MODEL_KLIPPER) {
-    copyT(title, sizeof(title), STR_AMSV_UNIT_KL_ACTIVE);   // the one active spool
   } else if (unit.is_ext) {
     copyT(title, sizeof(title), STR_AMSV_UNIT_EXT);
   } else {
@@ -696,27 +607,6 @@ static void layoutGrid(const AmsSlotState& st) {
   logLvMem("amsview/post", tiles);
 }
 
-// The grid again, over the same printer, for the weights that came in behind
-// the first frame.
-// Root: the redraw called layoutGrid() on the full body, so every weights
-//   result laid a second set of tiles exactly over the first: nothing to see,
-//   but the pool held both, and with many bays it could run out.
-// Fix: the body is emptied first, as fetchAndDraw() does. lv_obj_clean() also
-//   scrolls it back to the top, so the offset is taken before and put back
-//   after; the layout runs first, as in scaleSubScrollRestore(), or LVGL
-//   clamps the offset against a content height of zero.
-// NOT-TO-DO: the clean alone: the grams come a moment after the page opens,
-//   and whoever had scrolled to a lower unit was thrown back to the top.
-//   See test_ams_grid_redraw.py.
-static void redrawGrid() {
-  if (!s_body) return;
-  const lv_coord_t scroll_y = lv_obj_get_scroll_y(s_body);
-  lv_obj_clean(s_body);
-  layoutGrid(s_state);
-  lv_obj_update_layout(s_body);
-  lv_obj_scroll_to_y(s_body, scroll_y, LV_ANIM_OFF);
-}
-
 static void backCb(lv_event_t* e) {
   s_close_pending = true;
 }
@@ -806,19 +696,23 @@ static unsigned long pickRemainingMs() {
   return PICK_COUNTDOWN_MS - elapsed;
 }
 
-// Inside the leave outline, behind the label, not clickable.
-#define AMSV_FILL_W  (AMSV_FOOT_BTN_W - 2 * UI_LEAVE_BORDER_W)
-#define AMSV_FILL_H  (AMSV_FOOT_BTN_H - 2 * UI_LEAVE_BORDER_W)
+// Inside the button's 1 px border, behind its label, not clickable.
+#define AMSV_FILL_W  (AMSV_FOOT_BTN_W - 2)
+#define AMSV_FILL_H  (AMSV_FOOT_BTN_H - 2)
 
-// Cancel looks like every other way out (styleLeaveButton); the countdown
-// fill is sized to sit inside its outline.
-static lv_obj_t* leaveCancel(lv_obj_t* btn) {
-  styleLeaveButton(btn);
+// Red like every other cancel button (ui/entry_tile.cpp). The 1 px border
+// stays, in the same red: the countdown fill is sized to sit inside it.
+static lv_obj_t* redCancel(lv_obj_t* btn) {
+  if (!btn) return nullptr;
+  lv_obj_set_style_bg_color(btn, lv_color_hex(UI_COL_BAD_BG), 0);
+  lv_obj_set_style_bg_color(btn, lv_color_hex(UI_COL_BAD_BG_PRESSED), LV_STATE_PRESSED);
+  lv_obj_set_style_border_color(btn, lv_color_hex(UI_COL_BAD_BG), 0);
+  lv_obj_t* l = lv_obj_get_child(btn, 0);
+  if (l) lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_BAD_TEXT), 0);
   return btn;
 }
 
-// The countdown drains over the cancel button in the neutral countdown tone:
-// a red fill would say danger, and cancelling is the harmless answer.
+// The countdown drains in the stronger red over the cancel button.
 static void addCancelFill(lv_obj_t* btn) {
   if (!btn) return;
   lv_obj_set_style_pad_all(btn, 0, 0);
@@ -827,7 +721,7 @@ static void addCancelFill(lv_obj_t* btn) {
   lv_obj_remove_style_all(s_cancel_fill);
   lv_obj_set_size(s_cancel_fill, AMSV_FILL_W, AMSV_FILL_H);
   lv_obj_set_pos(s_cancel_fill, 0, 0);
-  lv_obj_set_style_bg_color(s_cancel_fill, lv_color_hex(UI_COL_COUNTDOWN_FILL), 0);
+  lv_obj_set_style_bg_color(s_cancel_fill, lv_color_hex(UI_COL_BAD_BG_PRESSED), 0);
   lv_obj_set_style_bg_opa(s_cancel_fill, LV_OPA_COVER, 0);
   lv_obj_set_style_radius(s_cancel_fill, UI_RADIUS_BTN, 0);
   lv_obj_clear_flag(s_cancel_fill, LV_OBJ_FLAG_CLICKABLE);
@@ -844,7 +738,11 @@ static bool tickPickCountdown() {
     restartPickCountdown();
   }
   const unsigned long rem = pickRemainingMs();
-  uiCountdownFillSet(s_cancel_fill, AMSV_FILL_W, &s_cancel_fill_w, rem, PICK_COUNTDOWN_MS);
+  const lv_coord_t w = (lv_coord_t)((uint64_t)AMSV_FILL_W * rem / PICK_COUNTDOWN_MS);
+  if (w != s_cancel_fill_w) {
+    s_cancel_fill_w = w;
+    lv_obj_set_width(s_cancel_fill, w);
+  }
   if (rem > 0) return false;
   logSDf("AMSV: no bay chosen in %lus, closed as Cancel",
          (unsigned long)(PICK_COUNTDOWN_MS / 1000));
@@ -864,29 +762,15 @@ static void reloadCb(lv_event_t* e) {
   s_fetch_pending = true;
 }
 
-// The chip asks for the window "Choose printer"; the loop opens it.
-static void printerChipCb(lv_event_t* e) {
-  s_list_pending = true;
-}
-
-// The window's answers, from printerListTick() once it has closed. The page
-// was hidden for it and comes back in both, before anything else.
-static void amsvPrinterLeft() {
-  if (s_scr) lv_obj_clear_flag(s_scr, LV_OBJ_FLAG_HIDDEN);
-}
-
-// A printer was tapped, the current one included: that one asks for nothing.
-// Another goes through s_fetch_pending to fetchAndDraw() like every switch: that
-// path collects or makes up the weights of the printer before (startWeights()).
-// A redraw the window held back is that printer's; the fetch draws the grid.
-static void amsvPrinterPicked(int id) {
-  if (s_scr) lv_obj_clear_flag(s_scr, LV_OBJ_FLAG_HIDDEN);
-  if (id == s_printer_id) return;
-  s_weights_redraw = false;
-  s_printer_id = id;
+// Steps to the next printer. Only reachable when there is more than one, so
+// there is no wrap-around to explain on a single printer setup.
+static void nextPrinterCb(lv_event_t* e) {
+  if (s_printers.count < 2 || s_fetch_pending) return;
+  s_printer_idx = (uint8_t)((s_printer_idx + 1) % s_printers.count);
+  s_printer_id  = s_printers.p[s_printer_idx].id;
   prefsPutInt(AMSV_NVS_PRINTER, s_printer_id);
-  const AmsPrinter* p = chosenPrinter();
-  logSDf("AMSVIEW: switched to printer %d \"%s\"", s_printer_id, p ? p->name : "");
+  logSDf("AMSVIEW: switched to printer %d \"%s\"", s_printer_id,
+         s_printers.p[s_printer_idx].name);
   s_fetch_pending = true;
 }
 
@@ -965,8 +849,9 @@ static void buildScreen() {
     lv_obj_set_ext_click_area(s_printer_btn, AMSV_STATUS_EXT_CLICK);
     lv_obj_add_flag(s_printer_btn, LV_OBJ_FLAG_HIDDEN);
     // Attached once, here, and not where the text is written: a redraw runs
-    // that path again and would stack one callback on another per draw.
-    lv_obj_add_event_cb(s_printer_btn, printerChipCb, LV_EVENT_CLICKED, nullptr);
+    // that path again, and a second callback on the same object would step
+    // two printers per tap.
+    lv_obj_add_event_cb(s_printer_btn, nextPrinterCb, LV_EVENT_CLICKED, nullptr);
     s_printer_lbl = lv_label_create(s_printer_btn);
     if (s_printer_lbl) {
       lv_label_set_text(s_printer_lbl, "");
@@ -1015,11 +900,11 @@ static void buildScreen() {
   if (s_mode == AMS_VIEW_PICK) {
     s_info_btn = footButton(240 - AMSV_FOOT_GAP / 2 - AMSV_FOOT_BTN_W,
                             STR_AMSV_INFO, false, footInfoCb);
-    addCancelFill(leaveCancel(footButton(240 + AMSV_FOOT_GAP / 2, STR_CANCEL, false, footCancelCb)));
+    addCancelFill(redCancel(footButton(240 + AMSV_FOOT_GAP / 2, STR_CANCEL, false, footCancelCb)));
     applyInfoMode();
   } else if (s_mode == AMS_VIEW_WINDOW) {
     footButton(240 - AMSV_FOOT_GAP / 2 - AMSV_FOOT_BTN_W, STR_AMSV_BTN_WINDOW, true, footOpenCb);
-    leaveCancel(footButton(240 + AMSV_FOOT_GAP / 2, STR_CANCEL, false, footCancelCb));
+    redCancel(footButton(240 + AMSV_FOOT_GAP / 2, STR_CANCEL, false, footCancelCb));
   }
 }
 
@@ -1052,15 +937,10 @@ static PrinterActivity printerActivity(const char* st) {
   return PRINTER_OTHER;
 }
 
-static bool startWeights();   // defined behind applyWeights()
-
 // Fills the page. Blocks for the length of the request, so the screen is
 // drawn first and pumped, and the screen is checked again afterwards: the
 // user can have tapped back during those milliseconds.
 static void fetchAndDraw() {
-  // Every switch and every reload comes through here, so a start owed for the
-  // page as it was is void whatever way the printer was chosen.
-  s_weights_owed = false;
   if (!s_scr) return;
   setStatus(T(STR_AMSV_LOADING));
 
@@ -1070,28 +950,19 @@ static void fetchAndDraw() {
   }
   if (!s_scr) return;
 
-  // The list could not be made (no PSRAM, and the internal heap is full).
-  if (!s_printers) {
-    setStatus(T(STR_AMSV_ERR_FULL));
-    return;
-  }
-
-  // The messages below keep the printer chip where there are several printers:
-  // a Klipper printer that is switched off must not hold the page on itself.
   if (!wifi_ok) {
-    if (s_printers->count > 1) dropGrid();
-    setStatus(T(STR_AMSV_ERR_NET), s_printers->count > 1);
+    setStatus(T(STR_AMSV_ERR_NET));
     return;
   }
 
-  if (s_printers->count == 0) {
-    int code = serverReachNote(backendListPrinters(*s_printers, 8000), true);
+  if (s_printers.count == 0) {
+    int code = serverReachNote(backendListPrinters(s_printers, 8000), true);
     if (!s_scr) return;
     if (code != 200) {
-      setStatusFmt(STR_AMSV_ERR_HTTP, code, s_printers->count > 1);
+      setStatusFmt(STR_AMSV_ERR_HTTP, code);
       return;
     }
-    if (s_printers->count == 0) {
+    if (s_printers.count == 0) {
       setStatus(T(STR_AMSV_NO_PRINTER));
       return;
     }
@@ -1100,38 +971,17 @@ static void fetchAndDraw() {
     // removed silently falls back to the first rather than showing an error
     // about a machine the user has already forgotten about.
     const int stored = prefsGetInt(AMSV_NVS_PRINTER, 0);
-    s_printer_id = s_printers->p[0].id;
-    for (uint8_t i = 0; i < s_printers->count; i++) {
-      if (s_printers->p[i].id == stored) { s_printer_id = stored; break; }
+    s_printer_idx = 0;
+    for (uint8_t i = 0; i < s_printers.count; i++) {
+      if (s_printers.p[i].id == stored) { s_printer_idx = i; break; }
     }
+    s_printer_id = s_printers.p[s_printer_idx].id;
   }
 
-  int code = backendGetAmsState(s_printer_id, s_state, 8000);
-  // Root: serverReachNote() marks Bambuddy or Spoolman as down for -1, -11 or
-  // 503. A Klipper printer that is switched off answers exactly that, and it
-  // has nothing to do with those servers: the "no connection" banner would
-  // blame them for a Voron that is simply off.
-  // Fix: the answer of a Klipper printer is not noted.
-  // NOT-TO-DO: noting it and filtering the banner later; the server would
-  // already be marked unreachable by then (R27, see test_ams_klipper.py).
-  if (!klipperIsPrinterId(s_printer_id)) code = serverReachNote(code, true);
+  int code = serverReachNote(backendGetAmsState(s_printer_id, s_state, 8000), true);
   if (!s_scr) return;
   if (code != 200) {
-    if (s_printers->count > 1) dropGrid();
-    if (klipperIsPrinterId(s_printer_id)) {
-      // Root: "Server antwortet -1" for a Voron that is switched off blames a
-      // server that is fine, and says nothing about what to do (spec 8 Z:
-      // "das Fenster meldet keine Verbindung"). -1, -2, -11, KL_E_PARSE and
-      // the 5xx of a Klipper that is not ready are all "the printer does not
-      // answer"; only 401 and 403 say Moonraker turned the scale down.
-      // Fix: a Klipper printer gets words of the bay picker (R35); no answer in a short form (M5).
-      // NOT-TO-DO: the same split in a table shared with assignFailText():
-      // that one knows the assignment's own codes, this one only reads.
-      const int text = (code == 401 || code == 403) ? STR_AMSV_KL_ACCESS : STR_AMSV_KL_STATUS_SILENT;
-      setStatus(T(text), s_printers->count > 1);
-    } else {
-      setStatusFmt(STR_AMSV_ERR_HTTP, code, s_printers->count > 1);
-    }
+    setStatusFmt(STR_AMSV_ERR_HTTP, code);
     return;
   }
 
@@ -1140,7 +990,7 @@ static void fetchAndDraw() {
   if (s_body) lv_obj_clean(s_body);
 
   if (s_state.unit_count == 0) {
-    setStatus(T(STR_AMSV_NO_AMS), s_printers->count > 1);
+    setStatus(T(STR_AMSV_NO_AMS));
     return;
   }
 
@@ -1150,7 +1000,7 @@ static void fetchAndDraw() {
   {
     // What the printer is doing, without its name: offline, a job, a state,
     // or nothing at all.
-    char what[64] = "";
+    char what[48] = "";
     const PrinterActivity act = printerActivity(s_state.state);
     if (!s_state.connected) {
       // An offline printer still has a last known state worth showing, so
@@ -1182,27 +1032,38 @@ static void fetchAndDraw() {
       snprintf(what, sizeof(what), "%s", s_state.state);
     }
 
-    // A Klipper printer with more fields than the scale shows (KL_FIELDS_MAX):
-    // the grid is cut, and the line says so behind the state.
-    if (klipperIsPrinterId(s_printer_id) && klipperTruncated(s_printer_id)) {
-      char note[48];
-      copyT(note, sizeof(note), STR_AMSV_KL_FIRST16);
-      if (what[0]) strncat(what, " - ", sizeof(what) - strlen(what) - 1);
-      strncat(what, note, sizeof(what) - strlen(what) - 1);
-    }
-
     // With two or more printers the name is the switch, and looks like one:
-    // the same chip as "reload", the name with an arrow down, and a tap opens
-    // the window "Choose printer". The status stands beside it in plain text.
-    // On one printer there is nothing to choose, so the line is text only -
-    // a chip that does nothing would be a promise the page cannot keep.
-    const bool switchable = (s_printers->count > 1);
+    // the same chip as "reload", holding "2/3  P1S" so it also says where in
+    // the list the next tap goes. The status stands beside it in plain text.
+    // On one printer there is nothing to step through, so the line is text
+    // only - a chip that does nothing would be a promise the page cannot keep.
+    const bool switchable = (s_printers.count > 1);
     if (switchable && s_printer_btn && s_printer_lbl && s_status) {
-      showPrinterChip(s_state.printer);
+      applyRowDrop();
+      char fmt[12], n[12], name[48];
+      copyT(fmt, sizeof(fmt), STR_AMSV_PRN_OF);
+      snprintf(n, sizeof(n), fmt, (int)s_printer_idx + 1, (int)s_printers.count);
+      snprintf(name, sizeof(name), "%s  %s", n, s_state.printer);
+      lv_label_set_text(s_printer_lbl, name);
+      // Sized to the name. A name of the user's choosing can be long; the chip
+      // stops where the status would have no room left, and the label inside
+      // cuts with dots.
+      lv_coord_t w = lv_txt_get_width(name, (uint32_t)strlen(name), UI_FONT_BODY,
+                                      0, LV_TEXT_FLAG_NONE) + 2 * AMSV_CHIP_PAD_X;
+      const lv_coord_t w_max = AMSV_STATUS_W - AMSV_CHIP_GAP - AMSV_STATUS_MIN_W;
+      if (w > w_max) w = w_max;
+      lv_obj_set_width(s_printer_btn, w);
+      lv_obj_set_size(s_printer_lbl, w - 2 * AMSV_CHIP_PAD_X + AMSV_CHIP_TXT_SLACK,
+                      lv_font_get_line_height(UI_FONT_BODY));
+      lv_obj_clear_flag(s_printer_btn, LV_OBJ_FLAG_HIDDEN);
+
+      const int x = AMSV_MARGIN + w + AMSV_CHIP_GAP;
+      lv_obj_set_x(s_status, x);
+      lv_obj_set_width(s_status, 480 - AMSV_MARGIN_R - x);
       lv_label_set_text(s_status, what);
       lv_obj_clear_flag(s_status, LV_OBJ_FLAG_HIDDEN);
     } else {
-      char line[96];
+      char line[80];
       if (what[0]) snprintf(line, sizeof(line), "%s - %s", s_state.printer, what);
       else         snprintf(line, sizeof(line), "%s", s_state.printer);
       setStatus(line);
@@ -1215,7 +1076,7 @@ static void fetchAndDraw() {
   // printer's percentage, the weighed figure sits in the inventory, and
   // fetching it here would hold the first frame for a request per bay. So it
   // is asked for in the background and laid over the tiles when it arrives.
-  startWeights();
+  amsWeightsStart(s_printer_id, s_state);
 }
 
 // Takes what the weight fetch found into the state the grid draws from, and
@@ -1223,70 +1084,21 @@ static void fetchAndDraw() {
 static bool applyWeights(const AmsWeightsResult& r) {
   if (r.printer_id != s_printer_id) return false;   // the user switched printers
   bool changed = false;
-  const bool klipper = klipperIsPrinterId(s_printer_id);
   for (uint8_t i = 0; i < r.count; i++) {
-    const AmsWeightItem& it = r.item[i];
+    if (r.item[i].grams < 0) continue;
     for (uint8_t u = 0; u < s_state.unit_count; u++) {
       AmsSlotUnit& unit = s_state.unit[u];
-      if (unit.ams_id != it.ams_id) continue;
+      if (unit.ams_id != r.item[i].ams_id) continue;
       for (uint8_t t = 0; t < unit.tray_count; t++) {
         AmsSlotTray& tray = unit.tray[t];
-        if (tray.tray_id != it.tray_id || !tray.exists) continue;
-        if (it.grams >= 0 && tray.remain_g != it.grams) {
-          tray.remain_g = it.grams;
-          changed = true;
-        }
-        // Colour and material only for a Klipper printer, and only where the
-        // bay has none: what the printer reports (Happy Hare, AFC) stays, the
-        // spool's record fills the gap (a tool or the one active spool reports
-        // neither). A Bambu bay keeps what it reports, grams only.
-        if (!klipper) continue;
-        if (!tray.color.valid && it.color.valid) {
-          tray.color = it.color;
-          changed = true;
-        }
-        if (!tray.name[0] && it.name[0]) {
-          snprintf(tray.name, sizeof(tray.name), "%s", it.name);
-          changed = true;
-        }
+        if (tray.tray_id != r.item[i].tray_id || !tray.exists) continue;
+        if (tray.remain_g == r.item[i].grams) continue;
+        tray.remain_g = r.item[i].grams;
+        changed = true;
       }
     }
   }
   return changed;
-}
-
-// Takes a finished weights result: into the grid when it is the shown
-// printer's (applyWeights() ignores another's), and gives the slot back.
-static void collectWeights() {
-  if (amsWeightsState() != AWS_DONE) return;
-  if (s_scr && applyWeights(amsWeightsResult())) s_weights_redraw = true;
-  amsWeightsTake();
-}
-
-// Starts the weights for the state on screen. True when the task was started.
-// Root: a quick printer switch ran fetchAndDraw() while the task of the printer
-//   before was still running or its result uncollected (the loop collects after
-//   the fetch branch, which returns first). amsWeightsStart() refused, nothing
-//   asked again, and the new printer never got its grams; a Klipper field with
-//   one active spool or a tool got its name and colour only from this task and
-//   looked empty (scale log 30.10.2026 13:20:32, printer 100001 after 3).
-// Fix: a finished result is collected first (dropped when it is another
-//   printer's), and a start refused because the task is busy is owed: the loop
-//   makes it up once the task is idle (handleAmsViewDeferredActions()).
-// NOT-TO-DO: no retry for the other refusals (heap floor, nothing to weigh,
-//   backend, drying batch): they have their own reasons and one log line, a
-//   retry every pass would hold the loop. Only "busy" is told apart, by asking
-//   before the call; the signature of amsWeightsStart() stays.
-// See test_ams_weights_owed.py
-static bool startWeights() {
-  collectWeights();
-  const bool busy = amsWeightsBusy();
-  if (amsWeightsStart(s_printer_id, s_state)) {
-    s_weights_owed = false;
-    return true;
-  }
-  s_weights_owed = busy;
-  return false;
 }
 
 // The unit's name, the way the unit header writes it: a name the user gave
@@ -1295,8 +1107,6 @@ static bool startWeights() {
 static void unitName(const AmsSlotUnit& unit, char* out, size_t n) {
   if (unit.label[0]) {
     snprintf(out, n, "%s", unit.label);
-  } else if (unit.model == AMS_MODEL_KLIPPER) {
-    copyT(out, n, STR_AMSV_UNIT_KL_ACTIVE);   // the one active spool: no name from the printer
   } else if (unit.is_ext) {
     copyT(out, n, STR_AMSV_UNIT_EXT);
   } else {
@@ -1307,17 +1117,9 @@ static void unitName(const AmsSlotUnit& unit, char* out, size_t n) {
   }
 }
 
-// The bay's own name: the unit's, and the bay counted from one. A Klipper
-// field is called what the printer calls it ("MMU 3", a lane, "T1"); the one
-// active spool has no name of its own.
+// The bay's own name: the unit's, and the bay counted from one.
 static void bayName(const AmsSlotUnit& unit, const AmsSlotTray& tray,
                     char* out, size_t n) {
-  if (klipperIsPrinterId(s_printer_id)) {
-    if (!klipperFieldName(s_printer_id, unit.ams_id, tray.tray_id, out, n)) {
-      copyT(out, n, STR_AMSV_UNIT_KL_ACTIVE);
-    }
-    return;
-  }
   char unit_name[SD_UNIT_NAME_MAX];
   unitName(unit, unit_name, sizeof(unit_name));
 
@@ -1338,8 +1140,6 @@ static void detailFromTray(const AmsSlotUnit& unit, const AmsSlotTray& tray,
   bayName(unit, tray, out.bay, sizeof(out.bay));
   out.color      = tray.color;
   out.spool_id   = tray.spool_id;
-  out.ams_id     = unit.ams_id;
-  out.tray_id    = tray.tray_id;
   out.remain_pct = tray.remain;
   out.nozzle_min = tray.nozzle_min;
   out.nozzle_max = tray.nozzle_max;
@@ -1372,10 +1172,7 @@ static void openDetail(int ams_id, int tray_id) {
 
   // FilaMan names the spool per bay in the same answer the grid was drawn
   // from, so there is nothing to look up. BamBuddy does not, and its
-  // assignment list is the only place the pair is resolved. A Klipper field
-  // names its spool itself and has no Bambuddy assignment to look up: its
-  // number must not reach those calls.
-  const bool klipper = klipperIsPrinterId(s_printer_id);
+  // assignment list is the only place the pair is resolved.
   int spool_id = det.spool_id;
   if (amsUnitOffersDriedAll(*unit) && backendCanPatchLastDried()) {
     // An AMS 2 Pro: the card may offer to record a drying for the whole
@@ -1387,7 +1184,7 @@ static void openDetail(int ams_id, int tray_id) {
     for (uint8_t t = 0; t < unit->tray_count; t++) {
       if (unit->tray[t].exists && unit->tray[t].spool_id <= 0) need = true;
     }
-    if (need && s_printer_id > 0 && !klipper) {
+    if (need && s_printer_id > 0) {
       backendFindUnitSpools(s_printer_id, ams_id, by_tray, AMS_MAX_TRAYS);
     }
     for (uint8_t t = 0; t < unit->tray_count; t++) {
@@ -1410,7 +1207,7 @@ static void openDetail(int ams_id, int tray_id) {
     unitName(*unit, us.name, sizeof(us.name));
     us.printer_id = s_printer_id;
     us.ams_id     = (uint8_t)ams_id;
-  } else if (spool_id <= 0 && s_printer_id > 0 && !klipper) {
+  } else if (spool_id <= 0 && s_printer_id > 0) {
     int found = backendFindBaySpool(s_printer_id, ams_id, tray_id);
     if (found > 0) {
       spool_id = found;
@@ -1481,20 +1278,6 @@ void handleAmsViewDeferredActions() {
     return;
   }
 
-  // The window "Choose printer": its search and its parked tap. Its answer
-  // (amsvPrinterPicked/-Left) comes once it has closed; a switch is fetched below,
-  // one pass later.
-  // Root: the close only marks the window's objects for deletion (releaseScreen()),
-  //   and a redraw it held back ran in the same pass: on a WT32 whose window was
-  //   cut for memory, buildTile() found the pool still full, the grid said "full"
-  //   and the chip was gone until a reload.
-  // Fix: a pass that closed the window ends here; the next one finds it freed.
-  // NOT-TO-DO: deleting the window at once in closePrinterList(): the header's
-  //   close button reaches it from inside its own event. See test_printer_list.py, M.
-  const bool list_was_open = isPrinterListOpen();
-  printerListTick();
-  if (list_was_open && !isPrinterListOpen()) return;
-
   // Last, and a pass after the close: this is the one that talks to the
   // server. The callback sees (-1, -1) when the page was closed without an
   // answer, and it is the callback that knows what that means for its note.
@@ -1546,37 +1329,17 @@ void handleAmsViewDeferredActions() {
     return;
   }
 
-  // The chip asked for the window. Behind the fetch, so a reload tapped in the
-  // same pass is drawn first. The page is hidden under the window, not freed:
-  // a question and its Cancel stand, and tickPickCountdown() restarts the clock
-  // while the page is hidden, so the question cannot run out behind the window.
-  if (s_list_pending) {
-    s_list_pending = false;
-    if (s_scr && !lv_obj_has_flag(s_scr, LV_OBJ_FLAG_HIDDEN) &&
-        s_printers && s_printers->count > 1) {
-      lv_obj_add_flag(s_scr, LV_OBJ_FLAG_HIDDEN);
-      showPrinterList(s_printers, s_printer_id, amsvPrinterPicked, amsvPrinterLeft);
-    }
-    return;
-  }
-
   if (tickPickCountdown()) return;
 
   // The weights that came in behind the first frame. Redrawn only with the
-  // page really in front: rebuilding the tiles under an open detail card or
-  // the window "Choose printer" would hold two sets in the pool for nothing.
-  collectWeights();
-  // The start a switch could not make because the task was busy (startWeights()),
-  // made up behind the fetch branch, so for a printer that is drawn. The flag is
-  // void on every fetch and when the page closes; the checks guard the same.
-  if (s_weights_owed && s_scr && s_state.valid && s_state.printer_id == s_printer_id &&
-      amsWeightsState() == AWS_IDLE) {
-    if (startWeights()) {
-      logSDf("AMSWEIGHTS: start for printer %d made up after a busy task", s_printer_id);
-    }
+  // page really in front: rebuilding the tiles under an open detail card
+  // would hold two sets of them in the pool at once for nothing.
+  if (amsWeightsState() == AWS_DONE) {
+    if (s_scr && applyWeights(amsWeightsResult())) s_weights_redraw = true;
+    amsWeightsTake();
   }
-  if (s_weights_redraw && !isAmsDetailPopupOpen() && !isPrinterListOpen()) {
+  if (s_weights_redraw && !isAmsDetailPopupOpen()) {
     s_weights_redraw = false;
-    if (s_scr) redrawGrid();
+    if (s_scr) layoutGrid(s_state);
   }
 }

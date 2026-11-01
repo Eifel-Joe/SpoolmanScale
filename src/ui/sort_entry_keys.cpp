@@ -7,7 +7,6 @@
 
 #include "hardware/sd_logger.h"
 #include "services/text_util.h"
-#include "ui/key_maps.h"
 #include "ui/sort_entry_screen.h"
 #include "ui/theme.h"
 #include "ui/ui_common.h"
@@ -23,10 +22,7 @@
 //  Like that one it is a full screen on lv_scr_act(), over the step, and not
 //  a child of the entry's screen: a close of the entry in the same pass
 //  would hand both to lv_obj_del_async(), and the parent's delete would
-//  free the child before the child's own delete ran. The colour search of
-//  "New from database" (ui/colour_search.cpp, V40) has it over the picker's
-//  screen instead (sortKeysShowOver()): the keys go with whichever screen
-//  they were opened over.
+//  free the child before the child's own delete ran.
 //
 //  OK only parks the text; sortKeysTick() hands it to the step on the loop,
 //  where the step may ask the inventory, and closes the keys afterwards
@@ -47,8 +43,6 @@ static lv_obj_t* s_ta   = nullptr;
 static lv_obj_t* s_say  = nullptr;
 static size_t    s_max  = SORT_KEYS_TEXT_MAX - 1;
 static void    (*s_done)(const char* text) = nullptr;
-// The screen the keys are over: the entry's, or the picker's for its search.
-static lv_obj_t* (*s_under)() = sortEntryScreen;
 // The text the check mark parked, for sortKeysTick().
 static bool      s_parked = false;
 static char      s_text[SORT_KEYS_TEXT_MAX] = "";
@@ -96,14 +90,12 @@ static void onKeysReady(lv_event_t* e) {
 // LVGL's keyboard key: only the keys go, the step under them stays.
 static void onKeysCancel(lv_event_t* e) {
   (void)e;
-  logSD("BTN: keys cancelled");
+  logSD("BTN: Enter filament, keys cancelled");
   sortKeysClose();
 }
 
-void sortKeysShowOver(lv_obj_t* (*under)(), uint8_t kind, int title_id, size_t max_len,
-                      void (*done)(const char* text)) {
+void sortKeysShow(uint8_t kind, int title_id, size_t max_len, void (*done)(const char* text)) {
   sortKeysClose();
-  s_under = under;
   s_shown++;
   s_max  = (max_len > 0 && max_len < sizeof(s_text)) ? max_len : sizeof(s_text) - 1;
   s_done = done;
@@ -156,12 +148,9 @@ void sortKeysShowOver(lv_obj_t* (*under)(), uint8_t kind, int title_id, size_t m
   lv_obj_set_style_text_align(s_say, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_set_style_text_color(s_say, lv_color_hex(UI_COL_WARN), 0);
 
-  // The layout of the scale's language (ui/key_maps.cpp); its keyboard key
-  // reports CANCEL, the way back to the step. A hex value is typed on it too,
-  // and the field takes only the characters of one; the weights get LVGL's
-  // number pad, which no layout replaces.
+  // LVGL's own layout, QWERTY without umlauts; its keyboard key reports
+  // CANCEL, the way back to the step.
   lv_obj_t* kb = lv_keyboard_create(scr);
-  keyMapsApply(kb, false);
   lv_keyboard_set_textarea(kb, s_ta);
   if (kind == SK_GRAMS) lv_keyboard_set_mode(kb, LV_KEYBOARD_MODE_NUMBER);
   lv_obj_set_size(kb, LV_HOR_RES, SORT_KEYS_KB_H);
@@ -173,15 +162,11 @@ void sortKeysShowOver(lv_obj_t* (*under)(), uint8_t kind, int title_id, size_t m
   lv_obj_add_event_cb(kb, onKeysCancel, LV_EVENT_CANCEL, NULL);
 }
 
-void sortKeysShow(uint8_t kind, int title_id, size_t max_len, void (*done)(const char* text)) {
-  sortKeysShowOver(sortEntryScreen, kind, title_id, max_len, done);
-}
-
 void sortKeysTick() {
   if (!s_keys) return;
-  // The screen under the keys hidden (hideSpoolFlowOverlays()) or gone: the
-  // keys go with it before that screen is closed on a later pass.
-  lv_obj_t* under = s_under ? s_under() : nullptr;
+  // The entry's screen hidden (hideSpoolFlowOverlays()) or gone: the keys
+  // go with it before the entry is closed on a later pass.
+  lv_obj_t* under = sortEntryScreen();
   if (!under || lv_obj_has_flag(under, LV_OBJ_FLAG_HIDDEN)) {
     sortKeysClose();
     return;

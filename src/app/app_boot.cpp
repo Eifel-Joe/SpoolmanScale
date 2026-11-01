@@ -18,14 +18,12 @@
 #include "services/nfc_reset.h"
 #include "hardware/scale.h"
 #include "hardware/sd_logger.h"
-#include "services/ams_source.h"
 #include "services/app_settings.h"
 #include "services/backend.h"
 #include "services/board_image.h"
 #include "services/backend_api.h"
 #include "services/breadcrumb.h"
 #include "services/device_name.h"
-#include "services/klipper_store.h"
 #include "services/mdns_service.h"
 #include "services/time_service.h"
 #include "services/update_check.h"
@@ -173,10 +171,6 @@ void appSetup() {
   // so the line lands in the log, and well before the first backend_api call
   // in wifiConnect(). Logs only whether tokens are present, never their values.
   backendLoadSettings();
-  amsSourceLoadSettings();
-  // The Klipper printers, with the line that says how full the settings memory
-  // is. After initSD() for the same reason.
-  klipperStoreLoad();
 
   displayHardwareBegin(resetActivityTimer);
   // The palette, before anything is drawn: every UI_COL_* is read when an

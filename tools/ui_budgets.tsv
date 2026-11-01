@@ -117,6 +117,7 @@ STR_BTN_CONFIRMED	18	162	NEVER	src/ui/confirm_popup.cpp:762 170 px button, -8 ai
 STR_CANCEL	18	162	NEVER	src/ui/confirm_popup.cpp:788 170 px button, -8 air
 STR_CONFIRM	16	172	NEVER	src/ui/extra_fields_screen.cpp:363 180 px button, -8 air
 STR_CONFIRM	14	185	NEVER	src/ui/extra_fields_screen.cpp:589 210 px button, -8 air, -17 for "  ->"
+STR_RETRY	16	192	NEVER	src/ui/wifi_setup_screen.cpp:686 200 px button, -8 air
 STR_BACK	16	192	NEVER	src/ui/info_popup.cpp:133 200 px button, -8 air
 STR_ARCHIVED	16	134	NEVER	src/ui/status_picker.cpp:90 status chip (More info, AMS bay card)
 
@@ -133,6 +134,7 @@ STR_ARCHIVED	16	134	NEVER	src/ui/status_picker.cpp:90 status chip (More info, AM
 # the envelope rule did warn, but it was one warning among hundreds.
 STR_BTN_WEB_SETUP	16	190	NEVER	src/ui/backend_screen.cpp:143 216 px button, -8 air, -18 for "  ->"
 STR_CAL_REMINDER_NOW	16	202	NEVER	src/ui/cal_reminder_screen.cpp:136 210 px button, -8 air
+STR_CAL_REMINDER_LATER	16	202	NEVER	src/ui/cal_reminder_screen.cpp:115 210 px button, -8 air
 STR_REBOOT_BTN	14	172	NEVER	src/ui/reboot_popup.cpp:55 180 px button, -8 air
 STR_BTN_OPEN_BROWSER	12	128	NEVER	src/ui/drying_reminder_screen.cpp:196 150 px button, -8 air, -14 for "  ->"
 STR_BTN_MORE_OPTIONS	16	190	NEVER	src/ui/backend_screen.cpp:361 216 px button, -8 air, -18 for "  ->" (symmetry with STR_BTN_WEB_SETUP)
@@ -170,33 +172,6 @@ STR_AMSD_DRIED_Q	20	360	NEVER	src/ui/ams_detail_popup.cpp:198 360 px wrapped que
 # gate keeps French from ever being wider than the German, 154 px.
 STR_AMSD_WRITE_FAIL	12	154	NEVER	src/ui/ams_detail_popup.cpp:815 caption at the right of the note line, German 154 px
 
-# --- Klipper printers in the AMS view ------------------------------------------
-# "Bobine active" is wider than "Aktive Spule" and "Active spool" at every size,
-# so each place that draws it has its real width. One row per widget: the unit
-# header (f12, x=8, a Klipper unit has no climate text on its right, so the row
-# is free up to AMSV_MARGIN_R), unitName() (the same word, f12) and the bay's
-# name, which is the card's title (f16, ams_detail_popup.cpp:561, 464 - 2 x
-# (10 + 44 + 10) = 336 px with no status chip, and FilaMan alone has one).
-STR_AMSV_UNIT_KL_ACTIVE	12	456	NEVER	src/ui/ams_view.cpp:570 unit header title at x=8, nothing to its right, 480 - 8 - 16
-STR_AMSV_UNIT_KL_ACTIVE	12	456	NEVER	src/ui/ams_view.cpp:1203 unitName(), the unit header's word
-STR_AMSV_UNIT_KL_ACTIVE	16	336	NEVER	src/ui/ams_view.cpp:1221 bayName(), the card's title (ams_detail_popup.cpp:561) between the two mirrored 64 px margins
-# Behind the printer's state in the status line, one line that ends in dots
-# (LV_LABEL_LONG_DOT, ams_view.cpp:1127): not gated, the line is cut with dots
-# for a long printer name. 456 is the whole row without the printer chip.
-STR_AMSV_KL_FIRST16	16	456	DOT	src/ui/ams_view.cpp:1127 behind the state in the status line, 480 - 8 - 16
-# A Klipper printer that does not answer says so in the status label beside the
-# printer chip (ams_view.cpp:1068): beside "2/3  Voron 2.4" (108 px + 2 x 12
-# pad = 132) that is 480 - 16 - (8 + 132 + 10) = 314 px, and the label ends in
-# dots (LV_LABEL_LONG_DOT). Since beta.9 the chip holds "Voron 2.4" and the
-# arrow LV_SYMBOL_DOWN (94 px), which leaves more; the 314 stay as the margin. The bay picker's own "Keine Antwort - bitte am
-# Drucker prüfen" (STR_AMSV_KL_NO_ANSWER, 330 px) was cut there, so the status
-# line has a short text of its own, measured with fit_check --measure 16: German
-# 198 px, English 194 px, French 231 px. Gated, the three must fit. The long
-# one stays in the picker's info popup, which wraps and needs no row.
-STR_AMSV_KL_STATUS_SILENT	16	314	NEVER	src/ui/ams_view.cpp:1068 status label beside the printer chip
-# "Zugang verweigert" (157 px) is short enough for the same label. Not gated.
-STR_AMSV_KL_ACCESS	16	314	DOT	src/ui/ams_view.cpp:1068 status label beside the printer chip
-
 # --- captions that used to be literals ----------------------------------------
 # German and English still show the literal they had; the budgets guard the
 # French. Info rows: label at INFO_ROW_LABEL_X 28, value at 172, -8 air.
@@ -232,7 +207,6 @@ STR_PRN_TEST	16	320	NEVER	src/ui/printer_screen.cpp makeListBtn title, text_w 32
 STR_PRN_FORGET	16	320	NEVER	src/ui/printer_screen.cpp makeListBtn title, text_w 320
 STR_BT_CARD_USE_PRINTER	18	170	NEVER	src/ui/ble_devices_screen.cpp card action button, 184 px wide
 STR_LBL_L_COLOR	16	120	NEVER	src/services/label_render.cpp fact caption on the label, 16 px
-STR_LBL_L_RGB	16	120	NEVER	src/services/label_render.cpp fact caption on the label, 16 px (measured: RGB 36 px, RVB 35 px; the whole line "RVB : 242, 242, 232" 148 px)
 
 # The print card (src/ui/print_card.cpp): 400 px box, text 360 px wide.
 STR_PRN_PH_RENDER	20	360	WRAP:2	src/ui/print_card.cpp busy title
@@ -267,7 +241,9 @@ STR_PART_HINT_TITLE	18	424	NEVER	src/ui/partition_popup.cpp title, HINT_BOX_W - 
 STR_PART_HINT_LATER	16	180	NEVER	src/ui/partition_popup.cpp button, HINT_BTN_W 200
 STR_PART_HINT_TEXT	14	256	WRAP:14	src/ui/partition_popup.cpp text column, scrolls
 STR_PART_HINT_BLOCKED	14	256	WRAP:14	src/ui/partition_popup.cpp text column, scrolls
+STR_GH_OTA_LATEST	14	440	NEVER	src/ui/ota_github.cpp:366 lbl_gh_latest, centred on the 480 px screen
 
+STR_BTN_EMPTY_SPOOL	14	211	NEVER	src/ui/confirm_popup.cpp weight popup row 2 right, BW2 = 219
 STR_TARE_CHOICE_TITLE	18	416	NEVER	src/ui/tare_entry.cpp showTareChoice() title, box 440 (one column) or 460 (Bambuddy in Spoolman mode)
 STR_TARE_CHOICE_WEIGH	14	400	NEVER	src/ui/tare_entry.cpp showTareChoice() button, one column (not Bambuddy in Spoolman mode), 416 wide
 STR_TARE_CHOICE_WEIGH	14	211	NEVER	src/ui/tare_entry.cpp showTareChoice() button, Bambuddy in Spoolman mode two to a row: (460 - 2 * 2 - 2 * 6 - 6) / 2 = 219 wide
@@ -275,8 +251,6 @@ STR_TARE_CHOICE_TYPE	14	380	NEVER	src/ui/tare_entry.cpp showTareChoice() button,
 STR_TARE_CHOICE_TYPE	14	187	NEVER	src/ui/tare_entry.cpp showTareChoice() button, Bambuddy in Spoolman mode, 219 wide, keyboard symbol and two blanks in front (24 px)
 STR_TARE_CHOICE_TYPES	14	211	NEVER	src/ui/tare_entry.cpp showTareChoice() button, two to a row, 219 wide
 STR_TARE_CHOICE_FULL	14	211	NEVER	src/ui/tare_entry.cpp showTareChoice() button, two to a row, 219 wide
-STR_WP_TARE_ROW	16	350	NEVER	src/ui/weight_popup.cpp Options row title, Bambuddy in Spoolman mode (opens showTareChoice())
-STR_WP_TARE_ROW_SUB	12	350	NEVER	src/ui/weight_popup.cpp Options row subtitle, Bambuddy in Spoolman mode
 STR_TARE_ENTER_TITLE	14	460	NEVER	src/ui/tare_entry.cpp showTarePad() title
 STR_FULL_TITLE	14	460	NEVER	src/ui/tare_entry.cpp showTarePad() title, the full spool's keypad
 STR_TARE_ENTER_REST	12	168	NEVER	src/ui/tare_entry.cpp s_lbl_info, COL_W = 168, one figure per line
@@ -285,7 +259,6 @@ STR_TARE_ENTER_RANGE	12	168	WRAP:4	src/ui/tare_entry.cpp s_lbl_info, COL_W = 168
 STR_TARE_ENTER_OVER	12	168	WRAP:3	src/ui/tare_entry.cpp s_lbl_info, COL_W = 168
 STR_LBL_CAL_EDGE	16	289	NEVER	src/services/label_render.cpp calibration page, 40 mm label less frame and margins, one bold dot
 STR_AMS_MAIN_ASSIGN	16	190	NEVER	src/ui/main_screen.cpp zone 4 AMS button 254 px, -8 air, -56 for the window countdown
-STR_AMS_MAIN_ASSIGN	14	108	NEVER	src/ui/more_info_screen.cpp header button "Into AMS" 116 px, -8 air
 STR_TAGNEW_SEARCHING	16	360	NEVER	src/ui/tag_create_popup.cpp status line of the card, UI_POPUP_W - UI_CARD_TEXT_PAD
 STR_TAGNEW_FOUND	16	360	NEVER	src/ui/tag_create_popup.cpp status line of the card, UI_POPUP_W - UI_CARD_TEXT_PAD
 STR_TAGNEW_FROM_DB	16	360	NEVER	src/ui/tag_create_popup.cpp status line of the card, UI_POPUP_W - UI_CARD_TEXT_PAD
@@ -405,7 +378,7 @@ STR_SPT_EMPTY_BTN	16	320	NEVER	src/ui/scale_menu.cpp makeListBtn title, text_w 3
 STR_SPT_EMPTY_SUB	12	320	NEVER	src/ui/scale_menu.cpp makeListBtn sub, text_w 320
 STR_SPT_EMPTY_TITLE	18	376	NEVER	src/ui/empty_spool_type.cpp sub header title, 480 - 2 * (44 + 2 * 4)
 STR_SPT_NAME_TITLE	18	460	NEVER	src/ui/spool_type_name.cpp title of a full screen with no buttons in its head, 480 - 2 * 10
-STR_SPT_TITLE	18	228	NEVER	src/ui/spool_type_list.cpp sub header title, narrowed by the search head (colourSearchTitle): 480 - 2 * (44 + 2 * 4) - (CS_CHIP_W 140 + CS_SEP 8) with a word, 324 with the magnifier, 376 near a weight
+STR_SPT_TITLE	18	376	NEVER	src/ui/spool_type_list.cpp sub header title, 480 - 2 * (44 + 2 * 4)
 STR_SPT_TAKE_MEASURED	14	221	NEVER	src/ui/spool_type_list.cpp bar button, two to a row (four buttons): (480 - 2 * 8 - 6) / 2 - 8
 STR_SPT_OTHER	14	221	NEVER	src/ui/spool_type_list.cpp bar button, two to a row (NEAR: two or four buttons): (480 - 2 * 8 - 6) / 2 - 8
 STR_SPT_ONLY_VENDOR	14	221	NEVER	src/ui/spool_type_list.cpp bar button, two to a row (ALL); the maker may wrap it to a second line
@@ -471,11 +444,6 @@ STR_IDPAD_NOT_FOUND_HINT	12	148	WRAP:5	src/ui/spool_id_pad.cpp answer card under
 # Status line, narrow variant 262, minus the clear button (40) and its gap (8).
 STR_ID_SPOOL_STATUS	14	214	NEVER	src/app/id_spool.cpp lbl_status, clear button behind it
 
-# Colour tile: the kind right of the codes. Two codes "#RRGGBBAA  #RRGGBBAA" at
-# font 16 end near x 214, the label ends at 426; 180 keeps a gap between them.
-STR_COLOR_TILE_TWO	14	180	NEVER	src/ui/color_tile_popup.cpp kind beside the codes
-STR_COLOR_TILE_CLEAR	14	180	NEVER	src/ui/color_tile_popup.cpp kind beside the codes
-
 # --- the copy card behind Bambuddy on Spoolman (design note J) --------------
 # src/ui/copy_confirm_popup.cpp, only with spoolTypesActive(): the card grows
 # to 304 px for two f14 lines under line 2, and the answers become
@@ -515,60 +483,7 @@ STR_COPY_PART_FILAMENT	14	155	NEVER	src/ui/copy_flow.cpp lbl_status, HDR_STATUS_
 # The card's title is centred in the card's text width; the hint replaces the status line.
 STR_SORT_CARD_TITLE	20	360	NEVER	src/ui/tag_create_popup.cpp buildHead title, UI_POPUP_W - UI_CARD_TEXT_PAD
 STR_SORT_NEW_FILAMENT	16	360	NEVER	src/ui/tag_create_popup.cpp status line of the card, UI_POPUP_W - UI_CARD_TEXT_PAD
-STR_SORT_NO_DENSITY	14	360	NEVER	src/ui/tag_create_popup.cpp status line in the small font, one line: the hint names the button, so it must not wrap away from it (French 329 px)
-# The density asked on the card: the left answer button (TCP_ANSWER_W 140 px, -8 air, the title font), the
-# price pad's title as for a price and the grey line beside its keys, and the same status line after a value
-# out of range.
-STR_DENSITY_BTN	18	132	NEVER	src/ui/tag_create_popup.cpp left answer button, TCP_ANSWER_W 140 px beside the price button, -8 air
-STR_DENSITY_PAD_TITLE	14	460	NEVER	src/ui/price_pad.cpp title above the keypad, the density
-STR_DENSITY_RANGE	14	360	NEVER	src/ui/tag_create_popup.cpp status line in the small font, one line (French 293 px)
-STR_DENSITY_PAD_INFO	12	168	WRAP:3	src/ui/price_pad.cpp right column, PP_COL_W, as STR_PRICE_PAD_INFO (French 267 px: two lines)
-# The fill weight asked for a spool created without a tag (X), the way the density is: the left answer
-# button on the card for a new spool (140 px, -8 air) and on the copy card (140 px behind Bambuddy on
-# Spoolman, 170 px outside it), the price pad under its own title and grey line, and the hint line in the
-# small font, one line, on both cards (the copy card shows it as its line 3).
-STR_NOTAG_FILL_BTN	18	132	NEVER	src/ui/tag_create_popup.cpp, src/ui/copy_confirm_popup.cpp left answer button beside the price button, -8 air
-STR_NOTAG_FILL_TITLE	14	460	NEVER	src/ui/price_pad.cpp title above the keypad, the fill weight
-STR_NOTAG_FILL_INFO	12	168	WRAP:3	src/ui/price_pad.cpp right column, PP_COL_W, as STR_PRICE_PAD_INFO
-STR_NOTAG_FILL_ASK	14	360	NEVER	src/ui/tag_create_popup.cpp status line, src/ui/copy_confirm_popup.cpp line 3, small font, one line: the hint names the button (German 320 px, French 337 px)
-STR_NOTAG_FILL_RANGE	14	360	NEVER	src/ui/tag_create_popup.cpp status line, src/ui/copy_confirm_popup.cpp line 3, small font, one line (French 327 px)
-# The end of a create without a tag (X): the status line of the spool shown by its number, and the title of the
-# question for a label. The line is lbl_status, HDR_STATUS_W 292 wide, and a text wider than that wraps and the 22 px
-# bar cuts it, so the budget is 292 less the digits of a five digit number over the 22 px of the unfilled %d (23 px).
-# With the clear button behind the line the narrow header leaves less (see STR_ID_SPOOL_STATUS); these two do not
-# keep to that, the German one is 219 px for a three digit number.
-STR_NOTAG_CREATED	14	269	NEVER	src/ui/no_tag_create.cpp status line, one line (French 197 px, German 219 px)
-STR_NOTAG_CREATED_BAMBU	14	269	NEVER	src/ui/no_tag_create.cpp status line, one line (French 259 px, German 247 px, English 236 px)
-STR_LABEL_ASK	20	360	NEVER	src/ui/no_tag_create.cpp title of the question, UI_POPUP_W - UI_CARD_TEXT_PAD, one line (French 221 px)
-# Several identical spools in one go (n10): the count at the top right of both create cards without a tag,
-# BATCH_CHIP_W 100 x 36 (ui/batch_create.cpp). Its text by the button rule, 100 - 8, measured with the %d as
-# written ("Quantité %d" 91 px, "Quantité 10" drawn 83 px); after a count out of range the same button shows
-# the range. With a count the create button is the left answer beside the price (140 px, -8 air), and the price
-# pad asks the count under its own title and grey line.
-STR_BATCH_COUNT_CHIP	14	92	NEVER	src/ui/batch_create.cpp count button at the card's top right, BATCH_CHIP_W - 8 (French 91 px, English 90 px with the %d)
-STR_BATCH_COUNT_RANGE	14	92	NEVER	src/ui/batch_create.cpp the count button after a count out of range, BATCH_CHIP_W - 8 (German 48 px)
-STR_BATCH_CREATE_N	18	132	NEVER	src/ui/tag_create_popup.cpp, src/ui/copy_confirm_popup.cpp left answer button beside the price button, -8 air (German 106 px with the %d)
-STR_BATCH_COUNT_TITLE	14	460	NEVER	src/ui/price_pad.cpp title above the keypad, the count (French 229 px)
-STR_BATCH_COUNT_INFO	12	168	WRAP:3	src/ui/price_pad.cpp right column, PP_COL_W, as STR_PRICE_PAD_INFO (two lines in all three)
-# The run of several spools: "Spool 2 of 5 ..." on the loading overlay, whose line is 290 px at 16 and wraps, held to
-# one line. The green line at its end is lbl_status like STR_NOTAG_CREATED, with the same 269 px: the count has two
-# digits at most, narrower than the %d measured. Why a run stopped is one line of a card's text width.
-STR_BATCH_PROGRESS	16	290	NEVER	src/ui/loading_overlay.cpp the overlay's line, 290 px, one line (French 162 px with the %d)
-STR_BATCH_CREATED	14	269	NEVER	src/ui/no_tag_create.cpp status line, one line (German 229 px)
-STR_BATCH_CREATED_BAMBU	14	269	NEVER	src/ui/no_tag_create.cpp status line, one line (French 268 px, German 264 px, English 248 px)
-STR_BATCH_STOP_FAILED	16	360	NEVER	src/ui/no_tag_create.cpp the line of a stop, UI_POPUP_W - UI_CARD_TEXT_PAD (German 290 px)
-STR_BATCH_STOP_UNSURE	16	360	NEVER	src/ui/no_tag_create.cpp the line of a stop, UI_POPUP_W - UI_CARD_TEXT_PAD (French 344 px, German 340 px)
-# After the run: the overview's title and the label question's in the card's text width at 20, one line; "Location
-# 2 of 5 ..." on the loading overlay like STR_BATCH_PROGRESS; the yellow lines on lbl_status like STR_BATCH_CREATED,
-# measured with the %s (the numbers behind it end in dots there, the log has them all); the label's place in the
-# print card's top right corner, clear of the arc in the middle (400 - 12 - 150 = 238 > 222, the arc's right edge).
-STR_BATCH_OVERVIEW_ALL	20	360	NEVER	src/ui/no_tag_create.cpp the overview's title, UI_POPUP_W - UI_CARD_TEXT_PAD (German 205 px)
-STR_BATCH_OVERVIEW_SOME	20	360	NEVER	src/ui/no_tag_create.cpp the overview's title, UI_POPUP_W - UI_CARD_TEXT_PAD (German 207 px)
-STR_BATCH_LOC_PROGRESS	16	290	NEVER	src/ui/loading_overlay.cpp the overlay's line, 290 px, one line (French 221 px with the %d)
-STR_BATCH_LOC_MISSING	14	269	NEVER	src/ui/batch_create.cpp status line, one line (French 171 px with the %s)
-STR_BATCH_LABEL_ASK	20	360	NEVER	src/ui/no_tag_create.cpp title of the question, as STR_LABEL_ASK (French 257 px)
-STR_BATCH_LABEL_STEP	14	150	NEVER	src/ui/print_card.cpp top right corner of the card, clear of the arc (French 148 px with the %d)
-STR_BATCH_LABELS_MISSING	14	269	NEVER	src/ui/batch_create.cpp status line, one line (French 137 px with the %s)
+STR_SORT_NO_DENSITY	14	360	WRAP:2	src/ui/tag_create_popup.cpp status line in the small font, two lines (2 x 16 px) end at UI_CARD_ROW_Y
 # The twin box over the card: title and text in the card's text width, two buttons of 184 px.
 STR_SORT_TWIN_TITLE	20	360	NEVER	src/ui/sort_twin_popup.cpp title, UI_POPUP_W - UI_CARD_TEXT_PAD
 STR_SORT_TWIN_TEXT	16	360	WRAP:3	src/ui/sort_twin_popup.cpp question, UI_POPUP_W - UI_CARD_TEXT_PAD, %s is a filament name
@@ -612,33 +527,6 @@ STR_SORT_GRAMS_BAD	14	440	NEVER	src/ui/sort_entry_keys.cpp word line under the f
 STR_SORT_HEX	14	446	NEVER	src/ui/sort_entry_pick.cpp sortTile widened to SORT_ROW_W, under the hint, above the colour grid
 # A tile of three to a row (SORT_TILE_W 148), one label: minus 2 x (pad 2 + border 1).
 STR_SORT_TYPE_GRAMS	14	142	NEVER	src/ui/sort_entry_pick.cpp sortTile, the last tile of the weight step
-# --- the search in a colour list: "Enter filament" and "New from database" (ui/colour_search.cpp, V40) --------
-# The keyboard is the entry's (sortKeysShowOver), its title as wide as on the other steps.
-STR_COLOUR_FIND_KEY	18	460	NEVER	src/ui/sort_entry_keys.cpp sortKeysShow title, 480 - 2 * SORT_KEYS_SIDE (10), opened by colourSearchTick
-# A caption across the list (DBP_ROW_W, SORT_ROW_W: 452) when no colour holds the word, a wrapping label as
-# STR_SORT_EXISTS. %s is the word, at most 23 bytes (COLOUR_SEARCH_MAX). Without a NEVER row the French keeps to
-# the wider of German and English at every size: "Pas de couleur" (143 px at f14 against 152 for the German).
-STR_COLOUR_FIND_NONE	14	452	WRAP:2	src/ui/colour_search.cpp colourSearchNone, caption across the list, %s the word
-
-# --- the search in the list of spool types (ui/spool_type_list.cpp, V43) ---------------------------------------
-# The same keyboard and the same caption as the colour lists, with texts of their own (ColourSearch key_title and
-# none_fmt). The caption is as wide as the list body, STL_ROW_W 456; %s is the word, at most 23 bytes.
-STR_SPT_FIND_KEY	18	460	NEVER	src/ui/sort_entry_keys.cpp sortKeysShow title, 480 - 2 * SORT_KEYS_SIDE (10), opened by colourSearchTick
-STR_SPT_FIND_NONE	14	456	WRAP:2	src/ui/colour_search.cpp colourSearchNone, caption across the list (STL_ROW_W), %s the word
-
-# --- the window "Choose printer" over the AMS view (ui/printer_list.cpp, V47) ---------------------------------
-# The title beside the search head, as STR_SPT_TITLE; the keyboard and the caption for no match as the list of
-# spool types (PRL_ROW_W 456, %s the word); the line of a list cut for memory across the list body.
-STR_PRL_TITLE	18	228	NEVER	src/ui/printer_list.cpp sub header title, narrowed by the search head (colourSearchTitle): 480 - 2 * (44 + 2 * 4) - (CS_CHIP_W 140 + CS_SEP 8) with a word
-STR_PRL_FIND_KEY	18	460	NEVER	src/ui/sort_entry_keys.cpp sortKeysShow title, 480 - 2 * SORT_KEYS_SIDE (10), opened by colourSearchTick
-STR_PRL_FIND_NONE	14	456	WRAP:2	src/ui/colour_search.cpp colourSearchNone, caption across the list (PRL_ROW_W), %s the word
-STR_PRL_MORE	14	456	WRAP:2	src/ui/printer_list.cpp prlNoteRow, the last line across the list (PRL_ROW_W)
-# The kind under a printer's name, one line of font 12 in a button of 224: 224 - 2 * PRL_CELL_PAD (10) = 204.
-# %d is the number of tools or slots; "Klipper, MMU, 12 emplacements" is 191 px.
-STR_PRL_KLIPPER	12	204	NEVER	src/ui/printer_list.cpp prlPrinterBtn, the kind under the name, PRL_ART_W
-STR_PRL_TOOLS	12	204	NEVER	src/ui/printer_list.cpp prlPrinterBtn, the kind under the name, PRL_ART_W
-STR_PRL_MMU	12	204	NEVER	src/ui/printer_list.cpp prlPrinterBtn, the kind under the name, PRL_ART_W
-STR_PRL_AFC	12	204	NEVER	src/ui/printer_list.cpp prlPrinterBtn, the kind under the name, PRL_ART_W
 
 # --- the tiles of the unknown spool's card, with "Enter filament" as a fourth (unknown_spool_popup.cpp) ---
 # Four tiles to a row are (UNK_ROW_W 412 - 3 * UNK_GAP 8) / 4 = 97 px, and the German
@@ -653,104 +541,3 @@ STR_UNK_TILE_COPY	14	93	NEVER	src/ui/unknown_spool_popup.cpp tile caption, a row
 STR_DBPICK_BTN	14	93	WRAP:2	src/ui/unknown_spool_popup.cpp tile caption, a row of four
 STR_SORT_BTN	14	93	WRAP:2	src/ui/unknown_spool_popup.cpp tile caption, a row of four
 STR_SORT_BTN	16	120	WRAP:2	src/ui/unknown_spool_popup.cpp tile caption, a row of three
-# Info & Support: the line under a tile's name. Tile 222 wide, the icon disc
-# and the paddings leave 156 px.
-STR_INFO_SUB_KOFI	12	156	NEVER	src/ui/info_screen.cpp tile subtitle
-STR_INFO_SUB_GITHUB	12	156	NEVER	src/ui/info_screen.cpp tile subtitle
-STR_INFO_SUB_DISCORD	12	156	NEVER	src/ui/info_screen.cpp tile subtitle
-STR_INFO_SUB_MAKER	12	156	NEVER	src/ui/info_screen.cpp tile subtitle
-# The web hand-off: the step line over the address card and the hint under
-# the large QR code, both across the screen less the margins.
-STR_WEB_STEP_CREDS	14	456	NEVER	src/ui/ota_browser.cpp step line
-STR_WEB_STEP_CREDS_BB	14	456	NEVER	src/ui/ota_browser.cpp step line
-STR_WEB_QR_HINT	12	456	NEVER	src/ui/ota_browser.cpp under the QR code
-# --- Weight popup redesign (26.10.2026) ---------------------------------------
-STR_WB_SENT	16	160	NEVER	src/ui/weight_button.cpp main screen button, behind an icon
-STR_WB_UNCHANGED	16	160	NEVER	src/ui/weight_button.cpp main screen button, behind an icon
-STR_WB_RISE	16	160	NEVER	src/ui/weight_button.cpp main screen button, behind an icon
-# The first line gives up the parts chip and a gap (WP_INNER_W 436 - WP_CHIP_W 84 - WP_GAP 8),
-# and the chip is there whenever parts are set up. The gate measures %s as written; with the
-# longest backend name in its place the text must still fit (test_weight_popup.py).
-STR_WP_RISE_LINE	14	344	NEVER	src/ui/weight_popup.cpp first line beside the parts chip, %s = backend name
-STR_WP_SEND	24	390	NEVER	src/ui/weight_popup.cpp large button, behind a tick
-STR_WP_SEND_ANYWAY	24	390	NEVER	src/ui/weight_popup.cpp large button
-STR_WP_BAG_MINUS	12	436	NEVER	src/ui/weight_popup.cpp under the large button
-STR_WP_REACTIVATE	24	390	NEVER	src/ui/weight_popup.cpp large button, behind an icon
-STR_WP_REACT_SUB	12	436	NEVER	src/ui/weight_popup.cpp under the large button
-STR_WP_BAG_ROW	16	330	NEVER	src/ui/weight_popup.cpp switch row title
-STR_WP_BAG_SUB	12	330	NEVER	src/ui/weight_popup.cpp switch row subtitle
-STR_WP_BAG_HINT	12	330	NEVER	src/ui/weight_popup.cpp switch row subtitle
-STR_WP_AUTO_ROW	16	290	NEVER	src/ui/scale_menu.cpp list row with help circle (popup row is wider)
-STR_WP_AUTO_SUB	12	290	NEVER	src/ui/scale_menu.cpp list row with help circle (popup row is wider)
-STR_WP_ARCHIVE	14	90	NEVER	src/ui/weight_popup.cpp 120 px button, behind an icon
-STR_WP_OPTIONS	14	120	NEVER	src/ui/weight_popup.cpp 150 px button, behind an icon
-STR_WP_FULL	16	350	NEVER	src/ui/weight_popup.cpp Options row title
-STR_WP_FULL_SUB	12	350	NEVER	src/ui/weight_popup.cpp Options row subtitle
-STR_WP_WEIGH_EMPTY	16	350	NEVER	src/ui/weight_popup.cpp Options row title
-STR_WP_WEIGH_EMPTY_SUB	12	350	NEVER	src/ui/weight_popup.cpp Options row subtitle
-STR_WP_TYPE_EMPTY	16	350	NEVER	src/ui/weight_popup.cpp Options row title
-STR_WP_TYPE_EMPTY_SUB	12	350	NEVER	src/ui/weight_popup.cpp Options row subtitle
-STR_SW_SCOPE_TITLE	16	432	NEVER	src/ui/confirm_popup.cpp store-as title
-STR_SW_ONLY_SPOOL	16	300	NEVER	src/ui/confirm_popup.cpp store-as row title
-STR_SW_ALL_FILAMENT	16	300	NEVER	src/ui/confirm_popup.cpp store-as row title
-STR_SW_ALL_VENDOR	16	300	NEVER	src/ui/confirm_popup.cpp store-as row title
-STR_SW_CURRENT	14	110	NEVER	src/ui/confirm_popup.cpp store-as row, right
-STR_SETUP_STEP_OF	14	80	NEVER	src/ui/setup_frame.cpp step count, header right
-STR_WELCOME_TRILINGUAL	16	456	NEVER	src/ui/setup_welcome_screen.cpp language screen subtitle
-STR_WELCOME_STEPS_AHEAD	14	456	NEVER	src/ui/setup_welcome_screen.cpp above the step tiles
-STR_SETUP_TILE_WIFI	14	100	NEVER	src/ui/setup_welcome_screen.cpp step tile
-STR_SETUP_TILE_BACKEND	14	100	NEVER	src/ui/setup_welcome_screen.cpp step tile
-STR_SETUP_TILE_SERVER	14	100	NEVER	src/ui/setup_welcome_screen.cpp step tile
-STR_SETUP_TILE_SCALE	14	100	NEVER	src/ui/setup_welcome_screen.cpp step tile
-STR_SETUP_SKIP	16	134	NEVER	src/ui/setup_frame.cpp quiet bar button
-STR_SETUP_START	16	290	NEVER	src/ui/setup_frame.cpp main bar button
-STR_WIFI_RESCAN	16	134	NEVER	src/ui/wifi_setup_screen.cpp quiet bar button
-STR_WIFI_CONNECTED_TO	16	420	DOT	src/ui/wifi_connect_view.cpp card title with the SSID
-STR_WIFI_CONN_DETAIL	12	420	NEVER	src/ui/wifi_connect_view.cpp card line with the IP
-STR_WIFI_NO_LINK	16	420	DOT	src/ui/wifi_connect_view.cpp card title with the SSID
-STR_WIFI_FAIL_HINT	12	420	NEVER	src/ui/wifi_connect_view.cpp card line
-STR_WIFI_PASS_AGAIN	16	290	NEVER	src/ui/wifi_connect_view.cpp main bar button
-STR_SETUP_SERVER_NEEDED	14	430	NEVER	src/ui/backend_screen.cpp note above the tiles
-STR_SETUP_NO_SERVER	16	440	NEVER	src/ui/backend_screen.cpp bar button
-STR_HOSTING_SELF	12	120	NEVER	src/ui/backend_screen.cpp pill beside the name
-STR_HOSTING_ONLINE	12	120	NEVER	src/ui/backend_screen.cpp pill beside the name
-STR_BACKEND_DESC_SPOOLMAN	12	350	NEVER	src/ui/backend_screen.cpp tile line
-STR_BACKEND_DESC_FILAMAN	12	350	NEVER	src/ui/backend_screen.cpp tile line
-STR_BACKEND_DESC_BAMBUDDY	12	350	NEVER	src/ui/backend_screen.cpp tile line
-STR_SP_EXAMPLE	12	196	NEVER	src/ui/spoolman_screen.cpp example under the field
-STR_SP_CONNECT	16	290	NEVER	src/ui/setup_frame.cpp main bar button
-STR_SP_IN_BROWSER	16	134	NEVER	src/ui/setup_frame.cpp quiet bar button
-STR_SP_CONNECTED	16	180	NEVER	src/ui/spoolman_screen.cpp result card title
-STR_SP_REACHED	16	180	NEVER	src/ui/spoolman_screen.cpp result card title
-STR_SP_NO_ANSWER	16	180	NEVER	src/ui/spoolman_screen.cpp result card title
-STR_SP_NO_ANSWER_HINT	12	180	WRAP:3	src/ui/spoolman_screen.cpp result card line
-STR_WIFI_24_ONLY	12	440	NEVER	src/ui/wifi_setup_screen.cpp above the list
-STR_SETUP_LATER	16	134	NEVER	src/ui/setup_frame.cpp quiet bar button
-STR_SETUP_CREDS_TITLE	18	300	NEVER	src/ui/setup_frame.cpp step title
-STR_CAL_STEP_EMPTY	14	110	NEVER	src/ui/factor_screen.cpp step chip
-STR_CAL_STEP_PLACE	14	110	NEVER	src/ui/factor_screen.cpp step chip
-STR_CAL_STEP_CHECK	14	110	NEVER	src/ui/factor_screen.cpp step chip
-STR_CAL_EMPTY_PAN	16	270	WRAP:2	src/ui/factor_screen.cpp step 1 instruction
-STR_CAL_SCALE_NOW	12	160	NEVER	src/ui/factor_screen.cpp weight card caption
-STR_CAL_LATER_WHERE	12	456	WRAP:2	src/ui/factor_screen.cpp line over the bar
-STR_CAL_CUR_FACTOR	12	456	NEVER	src/ui/factor_screen.cpp line over the bar
-STR_CAL_ZERO_BTN	16	290	NEVER	src/ui/setup_frame.cpp main bar button
-STR_CAL_PLACE_KNOWN	16	200	WRAP:2	src/ui/factor_screen.cpp step 2 instruction
-STR_CAL_ABOUT_1KG	14	200	NEVER	src/ui/factor_screen.cpp step 2 hint
-STR_CAL_SHOWS_NOW	12	440	NEVER	src/ui/factor_screen.cpp weight card caption
-STR_CAL_ENTERED	14	440	NEVER	src/ui/factor_screen.cpp step 3 entered weight
-STR_CAL_NEW_FACTOR	12	456	NEVER	src/ui/factor_screen.cpp line over the bar
-STR_CAL_AGAIN	16	134	NEVER	src/ui/setup_frame.cpp quiet bar button
-STR_CAL_LOOKS_RIGHT	16	260	NEVER	src/ui/setup_frame.cpp main bar button
-STR_WHOLE_GRAM_SUB	12	300	NEVER	src/ui/scale_menu.cpp row subtitle
-STR_CAL_RESET_ROW	16	300	NEVER	src/ui/scale_menu.cpp row title
-STR_CAL_RESET_ROW_SUB	12	300	NEVER	src/ui/scale_menu.cpp row subtitle
-STR_SETUP_DONE_TITLE	18	300	NEVER	src/ui/setup_frame.cpp step title
-STR_SETUP_DONE_PATH	12	220	DOT	src/ui/setup_done_screen.cpp row subtitle
-STR_SETUP_DONE_CREDS	12	220	NEVER	src/ui/setup_done_screen.cpp row subtitle
-STR_SETUP_DONE_UNCAL	16	220	NEVER	src/ui/setup_done_screen.cpp row title
-STR_SETUP_DONE_HINT	14	456	NEVER	src/ui/setup_done_screen.cpp line over the bar
-STR_SETUP_GO	16	440	NEVER	src/ui/setup_frame.cpp main bar button
-STR_BTN_WIFI_CHANGE	16	134	NEVER	src/ui/wifi_connect_view.cpp quiet bar button
-STR_ID_PAD_LINK_TITLE	18	330	NEVER	src/ui/num_pad.cpp header title between back and close
-STR_ID_PAD_COPY_TITLE	18	330	NEVER	src/ui/num_pad.cpp header title between back and close

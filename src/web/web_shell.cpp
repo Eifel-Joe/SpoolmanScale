@@ -136,25 +136,12 @@ String webShellAssets() {
   // page's own script runs at the end of the body.
   h += F("'><script src='/app.js?v=");
   h += webStaticVersion();
-  // The two buttons of ask() and the two words of the downloads (app.js,
-  // downloadStart()), on every page: app.js is cached across languages, so
-  // its own words stay English fallbacks. dl is the sentence for a window that
-  // could not be opened, {a} in it the scale's address; dls labels a link in
-  // the window that holds several files, {n} in it the file name; dlok is
-  // the line in the window of a single file, {n} the file name, and cls its
-  // Close button. All are filled in by the page.
+  // The two buttons of ask(), on every page: app.js is cached across
+  // languages, so its own words stay English fallbacks.
   h += F("'></script><script>WS.yes=");
   h += jsStr(T(STR_CONFIRM));
   h += F(";WS.no=");
   h += jsStr(T(STR_CANCEL));
-  h += F(";WS.dl=");
-  h += jsStr(T(STR_W_DL_EMBEDDED));
-  h += F(";WS.dls=");
-  h += jsStr(T(STR_W_DL_SAVE));
-  h += F(";WS.dlok=");
-  h += jsStr(T(STR_W_DL_SAVED));
-  h += F(";WS.cls=");
-  h += jsStr(T(STR_BT_CLOSE));
   h += F(";</script>");
   return h;
 }

@@ -285,10 +285,8 @@ bool backendCanTareFilamentOrVendor();
 // BamBuddy's copy is copyBbsCreate() (services/copy_bbs.h): which fields go
 // along, the empty spool (chosen_core_g, a spool type chosen at the scale;
 // spool_weight, the fallback for a template without core_weight) and what a
-// copy behind Spoolman takes over beyond that. It keeps its own time limits
-// and does not use timeout_ms; in BamBuddy's own inventory the template's
-// label stays, and initial_weight only stands in for a template without one.
-// The other backends take spool_weight as it is and ignore chosen_core_g.
+// copy behind Spoolman takes over beyond that. The other backends take
+// spool_weight as it is and ignore chosen_core_g.
 int  backendCreateSpool(const char* base_url, int template_spool_id, int filament_id,
        float initial_weight, float spool_weight, float remaining_weight,
        int* out_spool_id = nullptr, uint32_t timeout_ms = 8000, float chosen_core_g = 0.0f);
@@ -447,24 +445,16 @@ int  backendMigrateLastDried(int spool_id, uint32_t timeout_ms);
 // --- ams slots -----------------------------------------------
 
 // Whether the active backend can show the AMS at all. BamBuddy reads it from
-// the printer status, FilaMan from its display endpoint. Spoolman knows
-// nothing about printers, and has the view only through an AMS source
-// (ams_source.h). Asked before a button is drawn, so the way in is
+// the printer status, FilaMan from its display endpoint, Spoolman knows
+// nothing about printers. Asked before a button is drawn, so the way in is
 // simply absent rather than present and answering with an error.
 bool backendHasAmsView();
 
-// Whether a spool can be pinned to a bay from here. BamBuddy, and Spoolman
-// through an AMS source. Not FilaMan: it does have an AMS assignment, but no
-// model in which the scale names the bay and the database takes it - there
-// the scale opens a time window and the server decides, which is what
-// amsCommitWithWindow() does.
+// Whether a spool can be pinned to a bay from here. Only BamBuddy: FilaMan
+// does have an AMS assignment, but no model in which the scale names the bay
+// and the database takes it - there the scale opens a time window and the
+// server decides, which is what amsCommitWithWindow() does.
 bool backendCanAssignAmsSlot();
-
-// Whether the bay card may offer to take a spool out of the AMS: release the
-// bay, then ask for a shelf. Spoolman through an AMS source that says it can
-// unassign. BamBuddy could release a bay as well, but its card has no such
-// path yet and nobody has asked for one.
-bool backendCanTakeOutOfAms();
 
 // The printers worth offering. Both backends answer with the active ones.
 int  backendListPrinters(AmsPrinterList& out, uint32_t timeout_ms = 8000);
@@ -474,9 +464,8 @@ int  backendListPrinters(AmsPrinterList& out, uint32_t timeout_ms = 8000);
 int  backendGetAmsState(int printer_id, AmsSlotState& out,
        uint32_t timeout_ms = 8000);
 
-// Pins a spool to a bay. BamBuddy, or Spoolman through an AMS source - see
-// backendCanAssignAmsSlot() for why FilaMan says no despite having an AMS
-// assignment of its own.
+// Pins a spool to a bay. BamBuddy only - see backendCanAssignAmsSlot() for
+// why FilaMan says no despite having an AMS assignment of its own.
 int  backendAssignAmsSlot(int spool_id, int printer_id, int ams_id, int tray_id,
        uint32_t timeout_ms = 8000);
 

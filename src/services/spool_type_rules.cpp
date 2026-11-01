@@ -3,11 +3,15 @@
 #include <math.h>
 #include <string.h>
 
-#include "services/text_fold.h"
-
 // The most grams spoolTypeGrams() hands back. Far above any spool, and low
 // enough for the float to int cast to be safe.
 static const float kGramsCap = 1000000.0f;
+
+// ASCII letters only, on purpose: a name with an umlaut is compared byte for
+// byte, so that no locale and no half-folded UTF-8 sequence can sneak in.
+static char foldAscii(char c) {
+  return (c >= 'A' && c <= 'Z') ? (char)(c + ('a' - 'A')) : c;
+}
 
 // Where the text of s begins and how long it is without the blanks on both
 // sides. Looks at no more than max bytes and stops at the terminator.
@@ -21,45 +25,11 @@ static size_t spanTrimmed(const char* s, size_t max, const char** begin) {
   return end - skip;
 }
 
-// A name of the list as a text of its own: at most SPOOL_TYPE_NAME_MAX bytes
-// of it, with a terminator. The fold below reads a character at a time and
-// would run on past the array of a name that lost its terminator.
-static void copyStored(char* out, const char* name) {
-  size_t n = 0;
-  while (n < (size_t)SPOOL_TYPE_NAME_MAX && name[n] != '\0') { out[n] = name[n]; n++; }
-  out[n] = '\0';
-}
-
-// Wurzel (V43): the names were compared by ASCII letters only, a character
-// outside ASCII byte for byte. The keyboards type capital umlauts and accents
-// now, so "Pappspule gr<u umlaut>n" met "Pappspule Gr<capital U umlaut>n" as
-// two names, and a second spool type was made next to the first. The search
-// in a colour list and "Enter filament" (sortEntrySame()) read through
-// textFoldNext(); the types did not.
-// Fix: both texts are read a character at a time through textFoldNext(), the
-// same fold, instead of a byte at a time. The first vlen bytes of v, all of
-// them, must be the start of the first tlen bytes of t; *used is how many
-// bytes of t that took. Both spans end at a blank or a terminator, which can
-// never be the middle of a UTF-8 sequence, so no character runs past its end.
-// NOT-TO-DO: folding byte by byte (c | 0x20 takes 0x9C, the second byte of the
-// capital U umlaut, for 0xBC, the small one's), or with tolower() and
-// towlower(): the host test and the panel would fold differently, see
-// text_fold.h. The old length check on the bytes is gone as well: the
-// characters decide, not the bytes.
-// See test_spool_type_rules.py.
-static bool foldedStart(const char* t, size_t tlen, const char* v, size_t vlen, size_t* used) {
-  const char* tp = t;
-  const char* vp = v;
-  const char* const tend = t + tlen;
-  const char* const vend = v + vlen;
-  while (vp < vend) {
-    if (tp >= tend) return false;
-    uint32_t ct, cv;
-    tp = textFoldNext(tp, &ct);
-    vp = textFoldNext(vp, &cv);
-    if (ct != cv) return false;
+// True when the first len bytes of a and b are the same, ASCII case aside.
+static bool sameFolded(const char* a, const char* b, size_t len) {
+  for (size_t i = 0; i < len; i++) {
+    if (foldAscii(a[i]) != foldAscii(b[i])) return false;
   }
-  *used = (size_t)(tp - t);
   return true;
 }
 
@@ -74,15 +44,12 @@ bool spoolTypeOfVendor(const char* type_name, const char* vendor) {
   const char* v;
   const size_t vlen = spanTrimmed(vendor, strlen(vendor), &v);
   if (vlen == 0) return false;
-  char stored[SPOOL_TYPE_NAME_MAX + 1];
-  copyStored(stored, type_name);
   const char* t;
-  const size_t tlen = spanTrimmed(stored, (size_t)SPOOL_TYPE_NAME_MAX, &t);
-  size_t used = 0;
-  if (!foldedStart(t, tlen, v, vlen, &used)) return false;
-  // The prefix has to end where a word ends. t[used] exists only when the
-  // name goes on (tlen > used); the trailing blanks were cut off above.
-  return used == tlen || t[used] == ' ' || t[used] == '-';
+  const size_t tlen = spanTrimmed(type_name, (size_t)SPOOL_TYPE_NAME_MAX, &t);
+  if (tlen < vlen || !sameFolded(t, v, vlen)) return false;
+  // The prefix has to end where a word ends. t[vlen] exists only when the
+  // name goes on (tlen > vlen); the trailing blanks were cut off above.
+  return tlen == vlen || t[vlen] == ' ' || t[vlen] == '-';
 }
 
 int spoolTypeFilter(const SpoolType* list, int n, const char* vendor, int* out, int out_max) {
@@ -187,26 +154,19 @@ SpoolTypeAsk spoolTypeFirstAsk(float total, float remaining, float bare, bool ow
 }
 
 int spoolTypeCreateTare(int chosen_g, int chain_g, bool chain_trusted, bool* trusted) {
-  // The choice before the chain; the header says why.
+  // A chosen type comes first and counts as stored, even at 250 g. The test
+  // for chosen_g > 0 must come before the chain: asking the chain first would
+  // return its 250 g in place of a type picked for the spool.
   const bool chosen = chosen_g > 0;
   if (trusted) *trusted = chosen ? true : chain_trusted;
   return chosen ? chosen_g : chain_g;
 }
 
 int spoolTypeOwnCore(int tare_g, bool inherited) {
-  // L21; the header says why.
+  // An inherited empty weight is not written onto the new spool as its own
+  // (L21), so the result is 0. Otherwise the tare, never negative.
   if (inherited) return 0;
   return tare_g > 0 ? tare_g : 0;
-}
-
-bool spoolTypeTagAsk(bool bambu_tag, bool bambuddy, float bare, int type_g) {
-  // Wurzel: a NaN reading compares false both ways, so it must not count as a
-  // spool on the pad. Fix: the negated comparison, as in spoolTypeFirstAsk(),
-  // sends NaN to "nothing on the pad". NOT-TO-DO: an early return on
-  // "bare <= NEW_SPOOL_TARE_MIN_G" lets NaN through, and the list would open.
-  if (!bambu_tag || !bambuddy) return false;
-  if (!(bare > NEW_SPOOL_TARE_MIN_G)) return false;
-  return type_g <= 0;
 }
 
 void spoolTypeTrimName(char* dst, size_t n, const char* src) {
@@ -234,14 +194,9 @@ bool spoolTypeNameTaken(const SpoolType* list, int n, const char* name) {
   const size_t wlen = spanTrimmed(name, strlen(name), &want);
   if (wlen == 0) return false;
   for (int i = 0; i < n; i++) {
-    char stored[SPOOL_TYPE_NAME_MAX + 1];
-    copyStored(stored, list[i].name);
     const char* have;
-    const size_t hlen = spanTrimmed(stored, (size_t)SPOOL_TYPE_NAME_MAX, &have);
-    size_t used = 0;
-    // The whole stored name has to be taken by the typed one: a longer name
-    // is another one, and so is a shorter.
-    if (foldedStart(have, hlen, want, wlen, &used) && used == hlen) return true;
+    const size_t hlen = spanTrimmed(list[i].name, (size_t)SPOOL_TYPE_NAME_MAX, &have);
+    if (hlen == wlen && sameFolded(have, want, wlen)) return true;
   }
   return false;
 }

@@ -189,13 +189,6 @@ static const char APP_CSS[] PROGMEM =
       ".sig i:nth-child(3){height:10px}.sig i:nth-child(4){height:13px}"
       // forms
       ".field{display:flex;flex-direction:column;gap:7px}.field+.field{margin-top:16px}"
-      // The same step around a field or a list of values whatever stands next
-      // to it, so a save button or a hint is never glued to the control. Pairs
-      // used to be spaced one by one, and every new pair started at 0 px.
-      // :where() keeps it at zero specificity: any margin a class or a style
-      // attribute sets still wins.
-      ":where(:is(.card,details)>:is(.field,.rows)+*,:is(.card,.rows)>.row+:not(.row),"
-      ":is(.card,details)>:not(h2,summary)+.field,:is(.card,details)>.inrow+.inrow){margin-top:16px}"
       ".field label{font-size:13px;color:var(--ink-2)}"
       ".hint{font-size:12px;color:var(--ink-soft);line-height:1.55}"
       ".inrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}"
@@ -387,9 +380,7 @@ const char* webStaticVersion() { return FW_VERSION; }
 // language it is set to, and this file is cached across both - so the strings
 // stay in the page and are assigned into WS.
 static const char APP_JS[] PROGMEM =
-  "var WS={ok:'OK',err:'Error',yes:'OK',no:'Cancel',"
-  "dl:'Download not possible in an embedded window - open the scale directly: http://{a}',"
-  "dls:'Download: {n}',dlok:'Saved: {n}',cls:'Close'};\n"
+  "var WS={ok:'OK',err:'Error',yes:'OK',no:'Cancel'};\n"
 
   "function $(i){return document.getElementById(i);}\n"
 
@@ -433,99 +424,6 @@ static const char APP_JS[] PROGMEM =
   "function getJson(u){"
   "return fetch(u,{cache:'no-store'}).then(function(r){"
   "if(!r.ok)throw 0;return r.json();}).catch(function(){return null;});}\n"
-
-  // Downloads: the one place that saves a file for the page.
-  //
-  // Wurzel: Bambuddy shows the scale in an iframe whose sandbox grants
-  //   allow-popups and allow-popups-to-escape-sandbox but not allow-downloads,
-  //   and a browser drops every download that starts inside such a frame:
-  //   no file, no entry in the list, no error - while the scale's log says
-  //   "downloaded" (acceptance of v0.8.6-beta.8; maziggy/bambuddy
-  //   ExternalLinkPage.tsx:48).
-  //   A second root, found in review: a click that a script makes in that
-  //   window has no user activation of its own, and Chromium allows the first
-  //   scripted download of a page and prompts or blocks the rest.
-  // Fix: in a frame the click opens a small window of its own, which carries
-  //   no sandbox, and the anchor is clicked there. Outside a frame nothing
-  //   changes. downloadStart() runs first, inside the click handler;
-  //   downloadFinish() saves once the data is there; downloadAbort() closes
-  //   the window when the data does not come. A handle is
-  //   {emb, w, id, t, list, k}; downloadStart() answers null when the window
-  //   was refused, with the sentence already on the page in element id.
-  //   One file: clicked by script; the window then stays with a line naming
-  //   the file and a Close button (acceptance of v0.8.6-beta.9: Edge shows
-  //   its download bubble in that window, and a window that closed itself
-  //   five seconds later took the bubble with it). Several
-  //   (downloadStart(id, n) with n > 1, list): the window gets one real link
-  //   per file, so every save is the user's own click, and it stays open until
-  //   the user closes it.
-  // NOT-TO-DO: no window.open() after a fetch or an await - the click is spent
-  //   and the popup blocked. No object URL made in the frame and handed to the
-  //   window - blob URLs are partitioned by the top-level site and the window
-  //   cannot read it; the window makes its own from the Blob. No window per
-  //   file in "save all" - opening one consumes the click, the second is
-  //   blocked; one handle serves them all. No scripted click for the second
-  //   file on - it would not arrive. No self-closing list - the user is still
-  //   clicking. No self-closing window after a single file either - the
-  //   browser's download bubble lives in it. No `download` or click outside
-  //   these functions, and no asking the frame whether it is sandboxed - it
-  //   cannot be read from inside, so a frame always takes the window.
-  // See test_download_embedded.py
-  "function downloadEmbedded(){"
-  "try{return window.self!==window.top;}catch(e){return true;}}\n"
-
-  "function downloadNo(id){"
-  "flash(id,WS.dl.replace('{a}',location.host),true,8000);}\n"
-
-  "function downloadAbort(h){"
-  "if(!h||!h.w)return;"
-  "clearTimeout(h.t);try{h.w.close();}catch(e){}h.w=null;}\n"
-
-  // Opened without a URL, so that it stays the empty page of this origin and
-  // the frame can write to it; a navigation would make it a page of its own.
-  // Closed on its own after a minute when nothing arrives, unless it is to
-  // hold a list of links: that one stays for the user. n is how many files
-  // are to follow; a window for a list is taller.
-  "function downloadStart(id,n){"
-  "var h={emb:downloadEmbedded(),w:null,id:id,t:0,list:false,k:0};"
-  "if(!h.emb)return h;"
-  "h.list=n>1;"
-  "try{h.w=window.open('','_blank',h.list?'popup=yes,width=420,height='+Math.min(110+n*34,460)"
-  ":'popup=yes,width=360,height=120');}catch(e){}"
-  "if(!h.w||h.w.closed){h.w=null;downloadNo(id);return null;}"
-  "if(!h.list)h.t=setTimeout(function(){downloadAbort(h);},60000);"
-  "return h;}\n"
-
-  // src is a Blob or a URL of the scale. In the window it is the window that
-  // makes the object URL. A window the user has closed since says so like a
-  // refused one. One file is clicked and the window says so, with a Close
-  // button; for a list every file becomes a link in it. Once the data is
-  // there nothing closes either window by itself: the minute's timer of
-  // downloadStart() stops here.
-  "function downloadFinish(h,src,name){"
-  "var win=h.emb?h.w:window;if(!win)return;"
-  "if(h.emb&&win.closed){downloadAbort(h);downloadNo(h.id);return;}"
-  "var isUrl=typeof src==='string',u=null;"
-  "try{"
-  "u=isUrl?new URL(src,location.href).href:win.URL.createObjectURL(src);"
-  "var d=win.document,a=d.createElement('a'),box=d.body||d.documentElement;"
-  "a.href=u;a.download=name;"
-  "if(h.list){"
-  "if(!h.k++)box.style.cssText='font:15px sans-serif;margin:14px';"
-  "a.textContent=WS.dls.replace('{n}',name);a.style.cssText='display:block;margin:0 0 10px';"
-  "box.appendChild(a);"
-  "}else{box.appendChild(a);a.click();a.remove();"
-  "if(h.emb){box.style.cssText='font:15px sans-serif;margin:14px';"
-  "var p=d.createElement('div'),b=d.createElement('button');"
-  "p.textContent=WS.dlok.replace('{n}',name);p.style.cssText='margin:0 0 12px';"
-  "b.textContent=WS.cls;b.onclick=function(){win.close();};"
-  "box.appendChild(p);box.appendChild(b);}}"
-  "}catch(e){if(!h.emb)throw e;downloadAbort(h);downloadNo(h.id);return;}"
-  "if(h.list)return;"
-  "if(h.emb){clearTimeout(h.t);h.t=0;}"
-  // Not at once: a browser may still be reading the blob for the save. In the
-  // window it goes with the window.
-  "else if(!isUrl)setTimeout(function(){URL.revokeObjectURL(u);},10000);}\n"
 
   // A yes/no question in the page's own look, resolving true or false.
   // confirm() drew the browser's box at the top of the window, and inside a
