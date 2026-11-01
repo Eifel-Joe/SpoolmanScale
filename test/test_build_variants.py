@@ -480,10 +480,13 @@ for rel in ("services/doc_build_rules.h",):
 #     overridden to ask docWriteAllowed() first, in the header and in the
 #     implementation
 #   - showUpdateBadges() sets show = false
-#   - the version in the header line of the main screen and on the info screen
-#     comes from fwVersionShown(), which is FW_VERSION in a release and in the
-#     acceptance firmware (it says -abnahme there) and the release version in
-#     the documentation firmware
+#   - every version text on the display comes from fwVersionShown(), which is
+#     FW_VERSION in a release and in the acceptance firmware (it says -abnahme
+#     there) and the release version in the documentation firmware: the header
+#     line of the main screen, the info screen and the three firmware screens
+#     (the browser upload's row, the GitHub update's status, the OTA menu). The
+#     web pages, the log, status.json, mDNS and the version comparison keep
+#     FW_VERSION: they are about the build that runs, not about a screenshot.
 WRITE_METHODS = ("sendRequest", "POST", "PATCH", "PUT")
 for rel, pattern in (("services/backend_http.h", r"\bint\s+{name}\s*\("),
                      ("services/backend_http.cpp", r"\bint\s+BackendHttp::{name}\s*\(")):
@@ -519,12 +522,17 @@ for config in CONFIGS:
 release_header = visible("release", "app/doc_build.h")
 expect("src/app/doc_build.h: in a release fwVersionShown() must be defined there and return FW_VERSION",
        re.search(SHOWN + r"\s*\{[^{}]*\bFW_VERSION\b", release_header) is not None)
-for rel, name in (("ui/main_screen.cpp", "buildUI"), ("ui/info_screen.cpp", "infoVersionLine")):
+for rel, name in (("ui/main_screen.cpp", "buildUI"), ("ui/info_screen.cpp", "infoVersionLine"),
+                  ("ui/ota_browser.cpp", "webBuildFirmwareRow"), ("ui/ota_github.cpp", "ghBuildStatus"),
+                  ("ui/ota_menu.cpp", "buildOtaScreen")):
     source = source_of(rel)
     if source is None:
         continue
+    # parseVersion(FW_VERSION) is no text on the screen: the comparison must see
+    # the suffix (version_compare.cpp ranks it), so that one stays.
+    on_screen = re.sub(r"\bparseVersion\s*\(\s*FW_VERSION\s*\)", "", source.code)
     expect(f"src/{rel}: must show the version with fwVersionShown(), not FW_VERSION",
-           re.search(r"\bFW_VERSION\b", source.code) is None)
+           re.search(r"\bFW_VERSION\b", on_screen) is None)
     body = body_of(rel, name)
     if body is not None:
         expect(f"src/{rel}: {name}() must call fwVersionShown()", re.search(r"\bfwVersionShown\s*\(\s*\)", body) is not None)
