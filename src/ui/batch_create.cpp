@@ -387,12 +387,19 @@ static bool labelWentOut(int text) {
 }
 
 // Wurzel: with the preview on, the sheet prints the first label itself, and
-// every way out of it but its print button means "not now": back and the
-// printer row pass through the sheet's own branches, the X and any other
-// navigation through showMainScreen().
+// every way out of it but its print button means "not now": back passes
+// through the sheet's own branch, the X and any other navigation through
+// showMainScreen().
 // Fix: the sheet's print goes on with the rest (batchLabelsStart(kind, 1)),
-// its two own ways out drop them (batchLabelsForget()), and the tick drops
-// them once the sheet is gone without either.
+// its back button drops them (batchLabelsForget()), and the tick drops them
+// once the sheet is gone without either.
+// Wurzel (n27): the printer row counted as a way out and dropped the rest,
+// yet the printer screen's back button opens the sheet again; its print then
+// gave the first label alone, the others gone without a word.
+// Fix: the printer row keeps the run, and the tick waits while the printer
+// screen leads back to the sheet (printerScreenLeadsToSheet()). Closed any
+// other way, the printer screen forgets that way back and the tick drops the
+// rest as for the sheet.
 // NOT-TO-DO: dropping them in closePrintSheet(): the print button closes the
 // sheet before it prints. Nor counting the wait for the sheet as busy
 // (batchLabelsBusy()): a sheet a navigation closed would hold the questions
@@ -472,7 +479,7 @@ void batchLabelsStart(LabelKind kind, int from) {
 // See test_batch_flow.py (after the run).
 void batchLabelsTick() {
   if (s_lr == LR_SHEET) {
-    if (!show_print_sheet_pending && !printSheetOpen()) {
+    if (!show_print_sheet_pending && !printSheetOpen() && !printerScreenLeadsToSheet()) {
       logSDf("Batch: the print sheet for spool %d closed without its print, no labels for the rest", s_lr_first);
       labelsIdle();
     }

@@ -401,10 +401,11 @@ void printSheetTick() {
     printerPrintLastLabel(kind);   // the spool the picture showed
     batchLabelsStart(kind, 1);     // a run's other labels after it (batch_create.h)
   }
+  // Not a way out of a run's sheet (n27): the printer screen's back button
+  // leads to the sheet again, and the run waits for it (batchLabelsTick()).
   if (print_sheet_printer_pending) {
     print_sheet_printer_pending = false;
     closePrintSheet();
-    batchLabelsForget();
     printerScreenFromSheet();
     show_printer_pending = true;
   }

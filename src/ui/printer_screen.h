@@ -43,3 +43,7 @@ LabelPrintResult printerPrintSpoolData(const SpoolLabelData& spool, LabelKind ki
 // The next build of the screen is entered from the print sheet: its back
 // button leads there instead of to the label printer screen.
 void printerScreenFromSheet();
+// Whether the back button still leads to the print sheet: from
+// printerScreenFromSheet() until that button is used or the screen closes
+// another way. A run's labels wait for the sheet meanwhile (batch_create.h).
+bool printerScreenLeadsToSheet();

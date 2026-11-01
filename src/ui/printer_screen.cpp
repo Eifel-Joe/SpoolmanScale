@@ -82,6 +82,7 @@ int printerLastLabelResult() { return keptForLink(s_last_label); }
 // Where the back button leads: the print sheet, when that opened the screen.
 static bool s_back_to_sheet = false;
 void printerScreenFromSheet() { s_back_to_sheet = true; }
+bool printerScreenLeadsToSheet() { return s_back_to_sheet; }
 
 // The spool whose server label failed, for the card's "own layout" answer.
 static SpoolLabelData s_own_layout_spool{};
