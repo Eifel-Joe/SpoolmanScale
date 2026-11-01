@@ -835,6 +835,11 @@ def part_end():
     assert body_of(PRINTER, "printerScreenLeadsToSheet") == "returns_back_to_sheet;",         f"src/{PRINTER}: printerScreenLeadsToSheet() is not whether the back button leads to the sheet"
     assert "boolprinterScreenLeadsToSheet();" in code_of(PRINTER_H), f"src/{PRINTER_H}: no printerScreenLeadsToSheet()"
     assert "s_back_to_sheet=false;" in body_of(PRINTER, "closePrinterScreen"),         f"src/{PRINTER}: closePrinterScreen() keeps the way back to the sheet, a run would wait for good"
+    # Devices (a Bluetooth printer) only hides the printer screen; that way
+    # leads on to the device list and the label printer screen, never back to
+    # the sheet, so it ends the way back as closing does.
+    assert "s_back_to_sheet=false;" in handler_of(PRINTER, "show_ble_devices_pending=true;"), \
+        f"src/{PRINTER}: the Devices row keeps the way back to the sheet: a later printer screen leads there"
     assert body_of(SHEET, "printSheetOpen") == "returns_scr!=nullptr;", f"src/{SHEET}: printSheetOpen() is not the sheet's own pointer"
 
     # 11. The card: the place of the label in the run, only for two or more.
