@@ -1,6 +1,6 @@
 """Read the release workflow as text, without running it, and check that it publishes for this fork: no own esptool merge (it fails for want of rich_click), nothing written to main (a mirror of the original) and no name of the original's repo; the factory images come from scripts/factory_image.py, the ranking, version.json, the flasher manifests and the release title from scripts/release_files.py; version.json and the flasher go to gh-pages, and only after the GitHub release exists; release and pages happen on a tag push only, and a pre-release title carries the German date; the boards built besides the matrix one are exactly the boards in src/boards, in the workflow and in release_files.py alike; one release runs at a time, and the release step fails on a file that is missing. Before anything is released, scripts/board_marker.py reads every image (the device file, the file for the browser upload and the factory image of every board) for the line of the board it is meant for, and the CI build does the same for the firmware.bin of every board: version.json carries the checksum of whatever file sits under a board's name, so a swapped file would otherwise pass the checksum, and the first failing call stops that check in any shell. The release job is shown as "Build and release all boards", not as "build (wt32-sc01-plus)": GitHub appends the matrix values to a job's name unless the name itself holds a matrix expression.
 
-The step "Read version from app_config.h" is run with bash against sample app_config.h files: the version line of a build with a switch carries a macro behind the release literal (`#define FW_VERSION  "v0.8.6-beta.14" SSC_VERSION_SUFFIX`), and the release run must still read exactly the literal, with the anchored pattern scripts/check.sh uses, or it would stop at the tag. The step before the checksums, the release and the pages that searches every attached file for the two routes of the acceptance firmware (/api/touch and /api/sim/weight) is run the same way: sample files without either text pass it, and either text planted in any one of the attached files stops it with ::error:: (a build switch that slipped into a release would otherwise ship the remote control to every user).
+The step "Read version from app_config.h" is run with bash against sample app_config.h files: the version line of a build with a switch carries a macro behind the release literal (`#define FW_VERSION  "v0.8.6-beta.14" SSC_VERSION_SUFFIX`), and the release run must still read exactly the literal, with the anchored pattern scripts/check.sh uses, or it would stop at the tag, and a version with an addition in the literal itself (or of any shape but vX.Y.Z and vX.Y.Z-beta.N) must stop the step with ::error:: before anything reaches version.json or the release title. The step before the checksums, the release and the pages that searches every attached file for the two routes of the acceptance firmware (/api/touch and /api/sim/weight) is run the same way: sample files without either text pass it, and either text planted in any one of the attached files stops it with ::error:: (a build switch that slipped into a release would otherwise ship the remote control to every user).
 
 The workflow cannot be tried before a real tag (tags are public), so this is what holds it together between releases."""
 import os
@@ -384,6 +384,11 @@ if job is not None:
 #     "Tag v0.8.6-beta.14 does not match FW_VERSION ...". The test runs the
 #     step itself, as the runner does (`bash -e`), in a folder with a sample
 #     src/app_config.h, and compares what it writes to $GITHUB_OUTPUT.
+#     Spec 5.3 AA: the version file takes only versions without an addition.
+#     That used to hold by construction only (the suffix lives in the macro).
+#     The step now checks it: a version that is not vX.Y.Z or vX.Y.Z-beta.N
+#     (the format check.sh demands of the literal) stops the step, so that a
+#     suffixed version can never reach version.json or the release title.
 READ_STEP = "Read version from app_config.h"
 ANCHORED = '^#define[[:space:]]+FW_VERSION[[:space:]]+"([^"]+)"'   # scripts/check.sh
 RELEASE_LITERAL = "v0.8.6-beta.14"
@@ -502,6 +507,33 @@ if read_script is not None:
         if code is not None:
             expect(f"step '{READ_STEP}' must fail with ::error:: when app_config.h has no FW_VERSION",
                    code != 0 and "::error::" in output, f"exit {code}, output: {output[-300:]}")
+        # Only a version without an addition may be read: version.json and the
+        # release title take this value. A suffix written into the literal
+        # itself (the suffix of a switch build belongs to the macro behind it)
+        # and a version of any other shape stop the step with ::error:: that
+        # names the version, on a tag push (tag equal to the version, so that
+        # the tag check cannot be what stops it) and on a manual run alike,
+        # and nothing reaches $GITHUB_OUTPUT.
+        for bad_version in ("v0.8.6-beta.14-abnahme", "v0.8.6-beta.14-doku", "v0.8.6-abnahme",
+                            "0.8.6-beta.14", "v0.8", "v0.8.6-rc.1", "v0.8.6-beta."):
+            (work / "src" / "app_config.h").write_text(
+                f'#pragma once\n#define FW_VERSION  "{bad_version}" SSC_VERSION_SUFFIX\n',
+                encoding="utf-8", newline="\n")
+            for ref_type, ref_name, kind in (("tag", bad_version, "a tag push"),
+                                             ("branch", "feat/abnahme-firmware", "a manual run")):
+                (work / "out.txt").unlink(missing_ok=True)
+                code, output = run_bash(read_script, work, {"GITHUB_REF_TYPE": ref_type,
+                                                            "GITHUB_REF_NAME": ref_name,
+                                                            "GITHUB_OUTPUT": "out.txt"})
+                if code is None:
+                    expect(f"step '{READ_STEP}' on {kind}, FW_VERSION {bad_version}", False, output)
+                    continue
+                error_lines = [line for line in output.splitlines() if "::error::" in line]
+                written = (work / "out.txt").read_text(encoding="utf-8") if (work / "out.txt").exists() else ""
+                expect(f"step '{READ_STEP}' must refuse FW_VERSION {bad_version} on {kind} with an ::error:: "
+                       f"line that names the version, and write no version",
+                       code != 0 and any(bad_version in line for line in error_lines) and written == "",
+                       f"exit {code}, wrote {written.splitlines()}, output: {output[-300:]}")
 
 # 13. No route of the acceptance firmware in a release. The acceptance and
 #     documentation firmwares answer POST /api/touch and POST /api/sim/weight
