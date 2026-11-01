@@ -167,6 +167,10 @@ jobs:
         run: python3 test/test_download_embedded.py
       - name: Test AMS grid redraw
         run: python3 test/test_ams_grid_redraw.py
+      - name: Test doc build rules
+        run: python3 test/test_doc_build_rules.py
+      - name: Test build variants
+        run: python3 test/test_build_variants.py
 
   build:
     name: Build ${{ matrix.env }}
