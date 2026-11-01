@@ -39,6 +39,7 @@ enum LabelPrinterModel : uint8_t {
   LP_MODEL_NIIMBOT_M2 = 5,    // NIIMBOT M2, 300 dpi, thermal transfer
   LP_MODEL_M120 = 6, LP_MODEL_M200 = 7, LP_MODEL_M221 = 8,
   LP_MODEL_M110S = 9,         // the M110's bytes, a row as wide as the label
+  LP_MODEL_NIIMBOT_D110 = 10, // NIIMBOT D110 and D110 M: 12 mm tape, 96 dots, the label turned
   LP_MODEL_BROTHER_QL820 = 100 // Brother QL-810W/820NWB over WLAN, see services/brother_ql.h
 };
 
@@ -232,6 +233,10 @@ const LabelPrinterModel* labelPrinterModels(LabelPrinterLink link, int* count);
 // The label sizes offered for a model: a Brother's from its label table, else
 // LABEL_MEDIA_SIZES.
 const LabelMediaSize* labelPrinterMediaSizes(LabelPrinterModel model, int* count);
+// A tape printer: a head as narrow as the label is high (the D110's 12 mm),
+// so the label is drawn lying, as it reads, and turned onto the roll. Its
+// own small arrangement, not the label editor's: see labelRenderSpool().
+bool labelPrinterIsTape(LabelPrinterModel model);
 
 // Whether the model takes label stock of this size.
 bool labelPrinterTakesMedia(LabelPrinterModel model, uint16_t width_mm, uint16_t length_mm);
