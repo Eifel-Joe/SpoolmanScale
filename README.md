@@ -114,6 +114,12 @@ The web flasher and `version.json`, the file a scale reads to find an update, ar
 
 [![Latest Release](https://img.shields.io/github/v/release/Eifel-Joe/SpoolmanScale?style=for-the-badge&color=28d49a)](https://github.com/Eifel-Joe/SpoolmanScale/releases/latest)
 
+[![Downloads, all releases](https://img.shields.io/github/downloads/Eifel-Joe/SpoolmanScale/total?style=for-the-badge&label=downloads&color=28d49a)](https://github.com/Eifel-Joe/SpoolmanScale/releases)
+[![Downloads of the latest stable release](https://img.shields.io/github/downloads/Eifel-Joe/SpoolmanScale/latest/total?style=for-the-badge&label=latest%20stable&color=28d49a)](https://github.com/Eifel-Joe/SpoolmanScale/releases/latest)
+[![Downloads of the newest release, pre-releases included](https://img.shields.io/github/downloads-pre/Eifel-Joe/SpoolmanScale/latest/total?style=for-the-badge&label=newest%20incl.%20pre-release&color=28d49a)](https://github.com/Eifel-Joe/SpoolmanScale/releases)
+
+The counts are GitHub's downloads of the files on the Releases page: a scale that installs an update through "Update via GitHub" counts once, and so does a file downloaded by hand. The web flasher's files are not counted.
+
 ## Documentation
 
 **[This fork's documentation](https://eifel-joe.github.io/SpoolmanScale-Docs/)**, in English and German, describes what this fork does differently: the Waveshare boards, updates, creating spools, empty spools, the Brother printer, Klipper printers and the web interface. Everything else is in the [original's documentation](https://niko11111.github.io/SpoolmanScale-Docs/), which covers the WT32-SC01 Plus and everything this fork has not changed.
