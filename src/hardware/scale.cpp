@@ -3,6 +3,12 @@
 #include <Adafruit_NAU7802.h>
 
 #include "app_config.h"
+#include "app/doc_build.h"
+
+// The calibration the loop converts with (app/app_state.h), for the simulated
+// weight of the acceptance and documentation builds.
+extern float cal_factor;
+extern int32_t zero_offset;
 
 static Adafruit_NAU7802 nau;
 // Kept so the address can be probed without the caller handing the bus in
@@ -65,10 +71,15 @@ bool scaleHardwarePresent() {
 // is not on the bus at all, because the failed register read is all ones and
 // the conversion ready bit is one of them.
 bool scaleHardwareAvailable() {
+  // Acceptance and documentation builds (SSC_ACCEPTANCE, never in a release): a
+  // simulated weight is always ready (the loop reads every 200 ms anyway). In a
+  // release the stub says false and this is the line it was.
+  if (docSimActive()) return true;
   return scaleHardwarePresent() && nau.available();
 }
 
 int32_t scaleHardwareReadRaw() {
+  if (docSimActive()) return docSimRaw(docSimGrams(), zero_offset, cal_factor);
   return nau.read();
 }
 

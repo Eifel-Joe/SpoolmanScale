@@ -17,6 +17,7 @@
 #include "app/app_state.h"
 #include "app/backend_switch.h"
 #include "app/deferred_actions.h"
+#include "app/doc_build.h"
 #include "app/perf_monitor.h"
 #include "app/render_bench.h"
 #include "app/screenshot.h"
@@ -1441,6 +1442,11 @@ void appLoop() {
     lv_label_set_text(lbl_status, T(STR_WAIT_SCAN));
     lv_obj_set_style_text_color(lbl_status, lv_color_hex(UI_COL_WARN), 0);
   }
+
+  // Acceptance and documentation builds (SSC_ACCEPTANCE, never in a release): a
+  // simulated weight ends here after 15 minutes, before the read below, so a
+  // forgotten one never reaches a real spool. The stub is empty in a release.
+  docSimTick(millis());
 
   // The ADC can leave the bus while the device is running - a plug working
   // loose is the usual way. Caught here rather than left to the 5 s probe
