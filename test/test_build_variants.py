@@ -1,4 +1,4 @@
-"""Read the source tree and the build files as text, without a compiler, and check that the acceptance and documentation builds stay what they are meant to be: switches, off in every release. SSC_ACCEPTANCE (the acceptance firmware: touch the display and simulate a weight from the web) and SSC_DOC_BUILD (the documentation firmware: the same, plus it writes nothing to any server and shows the release version) are set by one build environment each (platformio.ini) and by nothing else; app_config.h derives SSC_ACCEPTANCE from SSC_DOC_BUILD and builds the version suffix.
+"""Read the source tree and the build files as text, without a compiler, and check that the acceptance and documentation builds stay what they are meant to be: switches, off in every release. SSC_ACCEPTANCE (the acceptance firmware: touch the display and simulate a weight from the web) and SSC_DOC_BUILD (the documentation firmware: the same, plus it writes nothing to any server, printer or tag and shows the release version) are set by one build environment each (platformio.ini) and by nothing else; app_config.h derives SSC_ACCEPTANCE from SSC_DOC_BUILD and builds the version suffix.
 
 What the switches switch is read the way the preprocessor reads it, as far as `defined(...)` goes: each file is read three times, for a release (no switch), for the acceptance firmware (-DSSC_ACCEPTANCE) and for the documentation firmware (-DSSC_DOC_BUILD alone), following the project's own #include "..." lines, and the code that is left is what is checked: the files of the two builds are empty in a release, their header stubs take over, the write lock of the documentation build is not there in the acceptance firmware (it would refuse every send of an acceptance), and a release carries no route of the acceptance build. The routes /api/touch and /api/sim/weight are spelled in src/web/web_doc.cpp and nowhere else in src/, comments included, so that the text search of the release run needs no exceptions.
 
@@ -469,9 +469,9 @@ for rel in ("services/doc_build_rules.h",):
                and re.search(r"#\s*define\s+DOC_SIM_MAX_MS\s+900000\b", source.code) is not None)
 
 # ------------------------------------------------------------------ 7. what the documentation build adds
-# Only the documentation firmware (SSC_DOC_BUILD) writes nothing to any server
-# and hides the red update dot: the screens that go into the documentation
-# must neither change a server nor show a dot. The acceptance firmware
+# Only the documentation firmware (SSC_DOC_BUILD) writes nothing to any server,
+# printer or tag and hides the red update dot: the screens that go into the
+# documentation must neither change anything outside the scale nor show a dot. The acceptance firmware
 # (SSC_ACCEPTANCE alone) is the opposite case on purpose: an acceptance sends
 # weights, creates and deletes test spools, assigns slots, so a write lock
 # that reached it would fail every send of the acceptance. Hence each of
@@ -512,6 +512,61 @@ for config in CONFIGS:
                re.search(r"\bdocRequestAllowed\s*\(\s*\w+\s*,\s*_uri\.c_str\s*\(\s*\)\s*\)", text) is not None)
     else:
         expect(f"src/{backend}: the {config} build must not ask docRequestAllowed() (it would refuse a send)", not asks)
+
+# Nor to a printer or a tag (Spec 5.3 AA: every way out; Punkteliste n54).
+# Each has one door, and the documentation firmware has no call through it:
+#   - a label, over WLAN or Bluetooth, leaves only by labelPrinterPrint() in
+#     services/label_printer.cpp, the one caller of the three drivers; the
+#     documentation firmware compiles none of those calls and answers with
+#     docLabelNotPrinted() instead: nothing is sent, the screen shows what a
+#     printer's answer shows, so a run of labels goes on for the camera
+#   - a tag is written only in hardware/nfc.cpp, the one caller of the
+#     reader's two writing commands; the documentation firmware compiles
+#     neither and refuses with docTagWriteRefused(), like a write the tag did
+#     not take, and the job ends with its usual error
+# The acceptance firmware keeps every call: it prints and writes like a
+# release, and a lock there would leave both untested.
+DOORS = (
+    ("services/label_printer.cpp", ("brotherQlPrint", "niimbotPrint", "phomemoMSeriesPrint"), "docLabelNotPrinted"),
+    ("hardware/nfc.cpp", ("ntag2xx_WritePage", "mifareclassic_WriteDataBlock"), "docTagWriteRefused"),
+)
+for rel, calls, stand_in in DOORS:
+    for config in CONFIGS:
+        text = visible(config, rel)
+        has_stand_in = re.search(r"\b" + stand_in + r"\s*\(", text) is not None
+        for call in calls:
+            found = re.search(r"\b" + call + r"\s*\(", text) is not None
+            if config == "doc":
+                expect(f"src/{rel}: the documentation firmware (-DSSC_DOC_BUILD) must not compile the call of {call}()", not found)
+            else:
+                expect(f"src/{rel}: the {config} build must keep the call of {call}()", found)
+        if config == "doc":
+            expect(f"src/{rel}: the documentation firmware must answer with {stand_in}()", has_stand_in)
+        else:
+            expect(f"src/{rel}: the {config} build must not have {stand_in}() (it prints and writes tags)", not has_stand_in)
+# Where each of these may be named at all: the door, the driver that defines
+# it and its header, and the driver that is its only caller further down. A
+# call from anywhere else would be a way out past the lock.
+NAMED_ONLY_IN = {
+    "brotherQlPrint": ("services/label_printer.cpp", "services/brother_ql.cpp", "services/brother_ql.h"),
+    "niimbotPrint": ("services/label_printer.cpp", "services/niimbot.cpp", "services/niimbot.h"),
+    "phomemoMSeriesPrint": ("services/label_printer.cpp", "services/phomemo_m_series.cpp", "services/phomemo_m_series.h"),
+    "bleWriteBlocks": ("services/phomemo_m_series.cpp", "services/ble_service.cpp", "services/ble_service.h"),
+    "bleTalkOpen": ("services/niimbot.cpp", "services/ble_service.cpp", "services/ble_service.h"),
+    "bleTalkSend": ("services/niimbot.cpp", "services/ble_service.cpp", "services/ble_service.h"),
+    "ntag2xx_WritePage": ("hardware/nfc.cpp",),
+    "mifareclassic_WriteDataBlock": ("hardware/nfc.cpp",),
+}
+for path in sorted(src.rglob("*.cpp")) + sorted(src.rglob("*.h")):
+    rel = path.relative_to(src).as_posix()
+    code = source_of(rel).code
+    for name, allowed in NAMED_ONLY_IN.items():
+        if rel not in allowed and re.search(r"\b" + name + r"\s*\(", code):
+            expect(f"src/{rel}: calls {name}(), which only {allowed[0]} may (the documentation firmware locks it there)", False)
+    # The Brother's raw line is the one socket the firmware opens to a device
+    # by hand; another would be a way out that no lock sees.
+    if rel != "services/brother_ql.cpp" and re.search(r"\.\s*connect\s*\(", code):
+        expect(f"src/{rel}: opens a connection of its own (.connect()), past the documentation firmware's locks", False)
 
 badges = "ui/update_badges.cpp"
 for config in CONFIGS:
