@@ -26,6 +26,15 @@ constexpr int BETA_COUNTER_MAX = 998;
 constexpr uint64_t WEIGHT_MAJOR = 1000000000ULL;
 constexpr uint64_t WEIGHT_MINOR = 1000000ULL;
 constexpr uint64_t WEIGHT_PATCH = 1000ULL;
+
+// True when s ends with tail. Used for the two suffixes of a build made with a
+// switch, which sit at the very end of the tag ("v0.8.6-beta.14-abnahme"); a
+// match anywhere else in the string is no suffix.
+bool endsWith(const char* s, const char* tail) {
+  const size_t n = strlen(s);
+  const size_t t = strlen(tail);
+  return n >= t && strcmp(s + n - t, tail) == 0;
+}
 }  // namespace
 
 uint64_t parseVersion(const char* v) {
@@ -55,8 +64,21 @@ uint64_t parseVersion(const char* v) {
   if (minor < 0) minor = 0;
   if (patch < 0) patch = 0;
 
-  return (uint64_t)major * WEIGHT_MAJOR
-       + (uint64_t)minor * WEIGHT_MINOR
-       + (uint64_t)patch * WEIGHT_PATCH
-       + beta;
+  const uint64_t value = (uint64_t)major * WEIGHT_MAJOR
+                       + (uint64_t)minor * WEIGHT_MINOR
+                       + (uint64_t)patch * WEIGHT_PATCH
+                       + beta;
+
+  // A build made with a switch ("-abnahme" the acceptance firmware, "-doku"
+  // the documentation firmware; neither is ever released) ranks one below the
+  // version it was built on, which gives two things at once. Next to the
+  // published release before it (v0.8.6-beta.14-abnahme beside beta.13) it
+  // ranks equal, so the update check offers nothing and never pulls the scale
+  // back to an older beta. Next to its own release (beta.14) it ranks lower,
+  // so the scale finds its way back as soon as that is out. Only these two
+  // suffixes, at the end of the tag: "-beta" is no suffix, and an unknown
+  // ending such as "-foo" ranks like the plain version. Zero stays zero: one
+  // below the lowest value must not wrap around to the highest number there is.
+  if ((endsWith(v, "-abnahme") || endsWith(v, "-doku")) && value > 0) return value - 1;
+  return value;
 }

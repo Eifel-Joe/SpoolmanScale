@@ -117,7 +117,15 @@ jobs:
           # refactor. The old grep silently returned an empty string, which
           # would have produced a release named "SpoolmanScale " with an empty
           # version in version.json instead of failing.
-          VERSION=$(grep '#define FW_VERSION' src/app_config.h | sed 's/.*"\(.*\)"/\1/')
+          #
+          # The version line is the release literal followed by a macro:
+          #   #define FW_VERSION  "v0.8.6-beta.14" SSC_VERSION_SUFFIX
+          # (empty in a release, "-abnahme" or "-doku" in a build made with a
+          # switch). The read is the anchored pattern of scripts/check.sh: the
+          # quoted text of the one definition, nothing behind it. The earlier
+          # read took the whole line and would now hand the run
+          # "v0.8.6-beta.14 SSC_VERSION_SUFFIX", which stops it at the tag.
+          VERSION=$(sed -nE 's/^#define[[:space:]]+FW_VERSION[[:space:]]+"([^"]+)".*/\1/p' src/app_config.h | head -1)
           if [ -z "$VERSION" ]; then
             echo "::error::FW_VERSION not found in src/app_config.h"
             exit 1

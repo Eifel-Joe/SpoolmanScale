@@ -1,6 +1,26 @@
 #pragma once
 
-#define FW_VERSION  "v0.8.6-beta.13"
+// A build made with a switch is never released and names itself so: the
+// acceptance firmware (SSC_ACCEPTANCE) "-abnahme", the documentation firmware
+// (SSC_DOC_BUILD, which brings SSC_ACCEPTANCE along: it also has the remote
+// control) "-doku". version_compare.cpp ranks both one below the version they
+// were built on, so a scale running one is offered its real release.
+#if defined(SSC_DOC_BUILD) && !defined(SSC_ACCEPTANCE)
+#define SSC_ACCEPTANCE
+#endif
+#if defined(SSC_DOC_BUILD)
+#define SSC_VERSION_SUFFIX "-doku"
+#elif defined(SSC_ACCEPTANCE)
+#define SSC_VERSION_SUFFIX "-abnahme"
+#else
+#define SSC_VERSION_SUFFIX ""
+#endif
+
+// The release literal is the one place scripts/check.sh and the release run
+// read: they take the quoted text of this line and nothing behind it, so the
+// suffix macro does not reach them. Keep this the only macro whose name begins
+// with FW_VERSION.
+#define FW_VERSION  "v0.8.6-beta.13" SSC_VERSION_SUFFIX
 #define DONATION_URL "ko-fi.com/formfollowsfunction"
 
 // Backlight PWM duty on GPIO45, 8 bit, straight through to LovyanGFX. Not a
