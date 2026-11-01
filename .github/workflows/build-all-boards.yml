@@ -130,6 +130,18 @@ jobs:
             echo "::error::FW_VERSION not found in src/app_config.h"
             exit 1
           fi
+          # version.json and the release title take this value, and the
+          # version file takes only versions without an addition: a version
+          # with "-abnahme" or "-doku" (or any other shape) must never be
+          # published, it would reach every scale through the update check
+          # and name a build that is never released. So far that held by
+          # construction (the suffix is a macro behind the literal); this makes
+          # it a check. The format is the one scripts/check.sh demands of the
+          # literal.
+          if ! echo "$VERSION" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$'; then
+            echo "::error::FW_VERSION $VERSION is not vX.Y.Z or vX.Y.Z-beta.N; only a version without an addition may be published"
+            exit 1
+          fi
           # Only on a tag push. A manual workflow_dispatch run has a branch
           # name in GITHUB_REF_NAME and must not be held to this.
           if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$VERSION" != "$GITHUB_REF_NAME" ]; then
