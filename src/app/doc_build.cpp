@@ -61,7 +61,15 @@ float docSimGrams() {
 // Why it ends by itself: the scale is used normally after an acceptance, and a
 // simulated weight that was forgotten would be taken for a real one - a real
 // spool would get a weight that was never on the pad. The main loop calls this
-// before it reads the scale, so a weight that ran out is gone in the same pass.
+// before it reads the scale, so the raw read of that pass is already the real
+// one (scaleHardwareReadRaw() asks docSimActive()). The weight the display shows
+// and the web sends is not the raw read but the moving average over
+// SCALE_FILTER_SIZE (8) readings, one every 200 ms, so simulated samples stay in
+// it for about 1.6 s after the end, whether it ran out here or docSimOff() ended
+// it, and the shown and sent weight follows within that time. Auto-tare cannot
+// fire on those leftovers: it needs 3 s of steady weight (AUTO_TARE_STABLE_MS),
+// its timer is held at zero while the simulation is on (app_loop.cpp), and the
+// leftovers are out of the window after 1.6 s.
 void docSimTick(uint32_t now_ms) {
   if (!s_sim_on) return;
   if (!docSimExpired(s_sim_from, now_ms)) return;
