@@ -9,6 +9,7 @@
 #include "../hardware/sd_logger.h"
 #include "bambuddy_name.h"
 #include "density_rules.h"
+#include "server_reach.h"
 #include "sort_entry_rules.h"
 #include "spoolman_api.h"
 #include "spoolman_filament_db.h"
@@ -335,13 +336,16 @@ static void countDensity(JsonObjectConst e, void* p) {
 // in the light form the maker's own list of it; 0 when there is none.
 // Spoolman's material list below is a short list of suggestions that spells
 // TPU "Flexible (TPU)" and has no PA at all, while the database holds 216
-// TPU (74 of them at 1.20 g/cm3).
-static float databaseDensity(const char* base_url, const char* vendor, const char* material) {
+// TPU (74 of them at 1.20 g/cm3). *code gets the search's HTTP code, so a
+// database that did not answer is told apart from one without a density.
+static float databaseDensity(const char* base_url, const char* vendor, const char* material,
+                             int* code = nullptr) {
   DensityCount dc = {};
   dc.material = material;
   dc.best = -1;
+  int got;
   if (spoolmanFdbForm(base_url) == SM_FDB_LIGHT) {
-    if (spoolmanFdbEachOf(base_url, vendor, material, countDensity, &dc) != 200) return 0.0f;
+    got = spoolmanFdbEachOf(base_url, vendor, material, countDensity, &dc);
   } else {
     JsonDocument filter;
     JsonObject f = filter.to<JsonArray>().add<JsonObject>();
@@ -350,9 +354,11 @@ static float databaseDensity(const char* base_url, const char* vendor, const cha
     const String path = String("/api/v1/external/filament/search?limit=") + SM_FIL_DB_LIMIT +
                         "&query=" + spoolmanUrlEncode(material);
     JsonDocument doc;
-    if (spoolmanGetJson(base_url, path.c_str(), doc, SM_FIL_DB_TIMEOUT_MS, &filter) != 200) return 0.0f;
-    for (JsonObjectConst e : doc.as<JsonArrayConst>()) countDensity(e, &dc);
+    got = spoolmanGetJson(base_url, path.c_str(), doc, SM_FIL_DB_TIMEOUT_MS, &filter);
+    if (got == 200) for (JsonObjectConst e : doc.as<JsonArrayConst>()) countDensity(e, &dc);
   }
+  if (code) *code = got;
+  if (got != 200) return 0.0f;
   return dc.best < 0 ? 0.0f : dc.value[dc.best] / 100.0f;
 }
 
@@ -421,6 +427,29 @@ static void takeTypedDensity(const TagCreateInput& in, TagFilamentPlan* plan) {
   if (plan->density > 0.0f || !densityPlausible(in.density_typed)) return;
   plan->density = in.density_typed;
   logSDf("Spoolman: density %.2f for %s typed at the scale", plan->density, in.material);
+}
+
+// The end of a plan that has no density. Wurzel: the search of the filament
+// database by material may not answer at all (a time-out after 12 s, no
+// connection); that read as "no density", the same database was then searched
+// again by the product name (12 s more), and the card asked for a density the
+// database may well know (Punkteliste n05 a, STATUS 57 a).
+// Fix: after a search that did not reach the database the plan fails with its
+// code, the card says so and the next try asks the database again; only a
+// database that answered without a density leads to the question.
+// NOT-TO-DO: asking anyway and taking the typed density; it would overrule the
+// database's own value on a slow day, and the typed one comes last (V34).
+// See test_density_rest.py (a).
+static void noDensity(const TagCreateInput& in, int db_code, TagFilamentPlan* plan) {
+  plan->state = TFS_FAILED;
+  if (serverReachIsNetworkFailure(db_code)) {
+    plan->http_code = db_code;
+    logSDf("Spoolman: filament database did not answer (HTTP %d), no density for %s, not asked",
+           db_code, in.material);
+    return;
+  }
+  logSDf("Spoolman: no density known for %s, filament not created", in.material);
+  plan->no_density = true;
 }
 
 // The vendor's id, 0 when the inventory has none yet; -1 when the server
@@ -536,16 +565,13 @@ static bool planExisting(const char* base_url, const TagCreateInput& in, TagFila
 // colour), and only with a density, which Spoolman requires.
 static void planFromTag(const char* base_url, const TagCreateInput& in, TagFilamentPlan* plan) {
   if (!in.names_known || (!in.color_count && !in.clear)) { plan->state = TFS_NEEDS_CATALOG; return; }
-  plan->density = databaseDensity(base_url, in.vendor, in.material);
+  int db_code = 200;
+  plan->density = databaseDensity(base_url, in.vendor, in.material, &db_code);
   if (plan->density <= 0.0f) plan->density = materialDensity(base_url, in.material);
-  if (plan->density <= 0.0f) plan->density = productDensity(base_url, in);
+  // The product name is asked of the same database: not after it did not answer.
+  if (plan->density <= 0.0f && !serverReachIsNetworkFailure(db_code)) plan->density = productDensity(base_url, in);
   takeTypedDensity(in, plan);
-  if (plan->density <= 0.0f) {
-    logSDf("Spoolman: no density known for %s, filament not created", in.material);
-    plan->state = TFS_FAILED;
-    plan->no_density = true;
-    return;
-  }
+  if (plan->density <= 0.0f) { noDensity(in, db_code, plan); return; }
   // A label and a typed sort alike: BamBuddy's name behind BamBuddy, the colour
   // goes to the spool (backend_api.cpp, bambuddyCreateUnderSpoolman()).
   if (s_bambuddy_names) bambuddyFilamentName(in.material, in.subtype, plan->name, sizeof(plan->name));
@@ -570,16 +596,12 @@ void spoolmanPlanTagFilament(const char* base_url, const TagCreateInput& in, Tag
   if (plan->vendor_id < 0) { plan->state = TFS_FAILED; return; }
   // Spoolman requires a density; a picked entry without one borrows it the
   // way a filament from a tag does.
-  if (picked && plan->density <= 0.0f) plan->density = databaseDensity(base_url, in.vendor, in.material);
+  int db_code = 200;
+  if (picked && plan->density <= 0.0f) plan->density = databaseDensity(base_url, in.vendor, in.material, &db_code);
   if (picked && plan->density <= 0.0f) plan->density = materialDensity(base_url, in.material);
   // Not the product name here: a picked entry is the product already.
   if (picked) takeTypedDensity(in, plan);
-  if (picked && plan->density <= 0.0f) {
-    logSDf("Spoolman: no density known for %s, filament not created", in.material);
-    plan->state = TFS_FAILED;
-    plan->no_density = true;
-    return;
-  }
+  if (picked && plan->density <= 0.0f) { noDensity(in, db_code, plan); return; }
   if (in_db) { plan->state = TFS_CREATE_DB; return; }
   planFromTag(base_url, in, plan);
 }
