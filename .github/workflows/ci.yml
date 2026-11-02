@@ -122,6 +122,10 @@ jobs:
         run: python3 test/test_weight_popup.py
       - name: Test print card
         run: python3 test/test_print_card.py
+      - name: Test label printer texts
+        run: python3 test/test_label_printer_texts.py
+      - name: Test the page script check
+        run: python3 test/test_check_web_js.py
       - name: Test text fold
         run: python3 test/test_text_fold.py
       - name: Test list search
