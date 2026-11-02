@@ -6,6 +6,6 @@ contact_links:
   - name: Original manual
     url: https://niko11111.github.io/SpoolmanScale-Docs/
     about: Everything else - build guide, setup of the backends, calibration and troubleshooting
-  - name: Discord
+  - name: Discord of the original
     url: https://discord.gg/K3KmKnrWhP
-    about: Questions, help with a setup, show your build
+    about: The original project's community - questions, help with a setup, show your build. For what this fork adds or changes, please report here instead.

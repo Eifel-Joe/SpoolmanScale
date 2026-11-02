@@ -10,12 +10,14 @@ body:
         in the [manual of this fork](https://eifel-joe.github.io/SpoolmanScale-Docs/),
         which covers what it does differently, in the
         [original's manual](https://niko11111.github.io/SpoolmanScale-Docs/) for everything else,
-        or on the [Discord](https://discord.gg/K3KmKnrWhP).
+        or on the original's [Discord](https://discord.gg/K3KmKnrWhP).
+        The Discord belongs to the original project; for what this fork adds or changes,
+        please open an issue here.
   - type: input
     id: version
     attributes:
       label: Firmware version
-      description: Shown on the info screen and at the top of every web page, e.g. v0.8.2-beta.73
+      description: Shown on the info screen and at the top of every web page, e.g. v0.8.5 or v0.8.6-beta.18
     validations:
       required: true
   - type: dropdown
