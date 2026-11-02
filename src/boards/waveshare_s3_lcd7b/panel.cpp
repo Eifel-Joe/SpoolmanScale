@@ -427,20 +427,9 @@ void panelBacklightOff() {
 
 // The level first, so the light comes on where it was left and does not
 // flash at full before going down.
-// Wurzel: after "Screen off" the light came back darker than set, at the idle
-// dim it had when it went off, until the brightness slider was touched (Joerg,
-// 02.11.2026). The level written while the light is off is acknowledged
-// (log: "brightness 255 -> PWM 0" at the wake) but the CH32V003 does not
-// show it; it keeps the level it last showed.
-// Fix: the level once more after the light is on. The first write stays: on a
-// chip that does take it, the light does not come up at the old level first.
-// NOT-TO-DO: the light first and the level after it only; that order shows
-// the old level for a moment on every chip, and a full one after boot.
-// See test_backlight_wake.py.
 void panelBacklightOn(uint8_t brightness) {
   panelSetBrightness(brightness);
   io_ch32v003::write(hw_pins::EXIO_BACKLIGHT, true);
-  panelSetBrightness(brightness);
 }
 
 // The expander stays powered in deep sleep, and the CH422G on the 7 keeps its
