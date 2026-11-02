@@ -4766,6 +4766,9 @@ const char* const STRINGS[][3] = {
   { "Die Spule ist nicht mehr da, sie wurde gelöscht oder archiviert.",
     "The spool is no longer there, it was deleted or archived.",
     "La bobine n'existe plus, elle a été supprimée ou archivée." },  // STR_COPY_TPL_GONE_TEXT
+  { "Andere Spule - abgebrochen",
+    "Other spool - cancelled",
+    "Autre bobine - annulé" },  // STR_CREATE_OTHER_SPOOL
 };
 
 StringID tagWriteResultString(uint8_t code) {

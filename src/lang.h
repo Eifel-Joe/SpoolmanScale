@@ -2164,6 +2164,9 @@ enum StringID {
   STR_COPY_TPL_GONE_TITLE,    // popup title, the copy card's template is no longer on the server (404)
   STR_COPY_TPL_GONE_TEXT,     // popup text under it
 
+  // The create card closed because another tag was read (ui/tag_create_popup.cpp)
+  STR_CREATE_OTHER_SPOOL,     // status line of the main screen, nothing created
+
   STR_COUNT
 };
 

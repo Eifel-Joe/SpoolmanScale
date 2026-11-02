@@ -18,6 +18,7 @@
 #include "lang.h"
 #include "services/density_rules.h"
 #include "services/no_tag_create_rules.h"
+#include "services/create_tag_rules.h"
 #include "services/server_reach.h"
 #include "services/spool_cache.h"
 #include "services/spool_extras.h"
@@ -83,6 +84,9 @@ static uint32_t        s_plan_gen   = 0;
 enum TcpTwin : uint8_t { TCP_TWIN_OPEN = 0, TCP_TWIN_NEW, TCP_TWIN_TAKE };
 static TcpTwin         s_twin_answer = TCP_TWIN_OPEN;
 static int             s_twin_id     = 0;
+// The key of the tag on the pad when the card opened (createPadTagKey()), ""
+// for a create without a tag. See closeForOtherSpool().
+static char            s_held_key[40] = "";
 
 lv_obj_t* tagCreatePopupScreen() { return s_scr; }
 
@@ -108,6 +112,43 @@ void closeTagCreatePopup() {
   s_swatch = nullptr;
   s_meta = nullptr;
   s_job = TCP_IDLE;
+}
+
+// ------------------------------------------------------------
+//  The spool the card was opened for
+// ------------------------------------------------------------
+
+// Wurzel: the card and the spool type list in front of it are opened for the
+// spool on the pad, and its tag is linked at the end. Another spool laid on
+// meanwhile went unnoticed: the card was built for the first, its start values
+// came off the second, and "Create" linked the first one's tag (a Bambu tag's
+// is taken with the input) to the second one's weight (Punkteliste n04,
+// STATUS 55). The same with the card standing, and on the ways from the
+// database and the sort entry, which end on this card.
+// Fix: the card keeps the key of the tag read when it opened; when another tag
+// is read, after the list and on every pass while the card stands, it closes
+// the way Cancel does, nothing made, and the status line says why. A wrong
+// spool laid on is the user's slip (Joerg), so the smallest safe answer.
+// NOT-TO-DO: starting over for the new spool; the sources and answers on the
+// card were chosen for the first one. Nor tag_present: an NTAG whose
+// reception drops out leaves it false with the same spool on the pad.
+// See test_create_card_swap.py, test_create_tag_rules.py.
+static const char* padKeyNow() {
+  return createPadTagKey(g_tag.tray_uuid, g_tag.uid_str);
+}
+
+static void holdPadTag() {
+  snprintf(s_held_key, sizeof(s_held_key), "%s", noTagMode() ? "" : padKeyNow());
+}
+
+static bool cardTagFits() {
+  return createCardTagFits(s_held_key, padKeyNow());
+}
+
+static void closeForOtherSpool(const char* where) {
+  logSDf("TagCreate: another tag on the pad (%s), card closed, nothing created", where);
+  closeTagCreatePopup();
+  statusMessageShow(T(STR_CREATE_OTHER_SPOOL), UI_COL_WARN);
 }
 
 // ------------------------------------------------------------
@@ -577,6 +618,7 @@ static void buildCard() {
 // Called from the loop (spoolTypeListTick()), where the card may be built. A
 // card still standing is closed first, as showTagCreatePopup() does.
 static void tagTypeGoOn() {
+  if (!cardTagFits()) { closeForOtherSpool("spool type list"); return; }
   closeTagCreatePopup();
   buildCard();
 }
@@ -637,6 +679,7 @@ void showTagCreatePopup() {
     return;
   }
   s_picked = false;
+  holdPadTag();
   if (tagTypeAsk()) return;
   buildCard();
 }
@@ -646,6 +689,7 @@ void showTagCreatePopupFor(const TagCreateInput& in) {
   closeTagCreatePopup();
   s_in = in;
   s_picked = true;
+  holdPadTag();
   buildCard();
 }
 
@@ -834,6 +878,7 @@ void tagCreatePopupTick() {
     closeTagCreatePopup();
     return;
   }
+  if (s_scr && !cardTagFits()) { closeForOtherSpool("card"); return; }
   if (!s_scr || s_job == TCP_IDLE) return;
   const TcpJob job = s_job;
   s_job = TCP_IDLE;
