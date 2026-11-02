@@ -1,4 +1,4 @@
-"""Compile the production 7B expander driver against a Wire that records every frame, and check what reaches the chip: levels before direction, GPIO19/20 always on USB, a pin write the chip refuses sent again and counted."""
+"""Compile the production 7B expander driver against a Wire that records every frame, and check what reaches the chip: levels before direction, GPIO19/20 always on USB, a pin write the chip refuses sent again and counted, two frames never closer than 2 ms."""
 import re
 import subprocess
 import tempfile
@@ -6,19 +6,32 @@ from pathlib import Path
 
 root = Path(__file__).parents[1]
 
+# The Arduino core's clock, as far as the driver uses it: micros() reads a
+# clock of the test's own, delayMicroseconds() moves it on.
+arduino_h = r'''
+#pragma once
+#include <stdint.h>
+extern uint32_t g_now_us;
+inline unsigned long micros() { return g_now_us; }
+inline void delayMicroseconds(uint32_t us) { g_now_us += us; }
+'''
+
 # The Arduino core's TwoWire, as far as the driver uses it (the same
 # signatures as libraries/Wire/src/Wire.h of arduino-esp32 3.3), recording
-# each transmission instead of sending it.
+# each transmission instead of sending it, with the time it began and ended:
+# a frame of three bytes at 400 kHz lasts about 72 us.
 wire_h = r'''
 #pragma once
 #include <stddef.h>
 #include <stdint.h>
 #include <deque>
 #include <vector>
+#include "Arduino.h"
 
 struct Frame {
   uint8_t address;
   std::vector<uint8_t> bytes;
+  uint32_t start_us, end_us;
 };
 
 class TwoWire {
@@ -29,12 +42,14 @@ class TwoWire {
   // timeout and 4 for anything else (endTransmission() in Wire.cpp).
   std::deque<uint8_t> answers;
 
-  void beginTransmission(uint8_t address) { open_ = Frame{address, {}}; }
+  void beginTransmission(uint8_t address) { open_ = Frame{address, {}, g_now_us, 0}; }
   size_t write(uint8_t value) {
     open_.bytes.push_back(value);
     return 1;
   }
   uint8_t endTransmission() {
+    g_now_us += 72;
+    open_.end_us = g_now_us;
     frames.push_back(open_);
     if (answers.empty()) return 0;
     const uint8_t answer = answers.front();
@@ -43,7 +58,7 @@ class TwoWire {
   }
 
  private:
-  Frame open_{0, {}};
+  Frame open_{0, {}, 0, 0};
 };
 '''
 
@@ -58,6 +73,8 @@ source = r'''
 static constexpr uint8_t ADDR = 0x24, DIRECTION = 0x02, OUTPUTS = 0x03, PWM = 0x05;
 static constexpr uint8_t USB_SEL = 1u << 5;  // EXIO5: high hands GPIO19/20 to CAN
 static constexpr uint8_t ACK = 0, NACK = 2, OTHER = 4, TIMEOUT = 5;  // endTransmission()
+
+uint32_t g_now_us = 0;
 
 static void expect(bool ok, const char* what) {
   if (!ok) {
@@ -161,6 +178,45 @@ int main() {
   expect(io_ch32v003::write(3, true), "the write after a failed one is acknowledged");
   expect(frameIs(bus.frames.back(), OUTPUTS, 0x4C), "the next write carries the pin that was refused");
 
+  // Two frames to the chip never closer than 2 ms, from the end of the one
+  // to the start of the next. The chip acknowledges a frame at once and
+  // takes it over later: on the 7B a frame followed within 0.8 ms by the
+  // next was lost or mixed with it, from 0.9 ms on none in 280 tries (n61,
+  // 02.11.2026). The wake from "screen off" sends the brightness and then
+  // the switch-on 0.13 ms apart and lost the brightness 10 times in 10.
+  static constexpr uint32_t SPACING_US = 2000;
+  auto spaced = [&](size_t from) {
+    for (size_t i = from + 1; i < bus.frames.size(); i++) {
+      if ((uint32_t)(bus.frames[i].start_us - bus.frames[i - 1].end_us) < SPACING_US) return false;
+    }
+    return true;
+  };
+  g_now_us += 50000;
+  size_t from = bus.frames.size();
+  expect(io_ch32v003::begin(bus, 0x00), "begin, long after the frame before");
+  expect(spaced(from), "begin's three frames are 2 ms apart");
+  from = bus.frames.size() - 1;
+  expect(io_ch32v003::pwm(0x03), "the brightness right after begin");
+  expect(io_ch32v003::write(2, true), "the switch-on right after the brightness");
+  expect(io_ch32v003::pwm(0x03), "the brightness again right after the switch-on");
+  expect(spaced(from), "begin, brightness, switch-on and brightness are 2 ms apart");
+  from = bus.frames.size() - 1;
+  bus.answers = {NACK, NACK};
+  expect(io_ch32v003::write(6, true), "a write acknowledged at the third try");
+  expect(spaced(from), "the tries of a refused write are 2 ms apart");
+  // No wait for a frame long after the one before.
+  g_now_us += 10000;
+  const uint32_t asked_at = g_now_us;
+  expect(io_ch32v003::pwm(0x05), "a frame 10 ms after the one before");
+  expect(bus.frames.back().start_us == asked_at, "a frame 10 ms after the one before goes out at once");
+  // micros() wraps after 71 minutes; the spacing holds across.
+  g_now_us = 0xFFFFFE00u;
+  expect(io_ch32v003::pwm(0x07), "a frame just before the clock wraps");
+  from = bus.frames.size() - 1;
+  expect(io_ch32v003::write(2, false), "a frame right after it");
+  expect(spaced(from), "two frames on either side of the wrap are 2 ms apart");
+  expect(bus.frames.back().start_us < 0x1000u, "the second frame went out after the wrap");
+
   // The scale's brightness, 0..255 with 255 full, as the register takes it
   // (Spec 5.3 S, V21): turned round, 0 is full on this chip, and never darker
   // than 247, 97 % of 255, where Waveshare's driver stops ("Prevent the
@@ -196,6 +252,7 @@ int main() {
 
 with tempfile.TemporaryDirectory() as tmp:
     (Path(tmp) / "Wire.h").write_text(wire_h)
+    (Path(tmp) / "Arduino.h").write_text(arduino_h)
     cpp = Path(tmp) / "t.cpp"
     binary = Path(tmp) / "t"
     cpp.write_text(source)
