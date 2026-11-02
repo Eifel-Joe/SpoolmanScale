@@ -728,8 +728,11 @@ static void mergeDbEntry() {
 }
 
 // The twin taken: the plan is the found filament's from here on, with its
-// own empty spool for the weights, and the card makes a new spool of it.
+// own empty spool for the weights, and the card makes a new spool of it. That
+// filament has its density, so a question for one that the plan stopped at
+// goes with it (settleTwin()): left on, the button would still open the pad.
 static void takeTwin() {
+  s_plan.no_density = false;
   s_plan.state = TFS_FOUND;
   s_plan.filament_id = s_plan.twin_id;
   s_plan.found_spool_weight_g = s_plan.twin_spool_weight_g;
@@ -752,9 +755,18 @@ static void onTwinAnswer(bool take) {
 // card asks, and holds the create button until it is answered. A plan asked
 // again for the same twin applies the answer given before. A failed plan
 // says nothing about the twin and leaves the answer alone.
+// Wurzel: a plan that stopped only for a missing density is such a failed
+// plan, though it has looked for the twin before (planExisting() comes ahead
+// of the density); the twin was asked only after the density was typed, and
+// taking it then made the typing for nothing (Punkteliste n05 b).
+// Fix: that plan settles the twin as well; taken, the density ask goes
+// (takeTwin()), a new filament goes on to the ask.
+// NOT-TO-DO: asking the twin for every failed plan; one that did not reach
+// the server has not looked for it.
+// See test_density_rest.py (b).
 static void settleTwin() {
   if (!s_in.typed) return;
-  if (s_plan.state != TFS_CREATE_TAG && s_plan.state != TFS_CREATE_DB) return;
+  if (s_plan.state != TFS_CREATE_TAG && s_plan.state != TFS_CREATE_DB && !s_plan.no_density) return;
   if (s_plan.twin_id <= 0) {
     s_twin_answer = TCP_TWIN_OPEN;
     s_twin_id = 0;
