@@ -1,4 +1,4 @@
-"""Read the source tree without a compiler and check that the create card goes when another spool is laid on (Punkteliste n04): the card from a tag, from "new from database" and from "enter a sort" keeps the key of the tag that was on the pad when it opened (none for a create without a tag), and when another tag is read it closes the way Cancel does and says why on the status line, nothing created. Asked where the card would be built after the spool type list, and on every pass while it stands. Before, the card was built for the first spool and "Create" would have linked its tag with the weight of the second."""
+"""Read the source tree without a compiler and check that the create card goes when another spool is laid on (Punkteliste n04): the card from a tag, from "new from database" and from "enter a sort" keeps the key of the tag that was on the pad when it opened (none for a create without a tag), and when another tag is read it closes the way Cancel does and says why in a popup with OK (the status line lies under the database picker on two of the ways, and other lines overwrite it), nothing created. Asked where the card would be built after the spool type list, and on every pass while it stands. Before, the card was built for the first spool and "Create" would have linked its tag with the weight of the second."""
 import re
 import sys
 from pathlib import Path
@@ -58,8 +58,8 @@ def held_key():
     assert squeeze("return createPadTagKey(g_tag.tray_uuid, g_tag.uid_str);") in key, \
         f"src/{POPUP}: padKeyNow() does not ask the rule for the key of the tag read now"
     fits = body_of(POPUP, "cardTagFits")
-    assert squeeze("return createCardTagFits(s_held_key, padKeyNow());") in fits, \
-        f"src/{POPUP}: cardTagFits() does not ask the rule"
+    assert squeeze("return createCardTagFits(s_held_key, g_tag.tray_uuid, g_tag.uid_str);") in fits, \
+        f"src/{POPUP}: cardTagFits() does not ask the rule with the tray uuid and the UID read now"
 
 
 # 2. Both ways the card opens keep the key, after the input is taken.
@@ -72,11 +72,13 @@ def both_openings():
     before(picked, "holdPadTag();", "buildCard();", f"src/{POPUP}: showTagCreatePopupFor()")
 
 
-# 3. The way out: closed as Cancel closes it, the reason on the status line.
+# 3. The way out: closed as Cancel closes it, the reason in a popup with OK.
 def way_out():
     out = body_of(POPUP, "closeForOtherSpool")
-    before(out, "closeTagCreatePopup();", "statusMessageShow(T(STR_CREATE_OTHER_SPOOL), UI_COL_WARN);",
+    before(out, "closeTagCreatePopup();",
+           "showInfoPopup(STR_CREATE_OTHER_SPOOL, STR_CREATE_OTHER_SPOOL_TEXT, INFO_WARN);",
            f"src/{POPUP}: closeForOtherSpool()")
+    assert "statusMessageShow" not in out, f"src/{POPUP}: closeForOtherSpool() still writes the status line"
 
 
 # 4. Asked after the spool type list, before the card is built.

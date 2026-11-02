@@ -128,10 +128,8 @@ body = body_of(PLANNER, "takeTypedDensity")
 assert "density_typed" in body and "densityPlausible(" in body, \
     f"src/{PLANNER}: takeTypedDensity() does not check a typed density with densityPlausible()"
 body = body_of(PLANNER, "spoolmanPlanTagFilament")
-# A found entry borrows like a picked one since its density is checked as well
-# (test_density_rest.py, c): the branch is in_db.
-assert squeeze("if (in_db) takeTypedDensity(") in body, \
-    f"src/{PLANNER}: the entry branch of spoolmanPlanTagFilament() does not take a typed density"
+assert squeeze("if (picked) takeTypedDensity(") in body, \
+    f"src/{PLANNER}: the picked branch of spoolmanPlanTagFilament() does not take a typed density"
 assert body.find("materialDensity(") < body.find("takeTypedDensity("), \
     f"src/{PLANNER}: the picked branch takes the typed density before the materials were asked"
 

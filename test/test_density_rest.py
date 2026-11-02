@@ -1,7 +1,7 @@
 """Read the source tree without a compiler and check three rests of the density at the scale (Punkteliste n05, STATUS 57):
-(a) when the filament database did not answer the search by material (a time-out, no connection), the same database is not searched again by the product name, and the card does not ask for a density: it says the plan failed, and the next try asks the database again;
+(a) when the filament database did not answer the search by material (a time-out, no connection), the same database is not searched again by the product name, and the card does not ask for a density at once: it says the search failed and its left button asks the database once more ("Nochmal"); only when it does not answer again does the card ask for the density, so a database that stays away never blocks the create;
 (b) a sort typed in whose colour the inventory has under another name asks about that twin as soon as the plan knows it, also when the plan stopped only for a missing density: taking the twin needs no density at all;
-(c) a density from the database, from a picked entry or from Spoolman's material list counts only when it is plausible (density_rules.h), and the one FilaMan is sent as well; a found entry without a plausible one borrows it the way a picked entry does."""
+(c) a density from the database, from a picked entry or from Spoolman's material list counts only when it is plausible (density_rules.h), and the one FilaMan is sent as well; a found entry without a plausible one borrows it on the plan before the create, as a picked entry."""
 import re
 import sys
 from pathlib import Path
@@ -76,11 +76,21 @@ def a_failed_database():
         f"src/{PLANNER}: spoolmanPlanTagFilament() does not end through noDensity()"
     assert "no_density" not in plan, f"src/{PLANNER}: spoolmanPlanTagFilament() sets no_density itself"
     end = body_of(PLANNER, "noDensity")
-    before(end, "if (serverReachIsNetworkFailure(db_code)) {", "plan->no_density = true;",
-           f"src/{PLANNER}: noDensity()")
-    failed, _ = end.split(squeeze("plan->no_density = true;"), 1)
-    assert squeeze("plan->http_code = db_code;") in failed and squeeze("return;") in failed, \
-        f"src/{PLANNER}: noDensity() does not end a failed search with its code, before the density ask"
+    assert squeeze("plan->no_density = true;") in end, f"src/{PLANNER}: noDensity() does not mark the density missing"
+    assert squeeze("plan->db_code = serverReachIsNetworkFailure(db_code) ? db_code : 0;") in end, \
+        f"src/{PLANNER}: noDensity() does not keep the code of a database that did not answer"
+    assert "http_code" not in end, \
+        f"src/{PLANNER}: noDensity() sets http_code, which marks the whole server unreachable"
+    # The card: one more try while the database did not answer, then the ask.
+    due = body_of(POPUP, "dbRetryDue")
+    assert squeeze("return s_plan.no_density && s_plan.db_code != 0 && !s_db_retried;") in due, \
+        f"src/{POPUP}: dbRetryDue() does not offer one more try for a database that did not answer"
+    show = body_of(POPUP, "showPlan")
+    before(show, "if (dbRetryDue()) {", "showDensityAsk(STR_SORT_NO_DENSITY);", f"src/{POPUP}: showPlan()")
+    assert squeeze("setOkText(STR_TAGNEW_RETRY_BTN);") in show, \
+        f"src/{POPUP}: showPlan() does not name the button for the second try"
+    build = body_of(POPUP, "buildCard")
+    assert squeeze("s_db_retried = false;") in build, f"src/{POPUP}: buildCard() does not reset the second try"
 
 
 # (b) The twin is settled for a plan that only lacks the density, and taking
@@ -112,9 +122,12 @@ def c_plausible():
     rule = body_of(PLANNER, "plausibleOrNone")
     assert squeeze("return densityPlausible(d) ? d : 0.0f;") in rule, \
         f"src/{PLANNER}: plausibleOrNone() does not ask densityPlausible()"
+    # A found entry without a plausible density borrows on the second plan, the
+    # one before the create, as a picked entry (mergeDbEntry() links it): the
+    # borrowing branch stays the picked one.
     plan = body_of(PLANNER, "spoolmanPlanTagFilament")
-    assert squeeze("if (in_db && plan->density <= 0.0f) plan->density = databaseDensity(") in plan, \
-        f"src/{PLANNER}: spoolmanPlanTagFilament() does not let a found entry borrow a density"
+    assert squeeze("if (picked && plan->density <= 0.0f) plan->density = databaseDensity(") in plan, \
+        f"src/{PLANNER}: spoolmanPlanTagFilament() changed the branch that borrows a density"
     fm = body_of(FILAMAN, "dbFilamentBody")
     assert squeeze('if (densityPlausible(in.db_density)) body[""] = in.db_density;') in fm, \
         f"src/{FILAMAN}: dbFilamentBody() sends FilaMan a density outside the plausible range"
