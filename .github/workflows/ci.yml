@@ -192,6 +192,8 @@ jobs:
         run: python3 test/test_create_card_swap.py
       - name: Test density rests
         run: python3 test/test_density_rest.py
+      - name: Test backlight wake
+        run: python3 test/test_backlight_wake.py
 
   build:
     name: Build ${{ matrix.env }}
