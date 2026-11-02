@@ -405,7 +405,8 @@ const uint16_t* panelGlass() { return s_fb; }
 // The light itself, through the expander's PWM (Spec 5.3 S, V21): the
 // brightness setting, the dim after the idle time and the flash of a
 // screenshot all land here. One frame of 72 us on the board's bus, shared with
-// the touch chip, from the loop like the touch reads. A refusal is logged once
+// the touch chip, from the loop like the touch reads, and up to 2 ms before
+// it when another frame to the expander has just gone out (FRAME_GAP_US). A refusal is logged once
 // until the chip takes a value again, so a slider dragged over a dead bus does
 // not fill the log; the value is sent anew with the next brightness.
 void panelSetBrightness(uint8_t brightness) {
@@ -426,7 +427,9 @@ void panelBacklightOff() {
 }
 
 // The level first, so the light comes on where it was left and does not
-// flash at full before going down.
+// flash at full before going down. The two frames are 2 ms apart, which the
+// driver keeps: 0.13 ms apart, the chip lost the level and the light came
+// on dimmed (n61, io_ch32v003.cpp, FRAME_GAP_US).
 void panelBacklightOn(uint8_t brightness) {
   panelSetBrightness(brightness);
   io_ch32v003::write(hw_pins::EXIO_BACKLIGHT, true);

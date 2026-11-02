@@ -16,7 +16,9 @@
 // 7's firmware on this board said the expander does not answer.
 //
 // The outputs are always written as the whole byte, so the last byte written
-// is kept here and a change of one pin sends all eight.
+// is kept here and a change of one pin sends all eight. Two frames are 2 ms
+// apart at least: the chip loses or mixes frames that come closer
+// (FRAME_GAP_US in io_ch32v003.cpp).
 namespace io_ch32v003 {
 
 // The levels, every pin an output, the levels again, so that no pin drives

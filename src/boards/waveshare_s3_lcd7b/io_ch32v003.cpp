@@ -1,5 +1,7 @@
 #include "io_ch32v003.h"
 
+#include <Arduino.h>
+
 namespace io_ch32v003 {
 
 static constexpr uint8_t ADDR          = 0x24;
@@ -13,16 +15,49 @@ static uint8_t  s_outputs  = 0;
 static uint32_t s_retries  = 0;
 static uint32_t s_failures = 0;
 
+// The least time from the end of one frame to the start of the next.
+//
+// Root: the chip acknowledges a frame as its bytes arrive (its I2C hardware
+// does that) and takes it over only later, in its own firmware. A frame the
+// next one follows within 0.8 ms is lost, or the two are mixed into one
+// write of the wrong value (the PWM value landed in the outputs register).
+// Measured on the 7B with a diagnosis firmware that read the registers back
+// (n61, 02.11.2026, docs/recherche/2026-11-02-beta18/ of the meta repo):
+// from 0.9 ms on, none in 280 tries. The wake from "screen off" sent the
+// brightness and the switch-on 0.13 ms apart and lost the brightness 10
+// times in 10; the light came on at the dimmed level and stayed there, as a
+// touch sends nothing once the display counts as awake.
+// Fix: a frame waits until FRAME_GAP_US have passed since the last one
+// ended, more than twice the longest gap that lost one. Only a burst waits
+// (the boot, a wake from "screen off", the tries of a refused write); a
+// single frame goes out at once.
+// NOT-TO-DO: the brightness sent again after the switch-on (beta.17,
+// a51e750) is a third frame as close, which lost the middle one, the
+// switch-on, and the light stayed off. More tries do not help either: the
+// chip acknowledged every lost frame. test/test_io_ch32v003.py checks the gap.
+static constexpr uint32_t FRAME_GAP_US = 2000;
+static uint32_t s_last_end_us = 0;
+static bool     s_sent_once   = false;
+
+static void waitForChip() {
+  if (!s_sent_once) return;
+  const uint32_t since = (uint32_t)micros() - s_last_end_us;
+  if (since < FRAME_GAP_US) delayMicroseconds(FRAME_GAP_US - since);
+}
+
 static FrameHook s_hook = nullptr;
 
 void setFrameHook(FrameHook hook) { s_hook = hook; }
 
 static bool writeReg(uint8_t reg, uint8_t value) {
   if (!s_wire) return false;
+  waitForChip();
   s_wire->beginTransmission(ADDR);
   s_wire->write(reg);
   s_wire->write(value);
   const uint8_t result = s_wire->endTransmission();
+  s_last_end_us = (uint32_t)micros();
+  s_sent_once   = true;
   if (s_hook) s_hook(reg, value, result);
   return result == 0;
 }
@@ -58,16 +93,15 @@ bool begin(TwoWire& wire, uint8_t outputs) {
 //
 // After the OTA update to 912c3ff (24.10.2026) the backlight stayed off over
 // a frame buffer with the right picture and "Board: CH32V003 expander ready"
-// in the boot log; a power cycle brought it back. panel.cpp did not look at
-// what this returned, so a write the chip did not take would have gone
-// unnoticed. That is a guess (H1), not a finding; the counters, which
-// panelBegin() logs, are the evidence the next update brings.
+// in the boot log; a power cycle brought it back. A refused write was the
+// guess then (H1); the counters, which panelBegin() logs, never showed one.
+// What fits is FRAME_GAP_US above: begin() sent its frames 0.13 ms apart,
+// and a direction mixed with a level leaves the pins inputs until the chip
+// restarts, which an ESP restart does not do. That is not shown.
 //
 // The kept byte is not set back when every try fails: the next write of any
-// pin then carries the level, which is what a lost backlight-on needs. No
-// pause between the tries, as this file includes Wire.h alone for the host
-// test (test/test_io_ch32v003.py); should writes fail after every try, a
-// pause is the next step, not more tries.
+// pin then carries the level, which is what a lost backlight-on needs. The
+// tries keep the chip's gap like every frame (writeReg()).
 bool write(uint8_t bit, bool on) {
   if (on) s_outputs |= (uint8_t)(1u << bit);
   else    s_outputs &= (uint8_t)~(1u << bit);
