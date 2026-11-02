@@ -2212,6 +2212,7 @@ enum StringID {
   STR_DENSITY_TYPICAL,         // the material's typical density on the create card (o04)
   STR_DENSITY_TAKE,            // its left button: take the typical density
   STR_DENSITY_CHANGE,          // its price button: change the typical density
+  STR_W_L_TAPE_FIXED,          // the label page: a tape printer has a fixed label (web/pages/page_label.cpp)
 
   STR_COUNT
 };
