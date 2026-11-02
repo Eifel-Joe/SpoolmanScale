@@ -448,22 +448,22 @@ static void takeTypedDensity(const TagCreateInput& in, TagFilamentPlan* plan) {
 // connection); that read as "no density", the same database was then searched
 // again by the product name (12 s more), and the card asked for a density the
 // database may well know (Punkteliste n05 a, STATUS 57 a).
-// Fix: after a search that did not reach the database the plan fails with its
-// code, the card says so and the next try asks the database again; only a
-// database that answered without a density leads to the question.
-// NOT-TO-DO: asking anyway and taking the typed density; it would overrule the
-// database's own value on a slow day, and the typed one comes last (V34).
+// Fix: the plan keeps the code of a search that did not reach the database
+// (db_code); the card asks the database once more before it asks for the
+// density (tag_create_popup.cpp, dbRetryDue()). A database that stays away
+// still ends in the question, so the create is never blocked.
+// NOT-TO-DO: failing without the question; a database that keeps timing out
+// would leave a material it alone knows uncreatable. Nor http_code: runPlan()
+// hands it to serverReachNote(), which would mark the whole server down while
+// the vendor search of the same plan has just been answered.
 // See test_density_rest.py (a).
 static void noDensity(const TagCreateInput& in, int db_code, TagFilamentPlan* plan) {
   plan->state = TFS_FAILED;
-  if (serverReachIsNetworkFailure(db_code)) {
-    plan->http_code = db_code;
-    logSDf("Spoolman: filament database did not answer (HTTP %d), no density for %s, not asked",
-           db_code, in.material);
-    return;
-  }
-  logSDf("Spoolman: no density known for %s, filament not created", in.material);
   plan->no_density = true;
+  plan->db_code = serverReachIsNetworkFailure(db_code) ? db_code : 0;
+  if (plan->db_code) logSDf("Spoolman: filament database did not answer (HTTP %d), no density for %s",
+                            db_code, in.material);
+  else               logSDf("Spoolman: no density known for %s, filament not created", in.material);
 }
 
 // The vendor's id, 0 when the inventory has none yet; -1 when the server
@@ -608,14 +608,16 @@ void spoolmanPlanTagFilament(const char* base_url, const TagCreateInput& in, Tag
 
   plan->vendor_id = findVendor(base_url, in.vendor, plan);
   if (plan->vendor_id < 0) { plan->state = TFS_FAILED; return; }
-  // Spoolman requires a density; an entry without a plausible one, picked or
-  // found, borrows it the way a filament from a tag does (plausibleOrNone()).
+  // Spoolman requires a density; a picked entry without a plausible one
+  // borrows it the way a filament from a tag does (plausibleOrNone()). A found
+  // entry does on the plan before the create: the card links it
+  // (mergeDbEntry()), and that plan asks it as a picked one.
   int db_code = 200;
-  if (in_db && plan->density <= 0.0f) plan->density = databaseDensity(base_url, in.vendor, in.material, &db_code);
-  if (in_db && plan->density <= 0.0f) plan->density = materialDensity(base_url, in.material);
-  // Not the product name here: an entry is the product already.
-  if (in_db) takeTypedDensity(in, plan);
-  if (in_db && plan->density <= 0.0f) { noDensity(in, db_code, plan); return; }
+  if (picked && plan->density <= 0.0f) plan->density = databaseDensity(base_url, in.vendor, in.material, &db_code);
+  if (picked && plan->density <= 0.0f) plan->density = materialDensity(base_url, in.material);
+  // Not the product name here: a picked entry is the product already.
+  if (picked) takeTypedDensity(in, plan);
+  if (picked && plan->density <= 0.0f) { noDensity(in, db_code, plan); return; }
   if (in_db) { plan->state = TFS_CREATE_DB; return; }
   planFromTag(base_url, in, plan);
 }

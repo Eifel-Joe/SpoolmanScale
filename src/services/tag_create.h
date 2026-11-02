@@ -183,6 +183,10 @@ struct TagFilamentPlan {
   // density Spoolman requires, so the card can say so instead of showing a
   // search that failed with HTTP 0.
   bool  no_density;            // TFS_FAILED because neither the database nor Spoolman's materials know a density
+  // With no_density: the code of the database's search when it did not answer
+  // at all (a time-out, no connection), 0 when it answered. The card then asks
+  // the database once more before it asks for the density (Punkteliste n05 a).
+  int   db_code;
 };
 
 void tagFilamentPlanClear(TagFilamentPlan* plan);

@@ -85,6 +85,8 @@ static uint32_t        s_plan_gen   = 0;
 enum TcpTwin : uint8_t { TCP_TWIN_OPEN = 0, TCP_TWIN_NEW, TCP_TWIN_TAKE };
 static TcpTwin         s_twin_answer = TCP_TWIN_OPEN;
 static int             s_twin_id     = 0;
+// The database was asked once more after it did not answer (dbRetryDue()).
+static bool            s_db_retried  = false;
 // The key of the tag on the pad when the card opened (createPadTagKey()), ""
 // for a create without a tag. See closeForOtherSpool().
 static char            s_held_key[40] = "";
@@ -264,6 +266,13 @@ static void showDensityAsk(int hint_id) { showAsk(hint_id, STR_DENSITY_BTN); }
 // No tag and no fill weight (or the one typed was out of range).
 static void showFillAsk(int hint_id) { showAsk(hint_id, STR_NOTAG_FILL_BTN); }
 
+// The plan lacks a density because the filament database did not answer its
+// search (db_code, spoolman_filament.cpp noDensity()): the button asks the
+// database once more before the card asks for the density (Punkteliste n05 a).
+static bool dbRetryDue() {
+  return s_plan.no_density && s_plan.db_code != 0 && !s_db_retried;
+}
+
 // Whether the card asks for the fill weight now (X): it is missing, and the
 // plan would otherwise let the card create or ask for a density. A plan that
 // failed, or waits for the catalog, says so and keeps its button; the question
@@ -300,6 +309,13 @@ static void showPlan() {
     case TFS_NEEDS_CATALOG: showStatus(T(STR_TAGNEW_NEEDS_CATALOG), UI_COL_WARN, false);    break;
     default:
       if (s_plan.no_density) {
+        // The database did not answer: one more try first, the button says so.
+        if (dbRetryDue()) {
+          snprintf(buf, sizeof(buf), T(STR_TAGNEW_FAILED), s_plan.db_code);
+          showStatus(buf, UI_COL_BAD_TEXT, true);
+          setOkText(STR_TAGNEW_RETRY_BTN);
+          break;
+        }
         // A filament cannot be made without a density: the card asks for one.
         showDensityAsk(STR_SORT_NO_DENSITY);
         break;
@@ -558,6 +574,15 @@ static void buildAnswers(lv_obj_t* box) {
       showPricePadInfo((float)s_in.net_weight_g, STR_NOTAG_FILL_TITLE, STR_NOTAG_FILL_INFO, onFill);
       return;
     }
+    // The database did not answer: the button asks it once more.
+    if (dbRetryDue()) {
+      logSD("BTN: TagCreate -> Retry, the filament database did not answer");
+      s_db_retried = true;
+      showStatus(T(STR_TAGNEW_SEARCHING), UI_COL_INK_SOFT, false);
+      s_plan_stale = true;
+      s_job = TCP_PLAN;
+      return;
+    }
     // No density known: the button asks for it on the price pad instead of
     // creating, and the answer comes back through onDensity().
     if (s_plan.no_density) {
@@ -591,6 +616,7 @@ static void buildCard() {
   s_price = 0.0f;
   s_twin_answer = TCP_TWIN_OPEN;
   s_twin_id = 0;
+  s_db_retried = false;
   tagFilamentPlanClear(&s_plan);
 
   lv_obj_t* box = buildBox();

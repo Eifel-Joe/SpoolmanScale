@@ -2168,6 +2168,9 @@ enum StringID {
   STR_CREATE_OTHER_SPOOL,     // popup title, nothing created
   STR_CREATE_OTHER_SPOOL_TEXT, // popup text under it
 
+  // The filament database did not answer the card's search (ui/tag_create_popup.cpp)
+  STR_TAGNEW_RETRY_BTN,       // the card's left button: ask the database once more, before the density
+
   STR_COUNT
 };
 

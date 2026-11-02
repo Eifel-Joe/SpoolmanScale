@@ -520,6 +520,7 @@ STR_SORT_NO_DENSITY	14	360	NEVER	src/ui/tag_create_popup.cpp status line in the 
 # price pad's title as for a price and the grey line beside its keys, and the same status line after a value
 # out of range.
 STR_DENSITY_BTN	18	132	NEVER	src/ui/tag_create_popup.cpp left answer button, TCP_ANSWER_W 140 px beside the price button, -8 air
+STR_TAGNEW_RETRY_BTN	18	132	NEVER	src/ui/tag_create_popup.cpp left answer button, TCP_ANSWER_W 140 px beside the price button, -8 air
 STR_DENSITY_PAD_TITLE	14	460	NEVER	src/ui/price_pad.cpp title above the keypad, the density
 STR_DENSITY_RANGE	14	360	NEVER	src/ui/tag_create_popup.cpp status line in the small font, one line (French 293 px)
 STR_DENSITY_PAD_INFO	12	168	WRAP:3	src/ui/price_pad.cpp right column, PP_COL_W, as STR_PRICE_PAD_INFO (French 267 px: two lines)

@@ -4772,6 +4772,9 @@ const char* const STRINGS[][3] = {
   { "Die Karte galt der Spule davor. Angelegt wurde nichts, bitte neu beginnen.",
     "The card was for the spool before. Nothing was created, please start again.",
     "La fiche concernait la bobine précédente. Rien de créé, recommencez." },  // STR_CREATE_OTHER_SPOOL_TEXT
+  { "Nochmal",
+    "Retry",
+    "Réessayer" },  // STR_TAGNEW_RETRY_BTN
 };
 
 StringID tagWriteResultString(uint8_t code) {
