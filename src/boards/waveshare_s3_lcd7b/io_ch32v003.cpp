@@ -45,21 +45,16 @@ static void waitForChip() {
   if (since < FRAME_GAP_US) delayMicroseconds(FRAME_GAP_US - since);
 }
 
-static FrameHook s_hook = nullptr;
-
-void setFrameHook(FrameHook hook) { s_hook = hook; }
-
 static bool writeReg(uint8_t reg, uint8_t value) {
   if (!s_wire) return false;
   waitForChip();
   s_wire->beginTransmission(ADDR);
   s_wire->write(reg);
   s_wire->write(value);
-  const uint8_t result = s_wire->endTransmission();
+  const bool ok = s_wire->endTransmission() == 0;
   s_last_end_us = (uint32_t)micros();
   s_sent_once   = true;
-  if (s_hook) s_hook(reg, value, result);
-  return result == 0;
+  return ok;
 }
 
 // The levels, then every pin an output, then the levels again.

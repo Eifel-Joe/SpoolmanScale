@@ -31,7 +31,6 @@
 #include "services/mifare_write.h"
 #include "services/tag_family.h"
 #include "hardware/display_power.h"
-#include "hardware/light_diag.h"
 #include "hardware/nfc.h"
 #include "hardware/scale.h"
 #include "hardware/scale_state.h"
@@ -615,9 +614,6 @@ void appLoop() {
   prefsFlush();
   perfSection("power");
   handlePowerManagement();
-  // Diagnosis of the 7B light (n61, acceptance firmware only, reverted after);
-  // an empty stub everywhere else.
-  lightDiagTick();
 
   // ── Stack watermark of the loop task ─────────────────────
   // uxTaskGetStackHighWaterMark reports the lowest free stack seen since

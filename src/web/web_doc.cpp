@@ -6,7 +6,6 @@
 #include <stdlib.h>
 
 #include "app/doc_build.h"
-#include "hardware/light_diag.h"
 #include "hardware/sd_logger.h"
 #include "web/web_access.h"
 #include "lang.h"
@@ -68,11 +67,6 @@ void docRoutes(WebServer& srv) {
     logSDf("Acceptance build: simulated weight %.1f g", g);
     srv.send(200, "application/json", String("{\"sim\":true,\"g\":") + String(g, 1) + "}");
   });
-
-#if defined(LIGHT_DIAG)
-  // Diagnosis of the 7B light (n61), reverted after.
-  lightDiagRoutes(srv);
-#endif
 }
 
 #endif  // SSC_ACCEPTANCE

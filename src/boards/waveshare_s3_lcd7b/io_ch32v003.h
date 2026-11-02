@@ -59,10 +59,4 @@ uint8_t pwmFor(uint8_t brightness);
 // does not acknowledge it.
 bool brightness(uint8_t brightness);
 
-// Diagnosis of the light (n61, acceptance firmware only, reverted after):
-// called after every frame with its register, its value and what
-// endTransmission() said. Null, the default, calls nothing.
-using FrameHook = void (*)(uint8_t reg, uint8_t value, uint8_t result);
-void setFrameHook(FrameHook hook);
-
 }

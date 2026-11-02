@@ -20,10 +20,3 @@ void handlePowerManagement();
 // at least ms milliseconds. False while the display is at full brightness,
 // so a scale whose dimming is switched off never counts as idle here.
 bool displayIdleFor(uint32_t ms);
-
-#include "light_diag.h"
-#if defined(LIGHT_DIAG)
-void displayDiagAge(uint32_t ms);
-bool displayDiagDimmed();
-bool displayDiagOff();
-#endif

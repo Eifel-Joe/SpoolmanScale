@@ -8,7 +8,6 @@
 
 #include "app_config.h"
 #include "display.h"
-#include "light_diag.h"
 #include "sd_logger.h"
 
 
@@ -23,7 +22,6 @@ void displayPowerInit() {
   // loadPrefs() has already restored bright_normal from NVS by this point;
   // nothing else pushed it to the hardware, so the saved level only took
   // effect after the first dim/wake cycle.
-  lightDiagEvent("init");
   displaySetBrightness((uint8_t)bright_normal);
 }
 
@@ -34,10 +32,8 @@ bool displayIdleFor(uint32_t ms) {
 void resetActivityTimer() {
   last_activity_ms = millis();
   if (is_off) {
-    lightDiagEvent("wake from off");
     displayBacklightOn((uint8_t)bright_normal);
   } else if (is_dimmed) {
-    lightDiagEvent("wake from dim");
     displaySetBrightness((uint8_t)bright_normal);
   }
   is_dimmed = false;
@@ -106,7 +102,6 @@ void handlePowerManagement() {
   // Before that every boot ran at a hardcoded 204 and 204 -> 77 was a real dim.
   if (!is_dimmed && dim_timeout_ms > 0 &&
       elapsed >= (unsigned long)dim_timeout_ms) {
-    lightDiagEvent("dim");
     displaySetBrightness(BRIGHT_MIN);
     is_dimmed = true;
   }
@@ -115,22 +110,9 @@ void handlePowerManagement() {
   // reachable. No wake source needed: nothing slept.
   if (!is_off && off_timeout_ms > 0 &&
       elapsed >= (unsigned long)off_timeout_ms) {
-    lightDiagEvent("off");
     displayBacklightOff();
     is_off = true;
     is_dimmed = true;
     logSD("Screen off: panel dark, device still online");
   }
 }
-
-#if defined(LIGHT_DIAG)
-// Diagnosis of the 7B light (n61, acceptance firmware only, reverted after):
-// the idle timer ms older, so that handlePowerManagement() dims or switches
-// off on its next pass, along its own way.
-void displayDiagAge(uint32_t ms) {
-  last_activity_ms -= ms;
-}
-
-bool displayDiagDimmed() { return is_dimmed; }
-bool displayDiagOff() { return is_off; }
-#endif
