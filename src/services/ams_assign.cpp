@@ -67,6 +67,10 @@ void amsDropPending() {
   s_pending = Pending();
 }
 
+void amsPendingRestartClock() {
+  if (s_pending.active) s_pending.noted_ms = millis();
+}
+
 bool amsWindowOpen() {
   if (!s_window_open) return false;
   if ((millis() - s_window_started_ms) / 1000 >= (unsigned long)g_ams_window_s) {

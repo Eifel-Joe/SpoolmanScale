@@ -15,6 +15,7 @@
 #include "ui/ams_view.h"
 #include "ui/info_popup.h"
 #include "ui/more_info_screen.h"
+#include "ui/no_tag_create.h"     // noTagAfterCreateBusy()
 
 #include "lang.h"
 
@@ -278,9 +279,21 @@ void amsPickOpenFor(int spool_id, const char* spool_name) {
   openPicker();
 }
 
+// Wurzel: the note is taken when the spool is weighed, and its two minutes ran
+// on while the questions of a spool just created without a tag were open (the
+// location picker, "Print a label?"): the lift waits for them (app_loop.cpp,
+// noTagAfterCreateBusy()), and an answer later than the two minutes found the
+// offer gone when the lift came to ask it (Punkteliste n19).
+// Fix: the clock starts over on every pass while those questions are open, so
+// the two minutes count from the last answer, as the lift clock of a spool
+// shown by its number does (id_spool.cpp).
+// NOT-TO-DO: holding the clock behind every covering screen; the offer is for
+// a spool that was just weighed, and only these questions are asked first.
+// See test_ams_offer_clock.py.
 void amsPickTick() {
   if (!s_pending.active) return;
   if (isAmsViewOpen()) return;          // the question is on screen, let it stand
+  if (noTagAfterCreateBusy()) s_pending.noted_ms = millis();
   if (amsPickPendingAgeMs() <= AMS_PICK_MAX_MS) return;
   logSDf("AMSPICK: note for spool %d expired", s_pending.spool_id);
   amsPickDropPending();

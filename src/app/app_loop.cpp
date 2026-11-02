@@ -1740,7 +1740,11 @@ void appLoop() {
   }
 
   // The offer goes stale when the spool is left sitting on the pad. Only the
-  // note is dropped, the weight went out when it was measured.
+  // note is dropped, the weight went out when it was measured. Not while the
+  // questions of a spool just created without a tag are open: the question
+  // after the lift waits for them, and its two minutes count from the last
+  // answer, as amsPickTick() does for the bay picker (Punkteliste n19).
+  if (amsHasPending() && noTagAfterCreateBusy()) amsPendingRestartClock();
   if (amsHasPending() && !isAmsAssignPopupOpen() &&
       amsPendingAgeMs() > AMS_PENDING_MAX_MS) {
     logSDf("AMS: offer expired after %lums, forgotten", amsPendingAgeMs());

@@ -77,6 +77,11 @@ unsigned long amsPendingAgeMs();
 // Forgets the note without contacting the server.
 void amsDropPending();
 
+// The note's two minutes start over: called on every pass while the questions
+// of a spool just created without a tag are open, which the question after a
+// lift waits for (app_loop.cpp), so the offer counts from the last answer.
+void amsPendingRestartClock();
+
 // Reports the remembered weight again with the window open: PUT true,
 // report, PUT false. Three HTTP requests, so this only ever runs from
 // appLoop(). Returns true when the window was actually opened.
