@@ -13,12 +13,18 @@ static uint8_t  s_outputs  = 0;
 static uint32_t s_retries  = 0;
 static uint32_t s_failures = 0;
 
+static FrameHook s_hook = nullptr;
+
+void setFrameHook(FrameHook hook) { s_hook = hook; }
+
 static bool writeReg(uint8_t reg, uint8_t value) {
   if (!s_wire) return false;
   s_wire->beginTransmission(ADDR);
   s_wire->write(reg);
   s_wire->write(value);
-  return s_wire->endTransmission() == 0;
+  const uint8_t result = s_wire->endTransmission();
+  if (s_hook) s_hook(reg, value, result);
+  return result == 0;
 }
 
 // The levels, then every pin an output, then the levels again.
