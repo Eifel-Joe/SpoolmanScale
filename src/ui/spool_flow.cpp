@@ -2300,10 +2300,19 @@ void showIdInputPopup(bool is_bambu, bool is_copy) {
   id_popup_is_bambu = is_bambu;
   id_popup_is_copy  = is_copy;
   // Which tag this is for, then where the id is found.
+  // Wurzel: a "create spool" that was cancelled leaves the flag for a create
+  // without a tag on (no_tag_create.h), and a link begun from the main screen
+  // afterwards does not clear it; its pad then said "no tag - not weighed" over
+  // the tag it was about to link (Punkteliste n16, STATUS 59 f). Only the text.
+  // Fix: only a copy reads the flag; a link always joins the tag on the pad
+  // and names its UID.
+  // NOT-TO-DO: clearing the flag in every way into a link; there are several,
+  // and none of them reads it but this line.
+  // See test_id_pad_context.py.
   char ctx[56];   // room for the longest STR_NOTAG_CTX (bmax 55)
-  if (is_bambu)         snprintf(ctx, sizeof(ctx), "Bambu  %s", g_tag.material[0] ? g_tag.material : "Tag");
-  else if (noTagMode()) copyT(ctx, sizeof(ctx), STR_NOTAG_CTX);   // no tag in this flow, the choice says the same
-  else                  snprintf(ctx, sizeof(ctx), "UID: %.14s", link_tag_uid);
+  if (is_bambu)                    snprintf(ctx, sizeof(ctx), "Bambu  %s", g_tag.material[0] ? g_tag.material : "Tag");
+  else if (is_copy && noTagMode()) copyT(ctx, sizeof(ctx), STR_NOTAG_CTX);   // no tag in this copy, the choice says the same
+  else                             snprintf(ctx, sizeof(ctx), "UID: %.14s", link_tag_uid);
   char where[96];
   backendText(T(STR_ID_PAD_WHERE), where, sizeof(where));
   char hint[160];
