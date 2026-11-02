@@ -135,13 +135,41 @@ struct SpiRamAllocator : ArduinoJson::Allocator {
   }
 };
 
-static uint32_t crc32(const uint8_t* p, size_t n) {
-  uint32_t c = 0xFFFFFFFFUL;
+// The running value of a CRC over several pieces: start at 0xFFFFFFFF, feed
+// each piece, take ~ at the end.
+static uint32_t crc32Feed(uint32_t c, const uint8_t* p, size_t n) {
   for (size_t i = 0; i < n; i++) {
     c ^= p[i];
     for (int k = 0; k < 8; k++) c = (c >> 1) ^ (0xEDB88320UL & (0UL - (c & 1)));
   }
-  return ~c;
+  return c;
+}
+
+static uint32_t crc32(const uint8_t* p, size_t n) {
+  return ~crc32Feed(0xFFFFFFFFUL, p, n);
+}
+
+// Reads len bytes at off through a chunk on the calling task's stack, into dst
+// when given and into *crc (crc32Feed) when given.
+// Wurzel: a read straight into PSRAM goes through a bounce buffer of up to
+//   16 kB from the internal heap (ESP-IDF 5.5 esp_flash_api.c esp_flash_read(),
+//   MAX_READ_CHUNK; spi_flash_os_func_app.c get_buffer_malloc()). The read-back
+//   after a store took the 7B down to 24128 B free (acceptance of beta.19), and
+//   the loader did the same on the loop.
+// Fix: 256 B at a time into memory on the stack, which is internal RAM on
+//   both the loop and the store task, so no bounce buffer is taken.
+// Test: test/test_bambu_catalog_store.py.
+static bool readChunked(const esp_partition_t* part, size_t off, uint8_t* dst, size_t len,
+                        uint32_t* crc) {
+  uint8_t chunk[256];
+  for (size_t at = 0; at < len; ) {
+    const size_t n = len - at < sizeof(chunk) ? len - at : sizeof(chunk);
+    if (esp_partition_read(part, off + at, chunk, n) != ESP_OK) return false;
+    if (dst) memcpy(dst + at, chunk, n);
+    if (crc) *crc = crc32Feed(*crc, chunk, n);
+    at += n;
+  }
+  return true;
 }
 
 static const esp_partition_t* dataPartition() {
@@ -180,7 +208,7 @@ static void ensureLoaded() {
   uint8_t* blob = (uint8_t*)heap_caps_malloc(sizeof(h) + body, MALLOC_CAP_SPIRAM);
   if (!blob) blob = (uint8_t*)malloc(sizeof(h) + body);
   if (!blob) return;
-  if (esp_partition_read(part, CAT_OFFSET, blob, sizeof(h) + body) != ESP_OK ||
+  if (!readChunked(part, CAT_OFFSET, blob, sizeof(h) + body, nullptr) ||
       crc32(blob + sizeof(h), body) != h.crc) {
     logSD("Bambu catalog: stored copy fails its checksum, ignored");
     heap_caps_free(blob);
@@ -434,8 +462,8 @@ static bool catalogWrite(uint8_t* buf, size_t total, char* err, size_t err_len) 
   if (ok) {
     // Read back and checked, as the loader will: a store that cannot be
     // loaded is reported now, not found out at the next scan.
-    ok = esp_partition_read(part, CAT_OFFSET, buf, total) == ESP_OK &&
-         crc32(buf + sizeof(CatHeader), body) == crc;
+    uint32_t c = 0xFFFFFFFFUL;
+    ok = readChunked(part, CAT_OFFSET + sizeof(CatHeader), nullptr, body, &c) && ~c == crc;
   }
   s_dirty   = true;
   s_storing = false;
