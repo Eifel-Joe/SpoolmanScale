@@ -8,9 +8,11 @@ and the daily check was skipped for a floor of 50 kB (31.10.2026). A stack in
 PSRAM must never be in use while the cache is off, which a flash access does
 on a board that runs its code from flash (ESP-IDF 5.5,
 components/spi_flash/cache_utils.c, the assert in
-spi_flash_disable_interrupts_caches_and_other_cpu()): the colour table job
-reads and writes the flash on its own task (bambu_catalog.cpp), so it keeps
-its stack inside. A task created with a stack from heap_caps is deleted from
+spi_flash_disable_interrupts_caches_and_other_cpu()). The colour table job
+read and wrote the flash on its own task and kept its stack inside; since
+v0.8.6-beta.19 the loop reads the ETag, the job only downloads, and a store
+task with an internal stack writes the flash (bambu_catalog.cpp, V59,
+test_bambu_catalog_store.py), so every web job may move its stack. A task created with a stack from heap_caps is deleted from
 the loop with vTaskDeleteWithCaps(): deleting itself, it would make a helper
 task from the internal heap and abort when that fails
 (components/freertos/esp_additions/idf_additions.c). A start refused for the
@@ -177,12 +179,13 @@ for rel, parts in USERS.items():
             errors.append(f"src/{rel}: {parts['start']}) takes the stack off the floor itself; "
                           "workerStackPlan() and workerStartFloor() do that")
 
-# 3. Which web jobs may move their stack is decided in one place, and the
-# colour table is the one that may not: it reads and writes the flash on the
-# job's task. Every other kind was looked through for flash access on
-# 31.10.2026 (the request paths of the host test, the spool list, the GitHub
-# check and notes, the net probe and the Klipper test); a new kind is looked
-# through and then left out of this list, or put in it.
+# 3. Which web jobs may move their stack is decided in one place: every kind
+# may since v0.8.6-beta.19. The request paths of the host test, the spool
+# list, the GitHub check and notes, the net probe and the Klipper test were
+# looked through for flash access on 31.10.2026; the colour table's job stopped
+# touching the flash with V59 (test_bambu_catalog_store.py). A new kind is
+# looked through before it is let out, and if it touches the flash it is
+# named here.
 WEB_JOBS = "web/web_jobs.cpp"
 web_text = read(WEB_JOBS)
 if web_text is not None:
@@ -193,11 +196,9 @@ if web_text is not None:
     body = function_body(web, helper)
     if body is not None:
         kinds = set(re.findall(r"\bWJ_[A-Z_]+\b", body))
-        if kinds != {"WJ_BAMBU_CATALOG"}:
-            errors.append(f"src/{WEB_JOBS}: webJobStackMayGoOutside() names {sorted(kinds)}, "
-                          "wants only WJ_BAMBU_CATALOG, the one kind that touches the flash")
-        if "return false" not in body and "!=" not in body:
-            errors.append(f"src/{WEB_JOBS}: webJobStackMayGoOutside() does not keep the colour table inside")
+        if kinds:
+            errors.append(f"src/{WEB_JOBS}: webJobStackMayGoOutside() keeps {sorted(kinds)} inside; "
+                          "no web job touches the flash on its own task since V59")
     start = function_body(web, "bool webJobStart(")
     if start is not None and "webJobStackMayGoOutside(" not in start:
         errors.append(f"src/{WEB_JOBS}: webJobStart() does not ask webJobStackMayGoOutside(")
