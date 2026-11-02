@@ -180,6 +180,18 @@ jobs:
         run: python3 test/test_status_line.py
       - name: Test live zone diff
         run: python3 test/test_live_zone_diff.py
+      - name: Test copy list keeps tagged spools
+        run: python3 test/test_copy_list_tagged.py
+      - name: Test id pad context
+        run: python3 test/test_id_pad_context.py
+      - name: Test AMS offer clock
+        run: python3 test/test_ams_offer_clock.py
+      - name: Test create tag rules
+        run: python3 test/test_create_tag_rules.py
+      - name: Test create card swap
+        run: python3 test/test_create_card_swap.py
+      - name: Test density rests
+        run: python3 test/test_density_rest.py
 
   build:
     name: Build ${{ matrix.env }}
