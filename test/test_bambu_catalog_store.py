@@ -57,7 +57,7 @@ need(i_prep < 0 or i_task < 0 or i_prep < i_task,
 # 3. The write: on a task of its own, its stack inside, started by the loop
 # with the reserve of a background request and its stack free.
 write = ks.squeeze(body(CAT, "catalogWrite"))
-for needle in ("esp_partition_erase_range(", "esp_partition_write(", "esp_partition_read("):
+for needle in ("esp_partition_erase_range(", "esp_partition_write(", "readChunked("):
     need(needle in write, f"src/{CAT}: catalogWrite() lacks {needle}")
 task = ks.squeeze(body(CAT, "catalogStoreTask"))
 need("catalogWrite(" in task, f"src/{CAT}: catalogStoreTask() does not write the table")
@@ -76,6 +76,21 @@ need("workerFreeHeap()+webJobOutsideStackBytes()" in tick,
      "(workerFreeHeap() + webJobOutsideStackBytes())")
 need(re.search(r"\buint32_t\s+webJobOutsideStackBytes\(\s*\)\s*;", (ks.src / "web/web_jobs.h").read_text(encoding="utf-8"))
      is not None, "src/web/web_jobs.h: does not declare uint32_t webJobOutsideStackBytes()")
+# A flash read into PSRAM goes through a bounce buffer of up to 16 kB from the
+# internal heap (ESP-IDF 5.5 esp_flash_api.c MAX_READ_CHUNK, get_temp_buffer in
+# spi_flash_os_func_app.c): the read-back of the store took the 7B down to
+# 24128 B free (acceptance of beta.19, round 2). Every read of this file goes
+# into memory on the stack, the header or a small chunk.
+text_cat = ks.source_of(CAT).code_str
+for _, args in ks.calls(text_cat, "esp_partition_read"):
+    if len(args) != 4:
+        continue
+    need(args[2].strip() in ("&h", "chunk"),
+         f"src/{CAT}: esp_partition_read(..., {args[2].strip()}, ...) reads into memory that may lie in PSRAM; "
+         "read into the header on the stack or a chunk on the stack")
+chunk = re.search(r"\buint8_t\s+chunk\[(\d+)\]\s*;", text_cat)
+need(chunk is not None and int(chunk.group(1)) <= 512,
+     f"src/{CAT}: no chunk buffer of at most 512 B on the stack for the flash reads")
 raw = (ks.src / CAT).read_text(encoding="utf-8")
 stack = re.search(r"#define\s+CAT_STORE_STACK_BYTES\s+(\d+)\b", raw)
 need(stack is not None and 4096 <= int(stack.group(1)) <= 8192,
