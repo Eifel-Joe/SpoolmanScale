@@ -674,7 +674,7 @@ static void routes(WebServer &srv) {
     if (!webRequire(srv, GATE_CONFIG, T(STR_W_NAV_PRINTER))) return;
     String v = srv.arg("plain");
     v.trim();
-    if (v != "0" && v != "1" && v != "2") { srv.send(400, "text/plain", "bad link"); return; }
+    if (v != "0" && v != "1" && v != "2") { srv.send(400, "text/plain", T(STR_W_P_LINK_BAD)); return; }
     const LabelPrinterLink link = (LabelPrinterLink)v.toInt();
     const bool ble_was_on = bleEnabled();
     const bool ok = labelPrinterSetLink(link);
@@ -729,7 +729,7 @@ static void routes(WebServer &srv) {
     const int m = srv.arg("plain").toInt();
     if (!modelOffered(m)) {
       logSDf("Web: printer model %d refused, not offered on this link", m);
-      srv.send(400, "text/plain", "model not offered for this label printer");
+      srv.send(400, "text/plain", T(STR_W_P_MODEL_BAD));
       return;
     }
     LabelPrinterConfig c = labelPrinterLoadConfig();

@@ -2559,9 +2559,6 @@ const char* const STRINGS[][3] = {
 
   // Bluetooth: the Connection tile, the screen behind it, the device scan
   { "Bluetooth",                  "Bluetooth",                         "Bluetooth" },  // STR_BT_TITLE
-  { "Bluetooth nutzen",           "Use Bluetooth",                     "Bluetooth" },  // STR_BT_SWITCH
-  { "Funk nur bei Bedarf an", "Radio only on when needed",
-    "Radio active au besoin" },  // STR_BT_SWITCH_SUB
   { "Bluetooth-Geräte suchen...", "Scanning for Bluetooth devices...", "Recherche Bluetooth..." },  // STR_BT_SCANNING
   { "Keine Geräte gefunden", "No devices found",
     "Aucun appareil trouvé" },  // STR_BT_NONE_FOUND
@@ -2569,9 +2566,6 @@ const char* const STRINGS[][3] = {
   { "Bluetooth konnte nicht gestartet werden. Zu wenig freier Speicher, siehe Log.",
     "Bluetooth could not be started. Not enough free memory, see the log.",
     "Bluetooth n'a pas démarré. Mémoire insuffisante, voir le journal." },  // STR_BT_INIT_FAILED
-  { "Aus: kein Bluetooth, nichts läuft im Hintergrund. An: Funktionen wie die Gerätesuche starten den Funk bei Bedarf und geben ihn danach wieder frei. Die Suche zeigt, was in Reichweite ist. Verbunden wird nur zum Drucken, mit dem eingerichteten Drucker. Nach dem Einschalten startet die Waage einmal neu.",
-    "Off: no Bluetooth, nothing runs in the background. On: features such as the device scan start the radio when needed and release it afterwards. The scan lists what is in range. A connection is only made to print, to the printer that is set up. After switching it on, the scale restarts once.",
-    "Désactivé : pas de Bluetooth, rien en arrière-plan. Activé : la recherche d'appareils et les autres fonctions allument la radio au besoin, puis la libèrent. La recherche montre ce qui est à portée. Une connexion n'est établie que pour imprimer, avec l'imprimante configurée. Après l'activation, la balance redémarre une fois." },  // STR_BT_HELP
   { "Geräte",                "Devices",          "Appareils" },  // STR_BT_DEVICES
   { "Noch nicht gesucht",    "Not searched yet", "Aucune recherche" },  // STR_BT_DEVICES_NONE_YET
   { "%d in Reichweite",      "%d in range",      "%d à portée" },  // STR_BT_DEVICES_FMT
@@ -2653,15 +2647,12 @@ const char* const STRINGS[][3] = {
     "The link would not close. Please restart.",
     "Connexion bloquée. Redémarrez." },  // STR_PRN_ERR_STUCK
   { "Die Übertragung ist abgebrochen.", "The transfer was cut off.", "Transfert interrompu." },  // STR_PRN_ERR_WRITE
-  { "Der Drucker wird auf der Gerätekarte gewählt. Modell und Etikett passen den Druck an den Druckkopf und das eingelegte Etikett an; der Testdruck zeigt, ob beides stimmt. Beim Drucken steht die Waage einige Sekunden.",
-    "The printer is picked on the device card. Model and label stock fit the print to the head and the loaded label; the test print shows whether both are right. The scale pauses for a few seconds while printing.",
-    "L'imprimante se choisit parmi les appareils. Modèle et étiquette adaptent l'impression à la tête et au support ; le test montre si les deux sont bons. La balance s'arrête quelques secondes pendant l'impression." },  // STR_PRN_HELP
+  { "Ein Bluetooth-Drucker wird auf der Gerätekarte gewählt, ein Brother über WLAN bekommt seine IP-Adresse im Browser (Seite Drucker). Modell und Etikett passen den Druck an den Druckkopf und das eingelegte Etikett an; der Testdruck zeigt, ob beides stimmt. Beim Drucken steht die Waage einige Sekunden.",
+    "A Bluetooth printer is picked on the device card; a Brother over WiFi gets its IP address in the browser (Printer page). Model and label stock fit the print to the head and the loaded label; the test print shows whether both are right. The scale pauses for a few seconds while printing.",
+    "Une imprimante Bluetooth se choisit parmi les appareils ; une Brother en WiFi reçoit son adresse IP dans le navigateur (page Imprimante). Modèle et étiquette adaptent l'impression à la tête et au support ; le test montre si les deux sont bons. La balance s'arrête quelques secondes pendant l'impression." },  // STR_PRN_HELP
 
   // The printer page in the browser
   { "Drucker", "Printer", "Imprimante" },  // STR_W_NAV_PRINTER
-  { "Nur bei Bedarf an: der Funk läuft, während ein Gerät ihn braucht, und wird danach freigegeben. Nach dem Einschalten braucht die Waage einmal einen Neustart.",
-    "Only when needed: the radio runs while a device needs it and is released afterwards. After switching it on, the scale needs one restart.",
-    "Seulement au besoin : la radio tourne tant qu'un appareil l'utilise, puis est libérée. Après l'activation, la balance a besoin d'un redémarrage." },  // STR_W_P_BLE_HINT
   { "Bluetooth startet die Waage neu, WLAN gilt sofort.",
     "Bluetooth restarts the scale, WiFi takes effect at once.",
     "Le Bluetooth redémarre la balance, le WiFi prend effet immédiatement." },  // STR_W_P_LINK_HINT
@@ -2674,6 +2665,12 @@ const char* const STRINGS[][3] = {
   { "Keine gültige IP-Adresse (vier Zahlen, z. B. 192.168.1.50).",
     "Not a valid IP address (four numbers, e.g. 192.168.1.50).",
     "Adresse IP non valide (quatre nombres, p. ex. 192.168.1.50)." },  // STR_W_P_HOST_BAD
+  { "Unbekannte Verbindung (nur Aus, Bluetooth oder WLAN).",
+    "Unknown link (only off, Bluetooth or WiFi).",
+    "Liaison inconnue (seulement désactivé, Bluetooth ou WiFi)." },  // STR_W_P_LINK_BAD
+  { "Dieses Modell gibt es mit der gewählten Verbindung nicht. Bitte die Seite neu laden.",
+    "This model is not offered on the chosen link. Please reload the page.",
+    "Ce modèle n'est pas proposé pour cette liaison. Rechargez la page." },  // STR_W_P_MODEL_BAD
   { "Weitere Modelle kommen mit Rückmeldungen aus der Community.",
     "More models come with feedback from the community.",
     "D'autres modèles viendront avec les retours de la communauté." },  // STR_W_P_SUPPORTED_HINT

@@ -292,12 +292,18 @@ void buildPrinterScreen() {
 
   // The device: what was picked on the device card, and the way there. The
   // Brother has its address instead, set in the browser like its label and
-  // offset (design L1, ruling 2); tapped, the row says so.
+  // offset (design L1, ruling 2); tapped, the row says so. It opens no
+  // screen, so it ends in the help circle of an explaining row instead of
+  // the arrow, which the circle shares the row with (f13).
   if (wlan) { char buf_t[40]; copyT(buf_t, sizeof(buf_t), STR_PRN_DEVICE);
     char buf_s[64];
     if (!have) copyT(buf_s, sizeof(buf_s), STR_PRN_HOST_NONE);
     else snprintf(buf_s, sizeof(buf_s), "%s", c.address);
-    lv_obj_t *btn = makeListBtn(list, LV_SYMBOL_WIFI, buf_t, buf_s, have);
+    lv_obj_t *help = nullptr;
+    lv_obj_t *btn = makeListBtn(list, LV_SYMBOL_WIFI, buf_t, buf_s, have, &help);
+    lv_label_set_text(lv_obj_get_child(btn, -1), "");
+    lv_obj_add_event_cb(help, infoPopupEventCb, LV_EVENT_CLICKED,
+                        INFO_POPUP_ARG(STR_PRN_DEVICE, STR_PRN_HOST_HELP));
     lv_obj_add_event_cb(btn, infoPopupEventCb, LV_EVENT_CLICKED,
                         INFO_POPUP_ARG(STR_PRN_DEVICE, STR_PRN_HOST_HELP));
   } else { char buf_t[40]; copyT(buf_t, sizeof(buf_t), STR_PRN_DEVICE);

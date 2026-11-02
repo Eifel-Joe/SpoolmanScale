@@ -1186,13 +1186,10 @@ enum StringID {
 
   // Bluetooth: the Connection tile, the screen behind it, the device scan
   STR_BT_TITLE,               // tile and screen title
-  STR_BT_SWITCH,              // the master switch row
-  STR_BT_SWITCH_SUB,          // what on means
   STR_BT_SCANNING,            // the loading overlay
   STR_BT_NONE_FOUND,          // after a scan that saw nothing
   STR_BT_UNNAMED,             // a device that did not say its name
   STR_BT_INIT_FAILED,         // the stack could not start
-  STR_BT_HELP,                // the ? on the screen
   STR_BT_DEVICES,             // the row into the list, and the list's title
   STR_BT_DEVICES_NONE_YET,    // the row before the first scan
   STR_BT_DEVICES_FMT,         // %d = devices the last scan saw
@@ -1241,11 +1238,12 @@ enum StringID {
 
   // The printer page in the browser
   STR_W_NAV_PRINTER,          // the tab
-  STR_W_P_BLE_HINT,           // under the master switch
   STR_W_P_LINK_HINT,          // under the label printer's three choices
   STR_W_P_HOST,               // the Brother's address field
   STR_W_P_HOST_HINT,          // under it: the network, and the printer's command mode
   STR_W_P_HOST_BAD,           // the address route's answer to anything but four numbers
+  STR_W_P_LINK_BAD,           // the link route's answer to anything but off, Bluetooth, WLAN
+  STR_W_P_MODEL_BAD,          // the model route's answer to a model the link does not offer
   STR_W_P_SUPPORTED_HINT,
   STR_W_P_DEVICES,            // the device list's label
   STR_BT_SCAN_WEB,            // the scan button
