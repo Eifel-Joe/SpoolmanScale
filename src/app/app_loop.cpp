@@ -9,6 +9,7 @@
 #include <esp_heap_caps.h>
 
 #include "app_config.h"
+#include "bambu/bambu_catalog.h"
 #include "bambu/bambu_catalog_sync.h"
 #include "services/dried_migrate.h"
 #include "services/drying_sync.h"
@@ -778,6 +779,7 @@ void appLoop() {
   workerTasksReap();
   updateCheckTick();
   bambuCatalogSyncTick();
+  bambuCatalogStoreTick();
   dryingSyncTick();
   driedMigrateTick();
   backendConnTick();

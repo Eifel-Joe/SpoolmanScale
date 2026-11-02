@@ -102,9 +102,9 @@ void bambuCatalogRoutes(WebServer& srv) {
     const bool check = srv.arg("check") == "1";
     const bool started = check ? bambuCatalogSyncNow()
                                : webJobStart(WJ_BAMBU_CATALOG, nullptr, false);
-    // Refused for the heap is not "busy". The colour table keeps its stack in
-    // the internal heap and its whole floor (webJobStackMayGoOutside), so on
-    // the 7B in operation this is the answer it gets.
+    // Refused for the heap is not "busy". Since V59 the job's stack may lie
+    // in PSRAM and its floor drops by it; below that floor this is the
+    // answer.
     if (!started) {
       sendStatus(srv, webJobLastRefusal() == WJR_LOW_HEAP ? "lowmem" : "busy");
       return;

@@ -26,7 +26,9 @@
 //  boot and then once a day, while the automatic update check is switched on
 //  (bambu_catalog_sync.h). That daily request is conditional: while the file
 //  is unchanged GitHub answers 304 and nothing is downloaded or written. With
-//  the update check off, nothing is fetched unless someone asks.
+//  the update check off, nothing is fetched unless someone asks. The download
+//  and the write to flash run on two tasks: the download's stack may lie in
+//  PSRAM, the write's may not (V59, see bambu_catalog.cpp).
 // ============================================================
 
 // Where the catalog lives: straight after the log ring's 512 kB.
@@ -79,16 +81,28 @@ enum BambuCatalogOutcome : uint8_t {
   BCO_UNCHANGED    // GitHub answered 304: the stored copy is current
 };
 
-// Downloads the table, converts and stores it. Blocks for seconds: the web
-// worker's task, never the loop. conditional sends the stored copy's ETag,
-// so an unchanged file costs a 304 and no download; the button on the tags
-// page asks without it. count gets the colours stored.
-BambuCatalogOutcome bambuCatalogDownload(bool conditional, char* err, size_t err_len,
-                                         int* count);
+// Loop task, right before the download job starts: conditional reads the
+// stored copy's ETag from flash for bambuCatalogDownload() to send, so an
+// unchanged file costs a 304 and no download; the button on the tags page
+// asks without it. The job itself must not touch the flash: its stack may
+// lie in PSRAM (Spec 5.3 T, V59).
+void bambuCatalogPrepareDownload(bool conditional);
 
-// The conversion and the store on their own, for a table already parsed -
-// the download above, and the simulator, which reads a local copy. etag may
-// be empty; the next conditional check then downloads once.
+// Downloads the table and converts it in PSRAM, then waits while the store
+// task writes it (bambuCatalogStoreTick) and reports whether it was stored.
+// Touches no flash itself. Blocks for seconds: the web worker's task, never
+// the loop. count gets the colours stored.
+BambuCatalogOutcome bambuCatalogDownload(char* err, size_t err_len, int* count);
+
+// Loop task, every pass: a converted copy waiting for the flash gets its
+// store task, a stack of its own in internal RAM and no network, once the
+// internal heap has the reserve of a background request and that stack free.
+void bambuCatalogStoreTick();
+
+// The conversion and the store in one call, for a table already parsed: the
+// simulator, which reads a local copy. Writes the flash on the caller's task,
+// so never on a task whose stack may lie in PSRAM. etag may be empty; the
+// next conditional check then downloads once.
 bool bambuCatalogStore(JsonArrayConst entries, uint32_t stamp, const char* etag,
                        char* err, size_t err_len, int* count);
 

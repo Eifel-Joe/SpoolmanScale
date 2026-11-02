@@ -11,6 +11,7 @@
 #include "services/backend_job_rules.h"
 #include "bambu/bambu_catalog.h"
 #include "services/github_release.h"
+#include "services/heap_low.h"
 #include "services/moonraker_api.h"
 #include "services/update_check.h"
 #include "services/worker_task.h"
@@ -141,12 +142,21 @@ static void runGhNotes() {
   s_res.ok = true;
 }
 
-// "check" and "auto" ask with the stored ETag, the button without it.
+// "check" and "auto" ask with the stored ETag, the button without it; the
+// loop read it in webJobStart() (bambuCatalogPrepareDownload).
 static void runBambuCatalog() {
   int count = 0;
-  const bool conditional = s_arg[0] != '\0';
-  const BambuCatalogOutcome o = bambuCatalogDownload(conditional, s_res.err,
-                                                     sizeof(s_res.err), &count);
+  // Where the job started, how low the internal heap went while it ran (the
+  // download and a store task's write together) and where its stack lay: the
+  // line that shows the reserve holds with the stack in PSRAM (V59, Spec 8 T).
+  const uint32_t heap_start = (uint32_t)heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+  heapLowBegin();
+  const BambuCatalogOutcome o = bambuCatalogDownload(s_res.err, sizeof(s_res.err), &count);
+  const uint32_t heap_low = heapLowEnd();
+  char low_txt[12];
+  logSDf("Bambu catalog: job done, internal heap %u at start, low %s, stack in %s",
+         (unsigned)heap_start, heapLowText(heap_low, low_txt, sizeof(low_txt)),
+         s_task.outside ? "PSRAM" : "internal");
   s_res.ok   = (o != BCO_FAILED);
   s_res.code = count;
   snprintf(s_res.tag, sizeof(s_res.tag), "%s",
@@ -241,16 +251,15 @@ static const char* webJobKindName(WebJobKind kind) {
 }
 
 // Which kinds may have their stack in PSRAM: every kind whose task does not
-// touch the flash itself, see worker_task.h. The colour table reads the ETag
-// of its stored copy and writes the new copy with esp_partition_* on this
-// task (bambu_catalog.cpp), so it keeps its stack in the internal heap and
-// its whole floor. The request paths of all other kinds were looked through
-// for NVS, Update and esp_partition_* on 31.10.2026 and touch none of them;
-// a new kind is looked through before it is let out.
-// Not split so that the loop stores the table: the loop would then wait out
-// the flash erases, which this job keeps off the display.
+// touch the flash itself, see worker_task.h. The request paths of all kinds
+// were looked through for NVS, Update and esp_partition_* on 31.10.2026. The
+// colour table's job read the ETag and wrote the table on its own task until
+// V59; now the loop reads the ETag (webJobStart) and a store task of its own,
+// stack inside, writes the table (bambu_catalog.cpp), so every kind may move.
+// A new kind is looked through before it is let out.
 static bool webJobStackMayGoOutside(WebJobKind kind) {
-  return kind != WJ_BAMBU_CATALOG;
+  (void)kind;
+  return true;
 }
 
 // Which kinds talk to GitHub (the release check, its notes, BambuStudio's
@@ -355,6 +364,10 @@ bool webJobStart(WebJobKind kind, const char* arg, bool flag) {
   s_arg[0] = '\0';
   if (arg) { strncpy(s_arg, arg, sizeof(s_arg) - 1); s_arg[sizeof(s_arg) - 1] = '\0'; }
   s_flag = flag;
+
+  // The colour table's ETag is read here, on the loop: the job's stack may
+  // lie in PSRAM and must not be in use during a flash access (V59).
+  if (kind == WJ_BAMBU_CATALOG) bambuCatalogPrepareDownload(arg && arg[0]);
 
   // Set before the task exists: if creation fails it is cleared again below,
   // and if it succeeds the task may finish before this line would run.

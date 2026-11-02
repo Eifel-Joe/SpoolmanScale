@@ -30,7 +30,7 @@ static volatile uint32_t s_outside_bytes = 0;
 
 // Every worker started so far, for workerTasksReap(). Each is a static of its
 // module and lives as long as the firmware, so the list holds one entry per
-// module: nine today. A worker past the end is not lost, its module deletes
+// module: ten today, the colour table's store task among them. A worker past the end is not lost, its module deletes
 // it before its next start (workerTaskReap()).
 #define WORKER_TASKS_KNOWN_MAX 16
 static WorkerTask* s_known[WORKER_TASKS_KNOWN_MAX];
