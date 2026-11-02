@@ -67,6 +67,15 @@ for needle in ("workerTaskStart(", "workerFreeHeap()", "CAT_STORE_MIN_HEAP", "CA
     need(needle in tick, f"src/{CAT}: bambuCatalogStoreTick() lacks {needle}")
 need(re.search(r"WorkerStackPlan\w*=\{false,", tick) is not None,
      f"src/{CAT}: the store task may get a stack in PSRAM (its plan must say outside=false)")
+# workerFreeHeap() counts the waiting download job's stack in PSRAM as taken,
+# for a request it no longer makes: its connection is closed by the time the
+# copy is handed over. Counted, the store wanted 46 kB of real heap and was
+# postponed at 30084 < 30096 on the 7B (acceptance of beta.19, round 1).
+need("workerFreeHeap()+webJobOutsideStackBytes()" in tick,
+     f"src/{CAT}: bambuCatalogStoreTick() counts the waiting download job's stack in PSRAM against the store "
+     "(workerFreeHeap() + webJobOutsideStackBytes())")
+need(re.search(r"\buint32_t\s+webJobOutsideStackBytes\(\s*\)\s*;", (ks.src / "web/web_jobs.h").read_text(encoding="utf-8"))
+     is not None, "src/web/web_jobs.h: does not declare uint32_t webJobOutsideStackBytes()")
 raw = (ks.src / CAT).read_text(encoding="utf-8")
 stack = re.search(r"#define\s+CAT_STORE_STACK_BYTES\s+(\d+)\b", raw)
 need(stack is not None and 4096 <= int(stack.group(1)) <= 8192,
