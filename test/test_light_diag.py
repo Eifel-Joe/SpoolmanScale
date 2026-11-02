@@ -34,24 +34,28 @@ int main() {
   note(s, 0x05, 0x05);
   expect(s.pwm == 0x05, "a later PWM replaces the earlier");
 
-  // The readback: register 0x05 against the PWM sent, 0x03 against the
-  // outputs, the input register's backlight bit against the backlight bit of
-  // the outputs. EXIO2 is the backlight.
+  // The readback: register 0x05 against the PWM sent, register 0x04 (the
+  // levels the eight pins read at) against the outputs sent, and the
+  // backlight pin on its own. 0x03 is not read: whether a read of it makes the
+  // chip's firmware write something there is not known, and 0x04 shows what
+  // the pins do. EXIO2 is the backlight.
   const uint8_t EN = 2;
-  Readback rb = {true, true, true, 0x44, 0x44, 0x05};
+  Readback rb = {true, true, 0x44, 0x05};
   expect(verdict(s, rb, EN) == V_OK, "everything arrived");
   rb.r05 = 0xF5;
   expect(verdict(s, rb, EN) == V_PWM, "the PWM still holds the dim value: lost");
   rb.r05 = 0x05;
-  rb.r03 = 0x40;
-  expect(verdict(s, rb, EN) == V_OUT, "the outputs hold another byte");
-  rb.r03 = 0x44;
+  rb.r04 = 0xC4;
+  expect(verdict(s, rb, EN) == V_OUT, "another pin than the backlight reads otherwise");
   rb.r04 = 0x40;
-  expect(verdict(s, rb, EN) == V_EN_PIN, "the backlight pin reads low although it was switched on");
+  expect(verdict(s, rb, EN) == (V_OUT | V_EN_PIN), "the backlight pin reads low although it was switched on");
   rb.r04 = 0x44;
   rb.ok05 = false;
   expect(verdict(s, rb, EN) == V_READ, "a read the chip refused is no finding about the PWM");
   rb.ok05 = true;
+  rb.ok04 = false;
+  expect(verdict(s, rb, EN) == V_READ, "nor about the pins");
+  rb.ok04 = true;
   Sent none;
   expect(verdict(none, rb, EN) == V_OK, "nothing sent, nothing to compare");
 
