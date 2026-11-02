@@ -86,6 +86,10 @@ enum WebJobRefusal : uint8_t {
 };
 WebJobRefusal webJobLastRefusal();
 
+// The bytes of the job's stack that lie in PSRAM, 0 without a job or with its
+// stack inside: what workerFreeHeap() counts as taken for it. Loop task.
+uint32_t webJobOutsideStackBytes();
+
 // The printer and its key for the next WJ_KLIPPER_TEST, copied here by the
 // handler on the loop task before webJobStart() (R3). The job reads this copy
 // and nothing of the store, which belongs to the loop task. False, and nothing

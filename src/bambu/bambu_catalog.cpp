@@ -14,6 +14,7 @@
 #include "services/backend_http.h"
 #include "services/github_release.h"
 #include "services/worker_task.h"
+#include "web/web_jobs.h"
 
 // Last: T() is a macro, and ArduinoJson uses T as a template parameter.
 #include "lang.h"
@@ -525,7 +526,12 @@ static void catalogStoreTask(void* arg) {
 
 void bambuCatalogStoreTick() {
   if (s_hand != CH_BUILT || s_store_task.handle) return;
-  const uint32_t free_heap = workerFreeHeap();
+  // workerFreeHeap() counts the download job's stack in PSRAM as taken: it
+  // stands for the connection of a request in flight. This job's request is
+  // over when it hands the copy over, it only waits, so its stack is not
+  // counted against the store. Counted, the store wanted 46 kB of real heap
+  // and was postponed at "30084 < 30096" on the 7B (acceptance of beta.19).
+  const uint32_t free_heap = workerFreeHeap() + webJobOutsideStackBytes();
   const WorkerStackPlan plan = {false, free_heap >= CAT_STORE_MIN_HEAP};
   if (!plan.inside) {
     if (logGateDue(&s_store_gate, millis(), BACKEND_JOB_REFUSAL_LOG_MS)) {

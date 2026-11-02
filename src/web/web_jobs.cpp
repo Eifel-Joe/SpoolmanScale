@@ -395,6 +395,10 @@ bool webJobStart(WebJobKind kind, const char* arg, bool flag) {
 
 WebJobRefusal webJobLastRefusal() { return s_refusal; }
 
+uint32_t webJobOutsideStackBytes() {
+  return (s_task.handle && s_task.outside) ? s_task.outside_bytes : 0;
+}
+
 bool webJobSetKlipperInput(const KlipperPrinterCfg& cfg, const char* key) {
   if (s_state != WJS_IDLE) return false;
   s_kl_cfg = cfg;
