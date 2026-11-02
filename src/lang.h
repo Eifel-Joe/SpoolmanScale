@@ -2165,7 +2165,8 @@ enum StringID {
   STR_COPY_TPL_GONE_TEXT,     // popup text under it
 
   // The create card closed because another tag was read (ui/tag_create_popup.cpp)
-  STR_CREATE_OTHER_SPOOL,     // status line of the main screen, nothing created
+  STR_CREATE_OTHER_SPOOL,     // popup title, nothing created
+  STR_CREATE_OTHER_SPOOL_TEXT, // popup text under it
 
   STR_COUNT
 };

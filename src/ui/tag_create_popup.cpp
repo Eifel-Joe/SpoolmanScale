@@ -29,6 +29,7 @@
 #include "services/tag_field.h"
 #include "services/user_options.h"
 #include "ui/batch_create.h"
+#include "ui/info_popup.h"
 #include "ui/main_screen_helpers.h"
 #include "ui/no_tag_create.h"
 #include "ui/price_pad.h"
@@ -127,11 +128,14 @@ void closeTagCreatePopup() {
 // database and the sort entry, which end on this card.
 // Fix: the card keeps the key of the tag read when it opened; when another tag
 // is read, after the list and on every pass while the card stands, it closes
-// the way Cancel does, nothing made, and the status line says why. A wrong
-// spool laid on is the user's slip (Joerg), so the smallest safe answer.
+// the way Cancel does, nothing made, and a popup with OK says why. A wrong
+// spool laid on is the user's slip (Joerg), so the smallest safe answer. A
+// Bambu read that has not settled is not another tag (createCardTagFits()).
 // NOT-TO-DO: starting over for the new spool; the sources and answers on the
 // card were chosen for the first one. Nor tag_present: an NTAG whose
-// reception drops out leaves it false with the same spool on the pad.
+// reception drops out leaves it false with the same spool on the pad. Nor the
+// status line for the reason: on the ways from the database and the sort
+// entry it lies under their picker, and the reader's own lines overwrite it.
 // See test_create_card_swap.py, test_create_tag_rules.py.
 static const char* padKeyNow() {
   return createPadTagKey(g_tag.tray_uuid, g_tag.uid_str);
@@ -142,13 +146,13 @@ static void holdPadTag() {
 }
 
 static bool cardTagFits() {
-  return createCardTagFits(s_held_key, padKeyNow());
+  return createCardTagFits(s_held_key, g_tag.tray_uuid, g_tag.uid_str);
 }
 
 static void closeForOtherSpool(const char* where) {
   logSDf("TagCreate: another tag on the pad (%s), card closed, nothing created", where);
   closeTagCreatePopup();
-  statusMessageShow(T(STR_CREATE_OTHER_SPOOL), UI_COL_WARN);
+  showInfoPopup(STR_CREATE_OTHER_SPOOL, STR_CREATE_OTHER_SPOOL_TEXT, INFO_WARN);
 }
 
 // ------------------------------------------------------------

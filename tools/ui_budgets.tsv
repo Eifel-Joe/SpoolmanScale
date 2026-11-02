@@ -46,7 +46,6 @@
 # Only the ids really written to lbl_status are listed here.
 # 214: a lifted spool still on screen gets the clear button (40 + 8) behind this text.
 STR_WAIT_SCAN	14	214	NEVER	src/app/app_loop.cpp lbl_status, HDR_STATUS_W_NARROW minus the clear button
-STR_CREATE_OTHER_SPOOL	14	214	NEVER	src/ui/tag_create_popup.cpp lbl_status, HDR_STATUS_W_NARROW minus the clear button
 STR_TAG_FOUND	14	262	NEVER	src/app/app_loop.cpp:1723 lbl_status
 STR_READING_TAG	14	262	NEVER	src/app/app_loop.cpp:1533 lbl_status
 STR_NOT_IN_SPOOLMAN	14	262	NEVER	src/app/app_loop.cpp:1597 lbl_status

@@ -19,8 +19,13 @@
 // null: "" when neither is there.
 const char* createPadTagKey(const char* tray_uuid, const char* uid_str);
 
-// True while the card still belongs on the screen: it holds no tag (a create
-// without a tag weighs nothing), no tag is read now (the reader lost it, or the
-// display was cleared), or the one read is the one it holds. Another tag is
-// another spool on the pad.
-bool createCardTagFits(const char* held, const char* now);
+// True while the card still belongs on the screen, asked with what the reader
+// has now (tray_uuid and uid_str as g_tag holds them): the card holds no tag
+// (a create without a tag weighs nothing), nothing is read now (the reader
+// lost it, or the display was cleared), or the key read is the one it holds.
+// One more case for a card that holds a Bambu spool: a 4-byte UID without its
+// tray uuid is a Bambu read that has not settled - the scan takes a first,
+// partial attempt at once when the UID changes, which is what the other chip
+// of the same spool, or the same chip read again, looks like until a retry
+// brings block 9. Another key is another spool on the pad.
+bool createCardTagFits(const char* held, const char* tray_uuid, const char* uid_str);

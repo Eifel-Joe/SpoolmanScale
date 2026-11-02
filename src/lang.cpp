@@ -4766,9 +4766,12 @@ const char* const STRINGS[][3] = {
   { "Die Spule ist nicht mehr da, sie wurde gelöscht oder archiviert.",
     "The spool is no longer there, it was deleted or archived.",
     "La bobine n'existe plus, elle a été supprimée ou archivée." },  // STR_COPY_TPL_GONE_TEXT
-  { "Andere Spule - abgebrochen",
-    "Other spool - cancelled",
-    "Autre bobine - annulé" },  // STR_CREATE_OTHER_SPOOL
+  { "Andere Spule aufgelegt",
+    "Another spool on the pad",
+    "Autre bobine posée" },  // STR_CREATE_OTHER_SPOOL
+  { "Die Karte galt der Spule davor. Angelegt wurde nichts, bitte neu beginnen.",
+    "The card was for the spool before. Nothing was created, please start again.",
+    "La fiche concernait la bobine précédente. Rien de créé, recommencez." },  // STR_CREATE_OTHER_SPOOL_TEXT
 };
 
 StringID tagWriteResultString(uint8_t code) {
