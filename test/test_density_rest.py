@@ -95,15 +95,16 @@ def b_twin_first():
 
 
 # (c) Every density the plan takes from a source passes the plausibility rule.
+# The tokenizer blanks string contents, so a JSON key reads "" here.
 def c_plausible():
     count = body_of(PLANNER, "countDensity")
-    assert squeeze('if (!densityPlausible(e["density"] | 0.0f)) return;') in count, \
+    assert squeeze('if (!densityPlausible(e[""] | 0.0f)) return;') in count, \
         f"src/{PLANNER}: countDensity() counts a density outside the plausible range"
     mat = body_of(PLANNER, "materialDensity")
-    assert squeeze('return plausibleOrNone(m["density"] | 0.0f);') in mat, \
+    assert squeeze('return plausibleOrNone(m[""] | 0.0f);') in mat, \
         f"src/{PLANNER}: materialDensity() hands on a density outside the plausible range"
     db = body_of(PLANNER, "takeDbEntry")
-    assert squeeze('plan->density = plausibleOrNone(e["density"] | 0.0f);') in db, \
+    assert squeeze('plan->density = plausibleOrNone(e[""] | 0.0f);') in db, \
         f"src/{PLANNER}: takeDbEntry() takes a database density outside the plausible range"
     picked = body_of(PLANNER, "takePickedEntry")
     assert squeeze("plan->density = plausibleOrNone(in.db_density);") in picked, \
@@ -115,7 +116,7 @@ def c_plausible():
     assert squeeze("if (in_db && plan->density <= 0.0f) plan->density = databaseDensity(") in plan, \
         f"src/{PLANNER}: spoolmanPlanTagFilament() does not let a found entry borrow a density"
     fm = body_of(FILAMAN, "dbFilamentBody")
-    assert squeeze('if (densityPlausible(in.db_density)) body["density_g_cm3"] = in.db_density;') in fm, \
+    assert squeeze('if (densityPlausible(in.db_density)) body[""] = in.db_density;') in fm, \
         f"src/{FILAMAN}: dbFilamentBody() sends FilaMan a density outside the plausible range"
 
 

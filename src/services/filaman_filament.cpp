@@ -9,6 +9,7 @@
 #include <strings.h>
 
 #include "../hardware/sd_logger.h"
+#include "density_rules.h"
 #include "filaman_api.h"
 #include "filaman_filament_db.h"
 #include "tag_db_match.h"
@@ -445,7 +446,8 @@ static void dbFilamentBody(const TagCreateInput& in, JsonObjectConst prepared, J
   if (line[0]) body["material_subgroup"] = line;
   body["manufacturer_color_name"] = dbColorName(in);
   body["diameter_mm"] = in.diameter_mm > 0 ? in.diameter_mm : TAG_CREATE_DIAMETER_MM;
-  if (in.db_density > 0.0f)  body["density_g_cm3"] = in.db_density;
+  // Only a plausible one (density_rules.h), as the Spoolman plan takes it.
+  if (densityPlausible(in.db_density)) body["density_g_cm3"] = in.db_density;
   if (in.net_weight_g > 0)   body["raw_material_weight_g"] = in.net_weight_g;
   if (in.spool_weight_g > 0) body["default_spool_weight_g"] = in.spool_weight_g;
   addColorMode(in, body);

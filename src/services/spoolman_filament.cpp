@@ -213,6 +213,20 @@ static void noteDbEntry(JsonObjectConst e, TagDbEntry* db) {
   db->bed_temp     = e["bed_temp"] | 0;
 }
 
+// A density from a source, 0 when it is none (density_rules.h). Wurzel: what the
+// database, a picked entry or Spoolman's material list said was taken as it
+// stood; only a typed one and the product name's were checked (Punkteliste
+// n05 c, STATUS 57 c). An entry with 11.6 for 1.16 would make the filament
+// with it, and 0 would be sent where Spoolman requires one.
+// Fix: every source passes the plausibility rule, and a value outside it
+// counts as no density: the next source is asked, at the end the card asks.
+// NOT-TO-DO: correcting the value (11.6 -> 1.16); the rule cannot know which
+// point was typed in the wrong place.
+// See test_density_rest.py (c).
+static float plausibleOrNone(float d) {
+  return densityPlausible(d) ? d : 0.0f;
+}
+
 static void takeDbEntry(const TagCreateInput& in, JsonObjectConst e, TagFilamentPlan* plan) {
   noteDbEntry(e, &plan->db);
   plan->db_found = true;
@@ -221,7 +235,7 @@ static void takeDbEntry(const TagCreateInput& in, JsonObjectConst e, TagFilament
   // entry's own name stays in plan->db, which the card compares.
   if (s_bambuddy_names) bambuddyFilamentName(in.material, in.subtype, plan->name, sizeof(plan->name));
   else                  snprintf(plan->name, sizeof(plan->name), "%s", e["name"] | "");
-  plan->density        = e["density"] | 0.0f;
+  plan->density        = plausibleOrNone(e["density"] | 0.0f);
   plan->spool_weight_g = (int)lroundf(e["spool_weight"] | 0.0f);
   plan->extruder_temp  = e["extruder_temp"] | 0;
   plan->bed_temp       = e["bed_temp"] | 0;
@@ -292,7 +306,7 @@ static void takePickedEntry(const TagCreateInput& in, TagFilamentPlan* plan) {
   // external_id above is what finds one made from this entry again.
   if (s_bambuddy_names) bambuddyFilamentName(in.material, in.subtype, plan->name, sizeof(plan->name));
   else                  snprintf(plan->name, sizeof(plan->name), "%s", in.db_name);
-  plan->density        = in.db_density;
+  plan->density        = plausibleOrNone(in.db_density);
   plan->spool_weight_g = in.spool_weight_g;
   plan->extruder_temp  = in.temp_max;
   plan->bed_temp       = in.db_bed_temp;
@@ -318,8 +332,8 @@ struct DensityCount {
 static void countDensity(JsonObjectConst e, void* p) {
   DensityCount* dc = (DensityCount*)p;
   if (strcasecmp(e["material"] | "", dc->material) != 0) return;
+  if (!densityPlausible(e["density"] | 0.0f)) return;   // see plausibleOrNone()
   const int d = (int)lroundf((e["density"] | 0.0f) * 100.0f);
-  if (d <= 0) return;
   int i = 0;
   while (i < dc->n && dc->value[i] != d) i++;
   if (i == dc->n) {
@@ -372,7 +386,7 @@ static float materialDensity(const char* base_url, const char* material) {
   if (spoolmanGetJson(base_url, "/api/v1/external/material", doc, SM_FIL_TIMEOUT_MS, &filter) != 200)
     return 0.0f;
   for (JsonObjectConst m : doc.as<JsonArrayConst>())
-    if (strcasecmp(m["material"] | "", material) == 0) return m["density"] | 0.0f;
+    if (strcasecmp(m["material"] | "", material) == 0) return plausibleOrNone(m["density"] | 0.0f);
   return 0.0f;
 }
 
@@ -594,14 +608,14 @@ void spoolmanPlanTagFilament(const char* base_url, const TagCreateInput& in, Tag
 
   plan->vendor_id = findVendor(base_url, in.vendor, plan);
   if (plan->vendor_id < 0) { plan->state = TFS_FAILED; return; }
-  // Spoolman requires a density; a picked entry without one borrows it the
-  // way a filament from a tag does.
+  // Spoolman requires a density; an entry without a plausible one, picked or
+  // found, borrows it the way a filament from a tag does (plausibleOrNone()).
   int db_code = 200;
-  if (picked && plan->density <= 0.0f) plan->density = databaseDensity(base_url, in.vendor, in.material, &db_code);
-  if (picked && plan->density <= 0.0f) plan->density = materialDensity(base_url, in.material);
-  // Not the product name here: a picked entry is the product already.
-  if (picked) takeTypedDensity(in, plan);
-  if (picked && plan->density <= 0.0f) { noDensity(in, db_code, plan); return; }
+  if (in_db && plan->density <= 0.0f) plan->density = databaseDensity(base_url, in.vendor, in.material, &db_code);
+  if (in_db && plan->density <= 0.0f) plan->density = materialDensity(base_url, in.material);
+  // Not the product name here: an entry is the product already.
+  if (in_db) takeTypedDensity(in, plan);
+  if (in_db && plan->density <= 0.0f) { noDensity(in, db_code, plan); return; }
   if (in_db) { plan->state = TFS_CREATE_DB; return; }
   planFromTag(base_url, in, plan);
 }
