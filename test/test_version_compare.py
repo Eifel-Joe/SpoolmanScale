@@ -1,4 +1,4 @@
-"""Compile the production version comparison and check that it ranks the tags of this fork in the order the release workflow assumes (scripts/release_files.py ranks them the same way): v0.8.3-beta.87 < v0.8.4-beta.1 < v0.8.4-beta.2 < v0.8.4 < v0.8.5-beta.1, the original's v0.8.3 below the fork's first pre-release, and a beta counter outside 1..998 ranking like the bare -beta. A build made with a switch (the acceptance firmware, '-abnahme', and the documentation firmware, '-doku'; never released) ranks one below the version it was built on, so a scale running it is offered nothing next to the previous published beta and the real release as soon as that is out."""
+"""Compile the production version comparison and check that it ranks the tags of this fork in the order the release workflow assumes (scripts/release_files.py ranks them the same way): v0.8.3-beta.87 < v0.8.4-beta.1 < v0.8.4-beta.2 < v0.8.4 < v0.8.5-beta.1, the original's v0.8.3 below the fork's first pre-release, and a beta counter outside 1..998 ranking like the bare -beta. A build made with a switch (the acceptance firmware, 'A' since beta.20 and '-abnahme' before, and the documentation firmware, '-doku'; never released) ranks one below the version it was built on, so a scale running it is offered nothing next to the previous published beta and the real release as soon as that is out."""
 import subprocess
 import tempfile
 from pathlib import Path
@@ -57,6 +57,14 @@ int main() {
   assert(parseVersion("v0.8.6-beta.12-doku") == parseVersion("v0.8.6-beta.11"));
   assert(parseVersion("v0.8.6-abnahme") < parseVersion("v0.8.6"));
   assert(parseVersion("v0.8.6-doku") < parseVersion("v0.8.6"));
+  // Since beta.20 the acceptance firmware appends only the letter "A" (Spec
+  // V61, Jorg: a shorter header line); it ranks exactly like "-abnahme", which
+  // stays known for the acceptance builds made before.
+  assert(parseVersion("v0.8.6-beta.20A") < parseVersion("v0.8.6-beta.20"));
+  assert(parseVersion("v0.8.6-beta.20A") == parseVersion("v0.8.6-beta.19"));
+  assert(parseVersion("v0.8.6-beta.20A") == parseVersion("v0.8.6-beta.20-abnahme"));
+  assert(parseVersion("v0.8.6A") < parseVersion("v0.8.6"));
+  assert(parseVersion("v0.8.6A") == parseVersion("v0.8.6-abnahme"));
   // Only these two suffixes count, no general pattern behind the version, and
   // "-beta" itself is no suffix: the public beta stays below its counters.
   assert(parseVersion("v0.8.6-beta.14-foo") == parseVersion("v0.8.6-beta.14"));

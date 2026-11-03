@@ -263,7 +263,7 @@ def top_block(rel, condition):
 # ------------------------------------------------------------------ 1. app_config.h
 # The version suffix and SSC_ACCEPTANCE come out of app_config.h: a release
 # has neither switch and no suffix, the acceptance firmware the suffix
-# "-abnahme", the documentation firmware "-doku" and, from its one switch, the
+# "A" (Spec V61), the documentation firmware "-doku" and, from its one switch, the
 # other one as well. FW_VERSION is the release literal and the suffix, and the
 # only macro there whose name begins with FW_VERSION: the release run and
 # scripts/check.sh read the literal from that line.
@@ -273,8 +273,8 @@ expect("app_config.h: a release must not define SSC_ACCEPTANCE or SSC_DOC_BUILD"
        "SSC_ACCEPTANCE" not in release_cfg and "SSC_DOC_BUILD" not in release_cfg)
 expect('app_config.h: a release must have an empty SSC_VERSION_SUFFIX ("")', release_cfg.get("SSC_VERSION_SUFFIX") == '""',
        f"SSC_VERSION_SUFFIX is {release_cfg.get('SSC_VERSION_SUFFIX')}")
-expect('app_config.h: -DSSC_ACCEPTANCE must give SSC_VERSION_SUFFIX "-abnahme" and no SSC_DOC_BUILD',
-       accept_cfg.get("SSC_VERSION_SUFFIX") == '"-abnahme"' and "SSC_DOC_BUILD" not in accept_cfg,
+expect('app_config.h: -DSSC_ACCEPTANCE must give SSC_VERSION_SUFFIX "A" (Spec V61) and no SSC_DOC_BUILD',
+       accept_cfg.get("SSC_VERSION_SUFFIX") == '"A"' and "SSC_DOC_BUILD" not in accept_cfg,
        f"SSC_VERSION_SUFFIX is {accept_cfg.get('SSC_VERSION_SUFFIX')}")
 expect('app_config.h: -DSSC_DOC_BUILD alone must give SSC_ACCEPTANCE and SSC_VERSION_SUFFIX "-doku"',
        "SSC_ACCEPTANCE" in doc_cfg and doc_cfg.get("SSC_VERSION_SUFFIX") == '"-doku"',

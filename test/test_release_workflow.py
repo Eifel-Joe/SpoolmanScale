@@ -514,7 +514,7 @@ if read_script is not None:
         # names the version, on a tag push (tag equal to the version, so that
         # the tag check cannot be what stops it) and on a manual run alike,
         # and nothing reaches $GITHUB_OUTPUT.
-        for bad_version in ("v0.8.6-beta.14-abnahme", "v0.8.6-beta.14-doku", "v0.8.6-abnahme",
+        for bad_version in ("v0.8.6-beta.14-abnahme", "v0.8.6-beta.14-doku", "v0.8.6-abnahme", "v0.8.6-beta.20A", "v0.8.6A",
                             "0.8.6-beta.14", "v0.8", "v0.8.6-rc.1", "v0.8.6-beta."):
             (work / "src" / "app_config.h").write_text(
                 f'#pragma once\n#define FW_VERSION  "{bad_version}" SSC_VERSION_SUFFIX\n',
