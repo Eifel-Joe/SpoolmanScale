@@ -83,6 +83,9 @@ static float s_gross_g = 0.0f;
 static bool  s_bag_on  = false;
 // The spool the parts chooser was opened for from the chip.
 static int   s_parts_for = 0;
+// The spool those numbers were read for. Another spool loaded under an open
+// popup would otherwise take this popup's weight (weightPopupTick()).
+static int   s_spool_id = 0;
 
 static float bagG() { return s_bag_on ? bag_weight_g : 0.0f; }
 
@@ -107,6 +110,12 @@ void closeWeightPopups() {
 // for the popup.
 bool isWeightPopupOpen() {
   return s_popup != nullptr || s_opts != nullptr || isExtrasChooserOpen();
+}
+
+void weightPopupTick() {
+  if (!isWeightPopupOpen() || sm_id == s_spool_id) return;
+  logSDf("UI: weight popup for spool %d closed unsent, spool %d is loaded now", s_spool_id, sm_id);
+  closeWeightPopups();
 }
 
 // ---------------------------------------------------------------------------
@@ -243,6 +252,8 @@ static void wpRefresh() {
 // ---------------------------------------------------------------------------
 
 static void wpPrimaryClicked(lv_event_t *e) {
+  // A tap in the pass the spool changed in, before the tick took the popup down.
+  if (sm_id != s_spool_id) { closeWeightPopups(); return; }
   const float g = newG();
   if (sm_archived) {
     logSDf("UI: weight popup -> reactivate spool %d at %.0f g", sm_id, g);
@@ -380,6 +391,7 @@ static void wpOpenLevel1(bool fresh) {
   if (fresh) {
     s_gross_g = spoolExtrasBareReading();
     s_bag_on = false;
+    s_spool_id = sm_id;
   }
   closeWeightPopups();
   // Room for both switch rows even when one is missing: the popup keeps its

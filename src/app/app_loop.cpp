@@ -111,6 +111,7 @@
 #include "ui/batch_create.h"    // batchLabelsTick()
 #include "ui/tare_missing_popup.h"
 #include "services/weight_write_rules.h"
+#include "ui/weight_popup.h"
 #include "ui/ble_devices_screen.h"
 #include "ui/bluetooth_screen.h"
 #include "ui/connection_screen.h"
@@ -1224,6 +1225,7 @@ void appLoop() {
   // typed in takes the entry down unsaved first, and is asked about after.
   tareEntryTick();
   tareMissingTick();
+  weightPopupTick();
   spoolIdPadTick();
   idSpoolTick();
   idSpoolLiftQuestions();
