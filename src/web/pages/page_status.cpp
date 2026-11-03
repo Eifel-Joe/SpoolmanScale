@@ -9,7 +9,9 @@
 #include "app_config.h"
 #include "hardware/i2c_scan.h"
 #include "hardware/sd_logger.h"
+#include "boards/board.h"
 #include "services/backend.h"
+#include "services/battery.h"
 #include "services/device_name.h"
 #include "services/diagnostics.h"
 #include "services/mdns_service.h"
@@ -88,6 +90,18 @@ static String statusJson() {
     j += ",\"diagText\":\"" +
          jsonEsc(dc == DIAG_NONE ? T(STR_W_S_DIAG_OK) : T(diagTitleString(dc))) + "\"";
   }
+#if BOARD_BATTERY_SENSE
+  {
+    // The battery (Spec 5.3 AB): the supply the rules settled on ("unknown"
+    // for the first twenty seconds), the minute's mean and the step shown,
+    // and whether an update would be refused. Only on a board that measures.
+    const bat::State &b = batteryState();
+    j += ",\"battery\":{\"supply\":\"" + String(batterySupplyName()) + "\"";
+    j += ",\"mv\":" + String((unsigned)b.mv);
+    j += ",\"pct\":" + String((int)b.shown);
+    j += ",\"updateBlocked\":" + String(batteryUpdateBlocked() ? "true" : "false") + "}";
+  }
+#endif
   j += ",\"sd\":" + String(sd_available ? "true" : "false");
   j += ",\"scans\":" + String(scan_count);
   j += ",\"config\":" + String(webConfigEnabled() ? "true" : "false");

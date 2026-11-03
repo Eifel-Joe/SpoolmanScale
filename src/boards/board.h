@@ -30,6 +30,10 @@
 //    BOARD_LIST_ROWS_IN_PSRAM  1 when list rows may be built in PSRAM once
 //                            internal RAM is short. Octal PSRAM only: out of
 //                            quad PSRAM a list stutters as it scrolls
+//    BOARD_BATTERY_SENSE     1 when the board reads its battery's voltage:
+//                            batteryReadRaw() in its folder then, the
+//                            display in the header and the update lock
+//                            (services/battery.h); 0 everywhere else
 //    BOARD_NATIVE_W          only on a board whose panel has more pixels than
 //    BOARD_NATIVE_H          the UI: the panel's real size. A screen written
 //                            for it can then have every one of them, see

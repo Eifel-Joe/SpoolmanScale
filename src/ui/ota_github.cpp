@@ -12,6 +12,7 @@
 #include "app_config.h"
 #include "hardware/sd_logger.h"
 #include "lang.h"
+#include "services/battery.h"
 #include "services/github_release.h"
 #include "services/ota_state.h"
 #include "services/prefs_store.h"
@@ -382,6 +383,18 @@ void doGithubOtaFlash(const char* version) {
     char big[96];
     snprintf(big, sizeof(big), T(STR_GH_OTA_TOO_BIG), tag);
     ghShowStatus(GH_LOOK_WARN, big);
+    return;
+  }
+  // On the battery below 50 %, or below the warning voltage (Spec 5.3 T,
+  // V60): refused before the download, like a version too large for the
+  // slot. A board that cannot measure never refuses.
+  if (batteryUpdateBlocked()) {
+    s_flash_wait_since = 0;
+    char low[96];
+    snprintf(low, sizeof(low), T(STR_GH_OTA_BATTERY), (int)batteryState().shown);
+    ghShowStatus(GH_LOOK_WARN, low);
+    logSDf("OTA: install of %s refused, battery %d %%, %u mV", tag, (int)batteryState().shown,
+           (unsigned)batteryState().mv);
     return;
   }
   // Not beside another request, as the check (githubRequestMustWait()): the

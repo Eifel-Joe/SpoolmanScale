@@ -1,6 +1,8 @@
 #include "header_status.h"
 #include "app/app_state.h"
+#include "boards/board.h"
 #include "services/backend.h"
+#include "services/battery.h"
 #include "services/ble_service.h"
 
 #include <Arduino.h>
@@ -74,6 +76,74 @@ void layoutHeaderChips() {
   // grows a digit at a time and a fixed offset would eventually collide.
   if (lbl_hdr_ip && lbl_hdr_scans)
     lv_obj_align_to(lbl_hdr_ip, lbl_hdr_scans, LV_ALIGN_OUT_LEFT_MID, -HDR_CHIP_GAP, 0);
+
+  // Last: the battery sits in what the chips leave of the line.
+  updateHeaderBattery();
+}
+
+#if BOARD_BATTERY_SENSE
+// The leftmost visible chip, where the battery's room ends. The backend badge
+// is always there; the others count when they are not hidden.
+static lv_coord_t firstChipX() {
+  lv_coord_t x = lv_obj_get_x(lbl_hdr_sm);
+  lv_obj_t *chain[] = { btn_hdr_ams, lbl_hdr_scl, btn_hdr_nfc, lbl_hdr_wifi, lbl_hdr_bt, lbl_hdr_sd };
+  for (unsigned i = 0; i < sizeof(chain) / sizeof(chain[0]); i++) {
+    if (!chain[i] || lv_obj_has_flag(chain[i], LV_OBJ_FLAG_HIDDEN)) continue;
+    const lv_coord_t cx = lv_obj_get_x(chain[i]);
+    if (cx < x) x = cx;
+  }
+  return x;
+}
+
+static lv_color_t batteryColor(bat::Tone tone) {
+  switch (tone) {
+    case bat::TONE_CHARGING: return lv_color_hex(UI_COL_GOOD);
+    case bat::TONE_CRITICAL: return lv_color_hex(UI_COL_BAD);
+    case bat::TONE_LOW:      return lv_color_hex(UI_COL_WARN);
+    default:                 return lv_color_hex(UI_COL_INK_FAINT);
+  }
+}
+#endif
+
+// Symbol and step ("<battery> 70%"), the bolt instead of the battery while
+// charging; the symbol alone where the line has no room for the number
+// (the acceptance firmware's longer version, Bluetooth and SD shown), and
+// nothing where it has none at all. Grey, yellow from 20 %, red below the
+// warning voltage, the bolt green (Spec 5.3 AB).
+void updateHeaderBattery() {
+#if BOARD_BATTERY_SENSE
+  if (!lbl_hdr_bat || !lbl_hdr_ver || !lbl_hdr_sm) return;
+  const bat::State &s = batteryState();
+  const bat::Tone tone = bat::toneOf(s);
+  if (tone == bat::TONE_HIDDEN) {
+    lv_obj_add_flag(lbl_hdr_bat, LV_OBJ_FLAG_HIDDEN);
+    return;
+  }
+  static const char *const LEVELS[] = { LV_SYMBOL_BATTERY_EMPTY, LV_SYMBOL_BATTERY_1,
+                                        LV_SYMBOL_BATTERY_2, LV_SYMBOL_BATTERY_3,
+                                        LV_SYMBOL_BATTERY_FULL };
+  const uint8_t shown = s.shown < 0 ? 0 : (uint8_t)s.shown;
+  const char *symbol = (tone == bat::TONE_CHARGING) ? LV_SYMBOL_CHARGE : LEVELS[bat::iconOf(shown)];
+  char full[24];
+  snprintf(full, sizeof(full), "%s %u%%", symbol, (unsigned)shown);
+
+  const lv_font_t *font = &lv_font_montserrat_ext_12;
+  lv_point_t w_full, w_symbol;
+  lv_txt_get_size(&w_full, full, font, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+  lv_txt_get_size(&w_symbol, symbol, font, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+  lv_obj_update_layout(lv_obj_get_parent(lbl_hdr_ver));
+  const lv_coord_t left_end = lv_obj_get_x(lbl_hdr_ver) + lv_obj_get_width(lbl_hdr_ver);
+  const bat::Slot slot = bat::headerSlot((int16_t)left_end, (int16_t)firstChipX(),
+                                         (int16_t)w_full.x, (int16_t)w_symbol.x);
+  if (slot.form == bat::FORM_NONE) {
+    lv_obj_add_flag(lbl_hdr_bat, LV_OBJ_FLAG_HIDDEN);
+    return;
+  }
+  lv_label_set_text(lbl_hdr_bat, slot.form == bat::FORM_FULL ? full : symbol);
+  lv_obj_set_style_text_color(lbl_hdr_bat, batteryColor(tone), 0);
+  lv_obj_align(lbl_hdr_bat, LV_ALIGN_LEFT_MID, slot.x, 0);
+  lv_obj_clear_flag(lbl_hdr_bat, LV_OBJ_FLAG_HIDDEN);
+#endif
 }
 
 void updateHeaderStatus() {

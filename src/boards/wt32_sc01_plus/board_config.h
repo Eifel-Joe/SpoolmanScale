@@ -20,6 +20,9 @@
 // see hardware/lvgl_mem.cpp), so a list ends where internal RAM does.
 #define BOARD_LIST_ROWS_IN_PSRAM  0
 
+// No battery connector: USB-C, a diode, the 3.3 V regulator (Spec 5.3 AB).
+#define BOARD_BATTERY_SENSE  0
+
 // Nothing to bring up before the SD card and the display.
 inline void boardEarlyInit() {}
 

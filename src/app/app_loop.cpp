@@ -31,6 +31,7 @@
 #include "creality/creality_scan.h"
 #include "services/mifare_write.h"
 #include "services/tag_family.h"
+#include "services/battery.h"
 #include "hardware/display_power.h"
 #include "hardware/nfc.h"
 #include "hardware/scale.h"
@@ -615,6 +616,9 @@ void appLoop() {
   prefsFlush();
   perfSection("power");
   handlePowerManagement();
+  // The battery of the 7B (Spec 5.3 AB): a reading every 250 ms, the rules
+  // every ten seconds. A no-op on a board that cannot measure.
+  batteryTick((uint32_t)millis());
 
   // ── Stack watermark of the loop task ─────────────────────
   // uxTaskGetStackHighWaterMark reports the lowest free stack seen since

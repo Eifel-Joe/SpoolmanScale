@@ -2867,6 +2867,18 @@ const char* const STRINGS[][3] = {
     "Web Flasher" },  // STR_PART_HINT_QR
   { "%s passt nicht mehr: einmal per USB flashen", "%s no longer fits: flash once over USB",
     "%s ne tient plus : flasher une fois par USB" },  // STR_GH_OTA_TOO_BIG
+  { "Akku %d %%: Update erst ab 50 %% oder beim Laden", "Battery %d %%: update from 50 %% or while charging",
+    "Batterie %d %% : mise à jour dès 50 %% ou en charge" },  // STR_GH_OTA_BATTERY
+  { "Der Akku ist zu schwach für ein Update. Ab 50 % Ladestand oder während er lädt (Netzteil an der Buchse UART).", "The battery is too low for an update. From 50 % charge, or while it charges (power supply at the UART socket).",
+    "La batterie est trop faible pour une mise à jour. À partir de 50 %, ou pendant la charge (alimentation sur la prise UART)." },  // STR_W_FW_BATTERY
+  { "Akku schwach", "Battery low",
+    "Batterie faible" },  // STR_BAT_LOW_TITLE
+  { "Noch etwa 20 %. Bitte bald das Netzteil an die Buchse UART stecken, dort lädt der Akku.", "About 20 % left. Please plug the power supply into the UART socket soon, that is where the battery charges.",
+    "Environ 20 % restants. Branchez bientôt l'alimentation sur la prise UART, elle charge la batterie." },  // STR_BAT_LOW_TEXT
+  { "Akku fast leer", "Battery almost empty",
+    "Batterie presque vide" },  // STR_BAT_CRIT_TITLE
+  { "Die Waage schaltet sich in wenigen Minuten ab. Netzteil an die Buchse UART stecken.", "The scale will switch off within minutes. Plug the power supply into the UART socket.",
+    "La balance s'éteint dans quelques minutes. Branchez l'alimentation sur la prise UART." },  // STR_BAT_CRIT_TEXT
   { "Firmware wird hochgeladen", "Uploading the firmware",
     "Envoi du firmware" },  // STR_W_FW_UPLOADING
   { "Die Datei ist größer als der Speicher dieser Waage ({s}). Einmal per USB über den Web-Flasher aktualisieren, dann passt sie.",

@@ -39,6 +39,11 @@
 // go there.
 #define BOARD_LIST_ROWS_IN_PSRAM  1
 
+// The battery: the CS8501 charges a LiPo at J3 when the supply is at the
+// "UART" connector, and VBAT/3 reaches the expander's ADC (register 0x06,
+// R18 20 k / R19 10 k). Spec 5.3 AB, V60.
+#define BOARD_BATTERY_SENSE  1
+
 // The board's own I2C bus and the expander, before the SD card (whose chip
 // select is an expander pin) and the display (whose power, reset and
 // backlight are).

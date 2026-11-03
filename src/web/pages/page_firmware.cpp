@@ -12,6 +12,7 @@
 #include "app_config.h"
 #include "hardware/sd_logger.h"
 #include "boards/board.h"
+#include "services/battery.h"
 #include "services/github_release.h"
 #include "services/board_image.h"
 #include "services/partition_layout.h"
@@ -52,6 +53,9 @@ static bool gh_web_flash_pending = false;
 // (otaWebGithubTick()). Told to the page by /api/ota/progress, cleared by the
 // next install it asks for.
 static bool s_web_install_gave_up = false;
+// The last upload was refused for the battery (Spec 5.3 T, V60): the reply
+// says so instead of the general failure.
+static bool s_upload_battery = false;
 static char gh_web_flash_tag[40] = "";
 // Its checksum, taken with the tag when the install is asked for: by the time
 // the loop runs it, a daily check answered meanwhile may have cleared the
@@ -139,6 +143,15 @@ void otaWebGithubTick() {
   }
   s_wait_since = 0;
   gh_web_flash_pending = false;
+  // Asked again at the start: /api/ota/install refused already, but the
+  // battery may have dropped while the install waited (Spec 5.3 T, V60).
+  if (batteryUpdateBlocked()) {
+    s_web_install_gave_up = true;
+    logSDf("OTA: install of %s from the web UI refused, battery %d %%", gh_web_flash_tag,
+           (int)batteryState().shown);
+    otaBrowserShowUploadFailed();
+    return;
+  }
 
   logSDf("OTA: installing %s from GitHub, asked from the web UI", gh_web_flash_tag);
   if (lbl_ota_status) lv_label_set_text(lbl_ota_status, T(STR_GH_OTA_FLASHING));
@@ -331,10 +344,12 @@ static String body() {
   h += F(",upfail:");     h += jsStr(T(STR_W_FW_FAIL));
   h += F(",toobig:");     h += jsStr(T(STR_W_FW_TOOBIG));
   h += F(",ghbig:");      h += jsStr(T(STR_GH_OTA_TOO_BIG));
+  h += F(",battery:");    h += jsStr(T(STR_W_FW_BATTERY));
   h += F("};"
          "function ghSay(t,bad){var m=document.getElementById('ghmsg');"
          "m.className=bad?'msg bad':'msg';m.textContent=t;}"
          "function ghErr(d){return d.error==='nowifi'?G.nowifi:"
+         "d.error==='battery'?G.battery:"
          "d.error==='lowmem'?G.lowmem:"
          "(d.error==='busy'?G.busy:G.fail+(d.error?': '+d.error:''));}"
          "function fmtDate(s){if(!s)return G.unknown;"
@@ -399,7 +414,8 @@ static String body() {
          "var p=Math.round(ev.loaded*100/ev.total);bi.style.width=p+'%';"
          "s.textContent=mb(ev.loaded)+' / '+mb(ev.total)+' - '+p+' %';if(p>=100)sent=true;};"
          "x.onload=function(){if(x.status===200&&x.responseText.indexOf('&#10003;')>=0)fwBack();"
-         "else{document.getElementById('rbox').style.display='none';fwSay(G.upfail);}};"
+         "else{document.getElementById('rbox').style.display='none';"
+         "fwSay(x.responseText.indexOf('fw-bat')>=0?G.battery:G.upfail);}};"
          // A drop after the last byte is the restart overtaking the reply.
          "x.onerror=function(){if(sent)fwBack();"
          "else{document.getElementById('rbox').style.display='none';fwSay(G.upfail);}};"
@@ -749,6 +765,13 @@ static void routesTail(WebServer &srv) {
       srv.send(200, "application/json", "{\"ok\":false,\"error\":\"toobig\"}");
       return;
     }
+    // On the battery below 50 % or the warning voltage (Spec 5.3 T, V60).
+    if (batteryUpdateBlocked()) {
+      logSDf("OTA: install from the web UI refused, battery %d %%", (int)batteryState().shown);
+      srv.send(200, "application/json",
+               String("{\"ok\":false,\"error\":\"battery\",\"pct\":") + (int)batteryState().shown + "}");
+      return;
+    }
     strncpy(gh_web_flash_tag, gh_latest_version, sizeof(gh_web_flash_tag) - 1);
     gh_web_flash_tag[sizeof(gh_web_flash_tag) - 1] = '\0';
     snprintf(gh_web_flash_sha, sizeof(gh_web_flash_sha), "%s", otaExpectedSha(gh_web_flash_tag));
@@ -782,6 +805,15 @@ static void routesTail(WebServer &srv) {
         msg += F("</h1><p>");
         msg += T(STR_W_FW_RESTARTING);
         msg += F("</p></body></html>");
+      } else if (s_upload_battery) {
+        // fw-bat tells the page's script which failure this was.
+        msg += F("<h1 class='fw-bad fw-bat'>&#10007; ");
+        msg += T(STR_W_FW_FAIL);
+        msg += F("</h1><p>");
+        msg += T(STR_W_FW_BATTERY);
+        msg += F("</p><a href='/'>&#8592; ");
+        msg += T(STR_W_BACK_STATUS);
+        msg += F("</a></body></html>");
       } else {
         msg += F("<h1 class='fw-bad'>&#10007; ");
         msg += T(STR_W_FW_FAIL);
@@ -817,6 +849,7 @@ static void routesTail(WebServer &srv) {
       HTTPUpload& upload = srv.upload();
       if (upload.status == UPLOAD_FILE_START) {
         s_upload_ok = false;
+        s_upload_battery = false;
         failed  = false;
         refused = !webAllowed(srv, GATE_MAINT);
         if (refused) {
@@ -831,6 +864,15 @@ static void routesTail(WebServer &srv) {
           refused = true;
           logSDf("OTA: upload of %u bytes refused, partition holds %u",
                  (unsigned)announced, (unsigned)room);
+          return;
+        }
+        // On the battery below 50 % or the warning voltage (Spec 5.3 T,
+        // V60), before a byte is written; read and dropped like the rest.
+        s_upload_battery = batteryUpdateBlocked();
+        if (s_upload_battery) {
+          refused = true;
+          logSDf("OTA: upload refused before the first byte, battery %d %%",
+                 (int)batteryState().shown);
           return;
         }
         Serial.printf("OTA start: %s\n", upload.filename.c_str());

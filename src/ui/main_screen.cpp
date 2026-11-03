@@ -10,6 +10,7 @@
 #include <cstring>
 
 #include "app_config.h"
+#include "boards/board.h"
 #include "app/deferred_actions.h"
 #include "app/doc_build.h"
 #include "bambu/bambu_scan.h"
@@ -172,6 +173,20 @@ void buildUI() {
   lv_obj_set_style_text_color(hdr_lbl, lv_color_hex(UI_COL_INK_FAINT), 0);
   lv_obj_set_style_text_font(hdr_lbl, &lv_font_montserrat_ext_12, 0);
   lv_obj_align(hdr_lbl, LV_ALIGN_LEFT_MID, 8, 0);
+  lbl_hdr_ver = hdr_lbl;
+
+#if BOARD_BATTERY_SENSE
+  // The battery (Spec 5.3 AB): between the version and the chips, placed and
+  // filled by updateHeaderBattery(), which layoutHeaderChips() calls at the
+  // end. Hidden until the rules know the supply, and for good without a
+  // battery. One line in the header's font 12, which has the five battery
+  // symbols and the bolt.
+  lbl_hdr_bat = lv_label_create(hdr);
+  lv_label_set_text(lbl_hdr_bat, "");
+  lv_obj_set_style_text_font(lbl_hdr_bat, &lv_font_montserrat_ext_12, 0);
+  lv_obj_set_style_text_color(lbl_hdr_bat, lv_color_hex(UI_COL_INK_FAINT), 0);
+  lv_obj_add_flag(lbl_hdr_bat, LV_OBJ_FLAG_HIDDEN);
+#endif
 
   // SD card indicator in header - only visible when sd_available.
   // Positions of this and the five chips right of it come from

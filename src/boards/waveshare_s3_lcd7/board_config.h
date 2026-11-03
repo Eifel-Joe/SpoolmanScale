@@ -34,6 +34,11 @@
 // octal PSRAM free at the same moment, so list rows may go there.
 #define BOARD_LIST_ROWS_IN_PSRAM  1
 
+// The 7 charges and runs a LiPo like the 7B, but its divider (R18 200 k /
+// R19 100 k) ends at test pad TP1, and the CH422G has no ADC: nothing to
+// read, no display and no lock (Spec 5.3 AB, V60).
+#define BOARD_BATTERY_SENSE  0
+
 // The board's own I2C bus and the expander, before the SD card (whose chip
 // select is an expander pin) and the display (whose reset and backlight are).
 void boardEarlyInit();

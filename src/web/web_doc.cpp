@@ -6,7 +6,9 @@
 #include <stdlib.h>
 
 #include "app/doc_build.h"
+#include "boards/board.h"
 #include "hardware/sd_logger.h"
+#include "services/battery.h"
 #include "web/web_access.h"
 #include "lang.h"
 
@@ -15,6 +17,9 @@
 //   POST /api/touch?x=&y=[&ms=][&x2=&y2=]  touch the display (480x320 coordinates)
 //   POST /api/sim/weight?g=<grams>|off      a simulated weight on the pad,
 //                                           which ends by itself after 15 minutes
+//   POST /api/sim/battery?supply=battery|charging|none&mv=<mV> | supply=off
+//                                           a simulated battery (7B, Spec 5.3 AA,
+//                                           V60) through the battery rules
 // This file is the only place in src/ that spells them: the release run looks
 // for these two texts in every file it attaches, and a hit means a switch got
 // into a release (test_build_variants.py keeps the texts out of every other file).
@@ -67,6 +72,33 @@ void docRoutes(WebServer& srv) {
     logSDf("Acceptance build: simulated weight %.1f g", g);
     srv.send(200, "application/json", String("{\"sim\":true,\"g\":") + String(g, 1) + "}");
   });
+
+  // The battery as the rules would see it (Spec 5.3 AA, V60): readings made
+  // up around mv with the spread the board showed for that supply. The
+  // display, the warnings and the update lock follow within about twenty
+  // seconds, as they would for a real one. "off" reads the chip again.
+#if BOARD_BATTERY_SENSE
+  srv.on("/api/sim/battery", HTTP_POST, [&srv]() {
+    if (!webRequire(srv, GATE_MAINT, T(STR_W_NAV_LOGS))) return;
+    const String supply = srv.arg("supply");
+    const int mv = intArg(srv, "mv", 0);
+    BatterySim mode = BAT_SIM_OFF;
+    bool known = true;
+    if (supply == "battery") mode = BAT_SIM_BATTERY;
+    else if (supply == "charging") mode = BAT_SIM_CHARGING;
+    else if (supply == "none") mode = BAT_SIM_NONE;
+    else known = (supply == "off");
+    const bool needs_mv = (mode == BAT_SIM_BATTERY || mode == BAT_SIM_CHARGING);
+    if (!known || (needs_mv && (mv < 2500 || mv > 4400))) {
+      srv.send(400, "application/json",
+               "{\"error\":\"supply battery|charging with mv 2500-4400, none, or off\"}");
+      return;
+    }
+    batterySimSet(mode, (uint32_t)mv);
+    logSDf("Acceptance build: simulated battery %s, %d mV", supply.c_str(), mv);
+    srv.send(200, "application/json", String("{\"sim\":\"") + supply + "\",\"mv\":" + mv + "}");
+  });
+#endif
 }
 
 #endif  // SSC_ACCEPTANCE

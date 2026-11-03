@@ -25,3 +25,9 @@ void updateHeaderStatus();
 // Packs the header chips right to left with one gap each. Call after any
 // change to their texts - updateHeaderStatus() does it itself.
 void layoutHeaderChips();
+
+// The battery display between the version and the chips (Spec 5.3 AB): its
+// text, colour and place from the battery rules. layoutHeaderChips() calls it
+// last; services/battery.cpp when the rules change something. A no-op where
+// the board cannot measure.
+void updateHeaderBattery();

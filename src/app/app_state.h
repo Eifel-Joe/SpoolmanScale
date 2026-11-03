@@ -273,6 +273,8 @@ extern lv_obj_t *lbl_hdr_scans;
 extern lv_obj_t *lbl_hdr_ip;    // status bar address, left of the scan counter
 extern lv_obj_t *lbl_hdr_sm;
 extern lv_obj_t *lbl_hdr_sd;   // header SD indicator, leftmost chip
+extern lv_obj_t *lbl_hdr_ver;  // header "SpoolmanScale <version>", left
+extern lv_obj_t *lbl_hdr_bat;  // header battery, between the two (7B only)
 extern lv_obj_t *lbl_sm_cap;   // "Spoolman:" / "FilaMan:" above the database weight
 extern lv_obj_t *lbl_bag_sm_diff;
 extern lv_obj_t *lbl_spool_tare;   // the spool weight the netto subtracts, bag-free layout only
