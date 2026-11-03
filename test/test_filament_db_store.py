@@ -107,9 +107,25 @@ for decl in (r"bool\s+fdbStorePrepare\(\s*const\s+char\s*\*\s*\w+\s*\)", r"void\
 task_fdb = ks.squeeze(body(FDB, "fdbTask", strings=True))
 need("heapLowBegin()" in task_fdb and "heapLowEnd()" in task_fdb,
      f"src/{FDB}: fdbTask() does not measure how low the internal heap went (heapLowBegin/End)")
-need("stackin%s" in task_fdb or "stack in %s" in body(FDB, "fdbTask", strings=True),
+need('s_worker.outside?"PSRAM":"internal"' in task_fdb,
      f"src/{FDB}: fdbTask()'s line does not say where its stack lay")
 need("workerStackCanGoOutside(" in start, f"src/{FDB}: startTask() never tries a stack in PSRAM")
+
+# 5a. A line written on a task goes through the queue of sd_logger.cpp, 160
+# bytes with its terminator (SD_QUEUE_LINE_MAX): a longer one is cut. The
+# task's line lost "stack in PSRAM" to that on the 7B (acceptance of beta.21,
+# round 1). Every line of the tasks fits with the widest numbers.
+WIDTH = {"u": 10, "lu": 10, "d": 11, "s": 12}
+logger = (ks.src / "hardware/sd_logger.cpp").read_text(encoding="utf-8")
+qmax = re.search(r"#define\s+SD_QUEUE_LINE_MAX\s+(\d+)", logger)
+need(qmax is not None, "src/hardware/sd_logger.cpp: SD_QUEUE_LINE_MAX is not there")
+limit = int(qmax.group(1)) - 1 if qmax else 159
+for rel, name in ((FDB, "fdbTask"), (STORE, "fdbStoreLoad"), (STORE, "fdbStoreSave"), (STORE, "fdbStoreTask")):
+    b = body(rel, name, strings=True)
+    for _, args in ks.calls(b, "logSDf"):
+        fmt = "".join(re.findall(r'"((?:[^"\\]|\\.)*)"', args[0]))
+        width = len(re.sub(r"%(lu|u|d|s)", "", fmt)) + sum(WIDTH[c] for c in re.findall(r"%(lu|u|d|s)", fmt))
+        need(width <= limit, f"src/{rel}: a line of {name}() runs to {width} characters, the queue keeps {limit}: {fmt[:60]}...")
 
 # 6. The acceptance firmware passes the stored index over once, so the store
 # can be shown without waiting a week (Spec 5.3 AA, V64).

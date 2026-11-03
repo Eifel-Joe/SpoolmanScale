@@ -288,12 +288,15 @@ static void fdbTask(void* arg) {
   runJob();
   const uint32_t heap_low = heapLowEnd();
   char low_txt[12];
-  logSDf("Filament DB: %s done in %lu ms, code=%d, %u bytes, %d makers, %d pairs, %d entries, "
-         "stack left %u, internal heap %u at start, low %s, stack in %s",
+  // Two lines: a line from a task goes through the logger's queue of 160
+  // bytes (sd_logger.cpp), and one line cut off "stack in PSRAM" on the 7B.
+  logSDf("Filament DB: %s done in %lu ms, code=%d, %u bytes, %d makers, %d pairs, %d entries",
          jobName(s_job), (unsigned long)(millis() - t0), s_code,
-         (unsigned)s_bytes, s_maker_n, s_pair_n, s_entry_n,
-         (unsigned)uxTaskGetStackHighWaterMark(NULL), (unsigned)s_heap_at_start,
-         heapLowText(heap_low, low_txt, sizeof(low_txt)), s_worker.outside ? "PSRAM" : "internal");
+         (unsigned)s_bytes, s_maker_n, s_pair_n, s_entry_n);
+  logSDf("Filament DB: %s stack left %u in %s, internal heap %u at start, low %s",
+         jobName(s_job), (unsigned)uxTaskGetStackHighWaterMark(NULL),
+         s_worker.outside ? "PSRAM" : "internal", (unsigned)s_heap_at_start,
+         heapLowText(heap_low, low_txt, sizeof(low_txt)));
   __sync_synchronize();   // the results before the state, see backend_job.cpp
   s_state = FDB_DONE;
   workerTaskPark(&s_worker);
