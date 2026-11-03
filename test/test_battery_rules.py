@@ -1,4 +1,4 @@
-"""Compile the production battery rules of the 7B (services/battery_rules.cpp, Spec 5.3 AB, V60) and check them against what was measured on the board on 03.11.2026 (meta repo docs/recherche/2026-11-03-beta20/messung.md): the conversion of the CH32V003's ADC reading, how a ten-second window of readings tells no battery, charging and running on the battery apart, that the supply only changes after two windows that agree, that the level shown in steps of ten never rises on the battery and never falls while charging, that each warning comes once per discharge, when an update is refused, and where the display sits in the header line."""
+"""Compile the production battery rules of the 7B (services/battery_rules.cpp, Spec 5.3 AB, V60) and check them against what was measured on the board on 03.11.2026 (meta repo docs/recherche/2026-11-03-beta20/messung.md): the conversion of the CH32V003's ADC reading, how a ten-second window of readings tells no battery, charging and running on the battery apart, that the supply only changes after two windows that agree, that the level shown in per cent never rises on the battery and never falls while charging, that each warning comes once per discharge, when an update is refused, and where the display sits in the header line."""
 import subprocess
 import tempfile
 from pathlib import Path
@@ -70,7 +70,7 @@ int main() {
   assert(s.supply == UNKNOWN && s.shown < 0);
   assert(feed(s, win(395, 26)) == 0 && s.supply == UNKNOWN);
   uint8_t ev = feed(s, win(395, 26));
-  assert(s.supply == BATTERY && (ev & EV_SUPPLY) && (ev & EV_STEP) && s.shown >= 0 && s.shown % 10 == 0);
+  assert(s.supply == BATTERY && (ev & EV_SUPPLY) && (ev & EV_STEP) && s.shown >= 0 && s.shown <= 100);
   // One window of the unplug jump does not switch, nor does a single one
   // that looks like the charger pulsing.
   feed(s, win(448, 55));
@@ -104,8 +104,12 @@ int main() {
   feed(j, win(rawOf(4000), 9));
   assert(j.supply == BATTERY && j.mv == before);
 
-  // Steps of ten, nearest; the tables are monotonic and end at 0 and 100.
-  assert(stepOf(0) == 0 && stepOf(4) == 0 && stepOf(5) == 10 && stepOf(64) == 60 && stepOf(100) == 100);
+  // Single per cents (Jorg, 03.11.2026, Spec V63): the minute's mean is
+  // steady to a few millivolts on one board, and on the battery the level
+  // never rises, so a fine step does not jump back and forth. The tables are
+  // monotonic and end at 0 and 100.
+  static_assert(STEP_PCT == 1, "single per cents");
+  assert(stepOf(0) == 0 && stepOf(4) == 4 && stepOf(5) == 5 && stepOf(64) == 64 && stepOf(100) == 100);
   uint8_t last = 100;
   for (uint32_t mv = 2500; mv <= 4400; mv += 5) {
     const uint8_t p = pctOnBattery(mv);
