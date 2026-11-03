@@ -12,13 +12,17 @@
 #include "backend.h"
 #include "backend_api.h"
 #include "backend_job_rules.h"
+#include "filament_db_store.h"
+#include "heap_low.h"
 #include "text_util.h"
 #include "worker_task.h"
 
 // The task, on the terms of the backend job (backend_job.cpp): core 0, below
-// the loop, its stack from the heap and a floor checked before it is taken.
-// The floor is not a number here: 50000 at https, 40000 at http
-// (backend_job_rules.h).
+// the loop, its stack from PSRAM where the board has it and a floor checked
+// before it is taken. The floor is not a number here: 50000 at https, 40000
+// at http, less the stack when it lies in PSRAM (backend_job_rules.h). The
+// task touches no flash (V64): the loop reads the stored index, a store task
+// writes a new one (filament_db_store.h).
 #define FDB_STACK_BYTES   16384
 #define FDB_PRIORITY      1
 #define FDB_CORE          0
@@ -59,6 +63,9 @@ static uint32_t s_gen  = 0;
 static char     s_base[96]     = "";
 static char     s_maker[32]    = "";
 static char     s_material[17] = "";
+static WorkerTask s_worker = {};
+// The internal heap when the task was started, for its line.
+static uint32_t s_heap_at_start = 0;
 
 // The server a result or an index came from is still the one to ask.
 static bool baseCurrent(const char* base) {
@@ -93,6 +100,13 @@ static void freeEntries() {
 void fdbReleaseEntries() {
   if (s_state == FDB_RUNNING) return;   // the task may still write into them
   freeEntries();
+}
+
+bool fdbForgetStoredIndexOnce() {
+  if (s_state != FDB_IDLE) return false;   // a load in flight owns the index
+  freeIndex();
+  fdbStoreForgetOnce();
+  return true;
 }
 
 // ---- filling --------------------------------------------------------
@@ -267,14 +281,22 @@ static const char* jobName(FdbJob job) {
 static void fdbTask(void* arg) {
   (void)arg;
   const uint32_t t0 = millis();
+  // How low the internal heap went while the load ran, and where the stack
+  // lay: the line that shows the reserve holds with the stack in PSRAM (V64,
+  // Spec 8 T). n/a when another task holds the measurement.
+  heapLowBegin();
   runJob();
-  logSDf("Filament DB: %s done in %lu ms, code=%d, %u bytes, %d makers, %d pairs, %d entries, stack left %u",
+  const uint32_t heap_low = heapLowEnd();
+  char low_txt[12];
+  logSDf("Filament DB: %s done in %lu ms, code=%d, %u bytes, %d makers, %d pairs, %d entries, "
+         "stack left %u, internal heap %u at start, low %s, stack in %s",
          jobName(s_job), (unsigned long)(millis() - t0), s_code,
          (unsigned)s_bytes, s_maker_n, s_pair_n, s_entry_n,
-         (unsigned)uxTaskGetStackHighWaterMark(NULL));
+         (unsigned)uxTaskGetStackHighWaterMark(NULL), (unsigned)s_heap_at_start,
+         heapLowText(heap_low, low_txt, sizeof(low_txt)), s_worker.outside ? "PSRAM" : "internal");
   __sync_synchronize();   // the results before the state, see backend_job.cpp
   s_state = FDB_DONE;
-  vTaskDelete(NULL);
+  workerTaskPark(&s_worker);
 }
 
 // The gates of the "postponed" line and of the "task creation failed" line,
@@ -284,15 +306,23 @@ static LogGate s_create_gate;
 
 static bool startTask(FdbJob job) {
   if (s_state != FDB_IDLE) return false;
+  // The last load's task is deleted first; its result was taken, so it is
+  // parked or a moment away from it (workerTaskReapDone).
+  if (!workerTaskReapDone(&s_worker)) return false;
   // The floor follows the server the job asks, the one copied into s_base
   // below (backendFdbBaseUrl(): the backend, or the Spoolman behind BamBuddy).
+  // A stack in PSRAM lowers it by its size (workerStackPlan): the task
+  // touches no flash since V64, see filament_db_store.h.
   const uint32_t min_heap  = backendJobMinHeap(backendFdbBaseUrl());
   const uint32_t free_heap = workerFreeHeap();
-  if (free_heap < min_heap) {
+  const bool may_go_outside = workerStackCanGoOutside(FDB_STACK_BYTES);
+  const WorkerStackPlan plan = workerStackPlan(free_heap, min_heap, FDB_STACK_BYTES, may_go_outside);
+  if (!plan.outside && !plan.inside) {
     // One line a minute, with the refusals it stands for.
     if (logGateDue(&s_start_gate, millis(), BACKEND_JOB_REFUSAL_LOG_MS)) {
       logSDf("Filament DB: postponed, heap %u < %u (%u more refusals since the last line)",
-             (unsigned)free_heap, (unsigned)min_heap,
+             (unsigned)free_heap,
+             (unsigned)workerStartFloor(min_heap, FDB_STACK_BYTES, may_go_outside),
              (unsigned)logGateTakeSuppressed(&s_start_gate));
     }
     return false;
@@ -302,9 +332,15 @@ static bool startTask(FdbJob job) {
   s_bytes = 0;
   s_gen   = backendGeneration();
   snprintf(s_base, sizeof(s_base), "%s", backendFdbBaseUrl());
+  // On the loop, once the start is sure to be let through: a refused start
+  // is asked again every two seconds and must not read the flash each time.
+  if (job == FDB_JOB_INDEX) fdbStorePrepare(s_base);
+  // Taken last, before the task's stack: the heap the task starts from.
+  s_heap_at_start = (uint32_t)heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
   s_state = FDB_RUNNING;   // before the task exists: it may finish at once
-  if (xTaskCreatePinnedToCore(fdbTask, "filamentdb", FDB_STACK_BYTES, nullptr,
-                              FDB_PRIORITY, nullptr, FDB_CORE) != pdPASS) {
+  if (!workerTaskStart(&s_worker, plan,
+                       WorkerTaskSpec{fdbTask, "filamentdb", FDB_STACK_BYTES,
+                                      FDB_PRIORITY, FDB_CORE})) {
     s_state = FDB_IDLE;
     // A task that cannot be created is asked for again like a refused start:
     // one line a minute here as well.

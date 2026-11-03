@@ -9,6 +9,7 @@
 #include "boards/board.h"
 #include "hardware/sd_logger.h"
 #include "services/battery.h"
+#include "services/filament_db.h"
 #include "web/web_access.h"
 #include "lang.h"
 
@@ -20,6 +21,8 @@
 //   POST /api/sim/battery?supply=battery|charging|none&mv=<mV> | supply=off
 //                                           a simulated battery (7B, Spec 5.3 AA,
 //                                           V60) through the battery rules
+//   POST /api/sim/fdb-forget                the next "Neu aus Datenbank" passes
+//                                           the stored index over once (V64)
 // This file is the only place in src/ that spells them: the release run looks
 // for these two texts in every file it attaches, and a hit means a switch got
 // into a release (test_build_variants.py keeps the texts out of every other file).
@@ -71,6 +74,20 @@ void docRoutes(WebServer& srv) {
     docSimSet(g);
     logSDf("Acceptance build: simulated weight %.1f g", g);
     srv.send(200, "application/json", String("{\"sim\":true,\"g\":") + String(g, 1) + "}");
+  });
+
+  // The stored index of "Neu aus Datenbank" passed over once (Spec 5.3 AA,
+  // V64): the next opening reads the whole database and stores it again, so
+  // the store step can be shown without waiting for the week to end. The
+  // index in memory goes as well, or the picker would not load at all.
+  srv.on("/api/sim/fdb-forget", HTTP_POST, [&srv]() {
+    if (!webRequire(srv, GATE_MAINT, T(STR_W_NAV_LOGS))) return;
+    if (!fdbForgetStoredIndexOnce()) {
+      srv.send(409, "application/json", "{\"error\":\"a database load is running\"}");
+      return;
+    }
+    logSD("Acceptance build: stored database index passed over once");
+    srv.send(200, "application/json", "{\"forget\":true}");
   });
 
   // The battery as the rules would see it (Spec 5.3 AA, V60): readings made

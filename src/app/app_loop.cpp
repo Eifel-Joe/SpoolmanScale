@@ -10,6 +10,7 @@
 
 #include "app_config.h"
 #include "bambu/bambu_catalog.h"
+#include "services/filament_db_store.h"
 #include "bambu/bambu_catalog_sync.h"
 #include "services/dried_migrate.h"
 #include "services/drying_sync.h"
@@ -784,6 +785,7 @@ void appLoop() {
   updateCheckTick();
   bambuCatalogSyncTick();
   bambuCatalogStoreTick();
+  fdbStoreTick();
   dryingSyncTick();
   driedMigrateTick();
   backendConnTick();

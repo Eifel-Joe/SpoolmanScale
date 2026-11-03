@@ -143,6 +143,11 @@ bool fdbIndexReady();
 // picker closes.
 void fdbReleaseEntries();
 
+// Acceptance build (POST /api/sim/fdb-forget, Spec 5.3 AA, V64): drops the
+// index in memory and has the next index load pass the stored one over once,
+// so the whole database is read and stored again. False while a load runs.
+bool fdbForgetStoredIndexOnce();
+
 // ---- reading, from the loop task once a load is taken ------------
 
 int             fdbMakerCount();

@@ -15,14 +15,38 @@
 //  always read fresh, so a new colour shows at once. Only a new maker or a
 //  new material of one waits for the week to end.
 //
-//  Both calls run on the filament database's task, never on the loop.
+//  The database task never touches the flash (V64): its stack may lie in
+//  PSRAM, and a flash access with such a stack in use stops the device
+//  (ESP-IDF 5.5, components/spi_flash/cache_utils.c, the assert in
+//  spi_flash_disable_interrupts_caches_and_other_cpu()). The loop reads the
+//  stored index before the task starts, the task puts it in place or hands
+//  a new one over, and a store task with its stack in internal RAM writes
+//  it, the way the Bambu catalog does since V59.
 // ============================================================
 
-// Puts the stored index in place, when there is one younger than a week
-// from this server and the clock is set. Makers come back unmarked: whose
-// spools the inventory has is asked again. False when there is none.
+// Loop task, before the index load's task starts. Reads the stored index,
+// when there is one younger than a week from this server and the clock is
+// set, in small pieces through the loop's own stack into PSRAM, for
+// fdbStoreLoad() on the task. Says nothing in the log: the task's load says
+// whether it was used, and why not. False when there is none to hand over.
+bool fdbStorePrepare(const char* base_url);
+
+// Database task. Puts the index fdbStorePrepare() read in place. Makers come
+// back unmarked: whose spools the inventory has is asked again. False when
+// there is none. Touches no flash.
 bool fdbStoreLoad(const char* base_url);
 
-// Keeps the index just loaded, for this server. A failure only costs the
-// next restart its 3 MB.
+// Database task. Hands a copy of the index just loaded to the store task
+// (fdbStoreTick()). Touches no flash. A failure only costs the next restart
+// its 3 MB.
 void fdbStoreSave(const char* base_url);
+
+// Loop task, every pass. Starts the store task for a copy that was handed
+// over, once the internal heap has the reserve of a background request and
+// the store's stack free, and frees the copy when it is written or given up.
+void fdbStoreTick();
+
+// Loop task, acceptance build (POST /api/sim/fdb-forget): the next
+// fdbStorePrepare() passes the stored index over once, so the whole database
+// is read and stored again.
+void fdbStoreForgetOnce();
