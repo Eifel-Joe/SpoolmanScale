@@ -101,6 +101,37 @@ expect("web/pages/page_status.cpp: status.json has \"battery\" under #if BOARD_B
 holders = [p.relative_to(src).as_posix() for p in src.rglob("*.cpp") if "/api/sim/battery" in p.read_text(encoding="utf-8")]
 expect("/api/sim/battery is spelled only in web/web_doc.cpp", holders == ["web/web_doc.cpp"], str(holders))
 
+# 7a. The start on an empty battery (Spec V66): read right after the expander
+#     is up, before the settings, the logger, the panel and the WiFi; nothing
+#     is written while it waits, the line comes once the logger is up; the
+#     reading of the next start is simulated only in the acceptance firmware.
+boot = code("app/app_boot.cpp")
+order = [boot.find(s) for s in ("boardEarlyInit();", "batteryStartCheck();", "loadPrefs();", "initSD();",
+                                 "batteryStartReport();", "displayHardwareBegin(")]
+expect("app/app_boot.cpp: boardEarlyInit(), batteryStartCheck(), loadPrefs(), initSD(), batteryStartReport(), "
+       "displayHardwareBegin() in this order", all(i >= 0 for i in order) and order == sorted(order), str(order))
+bat_src = text("services/battery.cpp")
+m = re.search(r"void batteryStartCheck\(\) \{(.*?)\n\}", cc.Source(bat_src).code, re.S)
+expect("services/battery.cpp: batteryStartCheck() is there", m is not None)
+if m:
+    body = m.group(1)
+    for needle in ("emptyAtStart(", "goAfterWait(", "startLook()"):
+        expect(f"services/battery.cpp: batteryStartCheck() uses {needle}", needle in body)
+    for banned in ("logSD", "prefs", "Preferences", "esp_partition", "flashLog", "nvs_", "WiFi", "panel", "deep_sleep"):
+        expect(f"services/battery.cpp: batteryStartCheck() calls nothing with {banned} (nothing is written, "
+               "nothing powered, no sleep that keeps it dark after a plug)", banned not in body)
+expect("services/battery.cpp: batteryStartCheck() is defined under BOARD_BATTERY_SENSE and as a no-op without",
+       bat_src.count("void batteryStartCheck()") == 2)
+doc = text("web/web_doc.cpp")
+expect("web/web_doc.cpp: boot=1 sets the next start's reading (batterySimForStart)",
+       'srv.arg("boot")' in doc and "batterySimForStart(" in doc)
+holders = [p.relative_to(src).as_posix() for p in src.rglob("*.cpp")
+           if "batterySimForStart(" in p.read_text(encoding="utf-8")]
+expect("batterySimForStart() is used only by the acceptance routes and defined in services/battery.cpp",
+       sorted(holders) == ["services/battery.cpp", "web/web_doc.cpp"], str(holders))
+expect("services/battery.cpp: the simulated start reading lives under SSC_ACCEPTANCE",
+       re.search(r"#if defined\(SSC_ACCEPTANCE\)\s*//[^\n]*\n(?://[^\n]*\n)*struct StartSim", bat_src) is not None)
+
 # 7. The texts, each in German, English and French.
 lang_h = text("lang.h")
 lang_cpp = text("lang.cpp")

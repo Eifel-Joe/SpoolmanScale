@@ -32,6 +32,12 @@ static_assert(JUMP_MV == 60, "a supply at UART lifts the reading by 180 mV, the 
 // (Jorg, Spec V65), which said full at 17:46:50 on that curve.
 static_assert(CHARGE_TOP_PCT == 95 && FULL_FROM_PCT == 85, "the table to 95 %, full from 85 %");
 static_assert(FULL_RISE_MV == 10 && FULL_STILL_WINDOWS == 60, "ten minutes without a rise of 10 mV");
+// The start on an empty cell (Jorg, Spec V66): the CS8501 stops its boost at
+// 2.7 V and restarts it at 3.0 V; under 3.2 V the 7B waits dark. A supply at
+// UART lifted the reading by 180 to 290 mV, a cell charging from empty read
+// 3527 mV.
+static_assert(START_EMPTY_MV == 3200 && START_GO_RISE_MV == 150 && START_GO_MV == 3500,
+              "empty under 3.2 V, on again 150 mV higher or at 3.5 V");
 
 // A window of 40 good readings: half at mean - span/2, half at mean + span/2.
 static Window win(uint16_t mean_raw, uint16_t span) {
@@ -191,6 +197,17 @@ int main() {
   assert(!weak.full && weak.shown < 85);
   assert(iconOf(100) == ICON_FULL && iconOf(90) == ICON_FULL && iconOf(80) == ICON_3 &&
          iconOf(50) == ICON_2 && iconOf(30) == ICON_1 && iconOf(10) == ICON_EMPTY && iconOf(0) == ICON_EMPTY);
+
+  // The start (Spec V66): a cell just over the CS8501's 3.0 V waits, so does
+  // anything under 3.2 V; no battery, a charging cell and a usable one start.
+  assert(!emptyAtStart(0) && !emptyAtStart(2499));              // no battery at "USB"
+  assert(emptyAtStart(2500) && emptyAtStart(3000) && emptyAtStart(3199));
+  assert(!emptyAtStart(3200) && !emptyAtStart(3527) && !emptyAtStart(4300));
+  // Going on: the lift of a plug, 3.5 V, or the battery gone and the board
+  // still running; a cell that creeps up at rest does not.
+  assert(!goAfterWait(3000, 3000) && !goAfterWait(3000, 3149) && !goAfterWait(3000, 3199));
+  assert(goAfterWait(3000, 3150) && goAfterWait(3100, 3500) && goAfterWait(3000, 0));
+  assert(!goAfterWait(3190, 3339) && goAfterWait(3190, 3340));
 
   // Each warning once per discharge, again after the battery was charged.
   State w;
