@@ -110,6 +110,11 @@ int main() {
   // monotonic and end at 0 and 100.
   static_assert(STEP_PCT == 1, "single per cents");
   assert(stepOf(0) == 0 && stepOf(4) == 4 && stepOf(5) == 5 && stepOf(64) == 64 && stepOf(100) == 100);
+  // The log keeps its line per step of ten (Spec 5.3 AB): a new decade, or
+  // the first level at all, is worth a line; 64 after 65 is not.
+  assert(logWorthy(-1, 100) && logWorthy(100, 99) && logWorthy(70, 69) && logWorthy(61, 59));
+  assert(!logWorthy(99, 95) && !logWorthy(65, 64) && !logWorthy(60, 60) && !logWorthy(9, 1));
+  assert(logWorthy(9, 10) && logWorthy(1, 0) == false && logWorthy(10, 9));
   uint8_t last = 100;
   for (uint32_t mv = 2500; mv <= 4400; mv += 5) {
     const uint8_t p = pctOnBattery(mv);
