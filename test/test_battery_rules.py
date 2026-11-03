@@ -1,4 +1,4 @@
-"""Compile the production battery rules of the 7B (services/battery_rules.cpp, Spec 5.3 AB, V60) and check them against what was measured on the board on 03.11.2026 (meta repo docs/recherche/2026-11-03-beta20/messung.md): the conversion of the CH32V003's ADC reading, how a ten-second window of readings tells no battery, charging and running on the battery apart, that the supply only changes after two windows that agree, that the level shown in per cent never rises on the battery and never falls while charging, that each warning comes once per discharge, when an update is refused, and where the display sits in the header line."""
+"""Compile the production battery rules of the 7B (services/battery_rules.cpp, Spec 5.3 AB, V60) and check them against what was measured on the board on 03.11.2026 (meta repo docs/recherche/2026-11-03-beta20/messung.md): the conversion of the CH32V003's ADC reading, how a ten-second window of readings tells no battery, charging and running on the battery apart, that the supply only changes after two windows that agree, that the level shown in per cent never rises on the battery and never falls while charging, the table while charging from the charge measured the same day and the rule that calls a cell full (Spec V65, Punkteliste n67), that each warning comes once per discharge, when an update is refused, and where the display sits in the header line."""
 import subprocess
 import tempfile
 from pathlib import Path
@@ -26,6 +26,12 @@ static_assert(LOW_PCT == 20 && UPDATE_MIN_PCT == 50, "warning at 20 %, update fr
 // empty" at 10 % (Jorg), which came 17 minutes before the end.
 static_assert(CRITICAL_MV == 3390 && CRITICAL_PCT == 10, "almost empty at 10 %: 3390 mV");
 static_assert(JUMP_MV == 60, "a supply at UART lifts the reading by 180 mV, the threshold a third of it");
+// The charge from empty on Jorg's 7B (03.11.2026, 192.5 minutes, the charger
+// stopped at 17:41:34): the table ends at 95 % where the charger starts to
+// hold 4.2 V; full after ten minutes without a rise of 10 mV from 85 % on
+// (Jorg, Spec V65), which said full at 17:46:50 on that curve.
+static_assert(CHARGE_TOP_PCT == 95 && FULL_FROM_PCT == 85, "the table to 95 %, full from 85 %");
+static_assert(FULL_RISE_MV == 10 && FULL_STILL_WINDOWS == 60, "ten minutes without a rise of 10 mV");
 
 // A window of 40 good readings: half at mean - span/2, half at mean + span/2.
 static Window win(uint16_t mean_raw, uint16_t span) {
@@ -149,7 +155,40 @@ int main() {
     if (mv > 2500) assert(p >= last);
     last = p;
   }
-  assert(pctCharging(2600) == 0 && pctCharging(4400) == 100);
+  // The charging table (Spec V65): shares of the charge time, 95 % at most.
+  assert(pctCharging(2600) == 0 && pctCharging(3527) == 0 && pctCharging(4400) == 95);
+  assert(pctCharging(3751) == 20 && pctCharging(3878) == 50 && pctCharging(4117) == 80);
+  assert(pctCharging(4155) == 85 && pctCharging(4200) == 90 && pctCharging(4243) == 95);
+  // n67: half an hour into a charge from empty (3742 mV at 15:01) showed 43 %.
+  assert(pctCharging(3742) >= 15 && pctCharging(3742) <= 20);
+
+  // Full (Spec V65). A restart on the mains with a full cell: 4.21 V, quiet,
+  // reads 91 %, and ten minutes later 100 %, until the supply changes.
+  State f;
+  feedN(f, win(rawOf(4210), 9), 2);                  // the supply, the first minute's window
+  assert(f.supply == CHARGING && f.shown > 85 && f.shown < 95);
+  feedN(f, win(rawOf(4210), 9), FULL_STILL_WINDOWS - 1);
+  assert(!f.full && f.shown < 100);
+  feed(f, win(rawOf(4210), 9));
+  assert(f.full && f.shown == 100);
+  feedN(f, win(rawOf(4250), 9), 6);                  // the charger tops up later: still 100
+  assert(f.shown == 100);
+  feedN(f, win(rawOf(3900), 26), 2);                 // taken off the mains: the battery's table
+  assert(f.supply == BATTERY && !f.full && f.shown < 100);
+  // Still rising under the charger's current: never full, 95 % at most.
+  State rising;
+  uint16_t raw = rawOf(3800);
+  feedN(rising, win(raw, 9), 2);
+  for (int i = 0; i < 180; i++) {                    // 30 minutes, about 3 mV a window
+    if (i % 3 == 0) raw++;
+    feed(rising, win(raw, 9));
+    assert(!rising.full && rising.shown <= 95);
+  }
+  // A cell that stops rising below 85 % (a weak supply, a cold cell) is not
+  // called full however long it waits.
+  State weak;
+  feedN(weak, win(rawOf(4050), 9), 2 + 3 * FULL_STILL_WINDOWS);
+  assert(!weak.full && weak.shown < 85);
   assert(iconOf(100) == ICON_FULL && iconOf(90) == ICON_FULL && iconOf(80) == ICON_3 &&
          iconOf(50) == ICON_2 && iconOf(30) == ICON_1 && iconOf(10) == ICON_EMPTY && iconOf(0) == ICON_EMPTY);
 
