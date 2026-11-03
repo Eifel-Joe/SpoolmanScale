@@ -31,6 +31,7 @@
 #include "creality/creality_scan.h"
 #include "services/mifare_write.h"
 #include "services/tag_family.h"
+#include "hardware/battery_diag.h"
 #include "hardware/display_power.h"
 #include "hardware/nfc.h"
 #include "hardware/scale.h"
@@ -615,6 +616,9 @@ void appLoop() {
   prefsFlush();
   perfSection("power");
   handlePowerManagement();
+  // Measurement of the 7B battery input (w05, acceptance firmware only,
+  // reverted after); an empty stub everywhere else.
+  batteryDiagTick();
 
   // ── Stack watermark of the loop task ─────────────────────
   // uxTaskGetStackHighWaterMark reports the lowest free stack seen since

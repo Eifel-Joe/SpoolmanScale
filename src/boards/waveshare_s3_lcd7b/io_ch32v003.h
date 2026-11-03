@@ -59,4 +59,11 @@ uint8_t pwmFor(uint8_t brightness);
 // does not acknowledge it.
 bool brightness(uint8_t brightness);
 
+// Measurement of the battery input (w05, acceptance firmware only, reverted
+// after): two bytes from a register, low byte first, the way Waveshare's
+// DEV_I2C_Read_Word() puts them together. repeated: register byte and read in
+// one transaction (repeated start); otherwise a stop and the frame gap
+// between them. Keeps the frame gap like every write.
+bool readWord(uint8_t reg, uint16_t& out, bool repeated = true);
+
 }

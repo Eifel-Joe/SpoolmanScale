@@ -125,4 +125,27 @@ bool brightness(uint8_t brightness) {
   return pwm(pwmFor(brightness));
 }
 
+bool readWord(uint8_t reg, uint16_t& out, bool repeated) {
+  if (!s_wire) return false;
+  waitForChip();
+  s_wire->beginTransmission(ADDR);
+  s_wire->write(reg);
+  const uint8_t sent = s_wire->endTransmission(!repeated);
+  if (!repeated) {
+    s_last_end_us = (uint32_t)micros();
+    s_sent_once   = true;
+    waitForChip();
+  }
+  bool ok = false;
+  if (sent == 0 && s_wire->requestFrom(ADDR, (uint8_t)2) == 2) {
+    const uint8_t lo = (uint8_t)s_wire->read();
+    const uint8_t hi = (uint8_t)s_wire->read();
+    out = (uint16_t)(lo | ((uint16_t)hi << 8));
+    ok = true;
+  }
+  s_last_end_us = (uint32_t)micros();
+  s_sent_once   = true;
+  return ok;
+}
+
 }

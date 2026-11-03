@@ -6,6 +6,7 @@
 #include <stdlib.h>
 
 #include "app/doc_build.h"
+#include "hardware/battery_diag.h"
 #include "hardware/sd_logger.h"
 #include "web/web_access.h"
 #include "lang.h"
@@ -67,6 +68,11 @@ void docRoutes(WebServer& srv) {
     logSDf("Acceptance build: simulated weight %.1f g", g);
     srv.send(200, "application/json", String("{\"sim\":true,\"g\":") + String(g, 1) + "}");
   });
+
+#if defined(BATTERY_DIAG)
+  // Measurement of the 7B battery input (w05), reverted after.
+  batteryDiagRoutes(srv);
+#endif
 }
 
 #endif  // SSC_ACCEPTANCE
