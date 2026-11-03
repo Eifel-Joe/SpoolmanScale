@@ -205,7 +205,7 @@ int main() {
   assert(!emptyAtStart(3200) && !emptyAtStart(3527) && !emptyAtStart(4300));
   // Going on: the lift of a plug, 3.5 V, or the battery gone and the board
   // still running; a cell that creeps up at rest does not.
-  assert(!goAfterWait(3000, 3000) && !goAfterWait(3000, 3149) && !goAfterWait(3000, 3199));
+  assert(!goAfterWait(3000, 3000) && !goAfterWait(3000, 3100) && !goAfterWait(3000, 3149));
   assert(goAfterWait(3000, 3150) && goAfterWait(3100, 3500) && goAfterWait(3000, 0));
   assert(!goAfterWait(3190, 3339) && goAfterWait(3190, 3340));
 
