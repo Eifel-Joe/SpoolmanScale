@@ -23,8 +23,9 @@ The seven workers that talk to a backend do the same since v0.8.6-beta.13
 label server, the label dates, the AMS weights, the drying batch and the tag
 probe. Their call paths were looked through for flash access on 31.10.2026
 (docs of the meta repository, recherche/2026-10-31-beta13); "Neu aus
-Datenbank" (filament_db.cpp) reads and writes the flash on its task through
-filament_db_store.cpp and keeps its stack inside. The loop deletes every
+Datenbank" (filament_db.cpp) does the same since v0.8.6-beta.21 (V64): the
+loop reads the stored index and a store task with an internal stack writes it
+(filament_db_store.cpp, test_filament_db_store.py). The loop deletes every
 parked worker in one place, workerTasksReap(), so that a stack in PSRAM is
 not left counted against the others (workerFreeHeap()) after its task is
 done. The spool list, the net probe, the Klipper test and the backend test
@@ -150,6 +151,10 @@ BACKEND_USERS = {
                                  "stack": "DRIED_BATCH_STACK_BYTES", "reap": "workerTaskReapDone("},
     "services/tag_probe_job.cpp": {"task": "static void tagProbeTask(", "start": "bool tagProbeStart(",
                                    "stack": "TAG_PROBE_STACK_BYTES", "reap": "workerTaskReapDone("},
+    # "Neu aus Datenbank" since V64: the loop reads the stored index, a store
+    # task writes it, the database task only downloads.
+    "services/filament_db.cpp": {"task": "static void fdbTask(", "start": "static bool startTask(",
+                                 "stack": "FDB_STACK_BYTES", "reap": "workerTaskReapDone("},
 }
 USERS.update(BACKEND_USERS)
 for rel, parts in USERS.items():
@@ -210,8 +215,9 @@ if web_text is not None:
 
 # 3b. The backend workers may move their stack: none of them touches the flash
 # on its own task (looked through on 31.10.2026, see the docstring). "Neu aus
-# Datenbank" does, through the store of the downloaded database, so it never
-# asks for PSRAM. If the store stops writing the flash itself, look again.
+# Datenbank" neither since V64: its store reads on the loop and writes on a
+# task of its own (test_filament_db_store.py). If a worker starts to touch the
+# flash, look again.
 for rel, parts in BACKEND_USERS.items():
     text = read(rel)
     if text is None:
@@ -219,17 +225,10 @@ for rel, parts in BACKEND_USERS.items():
     start = function_body(code_with_strings(text), parts["start"])
     if start is not None and "workerStackCanGoOutside(" not in start:
         errors.append(f"src/{rel}: {parts['start']}) never tries a stack in PSRAM (workerStackCanGoOutside)")
-FDB = "services/filament_db.cpp"
-fdb_text = read(FDB)
-if fdb_text is not None:
-    fdb = code_with_strings(fdb_text)
-    if "workerStackCanGoOutside(" in fdb or "MALLOC_CAP_SPIRAM" in fdb and "xTaskCreatePinnedToCoreWithCaps(" in fdb:
-        errors.append(f"src/{FDB}: the database job asks for a stack in PSRAM, but it reads and writes "
-                      "the flash on its own task (filament_db_store.cpp)")
 store_text = read("services/filament_db_store.cpp")
 if store_text is not None and "esp_partition_write(" not in code_with_strings(store_text):
     errors.append("src/services/filament_db_store.cpp: no longer writes the flash itself; "
-                  "check whether the database job may move its stack too")
+                  "check whether its store task is still needed")
 
 # 3a. Every worker that tests a floor tests it against workerFreeHeap(): the
 # internal heap less the stacks in PSRAM of the workers still there. A stack
