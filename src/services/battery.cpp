@@ -13,6 +13,13 @@
 #endif
 
 static bat::State s_state;
+static uint32_t   s_last_mv   = 0;
+static uint16_t   s_last_span = 0;
+
+void batteryLastWindow(uint32_t& mv, uint16_t& span) {
+  mv   = s_last_mv;
+  span = s_last_span;
+}
 
 const bat::State& batteryState() { return s_state; }
 
@@ -72,6 +79,8 @@ void batteryTick(uint32_t now_ms) {
 
   const bat::Tone tone_before = bat::toneOf(s_state);
   const uint8_t   ev          = bat::feed(s_state, s_win);
+  s_last_mv   = bat::windowMv(s_win);
+  s_last_span = s_win.n ? (uint16_t)(s_win.hi - s_win.lo) : 0;
   bat::windowClear(s_win);
   s_reads = 0;
 

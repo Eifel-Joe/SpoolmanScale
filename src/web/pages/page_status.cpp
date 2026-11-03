@@ -99,6 +99,10 @@ static String statusJson() {
     j += ",\"battery\":{\"supply\":\"" + String(batterySupplyName()) + "\"";
     j += ",\"mv\":" + String((unsigned)b.mv);
     j += ",\"pct\":" + String((int)b.shown);
+    uint32_t wmv = 0;
+    uint16_t wspan = 0;
+    batteryLastWindow(wmv, wspan);
+    j += ",\"windowMv\":" + String((unsigned)wmv) + ",\"windowSpan\":" + String((unsigned)wspan);
     j += ",\"updateBlocked\":" + String(batteryUpdateBlocked() ? "true" : "false") + "}";
   }
 #endif

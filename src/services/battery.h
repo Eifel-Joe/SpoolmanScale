@@ -24,6 +24,10 @@ const bat::State& batteryState();
 // "unknown", "none", "battery" or "charging": the word in status.json and
 // the log.
 const char* batterySupplyName();
+// The last window of ten seconds as it was read: its mean in millivolts and
+// the span of its readings in counts. Diagnosis only (status.json): the
+// rules decide on these, so a support question about the display starts here.
+void batteryLastWindow(uint32_t& mv, uint16_t& span);
 
 // The update lock of Spec 5.3 T (V60): true on the battery below 50 % and
 // below the warning voltage. Every way that writes a firmware asks it before
