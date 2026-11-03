@@ -9,22 +9,28 @@ struct Point {
   uint8_t  pct;
 };
 
-// Under the load of the running scale (display on, WiFi), rising voltage.
-// Provisional: the open-circuit table of Maxim's application note 4189
-// (Table 1, "a typical Li+ cell") less 90 mV, the load's drop estimated from
-// the measurement (charging 4.01 V, on the battery 3.82 V a moment later).
-// The runtime measurement on Jorg's 7B replaces it.
+// Under the load of the running scale, rising voltage: the runtime
+// measurement on Jorg's 7B (03.11.2026, 2000 mAh lithium-ion, full
+// brightness, no sleep): 149.75 minutes from full until the board went
+// dark; at each share of the runtime left, the minute's mean status.json
+// showed (meta repo docs/recherche/2026-11-03-beta20/laufzeit.csv). A cell
+// at the knee falls fast: 3.2 V to dark in two minutes.
 constexpr Point LOAD[] = {
-  {3216, 0}, {3597, 10}, {3651, 20}, {3685, 30}, {3703, 40}, {3731, 50},
-  {3794, 60}, {3855, 70}, {3918, 80}, {3996, 90}, {4087, 100},
+  {3096, 0}, {3333, 5}, {3390, 10}, {3432, 15}, {3458, 20}, {3482, 25},
+  {3503, 30}, {3522, 35}, {3536, 40}, {3565, 45}, {3591, 50}, {3613, 55},
+  {3651, 60}, {3703, 65}, {3744, 70}, {3794, 75}, {3850, 80}, {3903, 85},
+  {3949, 90}, {4016, 95}, {4098, 100},
 };
 
-// While charging at 580 mA: the same table 100 mV higher, the charge
-// current's rise across the cell, and full where the charger holds 4.2 V.
-// Provisional until the charge recorded on 03.11.2026 is evaluated.
+// While charging at 580 mA: the same table 190 mV higher, the step the
+// reading made at each plug (charging 4.006..4.018 V, on the battery
+// 3.811..3.824 V a moment later), up to where the charger holds its 4.2 V;
+// from there the cell fills at a constant voltage, and 4.2 V counts as full.
 constexpr Point CHARGE[] = {
-  {3406, 0}, {3787, 10}, {3841, 20}, {3875, 30}, {3893, 40}, {3921, 50},
-  {3984, 60}, {4045, 70}, {4108, 80}, {4186, 90}, {4200, 100},
+  {3286, 0}, {3523, 5}, {3580, 10}, {3622, 15}, {3648, 20}, {3672, 25},
+  {3693, 30}, {3712, 35}, {3726, 40}, {3755, 45}, {3781, 50}, {3803, 55},
+  {3841, 60}, {3893, 65}, {3934, 70}, {3984, 75}, {4040, 80}, {4093, 85},
+  {4139, 90}, {4180, 95}, {4200, 100},
 };
 
 template <unsigned N>
@@ -100,8 +106,14 @@ Icon iconOf(uint8_t shown) {
 }
 
 uint8_t feed(State& s, const Window& w) {
-  const Supply c = classify(w, s.supply);
+  Supply c = classify(w, s.supply);
   if (c == UNKNOWN) return 0;
+  // On the battery, quiet alone is not a supply: near empty the ripple
+  // shrinks. A plug at "UART" lifts the reading; without the lift the
+  // window is the battery's.
+  if (s.supply == BATTERY && c == CHARGING && s.hist_n > 0 && windowMv(w) < s.mv + JUMP_MV) {
+    c = BATTERY;
+  }
 
   uint8_t ev = 0;
   if (c == s.cand) {

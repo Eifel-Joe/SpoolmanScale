@@ -50,11 +50,18 @@ constexpr uint32_t PULSE_MIN_MV  = 4000;  // pulsing with no cell behind it
 constexpr uint8_t  GOOD_PCT       = 50;   // green from here (Jorg, Spec V62)
 constexpr uint8_t  LOW_PCT        = 20;   // "battery low" once per discharge; red below
 constexpr uint8_t  UPDATE_MIN_PCT = 50;   // Jorg: an update on the battery from 50 % on
-// The warning voltage under load: the CS8501 stops its boost at 2.7 V,
-// 2.9 V at worst, and the board is dark at once; the reading may be 0.16 V
-// off. Provisional until the runtime measurement says how many minutes it
-// leaves.
-constexpr uint32_t CRITICAL_MV    = 3400;
+// "Almost empty" at 10 % of the measured runtime (Jorg, 03.11.2026): the
+// table's 3390 mV, which came 17 minutes before the board went dark at full
+// brightness (the CS8501 stops its boost at 2.7 V, 2.9 V at worst; the last
+// reading was 3.02 V). Below it an update is refused also while charging.
+constexpr uint8_t  CRITICAL_PCT   = 10;
+constexpr uint32_t CRITICAL_MV    = 3390;
+// A supply at "UART" lifts the reading by about 180 mV (the load leaves the
+// cell, the charge current comes in; measured 03.11.2026). Near empty the
+// boost's ripple shrank to spans of 17..18 counts, so on the battery a quiet
+// window counts as charging only with a third of that lift over the
+// minute's mean.
+constexpr uint32_t JUMP_MV        = 60;
 
 // The CH32V003's ADC, as Waveshare's demo converts it: 10 bit, the 3.3 V
 // supply as reference, VBAT/3 (15_LVGL_SLIDER, lvgl_demo.c).
@@ -83,7 +90,9 @@ enum Supply : uint8_t {
 Supply classify(const Window& w, Supply now);
 
 // Voltage to charge, 0..100: under the load of the running scale, and while
-// charging. Both are tables measured on Jorg's 7B.
+// charging. Measured on Jorg's 7B with a 2000 mAh lithium-ion battery at
+// full brightness (Spec 5.3 AB, V63): the per cents are shares of the
+// runtime left, so each lasts as long as the next.
 uint8_t pctOnBattery(uint32_t mv);
 uint8_t pctCharging(uint32_t mv);
 // The step shown: single per cents (Jorg, 03.11.2026, Spec V63). The
