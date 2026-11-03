@@ -54,6 +54,8 @@ jobs:
         run: python3 test/test_io_ch32v003.py
       - name: Test battery rules
         run: python3 test/test_battery_rules.py
+      - name: Test battery wiring
+        run: python3 test/test_battery_wiring.py
       - name: Test spool parts rules
         run: python3 test/test_spool_extras_rules.py
       - name: Test backend job rules
