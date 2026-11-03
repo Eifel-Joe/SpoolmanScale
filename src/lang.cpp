@@ -4838,6 +4838,16 @@ const char* const STRINGS[][3] = {
   { "Die Waage schreibt gerade eine Firmware. Bitte gleich noch einmal versuchen.",
     "The scale is writing a firmware right now. Please try again in a moment.",
     "La balance écrit un firmware en ce moment. Réessayez dans un instant." },  // STR_W_FLASHING
+  { "Der Server nimmt den Zugang nicht an. Bitte die Zugangsdaten prüfen.", "The server does not accept the access. Please check the credentials.",
+    "Le serveur n'accepte pas cet accès. Vérifiez les identifiants." },  // STR_REFUSED_ACCESS_TEXT
+  { "Konto nicht aktiv", "Account not active",
+    "Compte inactif" },  // STR_REFUSED_ACCOUNT
+  { "Der Server lässt dieses Konto gerade nicht zu, zum Beispiel weil es abgelaufen ist.", "The server does not allow this account right now, for example because it has expired.",
+    "Le serveur n'autorise pas ce compte pour le moment, par exemple s'il a expiré." },  // STR_REFUSED_ACCOUNT_TEXT
+  { "Zu viele Anfragen", "Too many requests",
+    "Trop de requêtes" },  // STR_REFUSED_BUSY
+  { "Der Server bremst die Waage gerade aus. Bitte später noch einmal versuchen.", "The server is holding the scale back right now. Please try again later.",
+    "Le serveur limite la balance pour le moment. Réessayez plus tard." },  // STR_REFUSED_BUSY_TEXT
 };
 
 StringID tagWriteResultString(uint8_t code) {

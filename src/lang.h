@@ -2195,6 +2195,11 @@ enum StringID {
   STR_W_GLASS_NONE,           // screenshots: the board keeps no frame of the glass
   STR_W_PAGE_ABSENT,          // a page that does not apply to this device
   STR_W_FLASHING,             // any gated route while an image is written
+  STR_REFUSED_ACCESS_TEXT,
+  STR_REFUSED_ACCOUNT,
+  STR_REFUSED_ACCOUNT_TEXT,
+  STR_REFUSED_BUSY,
+  STR_REFUSED_BUSY_TEXT,
 
   STR_COUNT
 };
