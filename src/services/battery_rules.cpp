@@ -86,6 +86,11 @@ uint8_t stepOf(uint8_t pct) {
   return (uint8_t)(step > 100u ? 100u : step);
 }
 
+bool logWorthy(int8_t logged, int8_t shown) {
+  if (shown < 0) return false;
+  return logged < 0 || logged / 10 != shown / 10;
+}
+
 Icon iconOf(uint8_t shown) {
   if (shown >= 90) return ICON_FULL;
   if (shown >= 60) return ICON_3;

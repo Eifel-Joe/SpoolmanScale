@@ -93,6 +93,9 @@ uint8_t pctCharging(uint32_t mv);
 // not change that.
 constexpr uint8_t STEP_PCT = 1;
 uint8_t stepOf(uint8_t pct);
+// Whether a new level is worth a log line: the first one, and every change
+// of the step of ten (Spec 5.3 AB) – not each of the hundred per cents.
+bool logWorthy(int8_t logged, int8_t shown);
 
 enum Icon : uint8_t { ICON_EMPTY = 0, ICON_1, ICON_2, ICON_3, ICON_FULL };
 Icon iconOf(uint8_t shown);

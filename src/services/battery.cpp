@@ -37,6 +37,7 @@ const char* batterySupplyName() {
 static bat::Window s_win       = {0, 0, 0xFFFF, 0};
 static uint16_t    s_reads     = 0;   // readings in this window, answered or not
 static uint32_t    s_last_read = 0;
+static int8_t      s_logged    = -1;  // the level of the last log line
 
 #if defined(SSC_ACCEPTANCE)
 static BatterySim s_sim    = BAT_SIM_OFF;
@@ -86,9 +87,11 @@ void batteryTick(uint32_t now_ms) {
 
   if (ev & bat::EV_SUPPLY) {
     logSDf("Battery: %s, %u mV", batterySupplyName(), (unsigned)s_state.mv);
+    s_logged = -1;   // the new supply's first level gets its line
   }
-  if (ev & bat::EV_STEP) {
+  if ((ev & bat::EV_STEP) && bat::logWorthy(s_logged, s_state.shown)) {
     logSDf("Battery: %d %%, %u mV, %s", s_state.shown, (unsigned)s_state.mv, batterySupplyName());
+    s_logged = s_state.shown;
   }
   // The graver one only, when both come at once (a boot on an almost empty
   // battery): the second popup would replace the first anyway.
