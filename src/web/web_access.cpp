@@ -303,7 +303,7 @@ bool webRequire(WebServer &srv, WebGate g, const char *what) {
     case WEB_OK:
       return true;
     case WEB_FLASHING:
-      srv.send(503, "text/plain", "flashing");
+      srv.send(503, "text/plain; charset=utf-8", T(STR_W_FLASHING));
       return false;
     case WEB_NO_PROTOCOL:
       srv.send(404, "text/plain", "Not found");

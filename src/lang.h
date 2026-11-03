@@ -2175,6 +2175,27 @@ enum StringID {
   // The filament database did not answer the card's search (ui/tag_create_popup.cpp)
   STR_TAGNEW_RETRY_BTN,       // the card's left button: ask the database once more, before the density
 
+  // What a web route answers to a request it turns down, in the page's
+  // language (Punkteliste n63). A link opened by hand shows it as it is.
+  STR_W_LG_NO_INT,            // logs: the board has no ring in flash
+  STR_W_LG_NO_FILE,           // logs: no file name in the request
+  STR_W_LG_BAD_FILE,          // logs: a name that is not log_*.txt
+  STR_W_LG_FILE_GONE,         // logs: no such file on the card
+  STR_W_LG_OPEN_FAIL,         // logs: the file is there, but would not open
+  STR_W_LG_DEL_FAIL,          // logs: the file would not go
+  STR_W_LG_DEST_BAD,          // logs: where to write, not one of the three
+  STR_W_LG_LVL_BAD,           // logs: how much to write, not one of the three
+  STR_W_LG_SAVE_FAIL,         // logs: either choice could not be stored
+  STR_W_L_LAYOUT_BAD,         // labels: the layout did not parse
+  STR_W_L_SRC_BAD,            // labels: the source is neither the scale nor a preset id
+  STR_W_TZ_NO_BODY,           // settings: the time zone request came empty
+  STR_W_TZ_BAD,               // settings: an index outside the zone list
+  STR_W_SHOT_GONE,            // screenshots: no picture under that number
+  STR_W_SHOT_NO_MEM,          // screenshots: no memory for a new one
+  STR_W_GLASS_NONE,           // screenshots: the board keeps no frame of the glass
+  STR_W_PAGE_ABSENT,          // a page that does not apply to this device
+  STR_W_FLASHING,             // any gated route while an image is written
+
   STR_COUNT
 };
 

@@ -258,7 +258,7 @@ static void registerRoutes() {
       // A page that does not apply to this device is absent, not refused:
       // there is no backend page at all on Spoolman.
       if (pg->applies && !pg->applies()) {
-        ota_server.send(404, "text/plain", "Not found");
+        ota_server.send(404, "text/plain; charset=utf-8", T(STR_W_PAGE_ABSENT));
         return;
       }
       if (!webRequire(ota_server, pg->gate, webPageLabel(*pg))) return;

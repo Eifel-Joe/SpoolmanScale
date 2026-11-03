@@ -373,7 +373,7 @@ static void routes(WebServer &srv) {
     // and streamed the way the session log is: it can be two megabytes, and
     // this handler runs on the internal heap.
     if (srv.arg("src") == "int") {
-      if (!flashLogAvailable()) { srv.send(404, "text/plain", "No internal storage"); return; }
+      if (!flashLogAvailable()) { srv.send(404, "text/plain; charset=utf-8", T(STR_W_LG_NO_INT)); return; }
       if (srv.hasArg("dl")) {
         srv.sendHeader("Content-Disposition",
                        "attachment; filename=\"spoolmanscale-internal.txt\"");
@@ -387,24 +387,24 @@ static void routes(WebServer &srv) {
       srv.sendContent("");
       return;
     }
-    if (!sd_available) { srv.send(404, "text/plain", "No SD card"); return; }
+    if (!sd_available) { srv.send(404, "text/plain; charset=utf-8", T(STR_W_LOG_NOSD)); return; }
     if (!srv.hasArg("file")) {
-      srv.send(400, "text/plain", "Missing file param");
+      srv.send(400, "text/plain; charset=utf-8", T(STR_W_LG_NO_FILE));
       return;
     }
     String fname = srv.arg("file");
     // basic sanitization: only allow log_*.txt names
     if (!fname.startsWith("log_") || !fname.endsWith(".txt") || fname.indexOf("..") >= 0) {
-      srv.send(400, "text/plain", "Invalid filename");
+      srv.send(400, "text/plain; charset=utf-8", T(STR_W_LG_BAD_FILE));
       return;
     }
     String path = "/" + fname;
     if (!SD.exists(path.c_str())) {
-      srv.send(404, "text/plain", "Not found");
+      srv.send(404, "text/plain; charset=utf-8", T(STR_W_LG_FILE_GONE));
       return;
     }
     File f = SD.open(path.c_str(), FILE_READ);
-    if (!f) { srv.send(500, "text/plain", "Open failed"); return; }
+    if (!f) { srv.send(500, "text/plain; charset=utf-8", T(STR_W_LG_OPEN_FAIL)); return; }
     // Same file either way; the header is the whole difference between reading
     // it in the browser and saving it. text/plain renders inline everywhere,
     // so without this there is no way to get the file out of the device - the
@@ -422,14 +422,14 @@ static void routes(WebServer &srv) {
   // POST /deletelog?file=<name> -> delete a log file
   srv.on("/api/deletelog", HTTP_POST, [&srv]() {
     if (!webRequire(srv, GATE_MAINT, T(STR_W_NAV_LOGS))) return;
-    if (!sd_available) { srv.send(404, "text/plain", "No SD card"); return; }
+    if (!sd_available) { srv.send(404, "text/plain; charset=utf-8", T(STR_W_LOG_NOSD)); return; }
     if (!srv.hasArg("file")) {
-      srv.send(400, "text/plain", "Missing file param");
+      srv.send(400, "text/plain; charset=utf-8", T(STR_W_LG_NO_FILE));
       return;
     }
     String fname = srv.arg("file");
     if (!fname.startsWith("log_") || !fname.endsWith(".txt") || fname.indexOf("..") >= 0) {
-      srv.send(400, "text/plain", "Invalid filename");
+      srv.send(400, "text/plain; charset=utf-8", T(STR_W_LG_BAD_FILE));
       return;
     }
     String path = "/" + fname;
@@ -440,7 +440,7 @@ static void routes(WebServer &srv) {
       logSDf("Log file deleted via web: %s", fname.c_str());
       srv.send(200, "text/plain", "OK");
     } else {
-      srv.send(500, "text/plain", "Delete failed");
+      srv.send(500, "text/plain; charset=utf-8", T(STR_W_LG_DEL_FAIL));
     }
   });
 
@@ -451,13 +451,13 @@ static void routes(WebServer &srv) {
     // sector per loop pass: erasing all 512 of them here would hold the
     // request, and the loop with it, for half a minute.
     if (srv.arg("src") == "int") {
-      if (!flashLogAvailable()) { srv.send(404, "text/plain", "No internal storage"); return; }
+      if (!flashLogAvailable()) { srv.send(404, "text/plain; charset=utf-8", T(STR_W_LG_NO_INT)); return; }
       flashLogClear();
       Serial.println("Internal log cleared via web");
       srv.send(200, "application/json", "{\"deleted\":1}");
       return;
     }
-    if (!sd_available) { srv.send(404, "text/plain", "No SD card"); return; }
+    if (!sd_available) { srv.send(404, "text/plain; charset=utf-8", T(STR_W_LOG_NOSD)); return; }
 
     // Same walk-and-remove as cleanOldLogs(): close the entry, remove it, then
     // ask for the next one. That pattern has been running in the rotation for
@@ -557,11 +557,11 @@ static void routes(WebServer &srv) {
     if (!webRequire(srv, GATE_MAINT, T(STR_W_NAV_LOGS))) return;
     const int d = srv.arg("d").toInt();
     if (d < LOG_DEST_OFF || d > LOG_DEST_INTERNAL) {
-      srv.send(400, "application/json", "{\"error\":\"Unknown destination\"}");
+      srv.send(400, "application/json", String("{\"error\":\"") + jsonEsc(T(STR_W_LG_DEST_BAD)) + "\"}");
       return;
     }
     if (!logDestSet((LogDest)d)) {
-      srv.send(500, "application/json", "{\"error\":\"Failed to store the setting\"}");
+      srv.send(500, "application/json", String("{\"error\":\"") + jsonEsc(T(STR_W_LG_SAVE_FAIL)) + "\"}");
       return;
     }
     srv.send(200, "application/json",
@@ -582,11 +582,11 @@ static void routes(WebServer &srv) {
     if (!webRequire(srv, GATE_MAINT, T(STR_W_NAV_LOGS))) return;
     const int l = srv.arg("l").toInt();
     if (l < LOG_LVL_MIN || l > LOG_LVL_VERBOSE) {
-      srv.send(400, "application/json", "{\"error\":\"Unknown scope\"}");
+      srv.send(400, "application/json", String("{\"error\":\"") + jsonEsc(T(STR_W_LG_LVL_BAD)) + "\"}");
       return;
     }
     if (!logLevelSet((LogLevel)l)) {
-      srv.send(500, "application/json", "{\"error\":\"Failed to store the setting\"}");
+      srv.send(500, "application/json", String("{\"error\":\"") + jsonEsc(T(STR_W_LG_SAVE_FAIL)) + "\"}");
       return;
     }
     srv.send(200, "application/json", String("{\"lvl\":") + (int)logLevel() + "}");

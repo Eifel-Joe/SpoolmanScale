@@ -512,13 +512,13 @@ static void routes(WebServer &srv) {
   // next line written to the log is already in the new zone. No restart.
   srv.on("/api/timezone", HTTP_POST, [&srv]() {
     if (!webRequire(srv, GATE_CONFIG, "timezone")) return;
-    if (!srv.hasArg("plain")) { srv.send(400, "text/plain", "no body"); return; }
+    if (!srv.hasArg("plain")) { srv.send(400, "text/plain; charset=utf-8", T(STR_W_TZ_NO_BODY)); return; }
     // An index into the table, so nothing that reaches setenv() comes from
     // the request. A malformed TZ string would silently mean UTC, which reads
     // as the setting having been lost.
     const long idx = strtol(srv.arg("plain").c_str(), nullptr, 10);
     if (idx < 0 || idx >= (long)TZ_COUNT) {
-      srv.send(400, "text/plain", "unknown zone");
+      srv.send(400, "text/plain; charset=utf-8", T(STR_W_TZ_BAD));
       return;
     }
     timeZoneSet(TZ_LIST[idx].tz);

@@ -174,7 +174,7 @@ static void sendBmp(WebServer& srv) {
   int w = 0, h = 0;
   if (!screenshotSize(id, w, h) || !screenshotBmpHeader(id, header) ||
       !screenshotBmpRow(id, 0, row)) {
-    srv.send(404, "text/plain", "No such screenshot");
+    srv.send(404, "text/plain; charset=utf-8", T(STR_W_SHOT_GONE));
     return;
   }
   const size_t row_bytes = (size_t)w * 3;
@@ -213,7 +213,7 @@ void screenshotRoutes(WebServer& srv) {
     if (!webRequire(srv, GATE_MAINT, T(STR_W_NAV_LOGS))) return;
     const uint32_t id = screenshotTake(SCREENSHOT_FROM_WEB);
     if (!id) {
-      srv.send(503, "application/json", "{\"error\":\"Screenshot failed, no memory\"}");
+      srv.send(503, "application/json", String("{\"error\":\"") + jsonEsc(T(STR_W_SHOT_NO_MEM)) + "\"}");
       return;
     }
     srv.send(200, "application/json", String("{\"id\":") + id + "}");
@@ -239,7 +239,7 @@ void screenshotRoutes(WebServer& srv) {
   srv.on("/api/glass.raw", HTTP_GET, [&srv]() {
     if (!webRequire(srv, GATE_MAINT, T(STR_W_NAV_LOGS))) return;
     const uint16_t* glass = displayGlass();
-    if (!glass) { srv.send(404, "text/plain", "This board keeps no frame"); return; }
+    if (!glass) { srv.send(404, "text/plain; charset=utf-8", T(STR_W_GLASS_NONE)); return; }
     static constexpr size_t GLASS_CHUNK_BYTES = 4096;
     const size_t total = (size_t)displayNativeW() * displayNativeH() * sizeof(uint16_t);
     srv.sendHeader("X-Glass", String(displayNativeW()) + "x" + displayNativeH());

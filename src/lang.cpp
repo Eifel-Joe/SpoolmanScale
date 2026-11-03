@@ -4784,6 +4784,60 @@ const char* const STRINGS[][3] = {
   { "Nochmal",
     "Retry",
     "Réessayer" },  // STR_TAGNEW_RETRY_BTN
+  { "Diese Waage hat keinen internen Protokollspeicher.",
+    "This scale has no internal log storage.",
+    "Cette balance n'a pas de mémoire interne pour le journal." },  // STR_W_LG_NO_INT
+  { "Kein Dateiname angegeben.",
+    "No file name given.",
+    "Aucun nom de fichier indiqué." },  // STR_W_LG_NO_FILE
+  { "Ungültiger Dateiname (nur log_*.txt).",
+    "Invalid file name (log_*.txt only).",
+    "Nom de fichier non valide (log_*.txt uniquement)." },  // STR_W_LG_BAD_FILE
+  { "Diese Protokolldatei gibt es nicht.",
+    "There is no such log file.",
+    "Ce fichier journal n'existe pas." },  // STR_W_LG_FILE_GONE
+  { "Die Protokolldatei ließ sich nicht öffnen.",
+    "The log file could not be opened.",
+    "Impossible d'ouvrir le fichier journal." },  // STR_W_LG_OPEN_FAIL
+  { "Die Protokolldatei ließ sich nicht löschen.",
+    "The log file could not be deleted.",
+    "Impossible de supprimer le fichier journal." },  // STR_W_LG_DEL_FAIL
+  { "Unbekanntes Ziel (nur Aus, SD-Karte oder Intern).",
+    "Unknown destination (only off, SD card or internal).",
+    "Destination inconnue (seulement désactivé, carte SD ou interne)." },  // STR_W_LG_DEST_BAD
+  { "Unbekannter Umfang (nur Knapp, Normal oder Ausführlich).",
+    "Unknown scope (only minimal, normal or verbose).",
+    "Niveau inconnu (seulement minimal, normal ou détaillé)." },  // STR_W_LG_LVL_BAD
+  { "Die Einstellung ließ sich nicht speichern.",
+    "The setting could not be stored.",
+    "Impossible d'enregistrer le réglage." },  // STR_W_LG_SAVE_FAIL
+  { "Ungültige Etikett-Einstellung (Vorlage, Felder, Optionen).",
+    "Invalid label setting (template, fields, options).",
+    "Réglage d'étiquette non valide (modèle, champs, options)." },  // STR_W_L_LAYOUT_BAD
+  { "Unbekannte Quelle (die Waage oder eine Vorlage von FilaMan).",
+    "Unknown source (the scale or a FilaMan preset).",
+    "Source inconnue (la balance ou un modèle FilaMan)." },  // STR_W_L_SRC_BAD
+  { "Keine Zeitzone angegeben.",
+    "No time zone given.",
+    "Aucun fuseau horaire indiqué." },  // STR_W_TZ_NO_BODY
+  { "Unbekannte Zeitzone.",
+    "Unknown time zone.",
+    "Fuseau horaire inconnu." },  // STR_W_TZ_BAD
+  { "Diesen Screenshot gibt es nicht (mehr).",
+    "There is no such screenshot (any more).",
+    "Cette capture n'existe pas (ou plus)." },  // STR_W_SHOT_GONE
+  { "Screenshot fehlgeschlagen: zu wenig Speicher.",
+    "Screenshot failed: not enough memory.",
+    "Échec de la capture : mémoire insuffisante." },  // STR_W_SHOT_NO_MEM
+  { "Diese Platine hält kein Bild des Bildschirms vor.",
+    "This board keeps no frame of its screen.",
+    "Cette carte ne garde pas d'image de son écran." },  // STR_W_GLASS_NONE
+  { "Diese Seite gibt es auf dieser Waage nicht.",
+    "This page does not exist on this scale.",
+    "Cette page n'existe pas sur cette balance." },  // STR_W_PAGE_ABSENT
+  { "Die Waage schreibt gerade eine Firmware. Bitte gleich noch einmal versuchen.",
+    "The scale is writing a firmware right now. Please try again in a moment.",
+    "La balance écrit un firmware en ce moment. Réessayez dans un instant." },  // STR_W_FLASHING
 };
 
 StringID tagWriteResultString(uint8_t code) {

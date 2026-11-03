@@ -702,7 +702,7 @@ static void routes(WebServer &srv) {
   srv.on("/api/label", HTTP_POST, [&srv]() {
     if (!webRequire(srv, GATE_CONFIG, T(STR_W_NAV_LABEL))) return;
     LabelLayout l{};
-    if (!parseLayout(srv.arg("plain"), &l)) { srv.send(400, "text/plain", "bad layout"); return; }
+    if (!parseLayout(srv.arg("plain"), &l)) { srv.send(400, "text/plain; charset=utf-8", T(STR_W_L_LAYOUT_BAD)); return; }
     const bool ok = labelLayoutSave(l, kindOf(srv));
     srv.send(ok ? 200 : 500, "application/json", ok ? "{\"ok\":true}" : "{\"ok\":false}");
   });
@@ -718,7 +718,7 @@ static void routes(WebServer &srv) {
   srv.on("/api/label/text", HTTP_POST, [&srv]() {
     if (!webRequire(srv, GATE_CONFIG, T(STR_W_NAV_LABEL))) return;
     const String v = srv.arg("plain");
-    if (v.length() >= LABEL_FREE_TEXT_BYTES * 2) { srv.send(400, "text/plain", "text too long"); return; }
+    if (v.length() >= LABEL_FREE_TEXT_BYTES * 2) { srv.send(400, "text/plain; charset=utf-8", T(STR_W_L_TEXT_HINT)); return; }
     const bool ok = labelLayoutSaveFreeText(v.c_str());
     srv.send(ok ? 200 : 500, "application/json", ok ? "{\"ok\":true}" : "{\"ok\":false}");
   });
@@ -730,7 +730,7 @@ static void routes(WebServer &srv) {
     char* end = nullptr;
     const long id = strtol(v.c_str(), &end, 10);
     if (v.isEmpty() || *end || id < 0 || id > INT32_MAX) {
-      srv.send(400, "text/plain", "bad source");
+      srv.send(400, "text/plain; charset=utf-8", T(STR_W_L_SRC_BAD));
       return;
     }
     const bool ok = labelServerSetPresetId((int)id);
