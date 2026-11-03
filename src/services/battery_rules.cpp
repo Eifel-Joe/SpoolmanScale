@@ -82,7 +82,7 @@ uint8_t pctOnBattery(uint32_t mv) { return lookup(LOAD, mv); }
 uint8_t pctCharging(uint32_t mv) { return lookup(CHARGE, mv); }
 
 uint8_t stepOf(uint8_t pct) {
-  const unsigned step = ((unsigned)pct + 5u) / 10u * 10u;
+  const unsigned step = ((unsigned)pct + STEP_PCT / 2u) / STEP_PCT * STEP_PCT;
   return (uint8_t)(step > 100u ? 100u : step);
 }
 

@@ -86,8 +86,12 @@ Supply classify(const Window& w, Supply now);
 // charging. Both are tables measured on Jorg's 7B.
 uint8_t pctOnBattery(uint32_t mv);
 uint8_t pctCharging(uint32_t mv);
-// The nearest step of ten: the reading may be some 15 % off on another
-// board, single per cents would promise more than it knows.
+// The step shown: single per cents (Jorg, 03.11.2026, Spec V63). The
+// minute's mean is steady to a few millivolts on one board, and on the
+// battery the level never rises, so a fine step does not jump. On another
+// board or battery the reading may still be some 10 % off; the step does
+// not change that.
+constexpr uint8_t STEP_PCT = 1;
 uint8_t stepOf(uint8_t pct);
 
 enum Icon : uint8_t { ICON_EMPTY = 0, ICON_1, ICON_2, ICON_3, ICON_FULL };
