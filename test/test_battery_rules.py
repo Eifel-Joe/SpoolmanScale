@@ -20,6 +20,12 @@ static_assert(NO_BATTERY_MV == 2500, "below 2.5 V nothing is at the input");
 static_assert(SPAN_QUIET == 15 && SPAN_BUSY == 20, "charging 7..11, on the battery 24..28");
 static_assert(SPAN_PULSING == 40 && PULSE_MIN_MV == 4000, "no battery at UART: 47..63 around 4.34 V");
 static_assert(LOW_PCT == 20 && UPDATE_MIN_PCT == 50, "warning at 20 %, update from 50 % (Jorg)");
+// The runtime measurement on Jorg's 7B (03.11.2026, 2000 mAh, full
+// brightness, 149.75 minutes from full until the board went dark): the
+// minute's mean under load at these shares of the runtime left. "Almost
+// empty" at 10 % (Jorg), which came 17 minutes before the end.
+static_assert(CRITICAL_MV == 3390 && CRITICAL_PCT == 10, "almost empty at 10 %: 3390 mV");
+static_assert(JUMP_MV == 60, "a supply at UART lifts the reading by 180 mV, the threshold a third of it");
 
 // A window of 40 good readings: half at mean - span/2, half at mean + span/2.
 static Window win(uint16_t mean_raw, uint16_t span) {
@@ -80,6 +86,17 @@ int main() {
   ev = feed(s, win(415, 9));
   assert(s.supply == CHARGING && (ev & EV_SUPPLY));
 
+  // Near empty the boost's ripple shrinks (spans 17..18 in the last minutes,
+  // 03.11.2026): a quiet window on the battery is charging only with the
+  // lift a supply brings (+180 mV measured), not by its quiet alone.
+  State e;
+  feedN(e, win(rawOf(3100), 26), 2);
+  assert(e.supply == BATTERY);
+  feedN(e, win(rawOf(3090), 12), 4);
+  assert(e.supply == BATTERY);
+  feedN(e, win(rawOf(3300), 9), 2);
+  assert(e.supply == CHARGING);
+
   // On the battery the shown level never rises: less load (the light dims,
   // the scale wakes up) lifts the voltage, not the charge.
   State b;
@@ -123,6 +140,8 @@ int main() {
     last = p;
   }
   assert(pctOnBattery(2600) == 0 && pctOnBattery(4300) == 100);
+  assert(pctOnBattery(4098) == 100 && pctOnBattery(3850) == 80 && pctOnBattery(3591) == 50);
+  assert(pctOnBattery(3458) == 20 && pctOnBattery(3390) == 10 && pctOnBattery(3096) == 0);
   last = 100;
   for (uint32_t mv = 2500; mv <= 4400; mv += 5) {
     const uint8_t p = pctCharging(mv);
