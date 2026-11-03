@@ -20,7 +20,8 @@
 //                                           which ends by itself after 15 minutes
 //   POST /api/sim/battery?supply=battery|charging|none&mv=<mV> | supply=off
 //                                           a simulated battery (7B, Spec 5.3 AA,
-//                                           V60) through the battery rules
+//                                           V60) through the battery rules;
+//                                           &boot=1[&secs=] for the next start (V66)
 //   POST /api/sim/fdb-forget                the next "Neu aus Datenbank" passes
 //                                           the stored index over once (V64)
 // This file is the only place in src/ that spells them: the release run looks
@@ -109,6 +110,20 @@ void docRoutes(WebServer& srv) {
     if (!known || (needs_mv && (mv < 2500 || mv > 4400))) {
       srv.send(400, "application/json",
                "{\"error\":\"supply battery|charging with mv 2500-4400, none, or off\"}");
+      return;
+    }
+    // boot=1: the reading of the next start instead, once, for secs seconds
+    // of its wait (Spec V66); the running scale is left as it is.
+    if (srv.arg("boot") == "1") {
+      const int secs = intArg(srv, "secs", 30);
+      if (mode != BAT_SIM_BATTERY || secs < 5 || secs > 120) {
+        srv.send(400, "application/json", "{\"error\":\"boot=1 with supply=battery and secs 5-120\"}");
+        return;
+      }
+      batterySimForStart((uint32_t)mv, (uint32_t)secs);
+      logSDf("Acceptance build: the next start reads %d mV for %d s", mv, secs);
+      srv.send(200, "application/json",
+               String("{\"sim\":\"battery\",\"mv\":") + mv + ",\"boot\":true,\"secs\":" + secs + "}");
       return;
     }
     batterySimSet(mode, (uint32_t)mv);

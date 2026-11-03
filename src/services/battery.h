@@ -16,6 +16,14 @@
 //  no lock.
 // ============================================================
 
+// Right after boardEarlyInit(), before the logger, the panel and the WiFi
+// (Spec V66): reads the battery and, on an empty one, waits dark until a
+// supply lifts it, reading every second. Writes nothing meanwhile. Returns
+// at once on a board that does not measure.
+void batteryStartCheck();
+// Once the logger is up: how long the start waited, in one line.
+void batteryStartReport();
+
 // From the main loop, every pass.
 void batteryTick(uint32_t now_ms);
 
@@ -41,4 +49,7 @@ bool batteryUpdateBlocked();
 // again.
 enum BatterySim : uint8_t { BAT_SIM_OFF = 0, BAT_SIM_NONE, BAT_SIM_BATTERY, BAT_SIM_CHARGING };
 void batterySimSet(BatterySim mode, uint32_t mv);
+// The next start reads mv for secs seconds instead of the chip, once (Spec
+// 5.3 AA, V66): the check of an empty battery, shown across a restart.
+void batterySimForStart(uint32_t mv, uint32_t secs);
 #endif

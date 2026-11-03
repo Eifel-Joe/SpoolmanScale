@@ -75,6 +75,20 @@ constexpr uint8_t  CHARGE_TOP_PCT     = 95;
 constexpr uint8_t  FULL_FROM_PCT      = 85;
 constexpr uint32_t FULL_RISE_MV       = 10;
 constexpr uint16_t FULL_STILL_WINDOWS = 60;
+// An empty cell at the start (Jorg, Spec V66). The CS8501 stops its boost at
+// 2.7 V and starts it again at 3.0 V (data sheet p. 5 and 8): a cell that
+// recovered just over 3.0 V without load starts the scale, which pulls it
+// under 2.7 V again. After the runtime measurement on 03.11.2026 the 7B
+// began to start 39 times in 15 minutes, none far enough to read the
+// battery. So it is read first, before the panel and the WiFi draw current:
+// below START_EMPTY_MV on the battery the 7B stays dark and reads again
+// every second, and goes on when the reading rose by START_GO_RISE_MV (a
+// supply at "UART" lifted it by 180 to 290 mV) or reached START_GO_MV (a
+// cell charging from empty read 3527 mV). Provisional: no start of the 39
+// got as far as a reading.
+constexpr uint32_t START_EMPTY_MV   = 3200;
+constexpr uint32_t START_GO_RISE_MV = 150;
+constexpr uint32_t START_GO_MV      = 3500;
 
 // The CH32V003's ADC, as Waveshare's demo converts it: 10 bit, the 3.3 V
 // supply as reference, VBAT/3 (15_LVGL_SLIDER, lvgl_demo.c).
@@ -121,6 +135,14 @@ uint8_t stepOf(uint8_t pct);
 // Whether a new level is worth a log line: the first one, and every change
 // of the step of ten (Spec 5.3 AB) – not each of the hundred per cents.
 bool logWorthy(int8_t logged, int8_t shown);
+
+// The start on an empty cell (Spec V66). Empty: a battery is there
+// (NO_BATTERY_MV) and below START_EMPTY_MV; a charging cell reads more. Go
+// on: the reading rose by START_GO_RISE_MV over the one that was empty,
+// reached START_GO_MV, or the battery is gone and something else feeds the
+// board.
+bool emptyAtStart(uint32_t mv);
+bool goAfterWait(uint32_t empty_mv, uint32_t mv);
 
 enum Icon : uint8_t { ICON_EMPTY = 0, ICON_1, ICON_2, ICON_3, ICON_FULL };
 Icon iconOf(uint8_t shown);

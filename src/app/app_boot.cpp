@@ -21,6 +21,7 @@
 #include "services/ams_source.h"
 #include "services/app_settings.h"
 #include "services/backend.h"
+#include "services/battery.h"
 #include "services/board_image.h"
 #include "services/backend_api.h"
 #include "services/breadcrumb.h"
@@ -157,6 +158,9 @@ void appSetup() {
   // I/O expander for one. Before the SD card and the display, which may hang
   // on it.
   boardEarlyInit();
+  // An empty battery waits here, dark, before anything draws current or is
+  // written (Spec V66): with the panel unpowered and the logger not yet up.
+  batteryStartCheck();
   Serial.println("=== SpoolmanScale " FW_VERSION " ===");
   // The line an uploaded image is recognised by, see services/board_image.h.
   Serial.println(boardImageMarker());
@@ -168,6 +172,7 @@ void appSetup() {
   // SD card init (early so logs can capture boot sequence)
   // Note: cleanOldLogs() is deferred until after NTP sync (in wifiConnect)
   initSD();
+  batteryStartReport();
 
   // Which backend is active, plus FilaMan credentials. Runs after initSD()
   // so the line lands in the log, and well before the first backend_api call
