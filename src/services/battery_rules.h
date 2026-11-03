@@ -62,6 +62,19 @@ constexpr uint32_t CRITICAL_MV    = 3390;
 // window counts as charging only with a third of that lift over the
 // minute's mean.
 constexpr uint32_t JUMP_MV        = 60;
+// Full while charging (Jorg, Spec V65): the charging table stops at 95 %,
+// where the charger switches from its current to holding 4.2 V; the last
+// per cents the voltage cannot show. When the minute's mean has not risen by
+// FULL_RISE_MV for FULL_STILL_WINDOWS windows (ten minutes) from FULL_FROM_PCT
+// on, the cell counts as full: 100 % until the supply changes. On Jorg's 7B
+// on 03.11.2026 the charger stopped at 17:41:34 and the rule said full at
+// 17:46:50; under the charger's current the voltage rose by 4 to 5 mV a
+// minute up there. A restart on the mains with a full cell (4.20 V, which
+// the table reads as 90 %) is full ten minutes later.
+constexpr uint8_t  CHARGE_TOP_PCT     = 95;
+constexpr uint8_t  FULL_FROM_PCT      = 85;
+constexpr uint32_t FULL_RISE_MV       = 10;
+constexpr uint16_t FULL_STILL_WINDOWS = 60;
 
 // The CH32V003's ADC, as Waveshare's demo converts it: 10 bit, the 3.3 V
 // supply as reference, VBAT/3 (15_LVGL_SLIDER, lvgl_demo.c).
@@ -89,11 +102,14 @@ enum Supply : uint8_t {
 // already known (now), and one with too few readings says UNKNOWN.
 Supply classify(const Window& w, Supply now);
 
-// Voltage to charge, 0..100: under the load of the running scale, and while
-// charging. Measured on Jorg's 7B with a 2000 mAh lithium-ion battery at
-// full brightness (Spec 5.3 AB, V63): the per cents are shares of the
-// runtime left, so each lasts as long as the next.
+// Voltage to charge, 0..100, under the load of the running scale. Measured
+// on Jorg's 7B with a 2000 mAh lithium-ion battery at full brightness (Spec
+// 5.3 AB, V63): the per cents are shares of the runtime left, so each lasts
+// as long as the next.
 uint8_t pctOnBattery(uint32_t mv);
+// Voltage to charge, 0..CHARGE_TOP_PCT, while charging: shares of the time a
+// charge from empty took on the same board (Spec 5.3 AB, V65). 100 % only
+// through the rule of the full cell (feed()).
 uint8_t pctCharging(uint32_t mv);
 // The step shown: single per cents (Jorg, 03.11.2026, Spec V63). The
 // minute's mean is steady to a few millivolts on one board, and on the
@@ -120,6 +136,11 @@ struct State {
   int8_t   shown      = -1;        // the step shown, -1 for none yet
   bool     warned_low      = false;
   bool     warned_critical = false;
+  // While charging: the minute's mean at its last rise, the windows since,
+  // and whether the cell counts as full (FULL_* above).
+  uint32_t rise_mv    = 0;
+  uint16_t still      = 0;
+  bool     full       = false;
 };
 
 // What feed() changed, for the log, the header and the warnings.

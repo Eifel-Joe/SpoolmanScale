@@ -22,15 +22,23 @@ constexpr Point LOAD[] = {
   {3949, 90}, {4016, 95}, {4098, 100},
 };
 
-// While charging at 580 mA: the same table 190 mV higher, the step the
-// reading made at each plug (charging 4.006..4.018 V, on the battery
-// 3.811..3.824 V a moment later), up to where the charger holds its 4.2 V;
-// from there the cell fills at a constant voltage, and 4.2 V counts as full.
+// While charging at 580 mA: the charge from empty on Jorg's 7B (03.11.2026,
+// 14:29:05 to 17:41:34, 192.5 minutes; meta repo docs/recherche/
+// 2026-11-03-beta20/laden.csv, messung.md "Ladekurve"), the minute's mean at
+// each share of that time. 10 and 15 % are joined across the simulated
+// battery of that acceptance. From 95 % (17:31) the charger holds the
+// voltage and the current falls: the last per cents are the rule of the full
+// cell in feed(), not this table.
+// Wurzel: the table on the battery plus 190 mV, the step of a plug at
+//   3.8 V, read too much all the way: 44 % at 20 % of the charge, 64 at 50,
+//   88 at 80, and 100 % 19 minutes before the charger stopped (Punkteliste
+//   n67). The step is 250 to 290 mV over most of the range.
+// Test: test/test_battery_rules.py.
 constexpr Point CHARGE[] = {
-  {3286, 0}, {3523, 5}, {3580, 10}, {3622, 15}, {3648, 20}, {3672, 25},
-  {3693, 30}, {3712, 35}, {3726, 40}, {3755, 45}, {3781, 50}, {3803, 55},
-  {3841, 60}, {3893, 65}, {3934, 70}, {3984, 75}, {4040, 80}, {4093, 85},
-  {4139, 90}, {4180, 95}, {4200, 100},
+  {3527, 0}, {3642, 5}, {3686, 10}, {3720, 15}, {3751, 20}, {3769, 25},
+  {3784, 30}, {3800, 35}, {3824, 40}, {3849, 45}, {3878, 50}, {3912, 55},
+  {3951, 60}, {3992, 65}, {4034, 70}, {4075, 75}, {4117, 80}, {4155, 85},
+  {4200, 90}, {4243, CHARGE_TOP_PCT},
 };
 
 template <unsigned N>
@@ -129,6 +137,9 @@ uint8_t feed(State& s, const Window& w) {
     s.hist_head = 0;
     s.mv        = 0;
     s.shown     = -1;
+    s.rise_mv   = 0;
+    s.still     = 0;
+    s.full      = false;
     // Charged (or taken out): the next discharge warns again.
     if (s.supply != BATTERY) {
       s.warned_low      = false;
@@ -145,8 +156,22 @@ uint8_t feed(State& s, const Window& w) {
   for (uint8_t i = 0; i < s.hist_n; i++) sum += s.hist[i];
   s.mv = (uint32_t)(sum / s.hist_n);
 
-  const bool    on_battery = (s.supply == BATTERY);
-  const uint8_t step = stepOf(on_battery ? pctOnBattery(s.mv) : pctCharging(s.mv));
+  const bool on_battery = (s.supply == BATTERY);
+  if (!on_battery) {
+    // Full: from FULL_FROM_PCT on, ten minutes without a rise (Spec V65).
+    // NOT-TO-DO: waiting for the fall of some 30 mV when the charger stops
+    //   (seen at 17:41:34) - after a restart on the mains with a full cell
+    //   there is no fall to see, and 4.20 V reads as 90 % for good.
+    if (s.rise_mv == 0 || s.mv >= s.rise_mv + FULL_RISE_MV) {
+      s.rise_mv = s.mv;
+      s.still   = 0;
+    } else if (s.still < 0xFFFF) {
+      s.still++;
+    }
+    if (!s.full && s.still >= FULL_STILL_WINDOWS && pctCharging(s.mv) >= FULL_FROM_PCT) s.full = true;
+  }
+  const uint8_t step = on_battery ? stepOf(pctOnBattery(s.mv))
+                                  : (s.full ? 100 : stepOf(pctCharging(s.mv)));
   int8_t next = (int8_t)step;
   if (s.shown >= 0) {
     if (on_battery && s.shown < next) next = s.shown;
