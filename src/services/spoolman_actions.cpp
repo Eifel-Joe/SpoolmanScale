@@ -25,6 +25,7 @@
 #include "services/spool_cache.h"
 #include "services/spool_type_rules.h"
 #include "services/time_service.h"
+#include "services/weight_write_rules.h"
 #include "ui/main_screen_helpers.h"
 #include "ui/info_popup.h"
 
@@ -135,6 +136,7 @@ int patchSpoolmanWeight(float remaining, bool skip_cap_check) {
     Serial.printf("OK: %.1fg saved\n", remaining);
   } else {
     Serial.printf("PATCH error: %d\n", code);
+    weight_write_problem_pending = weightWriteProblemOf(code, backendMode() == BACKEND_SPOOLMAN);
   }
   return code;
 }
