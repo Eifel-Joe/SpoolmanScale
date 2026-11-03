@@ -1,4 +1,4 @@
-"""Compile the production 7B expander driver against a Wire that records every frame, and check what reaches the chip: levels before direction, GPIO19/20 always on USB, a pin write the chip refuses sent again and counted, two frames never closer than 2 ms."""
+"""Compile the production 7B expander driver against a Wire that records every frame, and check what reaches the chip: levels before direction, GPIO19/20 always on USB, a pin write the chip refuses sent again and counted, two frames never closer than 2 ms, and the battery reading of register 0x06, low byte first, in one transaction."""
 import re
 import subprocess
 import tempfile
@@ -32,6 +32,8 @@ struct Frame {
   uint8_t address;
   std::vector<uint8_t> bytes;
   uint32_t start_us, end_us;
+  bool stop = true;   // false: a repeated start follows, the read of the same transaction
+  bool read = false;  // a read: bytes holds what came back
 };
 
 class TwoWire {
@@ -47,9 +49,11 @@ class TwoWire {
     open_.bytes.push_back(value);
     return 1;
   }
-  uint8_t endTransmission() {
+  uint8_t endTransmission() { return endTransmission(true); }
+  uint8_t endTransmission(bool sendStop) {
     g_now_us += 72;
     open_.end_us = g_now_us;
+    open_.stop = sendStop;
     frames.push_back(open_);
     if (answers.empty()) return 0;
     const uint8_t answer = answers.front();
@@ -57,8 +61,29 @@ class TwoWire {
     return answer;
   }
 
+  // What the chip hands back to the next reads, byte by byte; a read asks
+  // for more than there is gets what there is.
+  std::deque<uint8_t> replies;
+  uint8_t requestFrom(uint8_t address, uint8_t quantity) {
+    Frame f{address, {}, g_now_us, 0};
+    f.read = true;
+    while (f.bytes.size() < quantity && !replies.empty()) {
+      f.bytes.push_back(replies.front());
+      replies.pop_front();
+    }
+    g_now_us += 25u * (1u + quantity);
+    f.end_us = g_now_us;
+    frames.push_back(f);
+    rx_ = f.bytes;
+    rx_at_ = 0;
+    return (uint8_t)f.bytes.size();
+  }
+  int read() { return rx_at_ < rx_.size() ? rx_[rx_at_++] : -1; }
+
  private:
   Frame open_{0, {}, 0, 0};
+  std::vector<uint8_t> rx_;
+  size_t rx_at_ = 0;
 };
 '''
 
@@ -240,9 +265,51 @@ int main() {
   bus.answers = {NACK};
   expect(!io_ch32v003::brightness(255), "a brightness the chip refuses fails");
 
+  // The battery input (w05, Spec 5.3 AB): register 0x06 holds the ADC
+  // reading of VBAT/3, two bytes, low first, as Waveshare's
+  // DEV_I2C_Read_Word() puts them together. The register byte and the read
+  // are one transaction (a repeated start), as Waveshare's driver reads
+  // (i2c_master_transmit_receive); on the 7B this and a read with a stop in
+  // between agreed in 2000 reads without a failure (03.11.2026). The
+  // transaction keeps the 2 ms to the frames before and after it.
+  static constexpr uint8_t ADC = 0x06;
+  g_now_us += 50000;
+  expect(io_ch32v003::pwm(0x09), "a frame before the reading");
+  size_t at = bus.frames.size();
+  bus.replies = {0x8C, 0x01};
+  uint16_t raw = 0;
+  expect(io_ch32v003::readAdc(raw), "a reading the chip answers");
+  expect(raw == 0x018C, "the reading is the low byte and then the high byte");
+  expect(bus.frames.size() == at + 2, "a reading is the register byte and the read");
+  const Frame& reg = bus.frames[at];
+  const Frame& rd = bus.frames[at + 1];
+  expect(reg.address == ADDR && !reg.read && reg.bytes.size() == 1u && reg.bytes[0] == ADC,
+         "the reading names register 0x06");
+  expect(!reg.stop, "the register byte ends in a repeated start, not a stop");
+  expect(rd.address == ADDR && rd.read && rd.bytes.size() == 2u, "the read asks for two bytes");
+  expect((uint32_t)(reg.start_us - bus.frames[at - 1].end_us) >= SPACING_US,
+         "a reading starts 2 ms after the frame before");
+  expect(io_ch32v003::write(2, true), "a write right after the reading");
+  expect((uint32_t)(bus.frames.back().start_us - rd.end_us) >= SPACING_US,
+         "the frame after a reading starts 2 ms after its read");
+  // Refused register byte: no read, false, and the write counters stay.
+  retries_at = io_ch32v003::retries();
+  failures_at = io_ch32v003::failures();
+  at = bus.frames.size();
+  bus.answers = {NACK};
+  bus.replies = {0x8C, 0x01};
+  expect(!io_ch32v003::readAdc(raw), "a reading whose register byte is refused fails");
+  expect(bus.frames.size() == at + 1, "a refused register byte is not followed by a read");
+  bus.replies.clear();
+  // One byte instead of two: false.
+  bus.replies = {0x8C};
+  expect(!io_ch32v003::readAdc(raw), "a reading with one byte back fails");
+  expect(io_ch32v003::retries() == retries_at && io_ch32v003::failures() == failures_at,
+         "a reading leaves the write counters alone");
+
   // Whatever was sent, GPIO19/20 stayed on the USB connector.
   for (const Frame& f : bus.frames) {
-    if (f.bytes.size() == 2u && f.bytes[0] == OUTPUTS) {
+    if (!f.read && f.bytes.size() == 2u && f.bytes[0] == OUTPUTS) {
       expect((f.bytes[1] & USB_SEL) == 0, "no frame to the outputs sets EXIO5");
     }
   }
