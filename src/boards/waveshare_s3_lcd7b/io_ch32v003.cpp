@@ -8,6 +8,7 @@ static constexpr uint8_t ADDR          = 0x24;
 static constexpr uint8_t REG_DIRECTION = 0x02;   // a bit set: that pin drives
 static constexpr uint8_t REG_OUTPUTS   = 0x03;
 static constexpr uint8_t REG_PWM       = 0x05;
+static constexpr uint8_t REG_ADC       = 0x06;
 static constexpr uint8_t ALL_OUTPUTS   = 0xFF;
 
 static TwoWire* s_wire     = nullptr;
@@ -123,6 +124,23 @@ uint8_t pwmFor(uint8_t brightness) {
 
 bool brightness(uint8_t brightness) {
   return pwm(pwmFor(brightness));
+}
+
+bool readAdc(uint16_t& raw) {
+  if (!s_wire) return false;
+  waitForChip();
+  s_wire->beginTransmission(ADDR);
+  s_wire->write(REG_ADC);
+  bool ok = s_wire->endTransmission(false) == 0 &&
+            s_wire->requestFrom(ADDR, (uint8_t)2) == 2;
+  if (ok) {
+    const uint8_t lo = (uint8_t)s_wire->read();
+    const uint8_t hi = (uint8_t)s_wire->read();
+    raw = (uint16_t)(lo | ((uint16_t)hi << 8));
+  }
+  s_last_end_us = (uint32_t)micros();
+  s_sent_once   = true;
+  return ok;
 }
 
 }

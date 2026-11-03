@@ -59,4 +59,14 @@ uint8_t pwmFor(uint8_t brightness);
 // does not acknowledge it.
 bool brightness(uint8_t brightness);
 
+// The battery input (Spec 5.3 AB, V60): the ADC reading of VBAT through the
+// 20 k / 10 k divider, register 0x06, 10 bit against the 3.3 V supply. Two
+// bytes, low first, as Waveshare's DEV_I2C_Read_Word() puts them together;
+// the register byte and the read in one transaction (a repeated start), as
+// Waveshare's driver reads (i2c_master_transmit_receive). On the 7B this and
+// a read with a stop in between agreed, 2000 reads without a failure
+// (03.11.2026). Keeps the frame gap like every write. False when the chip
+// refuses the register byte or hands back fewer than two bytes.
+bool readAdc(uint16_t& raw);
+
 }
