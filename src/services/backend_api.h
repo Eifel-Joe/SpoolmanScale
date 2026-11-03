@@ -431,6 +431,11 @@ int  backendPatchSpoolLocation(const char* base_url, int spool_id,
 #define DRYING_FIELD_NAME  "Drying"
 int  backendPatchFilamentDrying(int filament_id, int spool_id, const char* value,
                                 uint32_t timeout_ms);
+// The link the server itself names for this spool in its "url" field, "" where
+// it names none or one that spoolLinkOk() refuses. Spoolman way only: FilaMan
+// and BamBuddy are translated and send none. Points into spool's document.
+const char* backendSpoolLink(JsonObjectConst spool);
+
 int  backendPatchSpoolLastDried(const char* base_url, int spool_id, const char* iso_datetime,
        uint32_t timeout_ms = 5000);
 
