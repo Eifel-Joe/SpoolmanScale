@@ -1,17 +1,19 @@
 #pragma once
 
 // A build made with a switch is never released and names itself so: the
-// acceptance firmware (SSC_ACCEPTANCE) "-abnahme", the documentation firmware
-// (SSC_DOC_BUILD, which brings SSC_ACCEPTANCE along: it also has the remote
-// control) "-doku". version_compare.cpp ranks both one below the version they
-// were built on, so a scale running one is offered its real release.
+// acceptance firmware (SSC_ACCEPTANCE) "A" (Spec V61; "-abnahme" up to
+// beta.19, Jorg: one letter is enough and keeps the header line short), the
+// documentation firmware (SSC_DOC_BUILD, which brings SSC_ACCEPTANCE along: it
+// also has the remote control) "-doku". version_compare.cpp ranks them one
+// below the version they were built on, so a scale running one is offered its
+// real release.
 #if defined(SSC_DOC_BUILD) && !defined(SSC_ACCEPTANCE)
 #define SSC_ACCEPTANCE
 #endif
 #if defined(SSC_DOC_BUILD)
 #define SSC_VERSION_SUFFIX "-doku"
 #elif defined(SSC_ACCEPTANCE)
-#define SSC_VERSION_SUFFIX "-abnahme"
+#define SSC_VERSION_SUFFIX "A"
 #else
 #define SSC_VERSION_SUFFIX ""
 #endif

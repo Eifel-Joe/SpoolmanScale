@@ -84,7 +84,7 @@ void docSimTick(uint32_t now_ms) {
 // firmware), so the literal is the first sizeof(FW_VERSION) -
 // sizeof(SSC_VERSION_SUFFIX) characters, each sizeof counting its terminator.
 // The buffer is static and zeroed, so the copy leaves the end terminated; the
-// acceptance firmware keeps its "-abnahme" on purpose.
+// acceptance firmware keeps its "A" on purpose.
 const char* fwVersionShown() {
 #if defined(SSC_DOC_BUILD)
   static char shown[sizeof(FW_VERSION) - sizeof(SSC_VERSION_SUFFIX) + 1];

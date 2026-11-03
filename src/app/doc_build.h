@@ -42,7 +42,7 @@ void  docSimTick(uint32_t now_ms);
 
 // The version every text on the display shows (header line, info screen, the
 // firmware screens): FW_VERSION in the acceptance firmware, which says
-// "-abnahme" there, and FW_VERSION without "-doku" in the documentation
+// "A" there (Spec V61), and FW_VERSION without "-doku" in the documentation
 // firmware, because a screenshot of the documentation shows the release one
 // can download. The web pages, the log, status.json and the update check keep
 // FW_VERSION: they name the build that runs.

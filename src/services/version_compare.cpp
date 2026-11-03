@@ -27,9 +27,9 @@ constexpr uint64_t WEIGHT_MAJOR = 1000000000ULL;
 constexpr uint64_t WEIGHT_MINOR = 1000000ULL;
 constexpr uint64_t WEIGHT_PATCH = 1000ULL;
 
-// True when s ends with tail. Used for the two suffixes of a build made with a
-// switch, which sit at the very end of the tag ("v0.8.6-beta.14-abnahme"); a
-// match anywhere else in the string is no suffix.
+// True when s ends with tail. Used for the suffixes of a build made with a
+// switch, which sit at the very end of the tag ("v0.8.6-beta.20A"); a match
+// anywhere else in the string is no suffix.
 bool endsWith(const char* s, const char* tail) {
   const size_t n = strlen(s);
   const size_t t = strlen(tail);
@@ -69,16 +69,18 @@ uint64_t parseVersion(const char* v) {
                        + (uint64_t)patch * WEIGHT_PATCH
                        + beta;
 
-  // A build made with a switch ("-abnahme" the acceptance firmware, "-doku"
-  // the documentation firmware; neither is ever released) ranks one below the
-  // version it was built on, which gives two things at once. Next to the
-  // published release before it (v0.8.6-beta.14-abnahme beside beta.13) it
-  // ranks equal, so the update check offers nothing and never pulls the scale
-  // back to an older beta. Next to its own release (beta.14) it ranks lower,
-  // so the scale finds its way back as soon as that is out. Only these two
-  // suffixes, at the end of the tag: "-beta" is no suffix, and an unknown
-  // ending such as "-foo" ranks like the plain version. Zero stays zero: one
-  // below the lowest value must not wrap around to the highest number there is.
-  if ((endsWith(v, "-abnahme") || endsWith(v, "-doku")) && value > 0) return value - 1;
+  // A build made with a switch ("A" the acceptance firmware since beta.20,
+  // Spec V61, "-abnahme" before it; "-doku" the documentation firmware; none
+  // is ever released) ranks one below the version it was built on, which
+  // gives two things at once. Next to the published release before it
+  // (v0.8.6-beta.20A beside beta.19) it ranks equal, so the update check
+  // offers nothing and never pulls the scale back to an older beta. Next to
+  // its own release (beta.20) it ranks lower, so the scale finds its way back
+  // as soon as that is out. Only these suffixes, at the end of the tag:
+  // "-beta" is no suffix, and an unknown ending such as "-foo" ranks like the
+  // plain version. Zero stays zero: one below the lowest value must not wrap
+  // around to the highest number there is.
+  const bool switch_build = endsWith(v, "A") || endsWith(v, "-abnahme") || endsWith(v, "-doku");
+  if (switch_build && value > 0) return value - 1;
   return value;
 }
