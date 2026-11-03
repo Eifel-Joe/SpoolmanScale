@@ -22,6 +22,7 @@
 #include "services/klipper_printers.h"
 #include "services/last_dried.h"
 #include "services/list_limits.h"
+#include "services/native_tag_probe.h"
 #include "services/device_name.h"
 #include "services/spool_type_rules.h"
 #include "services/spoolman_api.h"
@@ -246,13 +247,8 @@ static uint8_t s_text_field_count = 0;
 // Same idea for the native tag API, kept beside the field cache because both
 // answer "what can this server do" and both go stale for the same reason.
 //
-// Which answers to a probe say "this server does not have it": 404 from
-// Spoolman before 0.27, 405 and 501 from a server that speaks Spoolman's API
-// but left this part out. Anything else - no answer, a 5xx, a rejected key -
-// says nothing about the feature and is asked again later.
-static bool backendAnswerMeansAbsent(int code) {
-  return code == 404 || code == 405 || code == 501;
-}
+// Which answers to a probe say "this server does not have it": see
+// native_tag_probe.h. Anything else is asked again later.
 static char s_tagapi_probed_for[96] = {0};
 static bool s_tagapi_present = false;
 
@@ -277,32 +273,36 @@ int backendNativeTagsCached() {
   return s_tagapi_present ? 1 : 0;
 }
 
-bool backendHasNativeTags() {
-  if (backendMode() != BACKEND_SPOOLMAN) return false;
+// out_code gets the probe's code when the answer is NATIVE_PROBE_UNSURE.
+static NativeProbeAnswer nativeTagsAsk(int* out_code) {
+  if (backendMode() != BACKEND_SPOOLMAN) return NATIVE_PROBE_ABSENT;
 
   const char* base = backendBaseUrl();
-  if (!base || !base[0]) return false;
+  if (!base || !base[0]) return NATIVE_PROBE_ABSENT;
 
   if (strncmp(s_tagapi_probed_for, base, sizeof(s_tagapi_probed_for) - 1) == 0)
-    return s_tagapi_present;
+    return s_tagapi_present ? NATIVE_PROBE_PRESENT : NATIVE_PROBE_ABSENT;
 
-  int code = spoolmanHasTagApi(base);
-  if (code == 200) {
-    s_tagapi_present = true;
-  } else if (backendAnswerMeansAbsent(code)) {
-    s_tagapi_present = false;
-  } else {
-    // Anything else says nothing about the feature - an unreachable server, a
-    // proxy in the way, a timeout. Caching that as a no would keep the native
-    // path off for the whole session over one bad moment.
+  const int code = spoolmanHasTagApi(base);
+  const NativeProbeAnswer answer = nativeProbeAnswer(code);
+  if (answer == NATIVE_PROBE_UNSURE) {
+    // An unreachable server, a proxy in the way, a timeout. Caching that as a
+    // no would keep the native path off for the whole session over one bad
+    // moment.
     logSDf("native tags: probe inconclusive, code=%d", code);
-    return false;
+    if (out_code) *out_code = code;
+    return answer;
   }
+  s_tagapi_present = (answer == NATIVE_PROBE_PRESENT);
 
   strncpy(s_tagapi_probed_for, base, sizeof(s_tagapi_probed_for) - 1);
   s_tagapi_probed_for[sizeof(s_tagapi_probed_for) - 1] = '\0';
   logSDf("native tags: %s on %s", s_tagapi_present ? "supported" : "absent", base);
-  return s_tagapi_present;
+  return answer;
+}
+
+bool backendHasNativeTags() {
+  return nativeTagsAsk(nullptr) == NATIVE_PROBE_PRESENT;
 }
 
 bool backendNativeTagsAbsent() {
@@ -403,7 +403,12 @@ int backendLinkTag(const char* base_url, int spool_id, const char* uid,
                    const char* format, int* out_conflict_spool_id, uint32_t timeout_ms,
                    int* out_conflict_filament_id) {
   HttpStallTime stall(__func__);   // the loop stands still for this call
-  if (!backendHasNativeTags()) return notSupported("LinkTag");
+  // "Not supported" sends the caller to an extra field, which only a server
+  // that said no may get: this one may have the relation after all.
+  int probe_code = 0;
+  const NativeProbeAnswer answer = nativeTagsAsk(&probe_code);
+  if (answer == NATIVE_PROBE_UNSURE) return nativeProbeLinkCode(probe_code);
+  if (answer == NATIVE_PROBE_ABSENT) return notSupported("LinkTag");
   return spoolmanLinkTag(base_url, spool_id, uid, format, out_conflict_spool_id, timeout_ms,
                          out_conflict_filament_id);
 }
