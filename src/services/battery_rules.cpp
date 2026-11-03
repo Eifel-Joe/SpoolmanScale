@@ -161,9 +161,9 @@ bool updateBlocked(const State& s) {
 Tone toneOf(const State& s) {
   if (s.supply == CHARGING) return TONE_CHARGING;
   if (s.supply != BATTERY || s.shown < 0) return TONE_HIDDEN;
-  if (s.mv <= CRITICAL_MV) return TONE_CRITICAL;
-  if (s.shown <= (int8_t)LOW_PCT) return TONE_LOW;
-  return TONE_PLAIN;
+  if (s.mv <= CRITICAL_MV || s.shown < (int8_t)LOW_PCT) return TONE_CRITICAL;
+  if (s.shown < (int8_t)GOOD_PCT) return TONE_LOW;
+  return TONE_GOOD;
 }
 
 Slot headerSlot(int16_t left_end, int16_t right_start, int16_t w_full, int16_t w_symbol) {

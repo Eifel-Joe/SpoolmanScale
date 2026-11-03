@@ -47,7 +47,8 @@ constexpr uint16_t SPAN_BUSY     = 20;    // from: the boost runs, the cell carr
 constexpr uint16_t SPAN_PULSING  = 40;    // from, at PULSE_MIN_MV and above: the charger
 constexpr uint32_t PULSE_MIN_MV  = 4000;  // pulsing with no cell behind it
 
-constexpr uint8_t  LOW_PCT        = 20;   // yellow and "battery low", once per discharge
+constexpr uint8_t  GOOD_PCT       = 50;   // green from here (Jorg, Spec V62)
+constexpr uint8_t  LOW_PCT        = 20;   // "battery low" once per discharge; red below
 constexpr uint8_t  UPDATE_MIN_PCT = 50;   // Jorg: an update on the battery from 50 % on
 // The warning voltage under load: the CS8501 stops its boost at 2.7 V,
 // 2.9 V at worst, and the board is dark at once; the reading may be 0.16 V
@@ -119,7 +120,10 @@ uint8_t feed(State& s, const Window& w);
 // before the supply is known.
 bool updateBlocked(const State& s);
 
-enum Tone : uint8_t { TONE_HIDDEN = 0, TONE_PLAIN, TONE_LOW, TONE_CRITICAL, TONE_CHARGING };
+// The colour of the display (Jorg, 03.11.2026, Spec V62): green from
+// GOOD_PCT, yellow from LOW_PCT to under GOOD_PCT, red below LOW_PCT and
+// below CRITICAL_MV; the bolt green while charging.
+enum Tone : uint8_t { TONE_HIDDEN = 0, TONE_GOOD, TONE_LOW, TONE_CRITICAL, TONE_CHARGING };
 Tone toneOf(const State& s);
 
 // Where the display goes in the 480 px header line: between the version,

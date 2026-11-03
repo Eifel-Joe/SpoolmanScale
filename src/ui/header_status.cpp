@@ -97,10 +97,9 @@ static lv_coord_t firstChipX() {
 
 static lv_color_t batteryColor(bat::Tone tone) {
   switch (tone) {
-    case bat::TONE_CHARGING: return lv_color_hex(UI_COL_GOOD);
     case bat::TONE_CRITICAL: return lv_color_hex(UI_COL_BAD);
     case bat::TONE_LOW:      return lv_color_hex(UI_COL_WARN);
-    default:                 return lv_color_hex(UI_COL_INK_FAINT);
+    default:                 return lv_color_hex(UI_COL_GOOD);   // from 50 %, and the bolt
   }
 }
 #endif
@@ -108,8 +107,9 @@ static lv_color_t batteryColor(bat::Tone tone) {
 // Symbol and step ("<battery> 70%"), the bolt instead of the battery while
 // charging; the symbol alone where the line has no room for the number
 // (the acceptance firmware's longer version, Bluetooth and SD shown), and
-// nothing where it has none at all. Grey, yellow from 20 %, red below the
-// warning voltage, the bolt green (Spec 5.3 AB).
+// nothing where it has none at all. Green from 50 %, yellow from 20 %, red
+// below that and below the warning voltage, the bolt green (Spec 5.3 AB,
+// V62).
 void updateHeaderBattery() {
 #if BOARD_BATTERY_SENSE
   if (!lbl_hdr_bat || !lbl_hdr_ver || !lbl_hdr_sm) return;
