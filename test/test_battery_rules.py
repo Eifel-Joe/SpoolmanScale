@@ -136,6 +136,24 @@ int main() {
   }
   assert(low && crit);
   assert(toneOf(w) == TONE_CRITICAL);
+
+  // The colours (Jorg, 03.11.2026, Spec V62): green from 50 %, yellow from
+  // 20 % to under 50 %, red below 20 % and below the warning voltage; the
+  // bolt green while charging.
+  static_assert(GOOD_PCT == 50, "green from 50 %");
+  State t;
+  t.supply = BATTERY;
+  t.hist_n = 1;
+  t.mv = CRITICAL_MV + 300;
+  const int8_t steps[] = {100, 50, 40, 20, 10, 0};
+  const Tone tones[] = {TONE_GOOD, TONE_GOOD, TONE_LOW, TONE_LOW, TONE_CRITICAL, TONE_CRITICAL};
+  for (int i = 0; i < 6; i++) {
+    t.shown = steps[i];
+    assert(toneOf(t) == tones[i]);
+  }
+  t.shown = 60;
+  t.mv = CRITICAL_MV;
+  assert(toneOf(t) == TONE_CRITICAL);
   feedN(w, win(rawOf(3600), 9), 2);
   assert(w.supply == CHARGING && toneOf(w) == TONE_CHARGING);
   low = crit = false;
