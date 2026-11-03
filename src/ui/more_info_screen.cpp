@@ -1222,7 +1222,7 @@ void buildMoreInfoScreen() {
   // An inherited tare is marked, so a number that came from the brand default
   // is not mistaken for one measured off this spool.
   char sw_buf[32];
-  if (sm_spool_weight > 0) {
+  if (sm_tare_source != TARE_NONE) {
     const char *from = spoolTareNote(sm_tare_source);
     snprintf(sw_buf, sizeof(sw_buf), "%.0f g%s", sm_spool_weight, from);
   } else {

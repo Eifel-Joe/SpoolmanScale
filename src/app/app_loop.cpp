@@ -1614,7 +1614,7 @@ void appLoop() {
     }
 
     // Fix 4: update live/bag below, SM diff next to netto
-    if (sm_found && sm_spool_weight > 0) {
+    if (sm_found && sm_tare_source != TARE_NONE) {
       float netto = spoolExtrasBareReading() - sm_spool_weight;
       if (netto < 0) netto = 0;
 

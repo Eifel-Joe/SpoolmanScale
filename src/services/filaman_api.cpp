@@ -226,6 +226,12 @@ static const char* articleNumber(JsonObjectConst fil) {
 //  Anything the UI does not read is left out on purpose, a smaller
 //  document means less PSRAM and less parsing.
 // ============================================================
+// spoolTare() reads a stored 0 as a tare of nothing, and FilaMan's null and 0
+// both mean none on file, so that level stays empty and the next one answers.
+static void putTare(JsonObject dst, const char* key, float grams) {
+  if (grams > 0.0f) dst[key] = grams;
+}
+
 static void mapSpool(JsonObjectConst src, JsonObject dst) {
   dst["id"]             = src["id"] | 0;
   // Left out when the server has null, rather than written as 0 g. Every
@@ -236,7 +242,7 @@ static void mapSpool(JsonObjectConst src, JsonObject dst) {
   // and the card showed "0 g" where it exists to say "no weight stored".
   JsonVariantConst rem = src["remaining_weight_g"];
   if (!rem.isNull()) dst["remaining_weight"] = rem.as<float>();
-  dst["spool_weight"]     = src["empty_spool_weight_g"]    | 0.0f;
+  putTare(dst, "spool_weight", src["empty_spool_weight_g"] | 0.0f);
 
   // Spoolman's initial_weight is the filament alone - its own schema says
   // "(net weight)" - while FilaMan's initial_total_weight_g includes the empty
@@ -364,7 +370,7 @@ static void mapSpool(JsonObjectConst src, JsonObject dst) {
     // "Cyan (12601)" is only recognisable as Tough+ through this.
     f["material_subgroup"] = fil["material_subgroup"]   | "";
     f["weight"]       = fil["raw_material_weight_g"]    | 0.0f;
-    f["spool_weight"] = fil["default_spool_weight_g"]   | 0.0f;
+    putTare(f, "spool_weight", fil["default_spool_weight_g"] | 0.0f);
     f["article_number"] = articleNumber(fil);
     // The drying the scale took off a Bambu tag, kept on the filament.
     const char* drying = fil["custom_fields"]["drying"] | (const char*)nullptr;
@@ -379,7 +385,7 @@ static void mapSpool(JsonObjectConst src, JsonObject dst) {
     JsonObject vendor = f["vendor"].to<JsonObject>();
     vendor["id"]   = fil["manufacturer_id"] | 0;
     vendor["name"] = fil["manufacturer"]["name"] | "";
-    vendor["empty_spool_weight"] = fil["manufacturer"]["empty_spool_weight_g"] | 0.0f;
+    putTare(vendor, "empty_spool_weight", fil["manufacturer"]["empty_spool_weight_g"] | 0.0f);
   }
 }
 
