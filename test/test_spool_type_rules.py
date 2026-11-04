@@ -337,6 +337,16 @@ int main() {
   // behind Spoolman the spool's own spool_weight (not inherited).
   assert(spoolTypeCreateTare(180, 250, false, &t) == 180 && t);
   assert(spoolTypeOwnCore(spoolTypeCreateTare(180, 250, false, nullptr), false) == 180);
+  // f06 (v0.8.7-beta.3): the list at the create answers the first weighing
+  // when it gave a type, or when "without type" leaves a tare somewhere on the
+  // chain (0 counts, o07). With nothing on spool, filament and brand the first
+  // weighing asks; when the chain could not be read, it stays as before.
+  assert(spoolTypeCreateAnswered(180, true, false));   // a type
+  assert(spoolTypeCreateAnswered(180, false, false));
+  assert(spoolTypeCreateAnswered(0, true, true));      // without, the chain has one
+  assert(!spoolTypeCreateAnswered(0, true, false));    // without, nothing anywhere
+  assert(spoolTypeCreateAnswered(0, false, false));    // not read: as before
+  assert(!spoolTypeCreateAnswered(-1, true, false));
   return 0;
 }
 '''

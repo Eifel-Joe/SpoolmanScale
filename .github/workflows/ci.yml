@@ -162,6 +162,10 @@ jobs:
         run: python3 test/test_notes_cut.py
       - name: Test which answers come from the scale's own server
         run: python3 test/test_own_server_rules.py
+      - name: Test the weighing paths of beta.3 (BamBuddy's 0, the large number, the weight popup, FilaMan, without type)
+        run: python3 test/test_weighing_paths.py
+      - name: Test that five-digit spool ids fit their columns
+        run: python3 test/test_spool_id_width.py
       - name: Test text fold
         run: python3 test/test_text_fold.py
       - name: Test list search
