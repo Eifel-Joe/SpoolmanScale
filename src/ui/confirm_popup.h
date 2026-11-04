@@ -39,5 +39,6 @@ void handleConfirmPopupDeferredActions();
 void closeConfirmPopups();
 
 // Asked when BamBuddy's own inventory would clamp the measurement to the
-// label weight. Built from appLoop(), never from a write path.
-void showBamBuddyCapPopup(float measured_g, float label_g);
+// label weight. Built from appLoop(), never from a write path. spool_id is the
+// spool the measurement belongs to; another spool loaded by then is not asked.
+void showBamBuddyCapPopup(float measured_g, float label_g, int spool_id);

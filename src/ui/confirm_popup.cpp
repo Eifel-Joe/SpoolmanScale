@@ -37,6 +37,7 @@ static int confirm_action = 0;
 // callback that built it, so nothing could close it from outside and a
 // navigation left it standing over the next screen.
 static lv_obj_t *s_cap_popup   = nullptr;   // BamBuddy's label weight question
+static int       s_cap_spool_id = 0;         // the spool it asks about
 
 void closeConfirmPopups() {
   closeConfirmPopup();
@@ -104,15 +105,30 @@ void handleConfirmPopupDeferredActions() {
     s_ask_free_tag_pending = false;
     askFreeTag();
   }
+  // Wurzel (next to o13): the label question holds the reading of the spool it
+  // was asked for, and it stayed open over a swap; its answers, like the weight
+  // the popup queues, ran a pass later on whatever spool was loaded then, so
+  // "raise" gave the new spool the old one's label and rest.
+  // Fix: the question closes when another spool is loaded, and the job slot
+  // drops a weight for another spool, as it did a tare.
+  // NOT-TO-DO: comparing at the button only: the lookup of a tag put down can
+  // land between the press and this pass. See test_weighing_paths.py.
+  if (s_cap_popup && sm_id != s_cap_spool_id) {
+    logSDf("BamBuddy: label question for spool %d closed, spool %d is loaded now",
+           s_cap_spool_id, sm_id);
+    releaseScreen(&s_cap_popup);
+  }
   if (s_job == CJ_NONE) return;
   const ConfirmJob job = s_job;
   s_job = CJ_NONE;
   const bool tare_job = job == CJ_TARE_SPOOL || job == CJ_TARE_FILAMENT ||
                         job == CJ_TARE_VENDOR || job == CJ_FULL_SPOOL;
-  if (tare_job && sm_id != s_job_spool_id) {
-    logSDf("Tare: %.1f g was for spool %d, spool %d is loaded now - not stored",
-           s_job_value, s_job_spool_id, sm_id);
-    tareDropFollowUp();   // its initial weight would follow the same tare
+  const bool spool_job = tare_job ||
+                         job == CJ_WEIGHT || job == CJ_CAP_RAISE || job == CJ_CAP_KEEP;
+  if (spool_job && sm_id != s_job_spool_id) {
+    logSDf("%s: %.1f g was for spool %d, spool %d is loaded now - not stored",
+           tare_job ? "Tare" : "Weight", s_job_value, s_job_spool_id, sm_id);
+    if (tare_job) tareDropFollowUp();   // its initial weight would follow the same tare
     return;
   }
   switch (job) {
@@ -324,6 +340,7 @@ static bool newSpoolDerivesTare(float* out_tare) {
 void confirmQueueWeight(float netto_g, float gross_g) {
   // The numbers are taken now, the request runs on the next loop pass.
   s_job = CJ_WEIGHT; s_job_value = netto_g; s_job_gross = gross_g;
+  s_job_spool_id = sm_id;
 }
 
 // Where nothing is known about the empty spool, taking it as full derives
@@ -471,8 +488,15 @@ void showConfirmPopup(const char* msg, int action) {
 //  to keep the number, and that changes a field the user owns, so it is
 //  asked.
 // ============================================================
-void showBamBuddyCapPopup(float measured_g, float label_g) {
+void showBamBuddyCapPopup(float measured_g, float label_g, int spool_id) {
   releaseScreen(&s_cap_popup);
+  // Another spool loaded since the check: its own weighing asks for itself.
+  if (spool_id != sm_id) {
+    logSDf("BamBuddy: label question for spool %d not shown, spool %d is loaded now",
+           spool_id, sm_id);
+    return;
+  }
+  s_cap_spool_id = spool_id;
   lv_obj_t *popup = lv_obj_create(lv_scr_act());
   s_cap_popup = popup;
   lv_obj_set_size(popup, 480, 320);
@@ -518,7 +542,7 @@ void showBamBuddyCapPopup(float measured_g, float label_g) {
     lv_obj_set_style_text_font(l, &lv_font_montserrat_ext_16, 0);
     lv_obj_center(l); }
   lv_obj_add_event_cb(b_raise, [](lv_event_t *e) {
-    s_job = CJ_CAP_RAISE; s_job_value = s_cap_measured;
+    s_job = CJ_CAP_RAISE; s_job_value = s_cap_measured; s_job_spool_id = s_cap_spool_id;
     releaseScreen(&s_cap_popup);
   }, LV_EVENT_CLICKED, NULL);
 
@@ -535,7 +559,7 @@ void showBamBuddyCapPopup(float measured_g, float label_g) {
     lv_obj_set_style_text_font(l, &lv_font_montserrat_ext_16, 0);
     lv_obj_center(l); }
   lv_obj_add_event_cb(b_keep, [](lv_event_t *e) {
-    s_job = CJ_CAP_KEEP; s_job_value = s_cap_measured;
+    s_job = CJ_CAP_KEEP; s_job_value = s_cap_measured; s_job_spool_id = s_cap_spool_id;
     releaseScreen(&s_cap_popup);
   }, LV_EVENT_CLICKED, NULL);
 }

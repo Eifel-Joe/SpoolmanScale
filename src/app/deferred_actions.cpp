@@ -57,6 +57,7 @@ unsigned long gh_check_wait_since = 0;
 bool  show_bb_cap_pending = false;
 float bb_cap_measured_g   = 0.0f;
 float bb_cap_label_g      = 0.0f;
+int   bb_cap_spool_id     = 0;
 
 bool i2c_rescan_pending = false;
 

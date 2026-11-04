@@ -944,7 +944,7 @@ void appLoop() {
   // the write path that noticed it must not create a screen.
   if (show_bb_cap_pending) {
     show_bb_cap_pending = false;
-    showBamBuddyCapPopup(bb_cap_measured_g, bb_cap_label_g);
+    showBamBuddyCapPopup(bb_cap_measured_g, bb_cap_label_g, bb_cap_spool_id);
   }
   if (show_drying_reminder_pending) {
     show_drying_reminder_pending = false;

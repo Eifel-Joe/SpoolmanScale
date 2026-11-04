@@ -89,6 +89,7 @@ int patchSpoolmanWeight(float remaining, bool skip_cap_check) {
   if (!skip_cap_check && spoolLabelAsk(backendIsBamBuddy(), sm_total, remaining)) {
     bb_cap_measured_g = remaining;
     bb_cap_label_g    = sm_total;
+    bb_cap_spool_id   = sm_id;
     show_bb_cap_pending = true;      // the popup is built from appLoop()
     logSDf("BamBuddy: %.0fg measured against a %.0fg label, asking first",
            remaining, sm_total);

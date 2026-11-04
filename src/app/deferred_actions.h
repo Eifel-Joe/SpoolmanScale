@@ -139,6 +139,8 @@ extern unsigned long gh_check_wait_since;
 extern bool  show_bb_cap_pending;
 extern float bb_cap_measured_g;
 extern float bb_cap_label_g;
+// The spool the check above was made for: the question and its answer keep to it.
+extern int   bb_cap_spool_id;
 
 // The diagnosis banner offered a way out and the user took it. Both run from
 // the loop rather than the popup's own callback: one opens a screen, the other
