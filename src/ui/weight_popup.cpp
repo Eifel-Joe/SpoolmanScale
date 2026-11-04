@@ -112,9 +112,17 @@ bool isWeightPopupOpen() {
   return s_popup != nullptr || s_opts != nullptr || isExtrasChooserOpen();
 }
 
+// Fork: the parts chooser goes too. Wurzel: it counts as the popup
+// (isWeightPopupOpen()), and closeWeightPopups() leaves it standing, so after a
+// swap the tick logged on every pass, OK stored the parts for the new spool
+// (extrasClose() writes them for sm_id) and its way out opened a popup for it.
+// Fix: closed unsaved with the popup; closeExtrasChooser() drops the way back.
+// NOT-TO-DO: closing it in closeWeightPopups(): the chip calls that to make
+// room for the chooser it opens next. See test_weighing_paths.py.
 void weightPopupTick() {
   if (!isWeightPopupOpen() || sm_id == s_spool_id) return;
   logSDf("UI: weight popup for spool %d closed unsent, spool %d is loaded now", s_spool_id, sm_id);
+  closeExtrasChooser();
   closeWeightPopups();
 }
 
