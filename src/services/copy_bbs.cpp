@@ -80,6 +80,10 @@ static float   s_filament_g   = 0.0f;     // that filament's nominal weight, 0: 
 static bool    s_price_typed  = false;    // the price button was used since the load
 static float   s_price        = 0.0f;     // the price per kg typed, 0: emptied
 static uint8_t s_missing      = CM_NONE;  // the last create's CopyMissing bits
+// f06 (v0.8.7-beta.3): the template's empty weight on the Spoolman server, read
+// with its filament: read at all, and whether spool, filament or brand has one.
+static bool    s_chain_read   = false;
+static bool    s_chain_any    = true;
 
 void copyBbsClear() {
   s_tpl.clear();
@@ -90,9 +94,13 @@ void copyBbsClear() {
   s_filament_g   = 0.0f;
   s_price_typed  = false;
   s_price        = 0.0f;
+  s_chain_read   = false;
+  s_chain_any    = true;
 }
 
 uint8_t copyBbsLastMissing() { return s_missing; }
+
+bool copyBbsChainNone() { return s_chain_read && !s_chain_any; }
 
 void copyBbsSetPrice(float typed_price) {
   s_price_typed = true;
@@ -119,7 +127,10 @@ static int loadTemplate(int template_spool_id) {
   if (s_presets_code != 200) s_presets.clear();
   // Leaves 0 and logs the cause when Spoolman cannot tell (copy_bbs.h: why).
   if (spoolTypesActive()) {
-    bbSpoolmanFilamentOf(template_spool_id, &s_filament_id, COPY_BBS_READ_TIMEOUT_MS, &s_filament_g);
+    s_chain_read = bbSpoolmanFilamentOf(template_spool_id, &s_filament_id, COPY_BBS_READ_TIMEOUT_MS,
+                                        &s_filament_g, &s_chain_any);
+    if (s_chain_read && !s_chain_any)
+      logSDf("Copy: template %d has no empty weight on spool, filament or brand", template_spool_id);
   }
   s_loaded_id = template_spool_id;
 

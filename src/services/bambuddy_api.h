@@ -241,8 +241,13 @@ bool bbGetDriedFromSpoolman(int spool_id, char* out_iso, size_t out_size,
 // be null) is the filament's nominal weight, 0 when it has none. False, with
 // both at 0, when there is no Spoolman address (local mode, not logged), the
 // spool is unknown or the request fails (those two are logged).
+// *out_chain_any (may be null; f06, v0.8.7-beta.3): whether the spool, its
+// filament or its brand holds an empty weight on the Spoolman server, 0
+// included (spoolTare()); BamBuddy hands a spool with nothing anywhere on as
+// 250 g "inherited", its own fallback, and cannot say so.
 bool bbSpoolmanFilamentOf(int spool_id, int* out_filament_id, uint32_t timeout_ms,
-                          float* out_filament_weight = nullptr);
+                          float* out_filament_weight = nullptr,
+                          bool* out_chain_any = nullptr);
 
 // Moves a drying date the scale kept outside BamBuddy into its own field
 // (#2863): a note marker always (the marker leaves the note, the date goes

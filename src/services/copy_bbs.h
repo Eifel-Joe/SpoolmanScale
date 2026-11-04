@@ -133,5 +133,12 @@ int copyBbsCreate(const CopyBbsCreate& in, int* out_spool_id, uint8_t* out_missi
 // Kept across copyBbsClear(), so the status line can still ask afterwards.
 uint8_t copyBbsLastMissing();
 
+// Whether the template loaded last has no empty weight on its spool, its
+// filament or its brand on the Spoolman server (f06, v0.8.7-beta.3). BamBuddy
+// reports such a spool's empty weight as 250 g inherited, its own fallback; the
+// card and the create must not take that for one someone stored. False when
+// nothing was read.
+bool copyBbsChainNone();
+
 // Frees what copyBbsLoad() holds and forgets a typed price.
 void copyBbsClear();

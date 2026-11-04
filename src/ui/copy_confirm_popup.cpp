@@ -117,8 +117,17 @@ void closeCopyConfirmPopup() {
 }
 
 // The empty spool the copy starts from: the type chosen, else the template's.
+// Wurzel (f06, found on the 7B): behind BamBuddy a template with no empty
+// weight anywhere comes with BamBuddy's own 250 g as "inherited", and the copy
+// took it for one someone stored: 940 g net for a full roll, filed so, and the
+// first weighing took the roll for a used one. Fix: such a template gives no
+// tare, so the copy starts full (spool_start.h) and the first weighing offers
+// the measured one. NOT-TO-DO: dropping every inherited tare: a filament's or
+// a brand's is one someone stored. See test_weighing_paths.py.
 static float copyTare() {
-  return s_copy_core > 0.0f ? s_copy_core : copy_template_spool_w;
+  if (s_copy_core > 0.0f) return s_copy_core;
+  if (s_copy_bbs && copyBbsChainNone()) return 0.0f;
+  return copy_template_spool_w;
 }
 
 // Cancel on the card, and back in the list of types: to whichever list the

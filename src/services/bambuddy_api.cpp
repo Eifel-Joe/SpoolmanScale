@@ -18,6 +18,8 @@
 #include "services/last_dried.h"
 #include "services/spool_cache.h"
 #include "services/spool_color.h"
+#include "services/spool_tare.h"
+#include "services/tare_chain.h"
 #include "services/tag_uid.h"
 #include "services/wifi_manager.h"
 #include "services/time_service.h"
@@ -1027,20 +1029,25 @@ bool bbGetDriedFromSpoolman(int spool_id, char* out_iso, size_t out_size,
 // copy starts from it rather than from a label the template had raised
 // (copyRulesNominal).
 bool bbSpoolmanFilamentOf(int spool_id, int* out_filament_id, uint32_t timeout_ms,
-                          float* out_filament_weight) {
+                          float* out_filament_weight, bool* out_chain_any) {
   if (out_filament_id) *out_filament_id = 0;
   if (out_filament_weight) *out_filament_weight = 0.0f;
+  if (out_chain_any) *out_chain_any = true;   // unknown counts as "has one", as before
   if (!out_filament_id || spool_id <= 0) return false;
   if (!s_spoolman_url[0]) return false;
 
   char url[192];
   snprintf(url, sizeof(url), "%s/api/v1/spool/%d", s_spoolman_url, spool_id);
 
-  // The two numbers are wanted; the rest of a Spoolman spool, extras and the
-  // rest of the filament record among it, is ballast.
+  // The two numbers are wanted, and the three levels of the empty weight; the
+  // rest of a Spoolman spool, extras and the rest of the filament record among
+  // it, is ballast.
   JsonDocument filter;
   filter["filament"]["id"] = true;
   filter["filament"]["weight"] = true;
+  filter["spool_weight"] = true;
+  filter["filament"]["spool_weight"] = true;
+  filter["filament"]["vendor"]["empty_spool_weight"] = true;
 
   JsonDocument doc;
   const int code = getJson(url, nullptr, doc, timeout_ms, nullptr, &filter);
@@ -1057,6 +1064,11 @@ bool bbSpoolmanFilamentOf(int spool_id, int* out_filament_id, uint32_t timeout_m
   *out_filament_id = id;
   // A filament without a weight (null in Spoolman) gives 0.
   if (out_filament_weight) *out_filament_weight = doc["filament"]["weight"] | 0.0f;
+  if (out_chain_any) {
+    uint8_t from = TARE_NONE;
+    spoolTare(doc.as<JsonVariantConst>(), &from);
+    *out_chain_any = from != TARE_NONE;
+  }
   return true;
 }
 
