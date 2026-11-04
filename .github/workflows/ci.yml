@@ -140,6 +140,8 @@ jobs:
         run: python3 test/test_flash_layout.py
       - name: Test the whole database's start floor
         run: python3 test/test_fdb_whole_reload.py
+      - name: Test the acceptance call for the tag family memory
+        run: python3 test/test_tag_family_sim.py
       - name: Test text fold
         run: python3 test/test_text_fold.py
       - name: Test list search
