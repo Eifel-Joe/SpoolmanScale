@@ -15,6 +15,7 @@
 #include "services/worker_task.h"
 #include "services/github_release.h"
 #include "services/prefs_store.h"
+#include "services/own_server_rules.h"
 #include "services/server_refusal.h"
 
 // Opening the connection ahead of time is a task of its own: the handshake
@@ -261,6 +262,9 @@ int ChunkedStream::available() {
 
 Stream& BackendHttp::getStream() {
   streamed_ = true;
+  // A made-up answer (acceptance build) has no body; the kept connection
+  // must not be handed out, nothing comes on it.
+  if (answered_) { counted_.reset(nullptr); return counted_; }
   if (_transferEncoding == HTTPC_TE_CHUNKED) {
     chunked_.reset(&Http::getStream());
     chunked_.setTimeout(_tcpTimeout);
@@ -291,6 +295,7 @@ String BackendHttp::getString() {
 
 void BackendHttp::newAnswer() {
   settled_  = false;
+  answered_ = false;
   streamed_ = false;
   counted_.reset(nullptr);
   counted_.count = 0;
@@ -375,19 +380,24 @@ bool BackendHttp::docRefused(const char* method) {
 // rate-limit the scale or turn a weight down without harm, and the acceptance
 // is Claude's. Fix: the request is not sent, and the code comes back as the
 // server's - every caller above treats it as an answer. Only the server's own
-// address, as noteRefusal() keeps it: GitHub, Spoolman's database and a
-// Klipper printer are other servers. HTTPClient read no answer, so _size goes
-// to 0 and a caller that reads the body gets an empty one at once instead of
-// waiting on the kept connection; _returnCode stays as it was, so settle()
-// keeps that connection, and noteRefusal() sees nothing - the refusal is
-// recorded here, its Retry-After with it, as a real one would be.
+// host and port (ownServer(), as noteRefusal() keeps it): GitHub, Spoolman's
+// database and a Klipper printer are other servers. HTTPClient read no
+// answer, so nothing may be waited for: _size 0 for getString(), answered_ for
+// getStream() (a kept https connection would wait its whole timeout), and
+// _returnCode 0 and no chunking, so settle() drains nothing an earlier page of
+// the same object left and keeps the connection, and noteRefusal() sees
+// nothing - the refusal is recorded here, its Retry-After with it, as a real
+// one would be.
 // NOT-TO-DO: fake it in begin() (a failed begin() reads as no connection, not
 // as an answer) or below HTTPClient (a fake socket would have to speak HTTP).
 bool BackendHttp::docAnswered(const char* method, int& code) {
-  if (!strstr(backendBaseUrl(), _host.c_str())) return false;
+  if (!ownServer()) return false;
   char retry[12] = "";
   if (!docAnswerTake(_uri.c_str(), &code, retry, sizeof(retry))) return false;
   _size = 0;
+  _returnCode = 0;
+  _transferEncoding = HTTPC_TE_IDENTITY;
+  answered_ = true;
   if (serverRefusalOf(code) != REFUSAL_NONE) serverRefusalRecord(code, retry);
   logSDf("Acceptance build: %s %s answered with HTTP %d%s%s, not sent", method ? method : "?",
          _uri.c_str(), code, retry[0] ? ", Retry-After " : "", retry);
@@ -486,17 +496,27 @@ int BackendHttp::PUT(uint8_t* payload, size_t size) {
 }
 #endif  // SSC_ACCEPTANCE
 
+// Whether this request went to the scale's own server: host and port as the
+// backend's address names them (services/own_server_rules.h), so that GitHub,
+// Spoolman's database and a Klipper printer's Moonraker are none of it, also
+// when Moonraker runs on the machine that serves Spoolman.
+bool BackendHttp::ownServer() const {
+  return sameServerAs(backendBaseUrl(), _host.c_str(), _port);
+}
+
 // Here because this is the one place that sees the header, whichever backend
 // and whichever request it was. Only for the backend's own address: GitHub says
 // 403 for its rate limit, which is no verdict on the key entered for the server.
 void BackendHttp::noteRefusal() {
   if (serverRefusalOf(_returnCode) == REFUSAL_NONE) return;
-  if (!strstr(backendBaseUrl(), _host.c_str())) return;
+  if (!ownServer()) return;
   serverRefusalRecord(_returnCode, Http::header("Retry-After").c_str());
 }
 
 void BackendHttp::collectHeaders(const char* keys[], size_t count) {
-  static constexpr size_t COLLECT_MAX = 6;
+  // FilaMan's label raster keeps six (filaman_labels.cpp), Retry-After comes
+  // on top; the original's 6 dropped X-Preset-Id.
+  static constexpr size_t COLLECT_MAX = 8;
   const char* all[COLLECT_MAX];
   size_t n = 0;
   for (; n < count && n + 1 < COLLECT_MAX; n++) all[n] = keys[n];

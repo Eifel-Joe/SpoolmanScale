@@ -206,6 +206,7 @@ class BackendHttp : private BackendTlsHolder, public HTTPClient {
   bool docRefused(const char* method);
 #endif
   void newAnswer();
+  bool ownServer() const;
   void noteRefusal();
   void settle();
   bool answerRead();
@@ -215,6 +216,7 @@ class BackendHttp : private BackendTlsHolder, public HTTPClient {
   bool collecting_ = false; // Retry-After is on the list of headers to keep
   bool settled_  = false;   // the kept connection's fate for this answer is decided
   bool streamed_ = false;   // the caller read the body through getStream()
+  bool answered_ = false;   // the acceptance build made this answer up: no body, nothing to read
   ChunkedStream chunked_;
   CountedStream counted_;
 };

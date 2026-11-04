@@ -10,8 +10,8 @@
 //  its end either way); this is the copy that goes on to the browser. Since
 //  0.8.5 they are written in English and German, and a stable release carries
 //  the notes of its betas: v0.8.6 has 12 849 bytes, and the old 8000 cut the
-//  German part off in mid sentence (Punkteliste n71). The limit is two and a
-//  half times that. Text this long lies in PSRAM (platformio.ini:
+//  German part off in mid sentence (Punkteliste n71). The limit is nearly two
+//  and a half times that. Text this long lies in PSRAM (platformio.ini:
 //  CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=4096), so the internal heap does not
 //  pay for it.
 //

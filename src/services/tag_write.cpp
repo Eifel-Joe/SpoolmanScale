@@ -10,6 +10,7 @@
 #include "hardware/nfc.h"
 #include "hardware/sd_logger.h"
 #include "app/app_state.h"
+#include "app/doc_build.h"
 #include "bambu/bambu_catalog.h"
 #include "bambu/bambu_scan.h"
 #include "bambu/bambu_tag.h"
@@ -1550,6 +1551,9 @@ void tagWriteTick() {
   // spool the backend could not hand over is not one to bind a tag to either,
   // so that failure keeps the floor to itself.
   if (!wrote && (!pending_link || code == TW_ERR_BACKEND)) return;
+  // The acceptance build's made-up tag (Spec 5.3 AA) refuses every write: its
+  // UID must not then be bound to a real spool. A release never has one.
+  if (!wrote && docTagActive()) return;
 
   // Erase returned above, so there is no format to branch on here any more.
   char m[160];

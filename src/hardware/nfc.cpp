@@ -12,14 +12,13 @@
 // write and every MIFARE call stops while it lies there; a real tag on the
 // reader is not looked at then. In a release the stubs say "no tag" and this
 // compiles to what it was.
-static bool simTagRefused(const char* what, uint8_t at) {
+[[maybe_unused]] static bool simTagRefused(const char* what, uint8_t at) {
   logSDf("NFC: %s %u not written, the made-up tag of the acceptance build lies on the reader", what,
          (unsigned)at);
   return false;
 }
 
 #if defined(SSC_DOC_BUILD)
-#include "sd_logger.h"
 
 // Documentation firmware only (services/doc_build_rules.h): no tag is
 // written. Wurzel: Spec 5.3 AA locks every way out, and the firmware of
