@@ -1,6 +1,9 @@
 #include "tare_entry.h"
 
 #include <Arduino.h>
+// Before lang.h: its T() macro breaks ArduinoJson's templates (spool_tare.h,
+// spoolman_api.h below bring the library in).
+#include <ArduinoJson.h>
 #include <lvgl.h>
 #include <cmath>
 #include <cstdint>
@@ -647,13 +650,15 @@ void tareEntryFirstWeighDone(int spool_id) {
 // The chain is read off the Spoolman server behind BamBuddy, because BamBuddy
 // hands a spool with nothing anywhere over as 250 g "inherited", the same as
 // one whose brand has 250 g (core_weight_is_inherited, its fallback). Only for
-// "without type" and only where the first weighing runs at all.
+// "without type" and only where the first weighing runs at all (BamBuddy with
+// Spoolman, a load cell). The read waits 3 s for an answer, plus the connect;
+// the create before it went through BamBuddy to the same Spoolman.
 // NOT-TO-DO: reading through BamBuddy's proxy: it has no way to say "nothing".
 void tareEntryCreateAnswered(int spool_id, int type_g) {
   if (spool_id <= 0) return;
   bool chain_read = false;
   bool any_level  = false;
-  if (type_g <= 0 && spoolTypesActive() && bbSpoolmanUrl()[0]) {
+  if (type_g <= 0 && spoolTypesActive() && g_scale_fitted && bbSpoolmanUrl()[0]) {
     JsonDocument doc;
     const int code = spoolmanGetSpoolJson(bbSpoolmanUrl(), spool_id, doc, 3000, nullptr);
     if (code == 200) {
