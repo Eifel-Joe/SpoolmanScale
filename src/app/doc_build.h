@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 
 // SSC_ACCEPTANCE comes from here when the documentation firmware sets only
@@ -40,6 +41,25 @@ float docSimGrams();
 // Called from the main loop with millis(): ends a simulated weight that ran out.
 void  docSimTick(uint32_t now_ms);
 
+// A made-up answer of the scale's own server (Spec 5.3 AA, v0.8.7-beta.2;
+// services/sim_answer_rules.h): the next `count` requests whose path holds
+// `word` get `code` without being sent, a 429 with `retry` as its Retry-After.
+// Unlike the rest of this file it is asked from both cores - a backend job
+// sends from its own task - so it keeps its state under a lock.
+void docAnswerSet(int code, int count, const char* word, const char* retry);
+void docAnswerOff();
+// For BackendHttp, before it sends to its server: true and the answer when
+// this request is one of them; the retry text may come back empty.
+bool docAnswerTake(const char* uri, int* code, char* retry, size_t retry_len);
+
+// A made-up, empty NTAG215 on the reader (services/sim_tag_rules.h): the door
+// of the reader (hardware/nfc.cpp) answers with it while it is set.
+void docTagSet(const uint8_t uid[7]);
+void docTagOff();
+bool docTagActive();
+bool docTagUid(uint8_t* uid, uint8_t* uid_len);
+bool docTagPage(uint8_t page, uint8_t* data);
+
 // The version every text on the display shows (header line, info screen, the
 // firmware screens): FW_VERSION in the acceptance firmware, which says
 // "A" there (Spec V61), and FW_VERSION without "-doku" in the documentation
@@ -58,6 +78,14 @@ static inline void  docSimOff() {}
 static inline bool  docSimActive() { return false; }
 static inline float docSimGrams() { return 0.0f; }
 static inline void  docSimTick(uint32_t) {}
+static inline void  docAnswerSet(int, int, const char*, const char*) {}
+static inline void  docAnswerOff() {}
+static inline bool  docAnswerTake(const char*, int*, char*, size_t) { return false; }
+static inline void  docTagSet(const uint8_t*) {}
+static inline void  docTagOff() {}
+static inline bool  docTagActive() { return false; }
+static inline bool  docTagUid(uint8_t*, uint8_t*) { return false; }
+static inline bool  docTagPage(uint8_t, uint8_t*) { return false; }
 
 // A release shows what it is.
 static inline const char* fwVersionShown() { return FW_VERSION; }

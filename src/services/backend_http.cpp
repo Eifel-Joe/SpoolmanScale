@@ -7,6 +7,7 @@
 #include <freertos/semphr.h>
 
 #include "app/app_state.h"
+#include "app/doc_build.h"
 #include "hardware/sd_logger.h"
 #include "services/backend.h"
 #include "services/backend_job_rules.h"
@@ -365,56 +366,125 @@ bool BackendHttp::docRefused(const char* method) {
   }
   return true;
 }
+#endif  // SSC_DOC_BUILD
 
-// Every overload of HTTPClient's writing calls, so that none stays hidden (see
-// backend_http.h) and none reaches the network. They refuse before any byte is
-// sent, so the kept connection is not touched and the caller's end() hands it
-// back as it was.
+#if defined(SSC_ACCEPTANCE)
+// Acceptance and documentation firmware only (Spec 5.3 AA, v0.8.7-beta.2): an
+// answer the acceptance made up for the next requests to the scale's own
+// server. Wurzel: Jörg's BamBuddy cannot be made to refuse a key's account,
+// rate-limit the scale or turn a weight down without harm, and the acceptance
+// is Claude's. Fix: the request is not sent, and the code comes back as the
+// server's - every caller above treats it as an answer. Only the server's own
+// address, as noteRefusal() keeps it: GitHub, Spoolman's database and a
+// Klipper printer are other servers. HTTPClient read no answer, so _size goes
+// to 0 and a caller that reads the body gets an empty one at once instead of
+// waiting on the kept connection; _returnCode stays as it was, so settle()
+// keeps that connection, and noteRefusal() sees nothing - the refusal is
+// recorded here, its Retry-After with it, as a real one would be.
+// NOT-TO-DO: fake it in begin() (a failed begin() reads as no connection, not
+// as an answer) or below HTTPClient (a fake socket would have to speak HTTP).
+bool BackendHttp::docAnswered(const char* method, int& code) {
+  if (!strstr(backendBaseUrl(), _host.c_str())) return false;
+  char retry[12] = "";
+  if (!docAnswerTake(_uri.c_str(), &code, retry, sizeof(retry))) return false;
+  _size = 0;
+  if (serverRefusalOf(code) != REFUSAL_NONE) serverRefusalRecord(code, retry);
+  logSDf("Acceptance build: %s %s answered with HTTP %d%s%s, not sent", method ? method : "?",
+         _uri.c_str(), code, retry[0] ? ", Retry-After " : "", retry);
+  return true;
+}
+
+// Every overload of HTTPClient's sending calls, so that none stays hidden (see
+// backend_http.h). A made-up answer first; then, in the documentation
+// firmware, the write lock. Both decide before any byte is sent, so the kept
+// connection is not touched and the caller's end() hands it back as it was.
+int BackendHttp::GET() {
+  int code = 0;
+  if (docAnswered("GET", code)) return code;
+  return Http::GET();
+}
+
 int BackendHttp::sendRequest(const char* type, String payload) {
+  int code = 0;
+  if (docAnswered(type, code)) return code;
+#if defined(SSC_DOC_BUILD)
   if (docRefused(type)) return HTTPC_ERROR_CONNECTION_REFUSED;
+#endif
   return Http::sendRequest(type, payload);
 }
 
 int BackendHttp::sendRequest(const char* type, uint8_t* payload, size_t size) {
+  int code = 0;
+  if (docAnswered(type, code)) return code;
+#if defined(SSC_DOC_BUILD)
   if (docRefused(type)) return HTTPC_ERROR_CONNECTION_REFUSED;
+#endif
   return Http::sendRequest(type, payload, size);
 }
 
 int BackendHttp::sendRequest(const char* type, Stream* stream, size_t size) {
+  int code = 0;
+  if (docAnswered(type, code)) return code;
+#if defined(SSC_DOC_BUILD)
   if (docRefused(type)) return HTTPC_ERROR_CONNECTION_REFUSED;
+#endif
   return Http::sendRequest(type, stream, size);
 }
 
 int BackendHttp::POST(String payload) {
+  int code = 0;
+  if (docAnswered("POST", code)) return code;
+#if defined(SSC_DOC_BUILD)
   if (docRefused("POST")) return HTTPC_ERROR_CONNECTION_REFUSED;
+#endif
   return Http::POST(payload);
 }
 
 int BackendHttp::POST(uint8_t* payload, size_t size) {
+  int code = 0;
+  if (docAnswered("POST", code)) return code;
+#if defined(SSC_DOC_BUILD)
   if (docRefused("POST")) return HTTPC_ERROR_CONNECTION_REFUSED;
+#endif
   return Http::POST(payload, size);
 }
 
 int BackendHttp::PATCH(String payload) {
+  int code = 0;
+  if (docAnswered("PATCH", code)) return code;
+#if defined(SSC_DOC_BUILD)
   if (docRefused("PATCH")) return HTTPC_ERROR_CONNECTION_REFUSED;
+#endif
   return Http::PATCH(payload);
 }
 
 int BackendHttp::PATCH(uint8_t* payload, size_t size) {
+  int code = 0;
+  if (docAnswered("PATCH", code)) return code;
+#if defined(SSC_DOC_BUILD)
   if (docRefused("PATCH")) return HTTPC_ERROR_CONNECTION_REFUSED;
+#endif
   return Http::PATCH(payload, size);
 }
 
 int BackendHttp::PUT(String payload) {
+  int code = 0;
+  if (docAnswered("PUT", code)) return code;
+#if defined(SSC_DOC_BUILD)
   if (docRefused("PUT")) return HTTPC_ERROR_CONNECTION_REFUSED;
+#endif
   return Http::PUT(payload);
 }
 
 int BackendHttp::PUT(uint8_t* payload, size_t size) {
+  int code = 0;
+  if (docAnswered("PUT", code)) return code;
+#if defined(SSC_DOC_BUILD)
   if (docRefused("PUT")) return HTTPC_ERROR_CONNECTION_REFUSED;
+#endif
   return Http::PUT(payload, size);
 }
-#endif  // SSC_DOC_BUILD
+#endif  // SSC_ACCEPTANCE
 
 // Here because this is the one place that sees the header, whichever backend
 // and whichever request it was. Only for the backend's own address: GitHub says

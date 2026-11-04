@@ -10,7 +10,10 @@
 #include "hardware/sd_logger.h"
 #include "services/battery.h"
 #include "services/filament_db.h"
+#include "services/sim_answer_rules.h"
+#include "services/sim_tag_rules.h"
 #include "services/tag_family.h"
+#include "ui/tare_missing_popup.h"
 #include "web/web_access.h"
 #include "lang.h"
 
@@ -28,6 +31,15 @@
 //   POST /api/sim/tag-family?uid=<8 hex>&family=bambu|creality|snapmaker|forget|show
 //                                           a made-up tag for the tag family
 //                                           memory (v0.8.7-beta.1)
+//   POST /api/sim/server-answer?code=<400-599>&count=<1-50>[&path=<word>][&retry=<s>] | code=off
+//                                           the next requests to the scale's
+//                                           server get that answer, unsent
+//                                           (v0.8.7-beta.2)
+//   POST /api/sim/tag?uid=<14 hex> | uid=off
+//                                           a made-up empty NTAG215 on the
+//                                           reader (v0.8.7-beta.2)
+//   POST /api/sim/popup?name=tare-missing   a new popup opened for the picture
+//                                           (v0.8.7-beta.2)
 // This file is the only place in src/ that spells them: the release run looks
 // for these two texts in every file it attaches, and a hit means a switch got
 // into a release (test_build_variants.py keeps the texts out of every other file).
@@ -147,6 +159,73 @@ void docRoutes(WebServer& srv) {
            uid[2], uid[3], now_c, state);
     srv.send(200, "application/json",
              String("{\"family\":\"") + now_c + "\",\"memory\":\"" + state + "\"}");
+  });
+
+  // A made-up answer of the scale's own server (Spec 5.3 AA, v0.8.7-beta.2):
+  // the refusals of a server and a weight it does not take, which Jörg's
+  // BamBuddy cannot be made to give without harm. BackendHttp gives the code
+  // to the next `count` requests whose path holds `path` (any without it),
+  // and sends nothing; a 429 carries `retry` as its Retry-After, a refusal is
+  // recorded as a real one. code=off ends it before the count is used up.
+  srv.on("/api/sim/server-answer", HTTP_POST, [&srv]() {
+    if (!webRequire(srv, GATE_MAINT, T(STR_W_NAV_LOGS))) return;
+    if (srv.arg("code") == "off") {
+      docAnswerOff();
+      logSD("Acceptance build: made-up server answer off");
+      srv.send(200, "application/json", "{\"answer\":false}");
+      return;
+    }
+    const int code  = intArg(srv, "code", -1);
+    const int count = intArg(srv, "count", 1);
+    const String word  = srv.arg("path");
+    const String retry = srv.arg("retry");
+    if (!simAnswerArgsOk(code, count, word.c_str(), retry.c_str())) {
+      srv.send(400, "application/json",
+               "{\"error\":\"code 400-599 or off, count 1-50, path up to 39 URL characters, retry digits\"}");
+      return;
+    }
+    docAnswerSet(code, count, word.c_str(), retry.c_str());
+    logSDf("Acceptance build: the next %d request(s) to the server%s%s get HTTP %d%s%s, unsent", count,
+           word.length() ? " with " : "", word.c_str(), code, retry.length() ? ", Retry-After " : "",
+           retry.c_str());
+    srv.send(200, "application/json", String("{\"answer\":true,\"code\":") + code + ",\"count\":" + count + "}");
+  });
+
+  // A made-up, empty NTAG215 on the reader (Spec 5.3 AA, v0.8.7-beta.2): the
+  // lookup of a tag nobody knows runs only once one lies there. The reader's
+  // door answers with it until uid=off; it is never written, and a real tag
+  // is not looked at meanwhile.
+  srv.on("/api/sim/tag", HTTP_POST, [&srv]() {
+    if (!webRequire(srv, GATE_MAINT, T(STR_W_NAV_LOGS))) return;
+    const String uid_arg = srv.arg("uid");
+    if (uid_arg == "off") {
+      docTagOff();
+      logSD("Acceptance build: made-up tag off the reader");
+      srv.send(200, "application/json", "{\"tag\":false}");
+      return;
+    }
+    uint8_t uid[SIM_TAG_UID_LEN];
+    if (!simTagUidParse(uid_arg.c_str(), uid)) {
+      srv.send(400, "application/json", "{\"error\":\"uid as 14 hex digits (7 bytes), or off\"}");
+      return;
+    }
+    docTagSet(uid);
+    logSDf("Acceptance build: made-up tag %s on the reader (empty NTAG215)", uid_arg.c_str());
+    srv.send(200, "application/json", String("{\"tag\":true,\"uid\":\"") + uid_arg + "\"}");
+  });
+
+  // A new popup opened for the picture (Spec 5.3 AA, v0.8.7-beta.2): "Leergewicht
+  // fehlt" comes only from servers that refuse a weight without an empty weight,
+  // and Jörg's Spoolman never does. The rule behind it is the host test's.
+  srv.on("/api/sim/popup", HTTP_POST, [&srv]() {
+    if (!webRequire(srv, GATE_MAINT, T(STR_W_NAV_LOGS))) return;
+    if (srv.arg("name") != "tare-missing") {
+      srv.send(400, "application/json", "{\"error\":\"name=tare-missing\"}");
+      return;
+    }
+    showTareMissingPopup();
+    logSD("Acceptance build: popup tare-missing opened for the picture");
+    srv.send(200, "application/json", "{\"popup\":\"tare-missing\"}");
   });
 
   // The battery as the rules would see it (Spec 5.3 AA, V60): readings made

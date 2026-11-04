@@ -3,6 +3,21 @@
 #include <Adafruit_PN532.h>
 #include <string.h>
 
+#include "app/doc_build.h"
+#include "sd_logger.h"
+
+// The acceptance build's made-up tag (Spec 5.3 AA, v0.8.7-beta.2; app/doc_build.h):
+// an empty NTAG215 that this door gives while it is set - its UID for a poll,
+// its pages for a read. It cannot be written and is no MIFARE card, so every
+// write and every MIFARE call stops while it lies there; a real tag on the
+// reader is not looked at then. In a release the stubs say "no tag" and this
+// compiles to what it was.
+static bool simTagRefused(const char* what, uint8_t at) {
+  logSDf("NFC: %s %u not written, the made-up tag of the acceptance build lies on the reader", what,
+         (unsigned)at);
+  return false;
+}
+
 #if defined(SSC_DOC_BUILD)
 #include "sd_logger.h"
 
@@ -66,6 +81,7 @@ bool nfcHardwareReinit(uint32_t* firmware_version) {
 }
 
 bool nfcReadPassiveTarget(uint8_t* uid, uint8_t* uid_len, uint16_t timeout_ms) {
+  if (docTagUid(uid, uid_len)) return true;
   return nfc && nfc->readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, uid_len, timeout_ms);
 }
 
@@ -139,7 +155,7 @@ bool nfcReadMifareSector(int sector, uint8_t key[6], uint8_t uid[4], uint8_t blo
                          uint8_t key_type) {
   uint8_t trailer_block = sector * 4 + 3;
 
-  if (!nfc) return false;
+  if (!nfc || docTagActive()) return false;
 
   for (uint8_t attempt = 0; attempt < MIFARE_SECTOR_READ_ATTEMPTS; attempt++) {
     if (attempt > 0) {
@@ -170,12 +186,13 @@ bool nfcReadMifareSector(int sector, uint8_t key[6], uint8_t uid[4], uint8_t blo
 }
 
 bool nfcReadMifareBlock(uint8_t block, uint8_t data[16]) {
+  if (docTagActive()) return false;
   return nfc && nfc->mifareclassic_ReadDataBlock(block, data);
 }
 
 bool nfcAuthMifareSector(int sector, const uint8_t key[6], const uint8_t uid[4],
                          uint8_t key_type) {
-  if (!nfc) return false;
+  if (!nfc || docTagActive()) return false;
   uint8_t k[6], u[4];
   memcpy(k, key, 6);
   memcpy(u, uid, 4);
@@ -188,6 +205,7 @@ bool nfcWriteMifareBlock(uint8_t block, const uint8_t data[16]) {
   (void)data;
   return docTagWriteRefused("MIFARE block", block);
 #else
+  if (docTagActive()) return simTagRefused("MIFARE block", block);
   if (!nfc) return false;
   uint8_t d[16];
   memcpy(d, data, 16);
@@ -196,6 +214,7 @@ bool nfcWriteMifareBlock(uint8_t block, const uint8_t data[16]) {
 }
 
 bool nfcReadNtagPage(uint8_t page, uint8_t* data) {
+  if (docTagActive()) return docTagPage(page, data);
   if (!nfc) return false;
   for (int retry = 0; retry < 3; retry++) {
     if (nfc->ntag2xx_ReadPage(page, data)) return true;
@@ -209,6 +228,7 @@ bool nfcWriteNtagPage(uint8_t page, uint8_t* data) {
   (void)data;
   return docTagWriteRefused("NTAG page", page);
 #else
+  if (docTagActive()) return simTagRefused("NTAG page", page);
   return nfc && nfc->ntag2xx_WritePage(page, data);
 #endif
 }

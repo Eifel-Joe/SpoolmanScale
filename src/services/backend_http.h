@@ -5,6 +5,11 @@
 #include <WiFiClientSecure.h>
 #include <memory>
 
+// SSC_ACCEPTANCE of a documentation build (-DSSC_DOC_BUILD alone) comes from
+// here; without it this header and backend_http.cpp would see two different
+// classes in that build.
+#include "app_config.h"
+
 // ============================================================
 //  ONE HTTP CLIENT FOR EVERY BACKEND ADDRESS
 //
@@ -167,13 +172,18 @@ class BackendHttp : private BackendTlsHolder, public HTTPClient {
   // Never borrow the kept connection: for a diagnostic that measures what a
   // connection of its own costs, and must not move the kept one elsewhere.
   void noPool() { no_pool_ = true; }
-#if defined(SSC_DOC_BUILD)
-  // Documentation firmware only (services/doc_build_rules.h): it only reads.
-  // These hide HTTPClient's writing calls, every overload of them: one left
-  // out would be hidden too, and a caller of it would compile in a release but
-  // not here. Each refuses with HTTPC_ERROR_CONNECTION_REFUSED, sendRequest()
-  // lets GET and HEAD through. The acceptance firmware has none of this: it
-  // has to write.
+#if defined(SSC_ACCEPTANCE)
+  // Acceptance and documentation firmware only. These hide HTTPClient's
+  // sending calls, every overload of them: one left out would be hidden too,
+  // and a caller of it would compile in a release but not here.
+  // - Each first gives a made-up answer of the server when the acceptance asked
+  //   for one (docAnswered(), Spec 5.3 AA, v0.8.7-beta.2): nothing is sent.
+  //   Otherwise the request goes out as in a release.
+  // - The documentation firmware then refuses every write with
+  //   HTTPC_ERROR_CONNECTION_REFUSED (services/doc_build_rules.h); sendRequest()
+  //   lets GET and HEAD through. The acceptance firmware has no such lock: it
+  //   has to write.
+  int GET();
   int sendRequest(const char* type, String payload);
   int sendRequest(const char* type, uint8_t* payload = NULL, size_t size = 0);
   int sendRequest(const char* type, Stream* stream, size_t size = 0);
@@ -185,6 +195,11 @@ class BackendHttp : private BackendTlsHolder, public HTTPClient {
   int PUT(uint8_t* payload, size_t size);
 #endif
  private:
+#if defined(SSC_ACCEPTANCE)
+  // True and the code when the acceptance made up the answer to this request:
+  // to the scale's own server only, the path from HTTPClient's _uri.
+  bool docAnswered(const char* method, int& code);
+#endif
 #if defined(SSC_DOC_BUILD)
   // True (and a log line, at most one a minute) when this request must not go
   // out: its method and path fail docRequestAllowed().
