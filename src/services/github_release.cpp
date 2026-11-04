@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
+#include <StreamString.h>
 #include <Update.h>
 #include <WiFiClient.h>
 #include <WiFiClientSecure.h>
@@ -40,6 +41,77 @@ extern const uint8_t x509_crt_bundle_end[] asm("_binary_x509_crt_bundle_end");
 
 void githubTrust(WiFiClientSecure &client) {
   client.setCACertBundle(x509_crt_bundle_start, x509_crt_bundle_end - x509_crt_bundle_start);
+}
+
+// ---- one API request, tried twice -------------------------------------
+//
+// Taken from the original (Niko11111, 91c47a0, Spec 5.3 U3 o05), for the
+// release notes of the web pages only.
+// Wurzel: HTTPClient::getString() drops the error of writeToStream(), so a
+//   body cut off midway came back as what had arrived so far and failed as
+//   "JSON: IncompleteInput", with nothing about the network in the log.
+// Fix: the body through writeToStream(), the URL, code and bytes received in
+//   the log, and one more try after 500 ms on a transport error. A 404 or a
+//   403 is GitHub's answer and is not asked twice.
+// NOT-TO-DO: the same for githubLatestTag(). It reads the version file of
+//   this fork, a kilobyte with a length, straight off the stream; "Suchen" on
+//   the scale runs it on the loop, where a second try holds the screen up to
+//   eight seconds longer, and the daily check comes round again anyway.
+// Test: test/test_github_notes_retry.py.
+
+// One API request: connection, answer and body all have to arrive.
+#define GH_API_TIMEOUT_MS  8000
+#define GH_API_ATTEMPTS    2
+#define GH_API_RETRY_MS    500
+
+// One attempt at an API URL. The status code, or a negative HTTPClient error
+// when the request or the body did not make it; body holds the whole answer
+// only on 200.
+static int ghApiAttempt(const String &url, String &body) {
+  WiFiClientSecure client;
+  githubTrust(client);
+  HTTPClient http;
+  if (!http.begin(client, url)) {
+    logSDf("GitHub API: %s - connection setup failed", url.c_str());
+    return HTTPC_ERROR_CONNECTION_REFUSED;
+  }
+  http.addHeader("User-Agent", "SpoolmanScale-ESP32");
+  http.setConnectTimeout(GH_API_TIMEOUT_MS);
+  http.setTimeout(GH_API_TIMEOUT_MS);
+  const int code = http.GET();
+  if (code != 200) {
+    // 404 is the ordinary answer for a tag that was never published.
+    if (code != 404)
+      logSDf("GitHub API: %s - %d %s", url.c_str(), code,
+             code < 0 ? HTTPClient::errorToString(code).c_str() : "");
+    http.end();
+    return code;
+  }
+  // Read into a String rather than parsed off the socket: http.getStream()
+  // hands back the raw client, which skips HTTPClient's chunked decoding, and
+  // GitHub answers chunked.
+  StreamString got;
+  if (http.getSize() > 0) got.reserve(http.getSize() + 1);
+  const int read = http.writeToStream(&got);
+  http.end();
+  if (read < 0) {
+    logSDf("GitHub API: %s - body cut off after %u bytes, %d %s", url.c_str(),
+           (unsigned)got.length(), read, HTTPClient::errorToString(read).c_str());
+    return read;
+  }
+  body = std::move(got);
+  return code;
+}
+
+// An API URL with one retry for a failure on the way.
+static int ghApiGet(const String &url, String &body) {
+  int code = 0;
+  for (int attempt = 1; attempt <= GH_API_ATTEMPTS; attempt++) {
+    if (attempt > 1) delay(GH_API_RETRY_MS);
+    code = ghApiAttempt(url, body);
+    if (code >= 0) break;
+  }
+  return code;
 }
 
 bool githubLatestTag(bool prerelease, char *tag, size_t tag_len,
@@ -152,35 +224,25 @@ bool githubReleaseByTag(const char *tag, GithubRelease &out,
     return false;
   }
 
-  WiFiClientSecure client;
-  githubTrust(client);
-  HTTPClient http;
   String url = "https://api.github.com/repos/" GH_REPO "/releases/tags/";
   url += tag;
-  // As in githubLatestTag(): the low point of this request, ended on every way out.
+  // As in githubLatestTag(): the low point of this request, both tries of
+  // ghApiGet() included, ended on every way out.
   heapLowBegin();
-  http.begin(client, url);
-  http.addHeader("User-Agent", "SpoolmanScale-ESP32");
-  http.setTimeout(8000);
-  int code = http.GET();
+  String payload;
+  const int code = ghApiGet(url, payload);
+  const uint32_t heap_low = heapLowEnd();
+  char low_txt[12];
 
   // 404 is the ordinary answer for a build that was never published - a local
   // one, or an image pushed through the browser. Told apart from a real
   // failure so the page can say which it was.
   if (code != 200) {
     if (err && err_len) snprintf(err, err_len, code == 404 ? "notfound" : "HTTP %d", code);
-    http.end();
     // The low point on the failed ways out as well, as in githubLatestTag().
-    const uint32_t low = heapLowEnd();
-    char low_txt[12];
-    logSDf("OTA notes: %s HTTP %d, low=%s", tag, code, heapLowText(low, low_txt, sizeof(low_txt)));
+    logSDf("OTA notes: %s HTTP %d, low=%s", tag, code, heapLowText(heap_low, low_txt, sizeof(low_txt)));
     return false;
   }
-
-  String payload = http.getString();
-  http.end();
-  const uint32_t heap_low = heapLowEnd();
-  char low_txt[12];
 
   JsonDocument filter;
   filter["tag_name"]     = true;
