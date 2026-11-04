@@ -50,7 +50,10 @@
 #define UNK_CHIP_TEXT_X   42   // and in a chip
 #define UNK_LINE1_Y        8
 #define UNK_LINE2_Y       32
-#define UNK_ID_W          64   // the spool id at the right end of the row
+// The spool id at the right end of the row: "#" and five digits take 66 px at
+// LVGL's per-glyph rounding ("#40000"), and the name stops 4 px before them.
+// See test_spool_id_width.py.
+#define UNK_ID_W          70
 #define UNK_TILE_SYMBOL_Y 16
 #define UNK_TILE_TEXT_Y   48   // a caption of two lines still ends inside
 // Four tiles to a row are 97 px each, and the German caption of the first one

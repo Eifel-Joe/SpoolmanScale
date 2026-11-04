@@ -45,6 +45,7 @@
 #include "ui/sort_entry_screen.h"
 #include "ui/tag_create_popup.h"
 #include "ui/tare_entry.h"
+#include "ui/list_row_layout.h"
 
 // From ui/spool_flow.cpp, see the same line in spoolman_lookup.cpp: what counts
 // as bound, for the spool cache a download here fills.
@@ -571,7 +572,10 @@ void showCopySpoolList() {
     lv_label_set_text(lbl_id, id_buf);
     lv_obj_set_style_text_color(lbl_id, lv_color_hex(UI_COL_ACCENT), 0);
     lv_obj_set_style_text_font(lbl_id, &lv_font_montserrat_ext_16, 0);
-    lv_obj_align(lbl_id, LV_ALIGN_TOP_LEFT, 6, 5);
+    lv_obj_align(lbl_id, LV_ALIGN_TOP_LEFT, LIST_ROW_ID_X, 5);
+    // The name behind the id that is there (list_row_layout.h).
+    const int name_x = listRowNameX(lv_txt_get_width(id_buf, strlen(id_buf),
+                                                     &lv_font_montserrat_ext_16, 0, LV_TEXT_FLAG_NONE));
 
     lv_obj_t *lbl_name = lv_label_create(row);
     char full_name[64];
@@ -584,9 +588,9 @@ void showCopySpoolList() {
     lv_label_set_text(lbl_name, full_name);
     lv_obj_set_style_text_color(lbl_name, lv_color_hex(UI_COL_INK), 0);
     lv_obj_set_style_text_font(lbl_name, &lv_font_montserrat_ext_16, 0);
-    lv_obj_align(lbl_name, LV_ALIGN_TOP_LEFT, 50, 5);
+    lv_obj_align(lbl_name, LV_ALIGN_TOP_LEFT, name_x, 5);
     lv_label_set_long_mode(lbl_name, LV_LABEL_LONG_DOT);
-    lv_obj_set_width(lbl_name, 396);
+    lv_obj_set_width(lbl_name, LIST_ROW_TEXT_END - name_x);
 
     lv_obj_t *swatch = lv_obj_create(row);
     lv_obj_set_size(swatch, 14, 14);

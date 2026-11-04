@@ -53,6 +53,7 @@
 #include "services/backend.h"
 #include "services/breadcrumb.h"
 #include "services/tag_spool_match.h"
+#include "ui/list_row_layout.h"
 
 namespace {
 
@@ -2872,7 +2873,10 @@ void showFilteredSpoolList(const char* vendor_name, const char* material_prefix,
     lv_label_set_text(lbl_id, id_buf);
     lv_obj_set_style_text_color(lbl_id, lv_color_hex(UI_COL_ACCENT), 0);
     lv_obj_set_style_text_font(lbl_id, &lv_font_montserrat_ext_16, 0);
-    lv_obj_align(lbl_id, LV_ALIGN_TOP_LEFT, 6, 5);
+    lv_obj_align(lbl_id, LV_ALIGN_TOP_LEFT, LIST_ROW_ID_X, 5);
+    // The name behind the id that is there (list_row_layout.h).
+    const int name_x = listRowNameX(lv_txt_get_width(id_buf, strlen(id_buf),
+                                                     &lv_font_montserrat_ext_16, 0, LV_TEXT_FLAG_NONE));
 
     // Material + Name zusammen, abgeschnitten wenn zu lang
     // Avoid duplication when the filament name already starts with the material
@@ -2888,9 +2892,9 @@ void showFilteredSpoolList(const char* vendor_name, const char* material_prefix,
     lv_label_set_text(lbl_name, full_name);
     lv_obj_set_style_text_color(lbl_name, lv_color_hex(UI_COL_INK), 0);
     lv_obj_set_style_text_font(lbl_name, &lv_font_montserrat_ext_16, 0);
-    lv_obj_align(lbl_name, LV_ALIGN_TOP_LEFT, 50, 5);
+    lv_obj_align(lbl_name, LV_ALIGN_TOP_LEFT, name_x, 5);
     lv_label_set_long_mode(lbl_name, LV_LABEL_LONG_DOT);
-    lv_obj_set_width(lbl_name, 396);  // volle Breite - kein Hersteller in Zeile 1
+    lv_obj_set_width(lbl_name, LIST_ROW_TEXT_END - name_x);  // the whole width: no maker on line 1
 
     // ── Zeile 2: Farbkachel + Gewicht + Hersteller rechts ─
     // Color tile (14x14px)

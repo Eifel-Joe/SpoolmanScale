@@ -54,8 +54,10 @@
 
 #define AMSD_SWATCH       42
 #define AMSD_SWATCH_TAP_EXT_PX 10  // a tap this far past the swatch opens the colour tile
-#define AMSD_ID_X         60
-#define AMSD_ID_W         46
+// Five digits whole (o16): LVGL rounds every glyph, "40000" takes 55 px, and
+// 46 cut it from 16400 on; up to Material at 114. See test_spool_id_width.py.
+#define AMSD_ID_X         59
+#define AMSD_ID_W         55
 #define AMSD_MAT_X        114
 #define AMSD_MAT_W        114
 

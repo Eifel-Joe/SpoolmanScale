@@ -1072,13 +1072,16 @@ void buildMoreInfoScreen() {
   lv_obj_set_style_text_color(lbl_id,
     (sm_found && sm_id > 0) ? lv_color_hex(UI_COL_GOOD) : lv_color_hex(UI_COL_WARN), 0);
   lv_obj_set_style_text_font(lbl_id, &lv_font_montserrat_ext_16, 0);
-  lv_obj_set_pos(lbl_id, 60, 76);
+  // Five digits whole (o16): LVGL rounds every glyph, "40000" takes 55 px, and
+  // 46 cut it from 16400 on. One pixel left of the caption, up to "Material"
+  // at 114. See test_spool_id_width.py.
+  lv_obj_set_pos(lbl_id, 59, 76);
   // Every value label on this card gets a real height, one line of its font:
   // with LV_SIZE_CONTENT a text wider than the label wraps to a second line
   // and LV_LABEL_LONG_DOT never engages, because there is no height to be
   // too tall for. The second line then ran through the divider below, or
   // over the caption of the next row. Same fix as on the AMS detail card.
-  lv_obj_set_size(lbl_id, 46, lv_font_get_line_height(&lv_font_montserrat_ext_16));
+  lv_obj_set_size(lbl_id, 55, lv_font_get_line_height(&lv_font_montserrat_ext_16));
   lv_label_set_long_mode(lbl_id, LV_LABEL_LONG_DOT);
 
   // Cap: Material

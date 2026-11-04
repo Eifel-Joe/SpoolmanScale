@@ -399,15 +399,19 @@ void buildUI() {
   lv_obj_set_style_text_font(lbl_id_cap, &lv_font_montserrat_ext_12, 0);
   lv_obj_set_pos(lbl_id_cap, 58, 53);
 
-  // SM-ID value (x=58, y=69) - 54 px, all there is up to "Material" at 112.
+  // SM-ID value (x=57, y=69) - 55 px, all there is up to "Material" at 112.
   // Five digits take up to 53.4 px, "00000"; 46 px held 16388 but cut 16400.
+  // Fork: LVGL rounds every glyph to whole pixels (lv_font_fmt_txt.c), and a
+  // "0" or a "4" is 11 px, so "40000" takes 55; at 54 it still lost its last
+  // digit to the dots. One pixel to the left, as far right as before; the
+  // swatch ends at 50. See test_spool_id_width.py.
   lbl_spoolman_id = lv_label_create(lv_scr_act());
   lv_label_set_text(lbl_spoolman_id, "?");
   lv_obj_set_style_text_color(lbl_spoolman_id, lv_color_hex(UI_COL_ACCENT), 0);
   lv_obj_set_style_text_font(lbl_spoolman_id, &lv_font_montserrat_ext_16, 0);
-  lv_obj_set_pos(lbl_spoolman_id, 58, 69);
+  lv_obj_set_pos(lbl_spoolman_id, 57, 69);
   lv_label_set_long_mode(lbl_spoolman_id, LV_LABEL_LONG_DOT);
-  lv_obj_set_width(lbl_spoolman_id, 54);
+  lv_obj_set_width(lbl_spoolman_id, 55);
 
   // Cap: Material (x=112, y=53)
   lv_obj_t *lbl_mat_cap = lv_label_create(lv_scr_act());
