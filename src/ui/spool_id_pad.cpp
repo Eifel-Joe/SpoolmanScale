@@ -13,6 +13,8 @@
 #include "lang.h"
 #include "services/backend.h"
 #include "services/backend_api.h"
+#include "services/server_reach.h"
+#include "services/server_refusal.h"
 #include "services/spool_color.h"
 #include "ui/theme.h"
 #include "ui/ui_common.h"
@@ -66,6 +68,7 @@ static SipAnswer  s_answer    = SIP_NONE;
 static bool       s_col_dirty = false;
 static bool       s_search_due = false;
 static int        s_searched_id = 0;
+static int        s_fail_code = 0;     // the code behind SIP_FAILED
 static SipSpool   s_spool;
 static void     (*s_done)(int) = nullptr;
 
@@ -223,7 +226,13 @@ static void buildColumn() {
       buildMessageCard(buf, UI_COL_WARN, T(STR_IDPAD_NOT_FOUND_HINT));
       break;
     case SIP_FAILED:
-      backendText(T(STR_NO_CONNECTION_TO), buf, sizeof(buf));
+      // A server that answered "no" is named for what it said (o12), not as
+      // one that is down.
+      if (serverRefusalOf(s_fail_code) != REFUSAL_NONE) {
+        snprintf(buf, sizeof(buf), "%s", T(serverRefusalTitleId(serverRefusalOf(s_fail_code))));
+      } else {
+        backendText(T(STR_NO_CONNECTION_TO), buf, sizeof(buf));
+      }
       buildMessageCard(buf, UI_COL_WARN, nullptr);
       buildAction(STR_IDPAD_SEARCH, UI_COL_GO_BG, UI_COL_GO_BG_PRESSED);
       break;
@@ -308,6 +317,10 @@ static SipState fetchSpool(int id) {
   if (code == 404) return SIP_NOT_FOUND;
   if (code != 200) {
     logSDf("SpoolIdPad: spool %d not readable, code %d", id, code);
+    s_fail_code = code;
+    // A refusal asks for its popup there, as in every other flow. Only a
+    // refusal: a server that is down keeps the pad's own line, as before.
+    if (serverRefusalOf(code) != REFUSAL_NONE) serverReachNote(code, true);
     return SIP_FAILED;
   }
   JsonObjectConst sp = doc.as<JsonObjectConst>();
