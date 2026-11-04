@@ -58,6 +58,22 @@ Compared with the original's current release, 0.8.3. Each line names the stable 
 
 Fixes, among them for the memory of the 7B, are in this fork's [release notes](https://github.com/Eifel-Joe/SpoolmanScale/releases).
 
+### Catalog read limits
+
+Catalog response bodies are bounded so a server that keeps sending data cannot
+hold a catalog lookup open indefinitely. The Spoolman-form whole-database
+index has a 120 s / 8 MiB budget; every other catalog answer has a
+15 s / 2 MiB budget, including BamBuddy's color-name lookup and inventory
+metadata used to enrich the catalog (owned makers and empty spools).
+The time budget starts when body reading begins and can be exceeded by at
+most one request's per-read timeout (6 to 20 s with the default callers).
+
+When a budget is exhausted, the read fails, the response is ended, and partial
+results are neither used nor cached. The log reports `cut off by the read limit`
+and the byte count. Standalone inventory operations and HTTP header timeouts are unchanged.
+The budgets are defined in `src/services/fdb_block_stream.h`; the host regression
+can be run with `python3 test/test_fdb_read_limit.py`.
+
 ### From the original's next version
 
 Already in this fork, not yet in the original's 0.8.3 release: the original's work up to its 0.8.4-beta.45, Niko's, taken over with his commits. *since 0.8.6*
@@ -149,6 +165,7 @@ This fork is built on the work of others, taken over with their commits or as ma
 - **[@wolfrage76](https://github.com/wolfrage76)** – the Waveshare support from [Waveshare-Spoolman-Scale](https://github.com/wolfrage76/Waveshare-Spoolman-Scale): one firmware for several boards with the Waveshare 7 as the second, a touch that wakes the panel, and screenshots at the panel's size. Also the photo above and the 7" enclosure.
 - **[@AreYouThereAndi2](https://github.com/AreYouThereAndi2)** – from the fork [AreYouThereAndi2/SpoolmanScale](https://github.com/AreYouThereAndi2/SpoolmanScale): the subtraction of accessories on a spool, and the settings backup and the scale test page, taken over in parts and adapted.
 - **Jensilein** – the Creality CFS tags, from the original's pre-releases.
+- **[@lvmiller](https://github.com/lvmiller)** – from the fork [lvmiller/SpoolmanScale](https://github.com/lvmiller/SpoolmanScale): the read limits for the filament database and the catalogs.
 
 Credits for SpoolmanScale itself are in the original's README below.
 
@@ -326,22 +343,6 @@ Since BamBuddy's October daily builds, the drying date has a field of its own, a
 ### Other servers
 
 Any server that implements the [integration specification](https://github.com/Niko11111/SpoolmanScale-Integration) works with the scale, also online services that do not run on your own network. A checker is included.
-
-### Catalog read limits
-
-Catalog response bodies are bounded so a server that keeps sending data cannot
-hold a catalog lookup open indefinitely. The Spoolman-form whole-database
-index has a 120 s / 8 MiB budget; every other catalog answer has a
-15 s / 2 MiB budget, including BamBuddy's color-name lookup and inventory
-metadata used to enrich the catalog (owned makers and empty spools).
-The time budget starts when body reading begins and can be exceeded by at
-most one request's per-read timeout (6 to 20 s with the default callers).
-
-When a budget is exhausted, the read fails, the response is ended, and partial
-results are neither used nor cached. The log reports `cut off by the read limit`
-and the byte count. Standalone inventory operations and HTTP header timeouts are unchanged.
-The budgets are defined in `src/services/fdb_block_stream.h`; the host regression
-can be run with `python3 test/test_fdb_read_limit.py`.
 
 ---
 
