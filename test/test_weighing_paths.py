@@ -113,6 +113,43 @@ need(squeeze("job == CJ_WEIGHT || job == CJ_CAP_RAISE || job == CJ_CAP_KEEP") in
 need(squeeze("if (s_cap_popup && sm_id != s_cap_spool_id)") in jobs,
      f"src/{CP}: the label question must close when another spool is loaded")
 
+# 3c. Everything else the weight popup and the spool's questions do, found
+# by the review: the popup's other buttons (archive, options, full spool, the
+# empty weight rows, the parts chip) act on the spool loaded when they run, and
+# a stale popup still takes taps in the pass before its tick; the questions
+# "archive?" and "dried today?" stayed open over a swap and acted on the new
+# spool; "full spool" (CJ_INITIAL), the archive (CJ_ARCHIVE) and the
+# reactivation carried no spool.
+stale = body_of(WP, "wpStale")
+need(stale and squeeze("if (sm_id == s_spool_id) return false;") in stale and squeeze("closeWeightPopups();") in stale,
+     f"src/{WP}: wpStale() must close a popup that belongs to another spool")
+wp_code = code_of(WP)
+need(wp_code.count(squeeze("if (wpStale()) return;")) >= 7,
+     f"src/{WP}: every button of the popup must first ask wpStale() "
+     f"(found {wp_code.count(squeeze('if (wpStale()) return;'))} of at least 7)")
+need(body_of(WP, "wpPrimaryClicked").startswith(squeeze("if (wpStale()) return;")),
+     f"src/{WP}: wpPrimaryClicked() must ask wpStale() first")
+show = body_of(CP, "showConfirmPopup")
+need(squeeze("s_confirm_spool_id = sm_id;") in show, f"src/{CP}: showConfirmPopup() must note the spool it asks about")
+cp_code = code_of(CP)
+need(squeeze("if ((act == 1 || act == 3) && sm_id != s_confirm_spool_id) return;") in cp_code,
+     f"src/{CP}: 'yes' to 'archive?' or 'dried today?' must not act on another spool")
+need(squeeze("s_job = CJ_ARCHIVE; s_job_spool_id = s_confirm_spool_id;") in cp_code,
+     f"src/{CP}: the archive must carry the spool it was asked for")
+need(squeeze("if (confirm_popup && (confirm_action == 1 || confirm_action == 3) && sm_id != s_confirm_spool_id)") in jobs,
+     f"src/{CP}: 'archive?' and 'dried today?' must close when another spool is loaded")
+need(squeeze("job == CJ_WEIGHT || job == CJ_CAP_RAISE || job == CJ_CAP_KEEP || job == CJ_INITIAL || job == CJ_ARCHIVE") in jobs,
+     f"src/{CP}: a full spool's label and an archive must be dropped for another spool")
+need(squeeze("s_job = CJ_INITIAL; s_job_value = netto_g; s_job_spool_id = sm_id;") in body_of(CP, "confirmNewSpool"),
+     f"src/{CP}: confirmNewSpool() must carry the spool")
+need(squeeze("if (spool_id != sm_id) {") in cap and squeeze("return;") in cap,
+     f"src/{CP}: showBamBuddyCapPopup() must not open for a spool loaded since the check")
+need(squeeze("reactivate_spool_id = sm_id;") in body_of(WP, "wpPrimaryClicked"),
+     f"src/{WP}: the reactivation must carry its spool")
+need(squeeze("if (reactivate_spool_id != sm_id) {") in loop,
+     f"src/{LOOP}: a reactivation for another spool must be dropped")
+need(squeeze("tareMissingTick(); weightPopupTick();") in loop, f"src/{LOOP}: weightPopupTick() must run every pass")
+
 # 4. FilaMan, a spool picked without a tag (a11, AreYouThereAndi2): the scale
 # takes it on for weighing only once it loaded. A failed request leaves the last
 # spool's values in place, and weighing then wrote into that one. The status
@@ -124,6 +161,10 @@ weigh = loop.find(squeeze("copyT(buf, sizeof(buf), STR_REMOTE_LINK_WEIGH);"), q)
 need(q >= 0 and 0 <= guard < adopt < weigh,
      f"src/{LOOP}: the tagless FilaMan spool must be checked as loaded (sm_found, sm_id == id) "
      f"before it is taken on and before the status says it is weighed")
+# The adoption sits in the else of that check, not after a check that only logs.
+between = loop[guard:adopt] if 0 <= guard < adopt else ""
+need(squeeze("} else {") in between and "aw_adopted" not in between,
+     f"src/{LOOP}: the tagless FilaMan spool must be taken on only in the else of the check")
 
 # 5. f06: "without type" at a create answers the first weighing only when the
 # spool, its filament or its brand has an empty weight. Both creates that show
@@ -132,7 +173,9 @@ need(q >= 0 and 0 <= guard < adopt < weigh,
 TE = "ui/tare_entry.cpp"
 answered = body_of(TE, "tareEntryCreateAnswered")
 for call in ("bbSpoolmanUrl()", "spoolmanGetSpoolJson(", "spoolTare(", "spoolTypeCreateAnswered(",
-             "tareEntryFirstWeighDone(spool_id);"):
+             "tareEntryFirstWeighDone(spool_id);",
+             "if (type_g <= 0 && spoolTypesActive() && g_scale_fitted && bbSpoolmanUrl()[0])",
+             "if (code == 200) {"):
     need(squeeze(call) in answered, f"src/{TE}: tareEntryCreateAnswered() must use {call}")
 need(squeeze("if (s_in.spool_type_asked) tareEntryCreateAnswered(r.spool_id, s_in.spool_type_g);")
      in code_of("ui/tag_create_popup.cpp"),
