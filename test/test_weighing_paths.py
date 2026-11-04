@@ -150,6 +150,41 @@ need(squeeze("if (reactivate_spool_id != sm_id) {") in loop,
      f"src/{LOOP}: a reactivation for another spool must be dropped")
 need(squeeze("tareMissingTick(); weightPopupTick();") in loop, f"src/{LOOP}: weightPopupTick() must run every pass")
 
+# 3d. Long names stay on their line (o16's a5120c1, found on the 7B in the
+# acceptance of beta.3): a label with only a width wraps a long name onto the
+# line below, under the weight, and LV_LABEL_LONG_DOT never engages. The copy
+# and the link list, the weight popup's first line and the spool on its
+# Options level get a height of one line as well.
+for rel in ("ui/copy_flow.cpp", "ui/spool_flow.cpp"):
+    c = code_of(rel)
+    need(c.count(squeeze("lv_obj_set_size(lbl_name, LIST_ROW_TEXT_END - name_x, "
+                         "lv_font_get_line_height(&lv_font_montserrat_ext_16));")) == 1,
+         f"src/{rel}: the name in the list must be one line high, or a long name runs under the weight")
+need(squeeze("lv_obj_set_size(s_v.line1, WP_INNER_W - chip, lv_font_get_line_height(UI_FONT_SMALL));") in wp_code,
+     f"src/{WP}: the popup's first line must be one line high")
+opts = body_of(WP, "wpShowOptions")
+need(squeeze("lv_label_set_long_mode(who, LV_LABEL_LONG_DOT);") in opts and
+     squeeze("lv_obj_set_size(who, who_w, lv_font_get_line_height(UI_FONT_SMALL));") in opts,
+     f"src/{WP}: the spool on the Options level must stay in the room beside the title, one line high")
+
+# 3e. f06 on the copy (found on the 7B): "without type" on a template whose
+# chain holds nothing took BamBuddy's own 250 g for the template's empty
+# spool, so the card said "940 g net" for a full roll, the copy was filed with
+# that rest, and the first weighing took the full roll for a used one and
+# offered the list without the measured weight. The template's chain is read
+# off Spoolman where the copy already reads its filament, and a chain with
+# nothing gives no tare.
+bbapi = code_of("services/bambuddy_api.cpp")
+need(squeeze("spoolTare(doc.as<JsonVariantConst>(), &from);") in bbapi and
+     squeeze("*out_chain_any = from != TARE_NONE;") in bbapi,
+     "src/services/bambuddy_api.cpp: bbSpoolmanFilamentOf() must say whether the spool's chain holds a tare")
+need(squeeze("bool copyBbsChainNone() { return s_chain_read && !s_chain_any; }") in code_of("services/copy_bbs.cpp"),
+     "src/services/copy_bbs.cpp: the copy must know a template whose chain holds nothing")
+ccp = body_of("ui/copy_confirm_popup.cpp", "copyTare")
+need(squeeze("if (s_copy_core > 0.0f) return s_copy_core;") in ccp and
+     squeeze("if (s_copy_bbs && copyBbsChainNone()) return 0.0f;") in ccp,
+     "src/ui/copy_confirm_popup.cpp: copyTare() must give no tare for a template whose chain holds nothing")
+
 # 4. FilaMan, a spool picked without a tag (a11, AreYouThereAndi2): the scale
 # takes it on for weighing only once it loaded. A failed request leaves the last
 # spool's values in place, and weighing then wrote into that one. The status

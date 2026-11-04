@@ -97,7 +97,8 @@ for rel in ("ui/copy_flow.cpp", "ui/spool_flow.cpp"):
                          "&lv_font_montserrat_ext_16, 0, LV_TEXT_FLAG_NONE));")) == 1,
          f"src/{rel}: the name's place is not worked out from the id's width")
     need(s.count(squeeze("lv_obj_align(lbl_name, LV_ALIGN_TOP_LEFT, name_x, 5);")) == 1 and
-         s.count(squeeze("lv_obj_set_width(lbl_name, LIST_ROW_TEXT_END - name_x);")) == 1,
+         s.count(squeeze("lv_obj_set_size(lbl_name, LIST_ROW_TEXT_END - name_x, "
+                         "lv_font_get_line_height(&lv_font_montserrat_ext_16));")) == 1,
          f"src/{rel}: the name does not begin at name_x and end at LIST_ROW_TEXT_END")
     need(squeeze("lv_obj_align(lbl_name, LV_ALIGN_TOP_LEFT, 50, 5);") not in s,
          f"src/{rel}: a name still begins at 50 whatever the id")

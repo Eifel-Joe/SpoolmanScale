@@ -84,7 +84,7 @@ assert chip.endswith(squeeze("return WP_CHIP_W + WP_GAP;")), f"{where}: the chip
 where = f"src/{WP}: wpBuildHeaderAndPrimary()"
 head = body_of(WP, "wpBuildHeaderAndPrimary")
 once(head, "s_v.line1 = wpLabel(box, \"\", UI_FONT_SMALL, UI_COL_INK_SOFT);", where)
-once(head, "lv_obj_set_width(s_v.line1, WP_INNER_W - chip);", where)
+once(head, "lv_obj_set_size(s_v.line1, WP_INNER_W - chip, lv_font_get_line_height(UI_FONT_SMALL));", where)
 assert re.search(r"#define\s+UI_FONT_SMALL\s+\(&lv_font_montserrat_ext_14\)",
                  (src / "ui/theme.h").read_text(encoding="utf-8")), "src/ui/theme.h: UI_FONT_SMALL is no longer the 14 px font"
 
