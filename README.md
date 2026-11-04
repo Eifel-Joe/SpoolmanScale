@@ -19,47 +19,48 @@
 
 ## What this fork adds
 
-Compared with the original's current release, 0.8.3. Marked *since 0.8.5* is in this fork's latest stable release; marked *0.8.6 pre-release* needs **Pre-release** switched on at the scale (see [Download and updates](#download-and-updates)).
+Compared with the original's current release, 0.8.3. Each line names the stable release of this fork it first came in: *since 0.8.5* or *since 0.8.6*.
 
 **Boards and updates**
 
 - 🖥️ **Two more boards** – the Waveshare ESP32-S3-Touch-LCD-7 (800×480) and -7B (1024×600) next to the WT32-SC01 Plus, from one code base with an image per board. The scale refuses an image built for another board. Tested on hardware: the 7B. *since 0.8.5*
 - 🔄 **Updates from this fork** – the daily check, "Check for updates" and the install at the scale or in the browser, stable or pre-release, every image checked against its published checksum, and a [web flasher](https://eifel-joe.github.io/SpoolmanScale/) with a choice of board. *since 0.8.5*
-- 🔋 **Battery on the 7B** – with a lithium-ion battery the main screen shows its charge and a bolt while it charges, warns at 20 % and before the board switches off, starts an update on the battery only from 50 %, and with an empty battery stays dark until the power supply is plugged in instead of switching on again and again. See [Building a Waveshare scale](#building-a-waveshare-scale). *0.8.6 pre-release*
+- 🔋 **Battery on the 7B** – with a lithium-ion battery the main screen shows its charge and a bolt while it charges, warns at 20 % and before the board switches off, starts an update on the battery only from 50 %, and with an empty battery stays dark until the power supply is plugged in instead of switching on again and again. See [Building a Waveshare scale](#building-a-waveshare-scale). *since 0.8.6*
+- 🔆 **Brightness on the 7B** – the brightness setting and the dimming after the idle time dim the backlight itself. The 7 darkens the picture instead: its backlight can only be switched on and off. *since 0.8.6*
 
 **Weighing**
 
 - 📎 **Accessories on a spool** – parts such as an NFC holder that moves from spool to spool are subtracted from every filament weight. *since 0.8.5*
-- 🧺 **Empty spools** (BamBuddy with Spoolman) – a spool's own empty weight, spool types from BamBuddy's empty spool catalog, suggested on the first weighing of an unused spool, new types named at the scale, and "weigh the full spool". *since 0.8.5* – Creating a spool from a Bambu tag asks for the spool type as well, also with BamBuddy's own inventory. *0.8.6 pre-release*
+- 🧺 **Empty spools** (BamBuddy with Spoolman) – a spool's own empty weight, spool types from BamBuddy's empty spool catalog, suggested on the first weighing of an unused spool, new types named at the scale, and "weigh the full spool". *since 0.8.5* – Creating a spool from a Bambu tag asks for the spool type as well, also with BamBuddy's own inventory. *since 0.8.6*
 - ⚖️ **Raise the label** (BamBuddy with Spoolman) – as with BamBuddy's own inventory, a weighing above the label weight asks to raise the label instead of losing the difference. *since 0.8.5*
 
 **Creating spools**
 
 - 📋 **Copy with all fields** (BamBuddy with Spoolman) – a copy hangs on its template's Spoolman filament and takes over the profile, the profiles per printer model, the K profiles, the price per kg (which can be changed on the copy card), the storage location and the suppliers. *since 0.8.5*
-- 🧵 **Enter filament** – a spool whose filament is in neither the inventory nor the filament database is created step by step, picked from the database and the inventory first and typed only where it is missing. *since 0.8.5* – A density the database lacks is found through the product name, or typed in at the scale. *0.8.6 pre-release*
-- ➕ **Create spools without weighing and without a tag** – "Create spool" on the empty main screen, for a delivery: a copy, an entry of the database or "Enter filament", then the location and the label. Up to 10 identical spools in one go. "Into AMS" under "More info" for any spool on the screen (BamBuddy). *0.8.6 pre-release*
-- 🔍 **Search and keyboards** – a magnifier in the spool type and colour lists, and keyboards that follow the scale's language: German QWERTZ with umlauts, French AZERTY with accents. *0.8.6 pre-release*
+- 🧵 **Enter filament** – a spool whose filament is in neither the inventory nor the filament database is created step by step, picked from the database and the inventory first and typed only where it is missing. *since 0.8.5* – A density the database lacks is found through the product name, or typed in at the scale. *since 0.8.6*
+- ➕ **Create spools without weighing and without a tag** – "Create spool" on the empty main screen, for a delivery: a copy, an entry of the database or "Enter filament", then the location and the label. Up to 10 identical spools in one go. "Into AMS" under "More info" for any spool on the screen (BamBuddy). *since 0.8.6*
+- 🔍 **Search and keyboards** – a magnifier in the spool type and colour lists, and keyboards that follow the scale's language: German QWERTZ with umlauts, French AZERTY with accents. *since 0.8.6*
 
 **Labels**
 
 - 🏷️ **Brother QL over WiFi** – the QL-810W/820NWB with DK-11209 (62×29 mm), printed by the scale itself, no PC or app needed; "Label printer" chooses Off, Bluetooth or WiFi. *since 0.8.5*
-- 🔠 **Larger label text** – the lines take the largest font that fits the label, and a switch adds the colour as an RGB line for the slicer. *0.8.6 pre-release*
+- 🔠 **Larger label text** – the lines take the largest font that fits the label, and a switch adds the colour as an RGB line for the slicer. *since 0.8.6*
 
 **Printers**
 
-- 🔌 **Klipper printers in the AMS view** (Spoolman, BamBuddy with Spoolman) – entered on the scale's web page with a connection test; Happy Hare, AFC and toolchangers are detected by themselves. A weighed spool goes into a gate, lane or tool through Moonraker, and a spool it displaces gets its old location back. *0.8.6 pre-release*
-- 🖨️ **Choose the printer from a list** – the AMS view shows every printer as a button, with a search, up to 64 printers. *0.8.6 pre-release*
+- 🔌 **Klipper printers in the AMS view** (Spoolman, BamBuddy with Spoolman) – entered on the scale's web page with a connection test; Happy Hare, AFC and toolchangers are detected by themselves. A weighed spool goes into a gate, lane or tool through Moonraker, and a spool it displaces gets its old location back. *since 0.8.6*
+- 🖨️ **Choose the printer from a list** – the AMS view shows every printer as a button, with a search, up to 64 printers. *since 0.8.6*
 
 **Web interface**
 
 - 💾 **Settings backup and a scale test page** – all settings as one file, loaded back exactly; raw value, weight and noise of the load cell live. *since 0.8.5*
-- ⬇️ **Downloads inside BamBuddy** – the settings backup, screenshots and the log can be saved from the web interface embedded in BamBuddy as well. *0.8.6 pre-release*
+- ⬇️ **Downloads inside BamBuddy** – the settings backup, screenshots and the log can be saved from the web interface embedded in BamBuddy as well. *since 0.8.6*
 
 Fixes, among them for the memory of the 7B, are in this fork's [release notes](https://github.com/Eifel-Joe/SpoolmanScale/releases).
 
 ### From the original's next version
 
-Already in this fork, not yet in the original's 0.8.3 release: the original's work up to its 0.8.4-beta.45, Niko's, taken over with his commits. *0.8.6 pre-release*
+Already in this fork, not yet in the original's 0.8.3 release: the original's work up to its 0.8.4-beta.45, Niko's, taken over with his commits. *since 0.8.6*
 
 - A new weight window with one large button that shows and sends the weight; automatic sending holds back a weight that rose
 - A new "Update via GitHub" screen, one form for all number pads, a tap on the colour swatch shows the colour large, Info & Support as tiles
@@ -95,7 +96,7 @@ Pin table, flashing and everything else that is different: **[Waveshare 7 and 7B
 
 ## Download and updates
 
-**First flash:** open this fork's [Web Flasher](https://eifel-joe.github.io/SpoolmanScale/) in Chrome or Edge, pick your board, connect it over USB and click the button. It installs the latest stable release (0.8.5) and erases the settings.
+**First flash:** open this fork's [Web Flasher](https://eifel-joe.github.io/SpoolmanScale/) in Chrome or Edge, pick your board, connect it over USB and click the button. It installs the latest stable release (0.8.6) and erases the settings.
 
 The same files are on the [Releases page](https://github.com/Eifel-Joe/SpoolmanScale/releases):
 
@@ -112,7 +113,7 @@ The files without a version in their name are what a scale downloads when it upd
 
 The web flasher and `version.json`, the file a scale reads to find an update, are published on this fork's GitHub Pages (branch `gh-pages`), the firmware files on the Releases page. The source tree carries neither.
 
-**Updates** come from this fork, not from the original: **Settings → System → Firmware Update → Update via GitHub**, or the firmware page of the web interface. Switch on **Pre-release** there for the 0.8.6 pre-releases. A scale that runs the original (or another fork) moves over once by hand: web interface → Firmware → upload your board's file without `_factory`; the settings are kept.
+**Updates** come from this fork, not from the original: **Settings → System → Firmware Update → Update via GitHub**, or the firmware page of the web interface. Switch on **Pre-release** there to be offered this fork's pre-releases as well. A scale that runs the original (or another fork) moves over once by hand: web interface → Firmware → upload your board's file without `_factory`; the settings are kept.
 
 [![Latest Release](https://img.shields.io/github/v/release/Eifel-Joe/SpoolmanScale?style=for-the-badge&color=28d49a)](https://github.com/Eifel-Joe/SpoolmanScale/releases/latest)
 
