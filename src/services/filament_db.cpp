@@ -307,6 +307,29 @@ static void fdbTask(void* arg) {
 static LogGate s_start_gate;
 static LogGate s_create_gate;
 
+// A read of the whole database is ahead for this server and backend: the
+// last index start found no stored index to use (Spec 5.3 T, n68). Known
+// from then on before the flash is read, so a start refused for the extra
+// is refused again without reading it; cleared once a start finds one.
+static bool     s_whole_ahead = false;
+static uint32_t s_whole_gen   = 0;
+static char     s_whole_base[sizeof(s_base)] = "";
+
+static bool wholeAheadFor(const char* base) {
+  return s_whole_ahead && s_whole_gen == backendGeneration() &&
+         strncmp(s_whole_base, base, sizeof(s_whole_base)) == 0;
+}
+
+static void refusedForHeap(uint32_t free_heap, uint32_t min_heap, bool may_go_outside, bool whole) {
+  // One line a minute, with the refusals it stands for.
+  if (logGateDue(&s_start_gate, millis(), BACKEND_JOB_REFUSAL_LOG_MS)) {
+    logSDf("Filament DB: postponed%s, heap %u < %u (%u more refusals since the last line)",
+           whole ? " for the whole database" : "", (unsigned)free_heap,
+           (unsigned)workerStartFloor(min_heap, FDB_STACK_BYTES, may_go_outside),
+           (unsigned)logGateTakeSuppressed(&s_start_gate));
+  }
+}
+
 static bool startTask(FdbJob job) {
   if (s_state != FDB_IDLE) return false;
   // The last load's task is deleted first; its result was taken, so it is
@@ -316,18 +339,27 @@ static bool startTask(FdbJob job) {
   // below (backendFdbBaseUrl(): the backend, or the Spoolman behind BamBuddy).
   // A stack in PSRAM lowers it by its size (workerStackPlan): the task
   // touches no flash since V64, see filament_db_store.h.
-  const uint32_t min_heap  = backendJobMinHeap(backendFdbBaseUrl());
-  const uint32_t free_heap = workerFreeHeap();
+  // Wurzel (n68): the whole database, 3.6 MB at full speed, took 11.5 kB of
+  //   internal heap on the 7B, where the floor counts 6 to 8 kB for a
+  //   request; at the https floor it would end near 22 kB (Spec 8 T: 26).
+  // Fix: an index load that may read the whole database starts with
+  //   BACKEND_JOB_WHOLE_DB_EXTRA more. Whether it will is known for sure only
+  //   once fdbStorePrepare() has read the stored index's header, which waits
+  //   for the plain floor; so the first start finds it out there, and the
+  //   next ones know it before the flash (wholeAheadFor()).
+  // NOT-TO-DO: the extra for every index load - FilaMan, BamBuddy's colour
+  //   catalog and the light form never read 3 MB, and neither does a load
+  //   that finds the stored index.
+  // Test: test/test_fdb_whole_reload.py.
+  const bool may_be_whole = job == FDB_JOB_INDEX && backendFdbIndexMayReadWhole();
+  const bool whole_known  = may_be_whole && wholeAheadFor(backendFdbBaseUrl());
+  const uint32_t job_heap = backendJobMinHeap(backendFdbBaseUrl());
+  uint32_t min_heap = whole_known ? job_heap + BACKEND_JOB_WHOLE_DB_EXTRA : job_heap;
   const bool may_go_outside = workerStackCanGoOutside(FDB_STACK_BYTES);
-  const WorkerStackPlan plan = workerStackPlan(free_heap, min_heap, FDB_STACK_BYTES, may_go_outside);
+  uint32_t free_heap = workerFreeHeap();
+  WorkerStackPlan plan = workerStackPlan(free_heap, min_heap, FDB_STACK_BYTES, may_go_outside);
   if (!plan.outside && !plan.inside) {
-    // One line a minute, with the refusals it stands for.
-    if (logGateDue(&s_start_gate, millis(), BACKEND_JOB_REFUSAL_LOG_MS)) {
-      logSDf("Filament DB: postponed, heap %u < %u (%u more refusals since the last line)",
-             (unsigned)free_heap,
-             (unsigned)workerStartFloor(min_heap, FDB_STACK_BYTES, may_go_outside),
-             (unsigned)logGateTakeSuppressed(&s_start_gate));
-    }
+    refusedForHeap(free_heap, min_heap, may_go_outside, whole_known);
     return false;
   }
   s_job   = job;
@@ -337,7 +369,29 @@ static bool startTask(FdbJob job) {
   snprintf(s_base, sizeof(s_base), "%s", backendFdbBaseUrl());
   // On the loop, once the start is sure to be let through: a refused start
   // is asked again every two seconds and must not read the flash each time.
-  if (job == FDB_JOB_INDEX) fdbStorePrepare(s_base);
+  bool stored = false;
+  if (job == FDB_JOB_INDEX) stored = fdbStorePrepare(s_base);
+  if (job == FDB_JOB_INDEX) {
+    s_whole_ahead = may_be_whole && !stored;
+    s_whole_gen   = s_gen;
+    snprintf(s_whole_base, sizeof(s_whole_base), "%s", s_base);
+  }
+  if (s_whole_ahead && job == FDB_JOB_INDEX) {
+    if (!whole_known) {
+      // Found out just now: the extra on top of the floor that let it through.
+      min_heap  = job_heap + BACKEND_JOB_WHOLE_DB_EXTRA;
+      free_heap = workerFreeHeap();
+      plan = workerStackPlan(free_heap, min_heap, FDB_STACK_BYTES, may_go_outside);
+      if (!plan.outside && !plan.inside) {
+        refusedForHeap(free_heap, min_heap, may_go_outside, true);
+        s_job = FDB_JOB_NONE;
+        return false;
+      }
+    }
+    logSDf("Filament DB: whole database ahead, heap %u, start floor %u (%u more than a request)",
+           (unsigned)free_heap, (unsigned)workerStartFloor(min_heap, FDB_STACK_BYTES, may_go_outside),
+           (unsigned)BACKEND_JOB_WHOLE_DB_EXTRA);
+  }
   // Taken last, before the task's stack: the heap the task starts from.
   s_heap_at_start = (uint32_t)heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
   s_state = FDB_RUNNING;   // before the task exists: it may finish at once

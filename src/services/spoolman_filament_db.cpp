@@ -107,6 +107,14 @@ SmFdbForm spoolmanFdbForm(const char* base_url) {
 
 int spoolmanFdbProbeCode() { return s_probe_code; }
 
+bool spoolmanFdbMayReadWhole(const char* base_url) {
+  // The form spoolmanFdbForm() found for this server and backend, if any;
+  // another server, another backend or no answer yet may be the whole one.
+  if (!base_url || s_form_gen != backendGeneration() ||
+      strncmp(s_form_base, base_url, sizeof(s_form_base)) != 0) return true;
+  return s_form != SM_FDB_LIGHT && s_form != SM_FDB_NONE;
+}
+
 // ------------------------------------------------------------
 //  Reading the body
 // ------------------------------------------------------------

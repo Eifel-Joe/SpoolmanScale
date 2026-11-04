@@ -785,6 +785,14 @@ int backendFdbLoadIndex(const char* base_url) {
   return spoolmanFdbLoadIndex(base_url);
 }
 
+// The same branches as backendFdbLoadIndex(), in its order: only the two ways
+// to a Spoolman database can read it whole.
+bool backendFdbIndexMayReadWhole() {
+  if (backendIsFilaMan() || bambuddyHasColorCatalog()) return false;
+  if (!bambuddyBehindSpoolman() && backendMode() != BACKEND_SPOOLMAN) return false;
+  return spoolmanFdbMayReadWhole(backendFdbBaseUrl());
+}
+
 int backendFdbLoadPairs(const char* base_url, const char* maker) {
   if (!backendIsFilaMan()) return notSupported("FdbLoadPairs");
   return filamanFdbLoadPairs(base_url, filamanApiKey(), maker);

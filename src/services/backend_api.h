@@ -342,6 +342,10 @@ bool backendCanBrowseFilamentDb();
 // spools there.
 const char* backendFdbBaseUrl();
 int  backendFdbLoadIndex(const char* base_url);
+// Whether backendFdbLoadIndex() may read the whole database, decided as it
+// decides and without a request: only Spoolman's database in its Spoolman
+// form or a form not yet known. Loop task (Spec 5.3 T, n68).
+bool backendFdbIndexMayReadWhole();
 int  backendFdbLoadPairs(const char* base_url, const char* maker);
 int  backendFdbLoadEntries(const char* base_url, const char* maker, const char* material);
 // Adds to a picked entry's input what the backend's database leaves to the

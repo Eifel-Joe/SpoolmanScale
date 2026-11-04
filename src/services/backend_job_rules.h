@@ -64,6 +64,17 @@
 #define BACKEND_JOB_MIN_HEAP_TLS   50000   // https: stack and socket like http, TLS lives in PSRAM
 #define BACKEND_JOB_MIN_HEAP_PLAIN 40000   // http: the 16 kB stack plus plain sockets
 
+// What a read of the whole filament database needs on top of a job's floor
+// (Spec 5.3 T, Punkteliste n68). On the 7B (v0.8.6-beta.21) the 3.6 MB of
+// Spoolman's database took the internal heap from 48 540 down to 37 084 bytes,
+// 11.5 kB, where the floors above count 6 to 8 kB for the connection of one
+// request: an answer streamed at full speed for 14 s holds more receive
+// buffers than a short one. Started right at the https floor it would have
+// ended near 22 kB, under the 26 kB of Spec 8 T. 6000 covers the 5.5 kB over
+// the smaller figure, so the whole read keeps the reserve of every other
+// request. filament_db.cpp adds it only where a whole read can come.
+#define BACKEND_JOB_WHOLE_DB_EXTRA 6000
+
 // A refused start is logged at most this often (see LogGate below), with the
 // number of refusals the line stands for. One value for every worker.
 #define BACKEND_JOB_REFUSAL_LOG_MS 60000

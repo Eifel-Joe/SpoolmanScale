@@ -30,6 +30,11 @@
 // asked again on the next call.
 enum SmFdbForm : uint8_t { SM_FDB_UNKNOWN = 0, SM_FDB_LIGHT, SM_FDB_SPOOLMAN, SM_FDB_NONE };
 SmFdbForm spoolmanFdbForm(const char* base_url);
+// Whether loading the index from base_url may read the whole database, from
+// the form as last probed and without a request (the loop asks it before a
+// start): true for the Spoolman form and for a form not yet known, false for
+// the light form and for a server without a database (Spec 5.3 T, n68).
+bool spoolmanFdbMayReadWhole(const char* base_url);
 // The HTTP code the last probe got: 404 for a server without a database.
 int spoolmanFdbProbeCode();
 

@@ -58,8 +58,14 @@ need(re.search(r"=fdbStorePrepare\(s_base\)", start),
      f"src/{FDB}: startTask() does not keep what fdbStorePrepare() found")
 need("wholedatabase" in ks.squeeze(ks.body_of(FDB, "startTask", strings=True)).lower(),
      f"src/{FDB}: no log line that names the whole database at the start or its refusal")
-need(start.count("logGateDue(") >= 2,
-     f"src/{FDB}: a refusal for the whole database does not go through the gate of the postponed line")
+# The refusal line, wherever it is written, goes through the postponed line's gate.
+fdb_src = ks.source_of(FDB)
+refusals = [(name, fdb_src.code_str[a + 1:b]) for name, a, b in ks.cc.find_functions(fdb_src.code)
+            if "for the whole database" in fdb_src.code_str[a + 1:b]]
+need(refusals, f"src/{FDB}: no refusal line names the whole database")
+for name, text in refusals:
+    need("logGateDue(&s_start_gate" in ks.squeeze(text),
+         f"src/{FDB}: {name}() writes the refusal for the whole database without the postponed line's gate")
 
 # 3. The question mirrors backendFdbLoadIndex(): FilaMan and BamBuddy's colour
 # catalog first and never whole, then the Spoolman database.
