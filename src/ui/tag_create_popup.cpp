@@ -875,7 +875,7 @@ static void runCreate() {
     // or in front of the card for a Bambu tag, tagTypeAsk()): the first
     // weighing does not ask it again (tare_entry.h). A tag's input carries
     // it only from that list.
-    if (s_in.spool_type_asked) tareEntryFirstWeighDone(r.spool_id);
+    if (s_in.spool_type_asked) tareEntryCreateAnswered(r.spool_id, s_in.spool_type_g);
     char link_id[sizeof(s_in.link_id)];
     memcpy(link_id, s_in.link_id, sizeof(link_id));
     const bool with_filament = r.filament_id > 0;

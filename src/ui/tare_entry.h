@@ -71,3 +71,11 @@ void tareEntryForgetAsked();
 // from a tag without the list (any other tag, or a Bambu tag with nothing on
 // the pad) is asked as before.
 void tareEntryFirstWeighDone(int spool_id);
+
+// The create's answer from the type list (Spec 5.3 M "Ganz ohne Leergewicht",
+// f06): a type marks the new spool like tareEntryFirstWeighDone(); "without
+// type" (type_g 0) does so only when its spool, filament or brand has an empty
+// weight. Behind BamBuddy that is read off its Spoolman server, which BamBuddy
+// named (one request); with nothing anywhere the first weighing asks once the
+// spool lies still, and the automatic weighing waits for it.
+void tareEntryCreateAnswered(int spool_id, int type_g);

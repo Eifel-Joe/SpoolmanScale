@@ -14,6 +14,10 @@
 #include "hardware/sd_logger.h"
 #include "lang.h"
 #include "services/ams_assign.h"     // AMS_SETTLE_MS / AMS_SETTLE_TOL_G
+#include "services/bambuddy_api.h"   // bbSpoolmanUrl()
+#include "services/spool_tare.h"
+#include "services/spool_type_rules.h"
+#include "services/spoolman_api.h"
 #include "services/spool_extras.h"
 #include "services/spool_types.h"
 #include "services/user_options.h"   // g_scale_fitted
@@ -637,6 +641,36 @@ void tareEntryFirstWeighDone(int spool_id) {
   if (spool_id <= 0) return;
   if (!fwAsked(spool_id)) fwRemember(spool_id);
   logSDf("UI: first weighing of spool %d: answered at creation", spool_id);
+}
+
+// f06 (Spec 5.3 M "Ganz ohne Leergewicht"): see spoolTypeCreateAnswered().
+// The chain is read off the Spoolman server behind BamBuddy, because BamBuddy
+// hands a spool with nothing anywhere over as 250 g "inherited", the same as
+// one whose brand has 250 g (core_weight_is_inherited, its fallback). Only for
+// "without type" and only where the first weighing runs at all.
+// NOT-TO-DO: reading through BamBuddy's proxy: it has no way to say "nothing".
+void tareEntryCreateAnswered(int spool_id, int type_g) {
+  if (spool_id <= 0) return;
+  bool chain_read = false;
+  bool any_level  = false;
+  if (type_g <= 0 && spoolTypesActive() && bbSpoolmanUrl()[0]) {
+    JsonDocument doc;
+    const int code = spoolmanGetSpoolJson(bbSpoolmanUrl(), spool_id, doc, 3000, nullptr);
+    if (code == 200) {
+      uint8_t from = TARE_NONE;
+      spoolTare(doc.as<JsonVariantConst>(), &from);
+      chain_read = true;
+      any_level  = from != TARE_NONE;
+    } else {
+      logSDf("UI: first weighing of spool %d: chain not read (HTTP %d)", spool_id, code);
+    }
+  }
+  if (spoolTypeCreateAnswered(type_g, chain_read, any_level)) {
+    tareEntryFirstWeighDone(spool_id);
+    return;
+  }
+  logSDf("UI: first weighing of spool %d: without type and no empty weight anywhere, "
+         "the first weighing asks", spool_id);
 }
 
 bool tareEntryHoldsAutoWeigh() {

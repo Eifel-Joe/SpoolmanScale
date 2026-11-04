@@ -178,6 +178,18 @@ int spoolTypeOwnCore(int tare_g, bool inherited);
 // to open, and the caller goes on as "without type").
 bool spoolTypeTagAsk(bool bambu_tag, bool bambuddy, float bare, int type_g);
 
+// Whether the type list's answer at a create stands in for the first weighing
+// (Spec 5.3 M "Ganz ohne Leergewicht", Punkteliste f06, v0.8.7-beta.3).
+// Wurzel: "without type" counted as answered even with no empty weight on the
+// spool, its filament or its brand; BamBuddy then weighs against 250 g of its
+// own and nobody is asked. Fix: a type (chosen_g above 0) answers; "without
+// type" answers only when the chain holds a value somewhere (any_level, 0
+// included, o07). chain_read false is a chain that could not be read: it
+// answers, as every "without type" did before. NOT-TO-DO: asking when the read
+// failed: a server that is gone for a moment would bring the question back
+// for every spool made at the scale.
+bool spoolTypeCreateAnswered(int chosen_g, bool chain_read, bool any_level);
+
 // src without the blanks on both sides, cut to n - 1 bytes and never in the
 // middle of a UTF-8 character (a cut that would leave half of one drops the
 // whole character). Writes the terminator even for an empty or null src; src

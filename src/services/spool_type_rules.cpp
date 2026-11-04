@@ -209,6 +209,13 @@ bool spoolTypeTagAsk(bool bambu_tag, bool bambuddy, float bare, int type_g) {
   return type_g <= 0;
 }
 
+bool spoolTypeCreateAnswered(int chosen_g, bool chain_read, bool any_level) {
+  // The header says why.
+  if (chosen_g > 0) return true;
+  if (!chain_read) return true;
+  return any_level;
+}
+
 void spoolTypeTrimName(char* dst, size_t n, const char* src) {
   if (!dst || n == 0) return;
   if (!src) src = "";

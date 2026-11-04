@@ -254,7 +254,7 @@ void doCopySpoolCreate(int template_spool_id, int template_filament_id, float te
     }
     // The card's list asked this copy's type: the first weighing does not
     // ask it again (tare_entry.h).
-    if (copy_create_asked) tareEntryFirstWeighDone(new_id);
+    if (copy_create_asked) tareEntryCreateAnswered(new_id, (int)lroundf(copy_create_core));
     // The spool exists either way; a tag that could not be bound has said so
     // on the status line, and that must stay readable.
     if (finishCopyFlow(new_id)) copyCreatedStatus(missing);
