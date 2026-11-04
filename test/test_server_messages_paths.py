@@ -105,6 +105,18 @@ need(m and int(m.group(1)) >= longest + 1,
      f"src/{HTTP}: collectHeaders() keeps {m.group(1) if m else '?'} headers, a caller hands in {longest} "
      "and Retry-After comes on top")
 
+# 3d. "Spule per ID" (ui/spool_id_pad.cpp, the original's pad from U2) read the
+# spool without serverReachNote() and said "Keine Verbindung zu ..." for every
+# answer but 200 and 404: a refused key read as a server that is down, and no
+# popup came (found at the 7B, v0.8.7-beta.2A, 04.11.2026). A refusal goes to
+# serverReachNote() like every other flow's, and the pad names it.
+PAD = "ui/spool_id_pad.cpp"
+fetch = ks.squeeze(ks.body_of(PAD, "fetchSpool"))
+need("serverRefusalOf(code)!=REFUSAL_NONE" in fetch and "serverReachNote(code,true)" in fetch,
+     f"src/{PAD}: fetchSpool() does not hand a refusal to serverReachNote()")
+column = ks.squeeze(ks.body_of(PAD, "buildColumn"))
+need("serverRefusalTitleId(" in column, f"src/{PAD}: buildColumn() does not name a refusal")
+
 # 4. Spoolman's access is set through backendApplyAuth() only.
 auth = callers("spoolmanSetAuth", {"services/backend.cpp", "services/backend.h", "app/backend_switch.cpp"})
 need(not auth, "spoolmanSetAuth() is called outside backendApplyAuth(): " + ", ".join(auth))
