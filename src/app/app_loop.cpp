@@ -1612,7 +1612,13 @@ void appLoop() {
 
     char w_str[16];
     // Fix 4: show filament netto (without spool) as big scale value
-    if (sm_spool_weight > 0) {
+    // Wurzel: "> 0" read a tare of 0 g as none, so a refill stored with 0 g
+    // (o07: a real empty weight) showed the reading with its parts on it.
+    // Fix: the chain's answer decides, as for the difference below (o07).
+    // NOT-TO-DO: the raw reading for TARE_NONE too: with nothing known the
+    // original shows what lies on the pad, and so does this.
+    // See test_weighing_paths.py.
+    if (sm_found && sm_tare_source != TARE_NONE) {
       // Without the parts on the spool, as every weight that becomes filament.
       float netto = spoolExtrasBareReading() - sm_spool_weight;
       if (netto < 0) netto = 0;
