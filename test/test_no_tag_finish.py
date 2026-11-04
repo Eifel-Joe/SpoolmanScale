@@ -109,7 +109,8 @@ def handler_bodies(rel):
 # the copy's create (doCopySpoolCreate) and the card's create (runCreate).
 # The branch comes right after the cache is forgotten and before anything
 # the old ending does, so the code outside the flag stays as it was: the
-# first weighing's type question is switched off (tareEntryFirstWeighDone)
+# first weighing's type question is switched off (tareEntryCreateAnswered(), which marks it
+# through tareEntryFirstWeighDone() when the answer stands, f06)
 # and the new spool is linked (finishCopyFlow) only there.
 where = f"src/{FLOW}: doCopySpoolCreate()"
 body = body_of(FLOW, "doCopySpoolCreate")
@@ -126,18 +127,18 @@ yellow_after_finish(inner, "noTagCreateFinish(new_id, copyCardVendor());",
                     'if (missing != CM_NONE && noTagYellowLineAllowed(new_id, "", missing)) copyCreatedStatus(missing);',
                     where + " in the flag")
 assert inner.endswith("return;"), f"{where}: the flag's branch must leave, nothing of the old ending may run after it"
-for banned in ("finishCopyFlow(", "tareEntryFirstWeighDone(", "doLinkPatch"):
+for banned in ("finishCopyFlow(", "tareEntryFirstWeighDone(", "tareEntryCreateAnswered(", "doLinkPatch"):
     assert banned not in inner, f"{where}: {banned} runs in the flag"
 before, after = body[:start], body[end:]
 assert "(code==200||code==201)&&new_id>0" in before and "spoolCacheForget(" in before, \
     f"{where}: the flag's branch is not on the way out of a created spool, after the cache was forgotten"
 assert "noTagCreateFinish(" not in after and "noTagMode()" not in after, \
     f"{where}: the flag is decided more than once"
-once(after, "if (copy_create_asked) tareEntryFirstWeighDone(new_id);", where + " outside the flag")
+once(after, "if (copy_create_asked) tareEntryCreateAnswered(new_id, (int)lroundf(copy_create_core));", where + " outside the flag")
 once(after, "if (finishCopyFlow(new_id)) copyCreatedStatus(missing);", where + " outside the flag")
-assert after.find("tareEntryFirstWeighDone(") < after.find("finishCopyFlow("), \
+assert after.find("tareEntryCreateAnswered(") < after.find("finishCopyFlow("), \
     f"{where}: the old ending changed its order"
-once(body, "tareEntryFirstWeighDone(", where)
+once(body, "tareEntryCreateAnswered(", where)
 once(body, "finishCopyFlow(", where)
 
 where = f"src/{POPUP}: runCreate()"
@@ -151,19 +152,19 @@ yellow_after_finish(inner, "noTagCreateFinish(r.spool_id, s_in.vendor);",
                     'statusMessageShow(T(STR_TAGNEW_PRICE_LOST), UI_COL_WARN);',
                     where + " in the flag")
 assert inner.endswith("return;"), f"{where}: the flag's branch must leave, nothing of the old ending may run after it"
-for banned in ("finishCopyFlow(", "tareEntryFirstWeighDone(", "doLinkPatch"):
+for banned in ("finishCopyFlow(", "tareEntryFirstWeighDone(", "tareEntryCreateAnswered(", "doLinkPatch"):
     assert banned not in inner, f"{where}: {banned} runs in the flag"
 before, after = body[:start], body[end:]
 assert "(code==200||code==201)&&r.spool_id>0" in before and "spoolCacheForget(" in before, \
     f"{where}: the flag's branch is not on the way out of a created spool, after the cache was forgotten"
-assert "tareEntryFirstWeighDone(" not in before, \
+assert "tareEntryCreateAnswered(" not in before and "tareEntryFirstWeighDone(" not in before, \
     f"{where}: the first weighing's type question is switched off before the flag is asked"
 assert "noTagCreateFinish(" not in after and "noTagMode()" not in after, \
     f"{where}: the flag is decided more than once"
-once(after, "if (s_in.spool_type_asked) tareEntryFirstWeighDone(r.spool_id);", where + " outside the flag")
+once(after, "if (s_in.spool_type_asked) tareEntryCreateAnswered(r.spool_id, s_in.spool_type_g);", where + " outside the flag")
 once(after, "if (!finishCopyFlow(r.spool_id, link_id)) return;", where + " outside the flag")
-in_order(after, ["tareEntryFirstWeighDone(", "closeTagCreatePopup();", "finishCopyFlow("], where + " outside the flag")
-once(body, "tareEntryFirstWeighDone(", where)
+in_order(after, ["tareEntryCreateAnswered(", "closeTagCreatePopup();", "finishCopyFlow("], where + " outside the flag")
+once(body, "tareEntryCreateAnswered(", where)
 once(body, "finishCopyFlow(", where)
 
 # The vendor of a copy is read off the copy of the look the card keeps at file

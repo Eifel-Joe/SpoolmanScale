@@ -62,10 +62,10 @@ assert back.endswith(squeeze("s_gross_g = spoolExtrasBareReading(); wpOpenLevel1
     f"{where}: must read the pad again and open without a fresh start, found '{back}'"
 assert not re.search(r"s_bag_on=(?!=)", back), f"{where}: must leave the bag switch as it was"
 
-# Every other open is fresh, as the original has it: the reading and the
-# switch off.
+# Every other open is fresh, as the original has it: the reading, the switch
+# off and the spool the popup is for (o13, weightPopupTick()).
 where = f"src/{WP}: wpOpenLevel1()"
-once(body_of(WP, "wpOpenLevel1"), "if (fresh) { s_gross_g = spoolExtrasBareReading(); s_bag_on = false; }", where)
+once(body_of(WP, "wpOpenLevel1"), "if (fresh) { s_gross_g = spoolExtrasBareReading(); s_bag_on = false; s_spool_id = sm_id; }", where)
 once(body_of(WP, "showWeightPopup"), "wpOpenLevel1(true);", f"src/{WP}: showWeightPopup()")
 
 # 2. The first line beside the parts chip. With the chip (always there once
