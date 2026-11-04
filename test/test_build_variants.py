@@ -326,6 +326,15 @@ STATE_API = {       # name: (return type, what the stub does)
     "docSimActive": ("bool", "false"),
     "docSimGrams": ("float", "anything"),
     "docSimTick": ("void", "nothing"),
+    # v0.8.7-beta.2: a made-up answer of the server and a made-up tag
+    "docAnswerSet": ("void", "nothing"),
+    "docAnswerOff": ("void", "nothing"),
+    "docAnswerTake": ("bool", "false"),
+    "docTagSet": ("void", "nothing"),
+    "docTagOff": ("void", "nothing"),
+    "docTagActive": ("bool", "false"),
+    "docTagUid": ("bool", "false"),
+    "docTagPage": ("bool", "false"),
 }
 ROUTES_API = {"docRoutes": ("void", "nothing")}
 SWITCH_ON = "defined(SSC_ACCEPTANCE)"
@@ -489,18 +498,24 @@ for rel in ("services/doc_build_rules.h",):
 #     (the browser upload's row, the GitHub update's status, the OTA menu). The
 #     web pages, the log, status.json, mDNS and the version comparison keep
 #     FW_VERSION: they are about the build that runs, not about a screenshot.
+#   - since v0.8.7-beta.2 (Spec 5.3 AA, "Server-Antwort") the acceptance and
+#     documentation firmware hide GET as well, and every one of these methods
+#     first asks docAnswered(): an answer the acceptance made up is returned
+#     without sending. That is no lock: with nothing made up the request goes
+#     out as in a release, so the acceptance firmware still never asks
+#     docRequestAllowed(). A release hides none of them.
 WRITE_METHODS = ("sendRequest", "POST", "PATCH", "PUT")
+SEND_METHODS = WRITE_METHODS + ("GET",)
 for rel, pattern in (("services/backend_http.h", r"\bint\s+{name}\s*\("),
                      ("services/backend_http.cpp", r"\bint\s+BackendHttp::{name}\s*\(")):
     for config in CONFIGS:
         text = visible(config, rel)
-        for name in WRITE_METHODS:
+        for name in SEND_METHODS:
             found = re.search(pattern.format(name=name), text) is not None
-            if config == "doc":
-                expect(f"src/{rel}: the documentation firmware (-DSSC_DOC_BUILD) must override {name}() to refuse a write", found)
+            if config == "release":
+                expect(f"src/{rel}: a release must not override {name}() (it sends as HTTPClient does)", not found)
             else:
-                expect(f"src/{rel}: the {config} build must not override {name}() (the write lock belongs to -DSSC_DOC_BUILD only)",
-                       not found)
+                expect(f"src/{rel}: the {config} build must override {name}() to give a made-up answer first", found)
 backend = "services/backend_http.cpp"
 for config in CONFIGS:
     text = visible(config, backend)
@@ -512,6 +527,20 @@ for config in CONFIGS:
                re.search(r"\bdocRequestAllowed\s*\(\s*\w+\s*,\s*_uri\.c_str\s*\(\s*\)\s*\)", text) is not None)
     else:
         expect(f"src/{backend}: the {config} build must not ask docRequestAllowed() (it would refuse a send)", not asks)
+    if config != "release":
+        for name in SEND_METHODS:
+            for m in re.finditer(r"\bint\s+BackendHttp::" + name + r"\s*\([^)]*\)\s*\{", text):
+                depth, j = 1, m.end()
+                while j < len(text) and depth:
+                    depth += {"{": 1, "}": -1}.get(text[j], 0)
+                    j += 1
+                body = text[m.end():j]
+                answered = re.search(r"\bdocAnswered\s*\(", body)
+                sent = re.search(r"\bHttp::" + name + r"\s*\(", body)
+                expect(f"src/{backend}: the {config} build's BackendHttp::{name}() must ask docAnswered() before it sends",
+                       answered is not None and sent is not None and answered.start() < sent.start())
+    else:
+        expect(f"src/{backend}: a release must not have docAnswered()", re.search(r"\bdocAnswered\s*\(", text) is None)
 
 # Nor to a printer or a tag (Spec 5.3 AA: every way out; Punkteliste n54).
 # Each has one door, and the documentation firmware has no call through it:

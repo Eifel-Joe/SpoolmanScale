@@ -142,6 +142,14 @@ jobs:
         run: python3 test/test_fdb_whole_reload.py
       - name: Test the acceptance call for the tag family memory
         run: python3 test/test_tag_family_sim.py
+      - name: Test where the server's refusals and lost weights are heard
+        run: python3 test/test_server_messages_paths.py
+      - name: Test the acceptance calls for a server answer, a tag and a popup
+        run: python3 test/test_acceptance_sim_server.py
+      - name: Test the rules of the made-up server answer and tag
+        run: python3 test/test_acceptance_sim_rules.py
+      - name: Test the cut of the release notes
+        run: python3 test/test_notes_cut.py
       - name: Test text fold
         run: python3 test/test_text_fold.py
       - name: Test list search
