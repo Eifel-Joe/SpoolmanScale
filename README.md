@@ -76,7 +76,7 @@ can be run with `python3 test/test_fdb_read_limit.py`.
 
 ### From the original's next version
 
-Already in this fork, not yet in the original's 0.8.3 release: the original's work up to its 0.8.4-beta.45, Niko's, taken over with his commits. *since 0.8.6*
+Already in this fork, not yet in the original's 0.8.3 release: the original's work up to its 0.8.4-beta.45 and selected later parts, Niko's, taken over with his commits. *since 0.8.6, later parts since 0.8.7*
 
 - A new weight window with one large button that shows and sends the weight; automatic sending holds back a weight that rose
 - A new "Update via GitHub" screen, one form for all number pads, a tap on the colour swatch shows the colour large, Info & Support as tiles
@@ -149,7 +149,7 @@ The counts are GitHub's downloads of the files on the Releases page: a scale tha
 
 ## How it relates to the original
 
-This fork builds on the original's 0.8.3 release and takes over the original's later work, each commit under its author's name; so far up to the original's 0.8.4-beta.45. What helps every scale is offered back to the original ([issue #58](https://github.com/Niko11111/SpoolmanScale/issues/58)). The manual, the enclosure, MakerWorld, the Discord, Ko-fi and the FilaMan plugin in the original's README below belong to the original project.
+This fork builds on the original's 0.8.3 release and takes over the original's later work, each commit under its author's name; so far up to the original's 0.8.4-beta.45, and selected parts of its later betas. What helps every scale is offered back to the original ([issue #58](https://github.com/Niko11111/SpoolmanScale/issues/58)). The manual, the enclosure, MakerWorld, the Discord, Ko-fi and the FilaMan plugin in the original's README below belong to the original project.
 
 Problems with the Waveshare boards or with anything in the list above belong to this fork: [open an issue here](https://github.com/Eifel-Joe/SpoolmanScale/issues). Please do not report them to the original project.
 
