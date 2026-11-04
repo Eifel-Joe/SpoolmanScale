@@ -50,3 +50,7 @@ void fdbStoreTick();
 // fdbStorePrepare() passes the stored index over once, so the whole database
 // is read and stored again.
 void fdbStoreForgetOnce();
+// Loop task: whether the last fdbStorePrepare() passed the stored index over
+// for fdbStoreForgetOnce(). A start that is refused after it gives the forget
+// back, so the next one still reads the whole database.
+bool fdbStorePassedOver();

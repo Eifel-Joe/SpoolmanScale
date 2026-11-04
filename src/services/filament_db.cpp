@@ -385,6 +385,9 @@ static bool startTask(FdbJob job) {
       if (!plan.outside && !plan.inside) {
         refusedForHeap(free_heap, min_heap, may_go_outside, true);
         s_job = FDB_JOB_NONE;
+        // The acceptance's forget was taken by this start; the next one
+        // must still pass the stored index over.
+        if (fdbStorePassedOver()) fdbStoreForgetOnce();
         return false;
       }
     }
@@ -481,6 +484,10 @@ void fdbTake() {
       s_index_gen = s_gen;
       s_index_ms  = millis();
       snprintf(s_index_base, sizeof(s_index_base), "%s", s_base);
+      // A whole read that went through is on its way to the flash: the next
+      // start asks with the plain floor and finds out from the stored index
+      // whether another is ahead. A failed one is tried again and keeps it.
+      s_whole_ahead = false;
     } else {
       freeIndex();
     }

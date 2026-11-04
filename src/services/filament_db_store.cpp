@@ -149,13 +149,19 @@ void fdbStoreForgetOnce() {
   s_forget_once = true;
 }
 
+static const char* const PASSED_OVER = "passed over once for the acceptance";
+
+bool fdbStorePassedOver() {
+  return s_prep_problem == PASSED_OVER;
+}
+
 bool fdbStorePrepare(const char* base_url) {
   heap_caps_free(s_prep_buf);
   s_prep_buf     = nullptr;
   s_prep_problem = "none";
   if (s_forget_once) {
     s_forget_once  = false;
-    s_prep_problem = "passed over once for the acceptance";
+    s_prep_problem = PASSED_OVER;
     return false;
   }
   const esp_partition_t* part = dataPartition();
