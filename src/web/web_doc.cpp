@@ -10,6 +10,7 @@
 #include "hardware/sd_logger.h"
 #include "services/battery.h"
 #include "services/filament_db.h"
+#include "services/tag_family.h"
 #include "web/web_access.h"
 #include "lang.h"
 
@@ -24,6 +25,9 @@
 //                                           &boot=1[&secs=] for the next start (V66)
 //   POST /api/sim/fdb-forget                the next "Neu aus Datenbank" passes
 //                                           the stored index over once (V64)
+//   POST /api/sim/tag-family?uid=<8 hex>&family=bambu|creality|snapmaker|forget|show
+//                                           a made-up tag for the tag family
+//                                           memory (v0.8.7-beta.1)
 // This file is the only place in src/ that spells them: the release run looks
 // for these two texts in every file it attaches, and a hit means a switch got
 // into a release (test_build_variants.py keeps the texts out of every other file).
@@ -36,6 +40,21 @@ static int intArg(WebServer& srv, const char* name, int def) {
   const long n = strtol(v.c_str(), &end, 10);
   if (v.length() == 0 || *end != '\0') return INT32_MIN;   // refused by the rule
   return (int)n;
+}
+
+// A tag UID of four bytes from eight hex digits, false for anything else.
+static bool uidArg(const String& v, uint8_t out[4]) {
+  if (v.length() != 8) return false;
+  for (int i = 0; i < 8; i++) {
+    const char c = v[i];
+    const int d = (c >= '0' && c <= '9') ? c - '0'
+                : (c >= 'a' && c <= 'f') ? c - 'a' + 10
+                : (c >= 'A' && c <= 'F') ? c - 'A' + 10 : -1;
+    if (d < 0) return false;
+    if (i % 2 == 0) out[i / 2] = (uint8_t)(d << 4);
+    else            out[i / 2] |= (uint8_t)d;
+  }
+  return true;
 }
 
 void docRoutes(WebServer& srv) {
@@ -89,6 +108,45 @@ void docRoutes(WebServer& srv) {
     }
     logSD("Acceptance build: stored database index passed over once");
     srv.send(200, "application/json", "{\"forget\":true}");
+  });
+
+  // The tag family memory told about a made-up tag (Spec 5.3 AA,
+  // v0.8.7-beta.1). The memory is read only when a tag lies on the reader,
+  // and the acceptance cannot place one; to show that it and the stored
+  // index above keep apart (n69), a family is remembered here the way a
+  // placement does, forgotten again (a tombstone, as tagFamilySet() writes
+  // it), or the memory is loaded and shown. Only while Creality or Snapmaker
+  // tags are on, as the scale's own placements.
+  srv.on("/api/sim/tag-family", HTTP_POST, [&srv]() {
+    if (!webRequire(srv, GATE_MAINT, T(STR_W_NAV_LOGS))) return;
+    if (!tagFamilyInUse()) {
+      srv.send(409, "application/json", "{\"error\":\"switch Creality or Snapmaker tags on first\"}");
+      return;
+    }
+    const String fam = srv.arg("family");
+    TagFamily set = TAG_FAMILY_UNKNOWN;
+    bool show = false;
+    bool known = true;
+    if (fam == "bambu") set = TAG_FAMILY_BAMBU;
+    else if (fam == "creality") set = TAG_FAMILY_CREALITY;
+    else if (fam == "snapmaker") set = TAG_FAMILY_SNAPMAKER;
+    else if (fam == "show") show = true;
+    else known = (fam == "forget");
+    uint8_t uid[4] = {0, 0, 0, 0};
+    if (!known || !uidArg(srv.arg("uid"), uid)) {
+      srv.send(400, "application/json",
+               "{\"error\":\"uid as 8 hex digits, family bambu|creality|snapmaker|forget|show\"}");
+      return;
+    }
+    if (!show) tagFamilySet(uid, set);
+    const TagFamily now = tagFamilyGet(uid);
+    const char now_c = now == TAG_FAMILY_UNKNOWN ? '-' : (char)now;
+    char state[80];
+    tagFamilyStatus(state, sizeof(state));
+    logSDf("Acceptance build: tag memory %s %02X%02X%02X%02X, now %c; %s", fam.c_str(), uid[0], uid[1],
+           uid[2], uid[3], now_c, state);
+    srv.send(200, "application/json",
+             String("{\"family\":\"") + now_c + "\",\"memory\":\"" + state + "\"}");
   });
 
   // The battery as the rules would see it (Spec 5.3 AA, V60): readings made

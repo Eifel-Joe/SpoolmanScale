@@ -275,3 +275,14 @@ void tagFamilySet(const uint8_t uid[4], TagFamily family) {
   if (persisted(family))   appendRecord(uid, family);
   else if (persisted(old)) appendRecord(uid, TAG_FAMILY_UNKNOWN);   // a tombstone
 }
+
+bool tagFamilyInUse() { return memoryInUse(); }
+
+void tagFamilyStatus(char* out, size_t out_len) {
+  if (!out || out_len == 0) return;
+  if (!memoryInUse()) { snprintf(out, out_len, "not in use"); return; }
+  load();
+  if (!s_tab) { snprintf(out, out_len, "no memory"); return; }
+  snprintf(out, out_len, "%d tags, half %d, generation %lu, %s", s_count, s_half,
+           (unsigned long)s_gen, s_part ? "in flash" : "RAM only");
+}

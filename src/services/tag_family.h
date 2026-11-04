@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 
 // ============================================================
@@ -67,3 +68,11 @@ TagFamily tagFamilyGet(const uint8_t uid[4]);
 // Records a family for the UID. TAG_FAMILY_UNKNOWN removes the entry. The
 // same family again writes nothing and only marks the tag as just seen.
 void tagFamilySet(const uint8_t uid[4], TagFamily family);
+
+// Whether the memory is in use, that is Creality or Snapmaker tags are on;
+// with both off it is neither read nor written.
+bool tagFamilyInUse();
+// How the memory stands, for a log line: the tags kept, the active half, its
+// generation, and whether it lives in flash or in RAM only. Loads the memory
+// when it is in use. For the acceptance build's call (web_doc.cpp).
+void tagFamilyStatus(char* out, size_t out_len);
