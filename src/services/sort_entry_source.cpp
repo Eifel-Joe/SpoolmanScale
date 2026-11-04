@@ -34,7 +34,7 @@
 #define SORT_OTHER_MATERIALS  3
 #define SORT_JOBS_MAX         (1 + SORT_OTHER_MATERIALS)
 // One maker's materials, on the loop's stack: a maker of the databases has
-// at most about 40, and FDB_PAIRS_MAX would take 1280 bytes.
+// at most about 40, and FDB_PAIRS_MAX (2400 since v0.8.7-beta.1) would take 4800 bytes.
 #define SORT_MAKER_PAIRS_MAX  64
 
 // Spoolman. In quotes a name filter matches exactly. The spools are asked by
