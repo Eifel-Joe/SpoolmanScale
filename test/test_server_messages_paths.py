@@ -81,6 +81,30 @@ for path in sorted(ks.src.rglob("*.cpp")):
              f"src/{rel}: serverReachNote({first}, ...) hands on a code that may be Moonraker's, "
              "without a Klipper switch before it")
 
+# 3b. Only answers of the server itself are refusals of it: host and port, as
+# services/own_server_rules.h decides (a Moonraker beside Spoolman is not it).
+HTTP = "services/backend_http.cpp"
+note = ks.squeeze(ks.body_of(HTTP, "noteRefusal"))
+need("ownServer()" in note and "strstr(" not in note,
+     f"src/{HTTP}: noteRefusal() does not keep to the server's own host and port (ownServer())")
+
+# 3c. Retry-After stays on the list of headers a caller keeps, and so does
+# every key of the longest list a caller hands in (FilaMan's label raster
+# passes six; COLLECT_MAX 6 dropped its last one, X-Preset-Id).
+collect = ks.squeeze(ks.body_of(HTTP, "collectHeaders"))
+m = re.search(r"COLLECT_MAX=(\d+);", collect)
+longest = 0
+for path in sorted(ks.src.rglob("*.cpp")):
+    rel = path.relative_to(ks.src).as_posix()
+    text = ks.source_of(rel).text
+    for arr in re.findall(r"collectHeaders\(\s*(\w+)\s*,", text):
+        lit = re.search(r"\b" + arr + r"\s*\[\s*\]\s*=\s*\{([^}]*)\}", text)
+        if lit:
+            longest = max(longest, len(re.findall(r'"[^"]*"', lit.group(1))))
+need(m and int(m.group(1)) >= longest + 1,
+     f"src/{HTTP}: collectHeaders() keeps {m.group(1) if m else '?'} headers, a caller hands in {longest} "
+     "and Retry-After comes on top")
+
 # 4. Spoolman's access is set through backendApplyAuth() only.
 auth = callers("spoolmanSetAuth", {"services/backend.cpp", "services/backend.h", "app/backend_switch.cpp"})
 need(not auth, "spoolmanSetAuth() is called outside backendApplyAuth(): " + ", ".join(auth))

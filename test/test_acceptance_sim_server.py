@@ -60,7 +60,8 @@ for path, calls in (("/api/sim/server-answer", ("docAnswerSet(", "docAnswerOff("
         need(at > gate >= 0, f"src/{DOC}: {path} does not call {call.rstrip('(')}() after the gate")
     need("400" in text, f"src/{DOC}: {path} does not refuse a bad argument with 400")
     need("logSD" in text, f"src/{DOC}: {path} does not log what it did")
-    need(doc_text.find(path) > accept_at >= 0, f"src/{DOC}: {path} is not inside the acceptance build")
+    # The route itself, not its line in the comment at the top.
+    need(doc_text.find(f'srv.on("{path}"') > accept_at >= 0, f"src/{DOC}: {path} is not inside the acceptance build")
 
 # The state: in RAM, shared by both cores (a backend job asks on the other one).
 STATE = "app/doc_build.cpp"
@@ -80,12 +81,31 @@ http = ks.code_of(HTTP)
 answered = ks.squeeze(ks.body_of(HTTP, "docAnswered")) if re.search(r"\bdocAnswered\s*\(", http) else ""
 need(answered, f"src/{HTTP}: BackendHttp::docAnswered() is missing")
 if answered:
-    need("backendBaseUrl()" in answered and "_host" in answered,
-         f"src/{HTTP}: docAnswered() does not keep to the server's own address")
+    need("ownServer()" in answered and "strstr(" not in answered,
+         f"src/{HTTP}: docAnswered() does not keep to the server's own address (host and port, ownServer())")
     need("docAnswerTake(_uri.c_str()" in answered, f"src/{HTTP}: docAnswered() does not hand docAnswerTake() the path")
     need("serverRefusalRecord(" in answered, f"src/{HTTP}: docAnswered() does not record a refusal as a real one")
-    need("_size=0" in answered, f"src/{HTTP}: docAnswered() leaves a body to read that was never sent")
+    # Nothing was sent, so nothing may be waited for: no body (getString()),
+    # no stream (getStream() on a kept https connection would wait its whole
+    # timeout), and no code or transfer encoding left from an earlier page of
+    # the same object for settle() to drain.
+    for part in ("_size=0", "_returnCode=0", "_transferEncoding=HTTPC_TE_IDENTITY", "answered_=true"):
+        need(part in answered, f"src/{HTTP}: docAnswered() does not set {part}")
     need("logSDf(" in answered, f"src/{HTTP}: docAnswered() does not log the request it answered")
+stream = ks.squeeze(ks.body_of(HTTP, "getStream"))
+need(re.search(r"if\(answered_\)\{counted_\.reset\(nullptr\);returncounted_;\}", stream),
+     f"src/{HTTP}: getStream() hands out the connection after a made-up answer")
+need("answered_=false" in ks.squeeze(ks.body_of(HTTP, "newAnswer")),
+     f"src/{HTTP}: newAnswer() does not forget a made-up answer")
+own = ks.squeeze(ks.body_of(HTTP, "ownServer")) if re.search(r"\bownServer\s*\(", http) else ""
+need("sameServerAs(backendBaseUrl(),_host.c_str(),_port)" in own,
+     f"src/{HTTP}: ownServer() does not compare host and port with sameServerAs()")
+
+# A made-up tag is never bound to a spool: a link that follows a refused
+# write would put its UID on a real one.
+TW = "services/tag_write.cpp"
+need(re.search(r"if\(!wrote&&docTagActive\(\)\)return;", ks.squeeze(ks.code_of(TW))),
+     f"src/{TW}: a refused write on the made-up tag goes on to the link")
 
 # The tag: the reader's door answers with it, and nothing is written to it.
 NFC = "hardware/nfc.cpp"
@@ -98,6 +118,8 @@ need(read.find("docTagUid(") >= 0 and read.find("docTagUid(") < read.find("readP
 ntag = ks.squeeze(ks.body_of(NFC, "nfcReadNtagPage"))
 need(ntag.find("docTagPage(") >= 0 and ntag.find("docTagPage(") < ntag.find("ntag2xx_ReadPage("),
      f"src/{NFC}: nfcReadNtagPage() does not read the made-up tag first")
+need(re.search(r"\[\[maybe_unused\]\]\s*static\s+bool\s+simTagRefused\s*\(", ks.source_of(NFC).text),
+     f"src/{NFC}: simTagRefused() is not [[maybe_unused]] (the documentation firmware does not call it)")
 for name in ("nfcWriteNtagPage", "nfcWriteMifareBlock", "nfcReadMifareSector", "nfcReadMifareBlock",
              "nfcAuthMifareSector"):
     body = ks.squeeze(ks.body_of(NFC, name))

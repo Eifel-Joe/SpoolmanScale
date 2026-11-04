@@ -4,7 +4,7 @@ the limit and where a longer text is cut: never inside a character of more than
 one byte, which would end the German notes in a broken sign. Then read
 github_release.cpp: it uses the rule and keeps no limit of its own.
 
-The limit: 32 000 bytes, two and a half times the longest notes so far
+The limit: 32 000 bytes, nearly two and a half times the longest notes so far
 (v0.8.6, 12 849 bytes in English and German); 8000 cut off a third of them."""
 import re
 import subprocess
@@ -20,7 +20,8 @@ source = r"""
 
 int main() {
   static_assert(GH_NOTES_MAX == 32000, "the limit of Spec 5.3 T");
-  static_assert(GH_NOTES_MAX >= 12849 * 5 / 2, "room for the longest notes so far");
+  // Nearly two and a half times the longest notes so far (32 000 / 12 849 = 2.49).
+  static_assert(GH_NOTES_MAX >= 12849 * 2, "room for the longest notes so far");
 
   // Short enough: kept whole.
   assert(notesCutLength("abc", 3, 10) == 3);
