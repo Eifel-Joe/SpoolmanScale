@@ -338,7 +338,8 @@ static void wpBuildHeaderAndPrimary(lv_obj_t *box) {
   const int chip = wpBuildPartsChip(box);
   s_v.line1 = wpLabel(box, "", UI_FONT_SMALL, UI_COL_INK_SOFT);
   lv_label_set_long_mode(s_v.line1, LV_LABEL_LONG_DOT);
-  lv_obj_set_width(s_v.line1, WP_INNER_W - chip);
+  // One line high, or a long name wraps over the line below (o16, a5120c1).
+  lv_obj_set_size(s_v.line1, WP_INNER_W - chip, lv_font_get_line_height(UI_FONT_SMALL));
   lv_obj_set_pos(s_v.line1, WP_X, 6);
   s_v.change = wpLabel(box, "", UI_FONT_BODY, UI_COL_INK_2);
   lv_obj_set_pos(s_v.change, WP_X, 28);
@@ -547,10 +548,18 @@ static void wpShowOptions() {
   releaseScreen(&s_popup);
   lv_obj_t *box = uiPopupBox(&s_opts, WP_BOX_W, back_y + WP_BOTTOM_H + WP_BOX_EXTRA);
 
-  lv_obj_set_pos(wpLabel(box, T(STR_WP_OPTIONS), UI_FONT_TITLE, UI_COL_INK), WP_X + 4, 10);
+  const char *title = T(STR_WP_OPTIONS);
+  lv_obj_set_pos(wpLabel(box, title, UI_FONT_TITLE, UI_COL_INK), WP_X + 4, 10);
   char buf[48];
   snprintf(buf, sizeof(buf), "#%d  %s", sm_id, sm_filament_name);
   lv_obj_t *who = wpLabel(box, buf, UI_FONT_SMALL, UI_COL_INK_SOFT);
+  // The room beside the title, one line high: a long name ran over the title
+  // (o16, a5120c1, found in the acceptance of beta.3).
+  const int who_w = WP_INNER_W - 8 - 12 -
+                    (int)lv_txt_get_width(title, strlen(title), UI_FONT_TITLE, 0, LV_TEXT_FLAG_NONE);
+  lv_label_set_long_mode(who, LV_LABEL_LONG_DOT);
+  lv_obj_set_size(who, who_w, lv_font_get_line_height(UI_FONT_SMALL));
+  lv_obj_set_style_text_align(who, LV_TEXT_ALIGN_RIGHT, 0);
   lv_obj_align(who, LV_ALIGN_TOP_RIGHT, -WP_X - 4, 12);
 
   wpBuildOptionRows(box, tare);

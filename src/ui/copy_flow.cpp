@@ -590,7 +590,9 @@ void showCopySpoolList() {
     lv_obj_set_style_text_font(lbl_name, &lv_font_montserrat_ext_16, 0);
     lv_obj_align(lbl_name, LV_ALIGN_TOP_LEFT, name_x, 5);
     lv_label_set_long_mode(lbl_name, LV_LABEL_LONG_DOT);
-    lv_obj_set_width(lbl_name, LIST_ROW_TEXT_END - name_x);
+    // One line high, or a long name wraps under the weight (o16, a5120c1).
+    lv_obj_set_size(lbl_name, LIST_ROW_TEXT_END - name_x,
+                    lv_font_get_line_height(&lv_font_montserrat_ext_16));
 
     lv_obj_t *swatch = lv_obj_create(row);
     lv_obj_set_size(swatch, 14, 14);
