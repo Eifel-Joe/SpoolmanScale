@@ -38,6 +38,8 @@ static int confirm_action = 0;
 // navigation left it standing over the next screen.
 static lv_obj_t *s_cap_popup   = nullptr;   // BamBuddy's label weight question
 static int       s_cap_spool_id = 0;         // the spool it asks about
+// The spool "archive?" and "dried today?" (actions 3 and 1) ask about.
+static int       s_confirm_spool_id = 0;
 
 void closeConfirmPopups() {
   closeConfirmPopup();
@@ -118,13 +120,21 @@ void handleConfirmPopupDeferredActions() {
            s_cap_spool_id, sm_id);
     releaseScreen(&s_cap_popup);
   }
+  // Likewise "archive?" and "dried today?" (found in the review): they ask
+  // about the spool shown when they opened.
+  if (confirm_popup && (confirm_action == 1 || confirm_action == 3) && sm_id != s_confirm_spool_id) {
+    logSDf("UI: question %d for spool %d closed, spool %d is loaded now",
+           confirm_action, s_confirm_spool_id, sm_id);
+    closeConfirmPopup();
+  }
   if (s_job == CJ_NONE) return;
   const ConfirmJob job = s_job;
   s_job = CJ_NONE;
   const bool tare_job = job == CJ_TARE_SPOOL || job == CJ_TARE_FILAMENT ||
                         job == CJ_TARE_VENDOR || job == CJ_FULL_SPOOL;
   const bool spool_job = tare_job ||
-                         job == CJ_WEIGHT || job == CJ_CAP_RAISE || job == CJ_CAP_KEEP;
+                         job == CJ_WEIGHT || job == CJ_CAP_RAISE || job == CJ_CAP_KEEP ||
+                         job == CJ_INITIAL || job == CJ_ARCHIVE;
   if (spool_job && sm_id != s_job_spool_id) {
     logSDf("%s: %.1f g was for spool %d, spool %d is loaded now - not stored",
            tare_job ? "Tare" : "Weight", s_job_value, s_job_spool_id, sm_id);
@@ -351,7 +361,7 @@ void confirmNewSpool(float netto_g) {
     showSpoolWeightScope(derived, true, true);   // stores the tare, then the initial
     return;
   }
-  s_job = CJ_INITIAL; s_job_value = netto_g;
+  s_job = CJ_INITIAL; s_job_value = netto_g; s_job_spool_id = sm_id;
 }
 
 // Name the weight the button will really write. Where the tare is derived
@@ -364,6 +374,7 @@ float confirmNewSpoolShownG(float netto_g) {
 void showConfirmPopup(const char* msg, int action) {
   closeConfirmPopup();
   confirm_action = action;
+  s_confirm_spool_id = sm_id;
 
   confirm_popup = lv_obj_create(lv_scr_act());
   lv_obj_set_size(confirm_popup, 480, 320);
@@ -443,8 +454,10 @@ void showConfirmPopup(const char* msg, int action) {
   lv_obj_add_event_cb(btn_ja, [](lv_event_t *e) {
     int act = confirm_action;
     closeConfirmPopup();
+    // A tap in the pass another spool was loaded in, before the loop closed it.
+    if ((act == 1 || act == 3) && sm_id != s_confirm_spool_id) return;
     if (act == 1) btn_dried_cb(nullptr);
-    if (act == 3) s_job = CJ_ARCHIVE;
+    if (act == 3) { s_job = CJ_ARCHIVE; s_job_spool_id = s_confirm_spool_id; }
     // 7 = release the tag of the spool just archived. Flags only.
     if (act == 7) freeTagConfirmed();
     if (act == 4) spoolmanClearHost();

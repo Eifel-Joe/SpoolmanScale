@@ -844,7 +844,12 @@ void appLoop() {
   // button named so the screen and the database agree on one number.
   if (reactivate_pending) {
     reactivate_pending = false;
-    if (!reactivateSpool(reactivate_weight_g)) {
+    // Asked for one spool; a tag lookup at the end of the pass the tap came
+    // in may have loaded another by now (o13's window, found in the review).
+    if (reactivate_spool_id != sm_id) {
+      logSDf("Reactivate: %.0f g was for spool %d, spool %d is loaded now - not stored",
+             reactivate_weight_g, reactivate_spool_id, sm_id);
+    } else if (!reactivateSpool(reactivate_weight_g)) {
       logSDf("Reactivate failed for spool %d", sm_id);
       if (lbl_status) {
         char buf[48];
@@ -1360,8 +1365,10 @@ void appLoop() {
       // an error of the server - leaves the last spool's values in place, and
       // the adoption below then had the automatic weighing write this reading
       // into that spool, under a status line saying it was being weighed.
-      // Fix: taken on only once this spool has loaded; otherwise the status
-      // line keeps what querySpoolmanById() said about the failure.
+      // Fix: taken on only once this spool has loaded; otherwise nothing is
+      // taken on and the status line is left as it is (querySpoolmanById()
+      // reports a failed request through serverReachNote(); without Wi-Fi it
+      // asks nothing, and the header shows the lost connection).
       // NOT-TO-DO: clearing the display instead: the last spool stays shown,
       // as after any lookup that failed; only the weighing must not go to it.
       // See test_weighing_paths.py.

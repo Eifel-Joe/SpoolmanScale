@@ -126,6 +126,23 @@ void weightPopupTick() {
   closeWeightPopups();
 }
 
+// Wurzel (found in the review, next to o13): the tick runs once per pass,
+// after LVGL has dispatched the taps of that pass, and a tag lookup can swap
+// the spool at the end of the pass before. So a popup of the old spool still
+// took one tap, and every button but the large one acted on the spool loaded
+// then: archive, full spool, the empty weight rows, the parts and the bag.
+// Fix: each button asks first and closes a popup that is not this spool's.
+// NOT-TO-DO: moving the tick in front of LVGL's pass alone: a lookup that
+// finishes inside lv_timer_handler() leaves the same window.
+// See test_weighing_paths.py.
+static bool wpStale() {
+  if (sm_id == s_spool_id) return false;
+  logSDf("UI: weight popup tap for spool %d dropped, spool %d is loaded now", s_spool_id, sm_id);
+  closeExtrasChooser();
+  closeWeightPopups();
+  return true;
+}
+
 // ---------------------------------------------------------------------------
 //  Building blocks
 // ---------------------------------------------------------------------------
@@ -261,12 +278,14 @@ static void wpRefresh() {
 
 static void wpPrimaryClicked(lv_event_t *e) {
   // A tap in the pass the spool changed in, before the tick took the popup down.
-  if (sm_id != s_spool_id) { closeWeightPopups(); return; }
+  if (wpStale()) return;
   const float g = newG();
   if (sm_archived) {
     logSDf("UI: weight popup -> reactivate spool %d at %.0f g", sm_id, g);
-    // Deferred like every other network call reached from a callback.
+    // Deferred like every other network call reached from a callback, with
+    // its spool: the loop drops it for another one.
     reactivate_weight_g = g;
+    reactivate_spool_id = sm_id;
     reactivate_pending  = true;
   } else {
     logSDf("UI: weight popup -> send %.0f g for spool %d (bag %s)", g, sm_id, s_bag_on ? "on" : "off");
@@ -306,6 +325,7 @@ static int wpBuildPartsChip(lv_obj_t *box) {
   snprintf(buf, sizeof(buf), LV_SYMBOL_EDIT " -%.0f g", spoolExtrasNow());
   lv_obj_center(wpLabel(chip, buf, UI_FONT_SMALL, UI_COL_INK_2));
   lv_obj_add_event_cb(chip, [](lv_event_t *e) {
+    if (wpStale()) return;
     logSD("UI: weight popup -> parts");
     s_parts_for = sm_id;
     closeWeightPopups();
@@ -338,6 +358,7 @@ static void wpBuildSwitches(lv_obj_t *box) {
     const WpSwitch s = wpSwitchRow(box, y, LV_SYMBOL_DRIVE, STR_WP_BAG_ROW);
     s_v.bag_row = s.row; s_v.bag_sub = s.sub; s_v.bag_state = s.state;
     lv_obj_add_event_cb(s.row, [](lv_event_t *e) {
+      if (wpStale()) return;
       s_bag_on = !s_bag_on;
       logSDf("UI: weight popup -> bag %s", s_bag_on ? "on" : "off");
       wpRefresh();
@@ -375,6 +396,7 @@ static void wpBuildBottom(lv_obj_t *box, int y) {
     snprintf(buf, sizeof(buf), LV_SYMBOL_TRASH "  %s", T(STR_WP_ARCHIVE));
     lv_obj_center(wpLabel(b, buf, UI_FONT_SMALL, UI_COL_ARCHIVE_TEXT));
     lv_obj_add_event_cb(b, [](lv_event_t *e) {
+      if (wpStale()) return;
       closeWeightPopups();
       showConfirmPopup(T(STR_ARCHIVE_CONFIRM), 3);
     }, LV_EVENT_CLICKED, NULL);
@@ -385,7 +407,10 @@ static void wpBuildBottom(lv_obj_t *box, int y) {
   char buf[40];
   snprintf(buf, sizeof(buf), LV_SYMBOL_SETTINGS "  %s", T(STR_WP_OPTIONS));
   lv_obj_center(wpLabel(opt, buf, UI_FONT_SMALL, UI_COL_INK_2));
-  lv_obj_add_event_cb(opt, [](lv_event_t *e) { wpShowOptions(); }, LV_EVENT_CLICKED, NULL);
+  lv_obj_add_event_cb(opt, [](lv_event_t *e) {
+    if (wpStale()) return;
+    wpShowOptions();
+  }, LV_EVENT_CLICKED, NULL);
 
   lv_obj_t *close = wpButton(box, x + w + WP_GAP, y, w, WP_BOTTOM_H);
   lv_obj_center(wpLabel(close, T(STR_BT_CLOSE), UI_FONT_SMALL, UI_COL_INK_2));
@@ -471,6 +496,7 @@ static void wpBuildOptionRows(lv_obj_t *box, bool tare) {
   snprintf(sub + used, sizeof(sub) - used, "%s", spoolTareNote(sm_tare_source));
   lv_obj_t *full = wpOptionRow(box, WP_OPT_ROW_Y0, LV_SYMBOL_PLUS, STR_WP_FULL, sub);
   lv_obj_add_event_cb(full, [](lv_event_t *e) {
+    if (wpStale()) return;
     const float g = newG();
     logSDf("UI: weight options -> full spool, %.0f g", g);
     closeWeightPopups();
@@ -485,6 +511,7 @@ static void wpBuildOptionRows(lv_obj_t *box, bool tare) {
     lv_obj_t *empty = wpOptionRow(box, WP_OPT_ROW_Y0 + WP_OPT_ROW_STEP, LV_SYMBOL_DOWNLOAD,
                                   STR_WP_TARE_ROW, T(STR_WP_TARE_ROW_SUB));
     lv_obj_add_event_cb(empty, [](lv_event_t *e) {
+      if (wpStale()) return;
       logSD("UI: weight options -> empty weight");
       closeWeightPopups();
       showTareChoice();
@@ -497,6 +524,7 @@ static void wpBuildOptionRows(lv_obj_t *box, bool tare) {
   lv_obj_t *weigh = wpOptionRow(box, WP_OPT_ROW_Y0 + WP_OPT_ROW_STEP, LV_SYMBOL_DOWNLOAD,
                                 STR_WP_WEIGH_EMPTY, sub);
   lv_obj_add_event_cb(weigh, [](lv_event_t *e) {
+    if (wpStale()) return;
     // The reading at the moment of the press.
     const float g = spoolExtrasBareReading();
     closeWeightPopups();
@@ -506,6 +534,7 @@ static void wpBuildOptionRows(lv_obj_t *box, bool tare) {
   lv_obj_t *type = wpOptionRow(box, WP_OPT_ROW_Y0 + 2 * WP_OPT_ROW_STEP, LV_SYMBOL_KEYBOARD,
                                STR_WP_TYPE_EMPTY, T(STR_WP_TYPE_EMPTY_SUB));
   lv_obj_add_event_cb(type, [](lv_event_t *e) {
+    if (wpStale()) return;
     closeWeightPopups();
     showTareEntryPad();
   }, LV_EVENT_CLICKED, NULL);
@@ -529,5 +558,8 @@ static void wpShowOptions() {
   lv_obj_t *back = wpButton(box, WP_X, back_y, WP_INNER_W, WP_BOTTOM_H);
   lv_obj_center(wpLabel(back, T(STR_BACK), UI_FONT_SMALL, UI_COL_INK_2));
   styleLeaveButton(back, LV_SYMBOL_LEFT);
-  lv_obj_add_event_cb(back, [](lv_event_t *e) { wpOpenLevel1(false); }, LV_EVENT_CLICKED, NULL);
+  lv_obj_add_event_cb(back, [](lv_event_t *e) {
+    if (wpStale()) return;
+    wpOpenLevel1(false);
+  }, LV_EVENT_CLICKED, NULL);
 }

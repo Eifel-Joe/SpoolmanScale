@@ -49,6 +49,7 @@ int8_t dry_pad_pending = -1;
 bool   ams_window_pad_pending = false;
 bool  reactivate_pending   = false;
 float reactivate_weight_g  = 0.0f;
+int   reactivate_spool_id  = 0;
 bool gh_check_pending = false;
 bool gh_downgrade_pending = false;
 bool gh_flash_pending = false;

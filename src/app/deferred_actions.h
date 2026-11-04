@@ -116,6 +116,8 @@ extern bool   ams_window_pad_pending;
 // the button named rather than re-measuring in the loop.
 extern bool  reactivate_pending;
 extern float reactivate_weight_g;
+// The spool the reactivation was asked for; the loop drops it for another one.
+extern int   reactivate_spool_id;
 
 extern bool gh_check_pending;
 // The user confirmed a downgrade on the OTA screen. The download blocks for
