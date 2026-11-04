@@ -1356,24 +1356,37 @@ void appLoop() {
       logSDf("RemoteLink: no tag, adopting spool %d for weighing", id);
       remoteLinkReport(true, nullptr, nullptr);
       querySpoolmanById(id);
-      // Weighable from here, by hand or on its own, until the pad is empty
-      // again. Starting a fresh cycle as well, so a spool weighed before this
-      // one does not leave its "already saved" behind.
-      aw_adopted      = true;
-      aw_adopted_seen = false;
-      auto_weight_done = false;
-      // Start the settling window here rather than inheriting one. A spool
-      // that had already been sitting still for three seconds when the
-      // trigger arrived would otherwise be written on the very first pass,
-      // with no countdown on the button and no moment to put a tag on after
-      // all. Now the quiet second and the countdown run from the adoption.
-      auto_weight_stable_ms = millis();
-      auto_weight_last_val  = scale_weight_g;
-      if (lbl_status) {
-        char buf[48];
-        copyT(buf, sizeof(buf), STR_REMOTE_LINK_WEIGH);
-        lv_label_set_text(lbl_status, buf);
-        lv_obj_set_style_text_color(lbl_status, lv_color_hex(UI_COL_GOOD), 0);
+      // Wurzel (a11, AreYouThereAndi2): a request that failed - no network,
+      // an error of the server - leaves the last spool's values in place, and
+      // the adoption below then had the automatic weighing write this reading
+      // into that spool, under a status line saying it was being weighed.
+      // Fix: taken on only once this spool has loaded; otherwise the status
+      // line keeps what querySpoolmanById() said about the failure.
+      // NOT-TO-DO: clearing the display instead: the last spool stays shown,
+      // as after any lookup that failed; only the weighing must not go to it.
+      // See test_weighing_paths.py.
+      if (!sm_found || sm_id != id) {
+        logSDf("RemoteLink: spool %d did not load, nothing taken on", id);
+      } else {
+        // Weighable from here, by hand or on its own, until the pad is empty
+        // again. Starting a fresh cycle as well, so a spool weighed before this
+        // one does not leave its "already saved" behind.
+        aw_adopted      = true;
+        aw_adopted_seen = false;
+        auto_weight_done = false;
+        // Start the settling window here rather than inheriting one. A spool
+        // that had already been sitting still for three seconds when the
+        // trigger arrived would otherwise be written on the very first pass,
+        // with no countdown on the button and no moment to put a tag on after
+        // all. Now the quiet second and the countdown run from the adoption.
+        auto_weight_stable_ms = millis();
+        auto_weight_last_val  = scale_weight_g;
+        if (lbl_status) {
+          char buf[48];
+          copyT(buf, sizeof(buf), STR_REMOTE_LINK_WEIGH);
+          lv_label_set_text(lbl_status, buf);
+          lv_obj_set_style_text_color(lbl_status, lv_color_hex(UI_COL_GOOD), 0);
+        }
       }
     }
   }
