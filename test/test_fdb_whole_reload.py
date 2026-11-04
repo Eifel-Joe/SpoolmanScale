@@ -58,6 +58,20 @@ need(re.search(r"=fdbStorePrepare\(s_base\)", start),
      f"src/{FDB}: startTask() does not keep what fdbStorePrepare() found")
 need("wholedatabase" in ks.squeeze(ks.body_of(FDB, "startTask", strings=True)).lower(),
      f"src/{FDB}: no log line that names the whole database at the start or its refusal")
+# Once a whole read is done the stored copy may be there: the next start asks
+# with the plain floor and finds out again (review 04.11.2026). Kept after a
+# failed read, which the next start repeats.
+take = ks.squeeze(body(FDB, "fdbTake"))
+i_ok = take.find("if(ok){", take.find("s_job==FDB_JOB_INDEX"))
+need(i_ok >= 0 and "s_whole_ahead=false;" in take[i_ok:take.find("}else{", i_ok)],
+     f"src/{FDB}: fdbTake() does not forget the whole read ahead once an index load succeeded")
+# A start refused for the extra after the acceptance's forget gives the
+# forget back: else the call answered "forget" and the next start reads the
+# stored copy (review 04.11.2026).
+i_back = start.find("fdbStoreForgetOnce()", i_prep)
+need(i_prep >= 0 and i_back > i_prep and "fdbStorePassedOver()" in start[i_prep:i_back],
+     f"src/{FDB}: a start refused for the extra uses up the acceptance's forget (fdbStorePassedOver(), fdbStoreForgetOnce())")
+
 # The refusal line, wherever it is written, goes through the postponed line's gate.
 fdb_src = ks.source_of(FDB)
 refusals = [(name, fdb_src.code_str[a + 1:b]) for name, a, b in ks.cc.find_functions(fdb_src.code)
