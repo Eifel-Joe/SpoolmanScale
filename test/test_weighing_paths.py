@@ -90,6 +90,29 @@ need(squeeze("closeExtrasChooser();") in tick,
 need(squeeze("closeWeightPopups();") in tick, f"src/{WP}: weightPopupTick() must close the popup")
 need(loop.count(squeeze("weightPopupTick();")) == 1, f"src/{LOOP}: weightPopupTick() must run once per pass")
 
+# 3b. The same fault one step on, found next to o13: the question "raise the
+# label?" holds a reading of the spool it was asked for, and its answers, like
+# the weight the popup queues, run a pass later on whatever spool is loaded
+# then. They carry their spool now, the question closes when another spool is
+# loaded, and the job slot drops a weight meant for another spool, as it
+# already did for an empty weight.
+CP = "ui/confirm_popup.cpp"
+queue = body_of(CP, "confirmQueueWeight")
+need(squeeze("s_job_spool_id = sm_id;") in queue, f"src/{CP}: confirmQueueWeight() must carry the spool the weight is for")
+cap = body_of(CP, "showBamBuddyCapPopup")
+need(squeeze("s_cap_spool_id = spool_id;") in cap and squeeze("s_job_spool_id = s_cap_spool_id;") in cap,
+     f"src/{CP}: the label question must remember its spool and hand it to the job")
+need(squeeze("showBamBuddyCapPopup(bb_cap_measured_g, bb_cap_label_g, bb_cap_spool_id);") in loop,
+     f"src/{LOOP}: the label question must be opened for the spool the check was made for")
+need(squeeze("bb_cap_spool_id = sm_id;") in code_of("services/spoolman_actions.cpp"),
+     "src/services/spoolman_actions.cpp: the check above the label must note the spool")
+jobs = body_of(CP, "handleConfirmPopupDeferredActions")
+need(squeeze("job == CJ_WEIGHT || job == CJ_CAP_RAISE || job == CJ_CAP_KEEP") in jobs and
+     squeeze("if (spool_job && sm_id != s_job_spool_id)") in jobs,
+     f"src/{CP}: a parked weight must be dropped when another spool is loaded, as a parked tare is")
+need(squeeze("if (s_cap_popup && sm_id != s_cap_spool_id)") in jobs,
+     f"src/{CP}: the label question must close when another spool is loaded")
+
 # 4. FilaMan, a spool picked without a tag (a11, AreYouThereAndi2): the scale
 # takes it on for weighing only once it loaded. A failed request leaves the last
 # spool's values in place, and weighing then wrote into that one. The status
