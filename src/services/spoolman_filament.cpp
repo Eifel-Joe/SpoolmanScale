@@ -423,7 +423,12 @@ static float productDensity(const char* base_url, const TagCreateInput& in) {
   const String path = String("/api/v1/external/filament/search?limit=") + SM_FIL_DB_LIMIT +
                       "&query=" + spoolmanUrlEncode(words.c_str());
   JsonDocument doc;
-  const int code = spoolmanGetJson(base_url, path.c_str(), doc, SM_FIL_DB_TIMEOUT_MS, &filter);
+  // Within the same budget as the other searches of the database (f04,
+  // lvmiller b1bf6ffb): an answer cut off by it reads as a failed search,
+  // and the density goes on as if nothing was found (takeTypedDensity()),
+  // never from a half list. Test: test/test_fdb_read_limit_paths.py.
+  FdbJsonRead r = { &doc, &filter, &FDB_LIMIT_ANSWER, "Spoolman database search by product" };
+  const int code = spoolmanGetStreamed(base_url, path.c_str(), SM_FIL_DB_TIMEOUT_MS, fdbReadJson, &r);
   if (code != 200) {
     logSDf("Spoolman: filament database search by product -> HTTP %d", code);
     return 0.0f;
