@@ -12,6 +12,7 @@
 #include "services/backend.h"
 #include "services/ams_recheck_rules.h"
 #include "services/backend_api.h"
+#include "services/bambuddy_api.h"      // bbInventoryMode()
 #include "services/klipper_printers.h"
 #include "services/server_reach.h"
 #include "services/location_state.h"
@@ -46,6 +47,11 @@ Pending s_pending;
 // in the bay, it holds, because BamBuddy then configures the bay. So the
 // order of "put it in" and "tap the bay" no longer matters.
 AmsRecheck s_recheck[AMS_RECHECK_SLOTS];
+// The server and BamBuddy's inventory mode the watches belong to: a spool
+// number means another spool on another server, and the local inventory and
+// Spoolman number their spools apart (review, beta.4).
+char s_recheck_base[80] = "";
+int  s_recheck_mode     = -1;
 
 // "Loading AMS bays" from the moment the weight leaves the pad until the
 // question stands. Lifting, the two removal checks and the requests to
@@ -267,6 +273,8 @@ static void onPicked(int ams_id, int tray_id) {
     // that reads empty. A Klipper field is held by the printer, and an AMS
     // source gives no sign of releasing anything (Spec 5.3 AC, V71).
     if (!klipper && backendIsBamBuddy()) {
+      snprintf(s_recheck_base, sizeof(s_recheck_base), "%s", backendBaseUrl());
+      s_recheck_mode = (int)bbInventoryMode();
       AmsRecheck want{};
       want.spool_id   = spool_id;
       want.printer_id = printer_id;
@@ -353,7 +361,17 @@ void amsPickTick() {
   if (s_hint_up && (millis() - s_hint_ms > kHintMaxMs ||
                     (isAmsViewOpen() && !amsViewLoading()))) amsPickHintHide();
   if (!s_pending.active) return;
-  if (isAmsViewOpen()) return;          // the question is on screen, let it stand
+  // Wurzel: the page closed in this pass, and its answer runs in the next one
+  // (onPicked() via handleAmsViewDeferredActions()). A note older than its two
+  // minutes - lifted late, answered late - ran out in between, and the
+  // answer found no spool: a bay tap assigned nothing, "Not into the AMS"
+  // ended no recheck and asked no location (review, beta.4).
+  // Fix: the clock starts over while the question is on screen, so the two
+  // minutes count from the moment it went.
+  // NOT-TO-DO: expiring only when no answer is parked - the parked answer is
+  // the view's, and this would read its state from here.
+  // See test_fachfrage_wiring.py (j07_review).
+  if (isAmsViewOpen()) { s_pending.noted_ms = millis(); return; }
   if (noTagAfterCreateBusy()) s_pending.noted_ms = millis();
   if (amsPickPendingAgeMs() <= AMS_PICK_MAX_MS) return;
   logSDf("AMSPICK: note for spool %d expired", s_pending.spool_id);
@@ -414,10 +432,16 @@ void amsPickRecheckStop(int spool_id) {
 }
 
 void amsPickRecheckTick() {
-  if (!backendIsBamBuddy() || !backendCanAssignAmsSlot()) {
+  if (!backendIsBamBuddy() || !backendCanAssignAmsSlot() ||
+      strcmp(s_recheck_base, backendBaseUrl()) != 0 ||
+      s_recheck_mode != (int)bbInventoryMode()) {
     amsRecheckClear(s_recheck, AMS_RECHECK_SLOTS);
     return;
   }
+  // Not between a weighing and its bay question: the looks block for up to
+  // half a minute, and "Loading AMS bays" would stand that long. A look that
+  // falls due meanwhile comes a little later.
+  if (s_pending.active || s_hint_up) return;
   const int i = amsRecheckDue(s_recheck, AMS_RECHECK_SLOTS, (uint32_t)millis());
   if (i < 0) return;
   AmsRecheck& r = s_recheck[i];
@@ -451,10 +475,15 @@ void amsPickRecheckTick() {
   // elsewhere, or has not gone in yet.
   const int other = backendFindBaySpool(asked.printer_id, asked.ams_id, asked.tray_id, 6000);
   step = amsRecheckAfterBay(asked, other);
-  if (step == RC_OTHER_SPOOL) {
-    logSDf("AMSPICK: recheck, bay %d/%d holds spool %d now - leaving it",
-           asked.ams_id, asked.tray_id, other);
-    r.active = false;
+  if (step == RC_NO_ANSWER || step == RC_OTHER_SPOOL) {
+    if (step == RC_NO_ANSWER) {
+      logSDf("AMSPICK: recheck %u, who is on file for bay %d/%d could not be asked, HTTP %d", look,
+             asked.ams_id, asked.tray_id, -other);
+    } else {
+      logSDf("AMSPICK: recheck, bay %d/%d holds spool %d now - leaving it",
+             asked.ams_id, asked.tray_id, other);
+      r.active = false;
+    }
     return;
   }
   bool known = false;
@@ -471,8 +500,10 @@ void amsPickRecheckTick() {
     r.active = false;
     return;
   }
+  // Not a user's request: a failure shows in the header, not as a popup
+  // minutes after the tap.
   const int ac = serverReachNote(
-      backendAssignAmsSlot(asked.spool_id, asked.printer_id, asked.ams_id, asked.tray_id, 8000), true);
+      backendAssignAmsSlot(asked.spool_id, asked.printer_id, asked.ams_id, asked.tray_id, 8000), false);
   r.resent = (uint8_t)(asked.resent + 1);
   logSDf("AMSPICK: recheck %u, BamBuddy had dropped spool %d from bay %d/%d - sent again (%u of %d), HTTP %d",
          look, asked.spool_id, asked.ams_id, asked.tray_id, (unsigned)r.resent,

@@ -80,6 +80,10 @@ AmsRecheckStep amsRecheckAfterFind(const AmsRecheck& r, int code, int found_ams,
 }
 
 AmsRecheckStep amsRecheckAfterBay(const AmsRecheck& r, int other_spool) {
+  // A failed lookup comes back negated (bbFindBaySpool()). It says nothing
+  // about the bay, and sending on it could put the spool over one BamBuddy
+  // has there; the next round looks again.
+  if (other_spool < 0) return RC_NO_ANSWER;
   if (other_spool > 0 && other_spool != r.spool_id) return RC_OTHER_SPOOL;
   return RC_GO_ON;
 }

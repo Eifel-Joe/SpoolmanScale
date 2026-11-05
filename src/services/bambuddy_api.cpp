@@ -163,6 +163,10 @@ static int sendJson(const char* method, const char* url, const char* api_key,
   BackendHttp http;
   if (!http.begin(url)) return -1;
   http.setTimeout(timeout_ms);
+  // setTimeout() bounds the answer only; the connection keeps HTTPClient's
+  // 5 s unless it is told. A short limit (the reports to BamBuddy, 3 s and
+  // 1.5 s, Spec 5.3 AC a03) bounds it as well; longer ones keep the 5 s.
+  http.setConnectTimeout(timeout_ms < 5000 ? (int32_t)timeout_ms : 5000);
   http.addHeader("Content-Type", "application/json");
   addKey(http, api_key);
 

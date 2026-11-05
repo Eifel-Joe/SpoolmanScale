@@ -83,7 +83,7 @@ def j07_started_for_bambuddy_only():
 def j07_tick():
     b = body_of(PICK, "amsPickRecheckTick")
     w = f"src/{PICK}: amsPickRecheckTick()"
-    before(b, "if (!backendIsBamBuddy() || !backendCanAssignAmsSlot())", "amsRecheckDue(", w)
+    before(b, "if (!backendIsBamBuddy() || !backendCanAssignAmsSlot() ||", "amsRecheckDue(", w)
     has(b, "amsRecheckAfterFind(", w)
     has(b, "amsRecheckAfterBay(", w)
     has(b, "amsRecheckAfterPresence(", w)

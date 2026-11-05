@@ -78,7 +78,8 @@ enum AmsRecheckStep : uint8_t {
 
 // The spool's place as BamBuddy has it: HTTP code and bay (ams -1 nowhere).
 AmsRecheckStep amsRecheckAfterFind(const AmsRecheck& r, int code, int found_ams, int found_tray);
-// Who BamBuddy has in the watched bay: a spool id, 0 or less for none.
+// Who BamBuddy has in the watched bay: a spool id, 0 for none, negative for a
+// lookup that failed (no answer).
 AmsRecheckStep amsRecheckAfterBay(const AmsRecheck& r, int other_spool);
 // What the AMS reports for the bay.
 AmsRecheckStep amsRecheckAfterPresence(const AmsRecheck& r, bool known, bool present);
