@@ -755,3 +755,6 @@ STR_SETUP_GO	16	440	NEVER	src/ui/setup_frame.cpp main bar button
 STR_BTN_WIFI_CHANGE	16	134	NEVER	src/ui/wifi_connect_view.cpp quiet bar button
 STR_ID_PAD_LINK_TITLE	18	330	NEVER	src/ui/num_pad.cpp header title between back and close
 STR_ID_PAD_COPY_TITLE	18	330	NEVER	src/ui/num_pad.cpp header title between back and close
+STR_DENSITY_TYPICAL	14	360	NEVER	src/ui/tag_create_popup.cpp status line in the small font, one line (showDensityOffer()): the hint names the buttons below it
+STR_DENSITY_TAKE	18	132	NEVER	src/ui/tag_create_popup.cpp left answer button, TCP_ANSWER_W 140 px beside the price button, -8 air
+STR_DENSITY_CHANGE	14	64	NEVER	src/ui/tag_create_popup.cpp 80 px price button, 8 px air each side

@@ -4863,8 +4863,12 @@ const char* const STRINGS[][3] = {
   { "Der Server hat das Gewicht nicht angenommen. Bitte noch einmal senden.",
     "The server did not accept the weight. Please send it again.",
     "Le serveur n'a pas accepté le poids. Veuillez l'envoyer à nouveau." },  // STR_WEIGHT_NOT_SAVED_TEXT
-  { "Nicht ins AMS", "Not into the AMS", "Pas dans l'AMS" },  // STR_AMSV_NOT_AMS
-  { "AMS-Fächer werden geladen ...", "Loading AMS bays ...", "Chargement AMS ..." },  // STR_AMSPICK_LOADING
+  { "Nicht ins AMS",                 "Not into the AMS",         "Pas dans l'AMS" },  // STR_AMSV_NOT_AMS
+  { "AMS-Fächer werden geladen ...", "Loading AMS bays ...",     "Chargement AMS ..." },  // STR_AMSPICK_LOADING
+  { "Typisch für %s: %s g/cm3", "Typical for %s: %s g/cm3",
+    "Typique pour %s : %s g/cm3" },  // STR_DENSITY_TYPICAL
+  { "Übernehmen",                    "Use",                      "Utiliser" },  // STR_DENSITY_TAKE
+  { "Ändern",                        "Change",                   "Modifier" },  // STR_DENSITY_CHANGE
 };
 
 StringID tagWriteResultString(uint8_t code) {

@@ -2209,6 +2209,10 @@ enum StringID {
   STR_AMSV_NOT_AMS,            // the bay question's way out, named for what it means
   STR_AMSPICK_LOADING,         // shown from the lift until the bay question stands (j09)
 
+  STR_DENSITY_TYPICAL,         // the material's typical density on the create card (o04)
+  STR_DENSITY_TAKE,            // its left button: take the typical density
+  STR_DENSITY_CHANGE,          // its price button: change the typical density
+
   STR_COUNT
 };
 

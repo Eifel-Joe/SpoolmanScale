@@ -87,6 +87,11 @@ static TcpTwin         s_twin_answer = TCP_TWIN_OPEN;
 static int             s_twin_id     = 0;
 // The database was asked once more after it did not answer (dbRetryDue()).
 static bool            s_db_retried  = false;
+// The card offers the typical density of the material (o04, showDensityOffer()):
+// the left button takes it, the price button opens the density field with it.
+// Every other status ends the offer (showStatus()).
+static bool            s_density_offer   = false;
+static float           s_density_typical = 0.0f;
 // The key of the tag on the pad when the card opened (createPadTagKey()), ""
 // for a create without a tag. See closeForOtherSpool().
 static char            s_held_key[40] = "";
@@ -227,9 +232,16 @@ static void setOkText(int text_id) {
   if (lbl) lv_label_set_text(lbl, text_id == STR_COPY_CARD_CREATE ? batchCreateCaption(caption, sizeof(caption)) : T(text_id));
 }
 
+static void refreshPrice();
+
 // button_free: the left button can be pressed, to create or to ask for the
-// density or the fill weight.
+// density or the fill weight. Every status ends an offer of the typical
+// density; showDensityOffer() makes it again after this.
 static void showStatus(const char* text, uint32_t color, bool button_free) {
+  if (s_density_offer) {
+    s_density_offer = false;
+    refreshPrice();   // "Change" goes back to the price
+  }
   if (!s_status) return;
   lv_label_set_text(s_status, text);
   lv_obj_set_style_text_color(s_status, lv_color_hex(color), 0);
@@ -262,6 +274,41 @@ static void showAsk(int hint_id, int button_id) {
 
 // No source knows a density (or the one typed was out of range).
 static void showDensityAsk(int hint_id) { showAsk(hint_id, STR_DENSITY_BTN); }
+
+// No source knows a density, but the material has a typical one (o04,
+// Niko11111 b67f5ab, in our density field of V34; Entwurf v0.8.7-beta.5 E1).
+// Wurzel: Spoolman refuses a filament without a density, and for a material
+// neither the database nor Spoolman's material list knows (PC-CF, PA12, TPU)
+// the card could only ask for a number the user had to look up. Fix: the
+// status line names the material's typical value (the median across
+// SpoolmanDB, densityTypical()), the left button "Use" takes it as if it were
+// typed (onDensity(): range, input, plan again) and the price button
+// "Change" opens our density field with the value in it. Nothing is stored
+// without one of the two. NOT-TO-DO: Niko's own number field and plan state
+// (TFS_NEEDS_DENSITY): ours already asks, with its grey line about an empty
+// field and the second try of a silent database (n05 a); taking the typical
+// value without a tap, which would file a guess as a known density.
+// See test_density_typical_card.py.
+static void showDensityOffer() {
+  s_density_typical = densityTypical(s_in.material);
+  // The value as the language writes it: a comma in German and French, as
+  // the range on the pad's grey line (STR_DENSITY_PAD_INFO).
+  char value[16];
+  snprintf(value, sizeof(value), "%.2f", s_density_typical);
+  if (g_lang != LANG_EN) {
+    char* point = strchr(value, '.');
+    if (point) *point = ',';
+  }
+  char buf[96];
+  snprintf(buf, sizeof(buf), T(STR_DENSITY_TYPICAL), s_in.material, value);
+  showStatus(buf, UI_COL_WARN, true);
+  // One line of the small font, as the question it stands for (showAsk()).
+  if (s_status) lv_obj_set_style_text_font(s_status, UI_FONT_SMALL, 0);
+  s_density_offer = true;
+  setOkText(STR_DENSITY_TAKE);
+  refreshPrice();
+  logSDf("TagCreate: no density known for %s, typical %.2f offered", s_in.material, s_density_typical);
+}
 
 // No tag and no fill weight (or the one typed was out of range).
 static void showFillAsk(int hint_id) { showAsk(hint_id, STR_NOTAG_FILL_BTN); }
@@ -314,6 +361,11 @@ static void showPlan() {
           snprintf(buf, sizeof(buf), T(STR_TAGNEW_FAILED), s_plan.db_code);
           showStatus(buf, UI_COL_BAD_TEXT, true);
           setOkText(STR_TAGNEW_RETRY_BTN);
+          break;
+        }
+        // The material has a typical density: the card offers it (o04).
+        if (densityTypical(s_in.material) > 0.0f) {
+          showDensityOffer();
           break;
         }
         // A filament cannot be made without a density: the card asks for one.
@@ -481,6 +533,8 @@ static lv_obj_t* answerButton(lv_obj_t* box, int x, int w, bool ok, int text_id)
 // The price button shows what was typed in, or that there is none yet.
 static void refreshPrice() {
   if (!s_lbl_price) return;
+  // While the card offers the typical density, this button changes it (o04).
+  if (s_density_offer) { lv_label_set_text(s_lbl_price, T(STR_DENSITY_CHANGE)); return; }
   if (s_price <= 0.0f) { lv_label_set_text(s_lbl_price, T(STR_TAGNEW_PRICE_BTN)); return; }
   char buf[16];
   snprintf(buf, sizeof(buf), "%.2f", s_price);
@@ -491,6 +545,8 @@ static void onPrice(float price) {
   s_price = price;
   refreshPrice();
 }
+
+static void onDensity(float density);
 
 static void buildPriceButton(lv_obj_t* box) {
   lv_obj_t* btn = lv_btn_create(box);
@@ -504,6 +560,12 @@ static void buildPriceButton(lv_obj_t* box) {
   lv_obj_set_style_shadow_width(btn, 0, 0);
   lv_obj_add_event_cb(btn, [](lv_event_t*) {
     if (s_job != TCP_IDLE) return;
+    // "Change": our density field, with the typical value in it (o04).
+    if (s_density_offer) {
+      logSD("BTN: TagCreate -> Change the typical density");
+      showPricePadInfo(s_density_typical, STR_DENSITY_PAD_TITLE, STR_DENSITY_PAD_INFO, onDensity);
+      return;
+    }
     logSD("BTN: TagCreate -> Price");
     showPricePad(s_price, onPrice);
   }, LV_EVENT_CLICKED, NULL);
@@ -586,6 +648,12 @@ static void buildAnswers(lv_obj_t* box) {
     // No density known: the button asks for it on the price pad instead of
     // creating, and the answer comes back through onDensity().
     if (s_plan.no_density) {
+      // "Use": the typical value, taken as a typed one would be (o04).
+      if (s_density_offer) {
+        logSDf("BTN: TagCreate -> Use the typical density %.2f", s_density_typical);
+        onDensity(s_density_typical);
+        return;
+      }
       logSD("BTN: TagCreate -> Density");
       // The pad's grey line says what empty means and the range: the one for a
       // price talks about the currency.
@@ -617,6 +685,7 @@ static void buildCard() {
   s_twin_answer = TCP_TWIN_OPEN;
   s_twin_id = 0;
   s_db_retried = false;
+  s_density_offer = false;
   tagFilamentPlanClear(&s_plan);
 
   lv_obj_t* box = buildBox();
