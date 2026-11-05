@@ -37,7 +37,8 @@ struct UnlinkedSpool {
   // patchSpoolTag(): linkRefreshRow() reads the spool and clears it.
   //
   // In the row and not beside it, because qsort() moves whole rows. In the two
-  // bytes of padding that were here anyway, the row stays at 896. Every place
+  // bytes of padding that were here anyway (896 bytes before price came in
+  // with v0.8.7-beta.5, in PSRAM). Every place
   // that fills a row has to set it: the block comes from heap_caps_malloc(),
   // which does not zero.
   bool  from_cache;
@@ -149,7 +150,8 @@ bool copyTypeAsked();
 // look. Outlives the card: the create reads it after the card is closed.
 const char* copyCardVendor();
 // The price the copy is to get, in the server's unit: the one typed on the
-// card, else the template's; 0 for none (o19). copyCreateRequest() takes it.
+// card, else the template's; 0 for none (o19). copyPriceAfterCreate() reads it,
+// the card keeps it until the next card opens.
 float copyCardPrice();
 // After a copy stood on Spoolman or FilaMan: its price, written on its own,
 // as the create there takes none. True when a price was due and did not

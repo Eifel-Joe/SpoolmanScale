@@ -84,8 +84,9 @@ static uint8_t s_missing      = CM_NONE;  // the last create's CopyMissing bits
 // with its filament: read at all, and whether spool, filament or brand has one.
 static bool    s_chain_read   = false;
 static bool    s_chain_any    = true;
-// The load was made for the card right after it (copyTemplateRead(), n43):
-// copyBbsTakeFresh() hands it over once, within COPY_BBS_FRESH_MS.
+// The load was made for the card right after it (copyBbsLoadFresh() from
+// copyTemplateRead(), n43): copyBbsTakeFresh() hands it over once, within
+// COPY_BBS_FRESH_MS. The card's own load is never fresh.
 static bool     s_fresh       = false;
 static uint32_t s_fresh_at    = 0;
 #define COPY_BBS_FRESH_MS 10000
@@ -154,10 +155,19 @@ static int loadTemplate(int template_spool_id) {
 int copyBbsLoad(int template_spool_id) {
   HttpStallTime stall(__func__);   // the loop stands still for these reads
   const int code = loadTemplate(template_spool_id);
-  if (code != 200) {
-    logSDf("Copy: template %d unreadable (HTTP %d)", template_spool_id, code);
-    return code;
-  }
+  if (code != 200) logSDf("Copy: template %d unreadable (HTTP %d)", template_spool_id, code);
+  return code;
+}
+
+// Wurzel (review v0.8.7-beta.5): every load was marked fresh, the card's own
+// as well. A card closed from outside (hideSpoolFlowOverlays()) left its load
+// and a price typed on it, and the next card of the same template within 10 s
+// took both: it showed the template's price and sent the typed one. Fix: only
+// the read before a card is fresh, and a load handed over forgets any price
+// (copyBbsTakeFresh()). See test_copy_read_once.py.
+int copyBbsLoadFresh(int template_spool_id) {
+  const int code = copyBbsLoad(template_spool_id);
+  if (code != 200) return code;
   // The card right after this may take it instead of reading again (n43).
   s_fresh    = true;
   s_fresh_at = millis();
@@ -168,8 +178,12 @@ bool copyBbsTakeFresh(int template_spool_id) {
   const bool fresh = s_fresh && s_loaded_id > 0 && s_loaded_id == template_spool_id &&
                      (uint32_t)(millis() - s_fresh_at) < COPY_BBS_FRESH_MS;
   s_fresh = false;   // once: any later card reads again
-  if (fresh) logSDf("Copy: template %d taken from the read before the card", template_spool_id);
-  return fresh;
+  if (!fresh) return false;
+  // As a load of the card's own would start: without a typed price.
+  s_price_typed = false;
+  s_price       = 0.0f;
+  logSDf("Copy: template %d taken from the read before the card", template_spool_id);
+  return true;
 }
 
 bool copyBbsMapped(JsonDocument& out) {

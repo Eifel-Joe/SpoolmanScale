@@ -53,6 +53,7 @@
 #include "ui/ui_common.h"
 #include "services/backend.h"
 #include "services/breadcrumb.h"
+#include "services/copy_bbs.h"      // copyBbsClear(): a copy read that builds no card
 #include "services/tag_spool_match.h"
 #include "ui/list_row_layout.h"
 
@@ -1182,6 +1183,12 @@ enum LinkRowRefresh : uint8_t {
 // write goes through.
 //
 // Reaches the network: from the loop only, never from an event callback.
+// A copy's read that leads to no card lets go of its load behind BamBuddy on
+// Spoolman (copyTemplateRead()); a link has none.
+static void linkRowDropLoad() {
+  if (copy_flow_via_list) copyBbsClear();
+}
+
 static LinkRowRefresh linkRefreshRow(int idx) {
   if (!link_spools || idx < 0 || idx >= link_spool_count) return LINK_ROW_CHANGED;
   UnlinkedSpool &s = link_spools[idx];
@@ -1201,11 +1208,13 @@ static LinkRowRefresh linkRefreshRow(int idx) {
   // cache is kept, because nothing was learned that speaks against it.
   if (serverReachIsNetworkFailure(code)) {
     logSDf("link row: spool %d not read, no connection (%d, %lu ms)", s.id, code, took);
+    linkRowDropLoad();
     return LINK_ROW_NETWORK;
   }
   if (code == 404) {
     logSDf("link row: spool %d is gone (%lu ms)", s.id, took);
     spoolCacheForget("a listed spool is gone");
+    linkRowDropLoad();
     return LINK_ROW_CHANGED;
   }
   // Anything else that is not a spool: a 500, a body that did not parse. Not
@@ -1216,6 +1225,7 @@ static LinkRowRefresh linkRefreshRow(int idx) {
     logSDf("link row: spool %d not read, HTTP %d %s (%lu ms)", s.id, code,
            err ? err.c_str() : "", took);
     showInfoPopup(STR_SERVER_ERR_TITLE, STR_SERVER_ERR_TEXT, INFO_WARN);
+    linkRowDropLoad();
     return LINK_ROW_FAILED;
   }
 
@@ -1226,6 +1236,7 @@ static LinkRowRefresh linkRefreshRow(int idx) {
     logSDf("link row: spool %d was %s meanwhile (%lu ms)", s.id,
            s_lf_archived ? "brought back" : "archived", took);
     spoolCacheForget("a listed spool changed its archive state");
+    linkRowDropLoad();
     return LINK_ROW_CHANGED;
   }
   const bool bound = spoolHasAnyTag(spool);
@@ -1235,6 +1246,7 @@ static LinkRowRefresh linkRefreshRow(int idx) {
     // the cache again, without the spool.
     logSDf("link row: spool %d was bound meanwhile (%lu ms)", s.id, took);
     spoolCacheSetBound(s.id, true);
+    linkRowDropLoad();
     return LINK_ROW_CHANGED;
   }
 
@@ -2215,7 +2227,17 @@ void linkIdLookupAndPatch(int entered_id, bool is_bambu) {
     UnlinkedSpool &s = link_spools[link_spool_count];
     s.id = entered_id;
     s.from_cache = false;   // read from the server a moment ago
-    s.article_hit = false;  // typed in, not offered by the list
+    // Typed in, not offered by the list, but judged as the list judges its
+    // rows (linkArticleHit()): the question behind the number compares the
+    // row with the tag (showLinkConfirmPopup()), and without the article a
+    // spool the article number vouches for came up as "does not match"
+    // (review v0.8.7-beta.5, sister of o06).
+    {
+      char tag_article[16];
+      tagSpoolTagArticle(tag_article, sizeof(tag_article));
+      const char* sp_article = doc["filament"]["article_number"] | "";
+      s.article_hit = tag_article[0] && strcasecmp(tag_article, sp_article) == 0;
+    }
     // Same rule as the list fetch: too long is stored as empty, never cut.
     linkFillTagValues(s, doc.as<JsonObjectConst>());
     String mat = doc["filament"]["material"] | String("");
@@ -3806,17 +3828,23 @@ static void copyIdLookup(int cid) {
   JsonDocument cdoc;
   DeserializationError derr2 = DeserializationError::Ok;
   int hcode = serverReachNote(copyTemplateRead(cid, cdoc, 5000, &derr2), true);
+  // No card from here on any of these ways: a load behind BamBuddy on Spoolman
+  // goes with them (copyBbsClear()).
+  // -2 first, as for the link by number (o06): a spool the server did send,
+  // which the scale could not read, is not the server's error.
+  if (hcode == -2 || (hcode == 200 && derr2)) {
+    copyBbsClear();
+    idPadSay(T(STR_LINK_JSON_ERR), true);
+    return;
+  }
   // "Not found" for a 404 only: a 500 or the like is the server's error, not
   // a wrong number (Punkteliste n42).
   if (hcode != 200) {
+    copyBbsClear();
     idPadSay(T(serverReachIsNetworkFailure(hcode) ? STR_NO_CONNECTION
                : hcode == 404                    ? STR_LINK_ID_NOT_FOUND
                                                  : STR_SERVER_ERR_TITLE),
              true);
-    return;
-  }
-  if (derr2) {
-    idPadSay(T(STR_LINK_JSON_ERR), true);
     return;
   }
   int cfid   = cdoc["filament"]["id"] | 0;

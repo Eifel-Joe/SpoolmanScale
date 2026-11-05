@@ -145,10 +145,14 @@ bool copyBbsChainNone();
 // Frees what copyBbsLoad() holds and forgets a typed price.
 void copyBbsClear();
 
-// Whether the last copyBbsLoad() was for template_spool_id and made right
-// before (within 10 s, and not handed over yet): the card takes it instead of
-// reading the same spool again (Punkteliste n43, v0.8.7-beta.5). Once: the
-// next call says false until the next load.
+// copyBbsLoad() for the card that follows right after it (the row out of the
+// cache, the template typed by its number): that card takes the load instead
+// of reading the same spool again (Punkteliste n43, v0.8.7-beta.5).
+int copyBbsLoadFresh(int template_spool_id);
+
+// Whether the last copyBbsLoadFresh() was for template_spool_id, within 10 s,
+// and not handed over yet. Once: the next call says false until the next
+// copyBbsLoadFresh(). A load handed over carries no typed price.
 bool copyBbsTakeFresh(int template_spool_id);
 
 // The loaded template as the mapped read gives it (Spoolman's shape,

@@ -365,7 +365,7 @@ bool copyPriceAfterCreate(int spool_id) {
 // See test_copy_read_once.py.
 int copyTemplateRead(int spool_id, JsonDocument& doc, uint32_t timeout_ms, DeserializationError* err) {
   if (!spoolTypesActive()) return backendGetSpoolJson(cfg_spoolman_base, spool_id, doc, timeout_ms, err);
-  const int code = copyBbsLoad(spool_id);
+  const int code = copyBbsLoadFresh(spool_id);
   if (code != 200) return code;
   if (!copyBbsMapped(doc)) return -2;
   return 200;
