@@ -1239,6 +1239,14 @@ void appLoop() {
   idSpoolTick();
   idSpoolLiftQuestions();
   if (!tag_present && weightSaysSpoolGone()) loc_left_pad = true;
+  // The bay question is coming: say so the moment the weight leaves the pad,
+  // not two seconds later when the page stands (j09). Only for the spool the
+  // question is armed for, and not while the questions below are held back.
+  if (g_scale_fitted && pick_popup_pending_id > 0 && pick_popup_pending_id == sm_id &&
+      amsPickHasPending() && amsPickPendingSpoolId() == sm_id && weightSaysSpoolGone() &&
+      !amsPickHintUp() && !uiModalWaiting() && !isAmsViewOpen() && !noTagAfterCreateBusy()) {
+    amsPickHintShow();
+  }
   // Debounced popups after a removal, cross-checked against the scale.
   // The AMS question and the location question hang off the same event, so
   // the verdict is worked out once and the AMS side gets it first: a spool
@@ -1266,6 +1274,8 @@ void appLoop() {
       : (since >= LOC_DEBOUNCE_MS) || (weight_says_gone && since >= LOC_DEBOUNCE_FAST_MS);
 
     if (due && weight_says_stay) {
+      // Not a removal: no question, so no "loading" either.
+      amsPickHintHide();
       // The reader lost the tag but the spool never moved. Typical for
       // NTAGs. Not a removal, so no popup yet - but the questions stay
       // pending rather than being dropped: this was the only removal event
@@ -1284,6 +1294,10 @@ void appLoop() {
       ams_popup_pending_id  = -1;
       pick_popup_pending_id = -1;
 
+      // The hint stood for the bay question; any other answer takes it down.
+      if (!(pick_id > 0 && amsPickHasPending() && amsPickPendingSpoolId() == pick_id)) {
+        amsPickHintHide();
+      }
       if (pick_id > 0 && amsPickHasPending() &&
                  amsPickPendingSpoolId() == pick_id) {
         logSDf("AMSPICK: asking after %lums id=%d (weight %.0fg -> %.0fg%s)",
@@ -1325,6 +1339,9 @@ void appLoop() {
              pick_popup_pending_id);
       pick_popup_pending_id = -1;
     }
+    // Put back down: no question, so no "loading" either. Not while the tag
+    // still answers on its way up - the weight decides that.
+    if (amsPickHintUp() && !weightSaysSpoolGone()) amsPickHintHide();
   }
 
   // ── FilaMan remote link ──────────────────────────────────

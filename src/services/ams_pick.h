@@ -61,6 +61,14 @@ void amsPickTick();
 // Public so taking a spool out can tell this name from one the user chose.
 void amsLocationName(char* out, size_t n, const char* printer, int ams_id);
 
+// "Loading AMS bays" from the lift until the question stands (j09). Show is
+// called from appLoop() when the weight leaves the pad of a spool whose bay
+// question is armed; every exit of amsPickShow() and a timeout in
+// amsPickTick() take it down.
+void amsPickHintShow();
+void amsPickHintHide();
+bool amsPickHintUp();
+
 // Looks a few minutes after an assignment whether BamBuddy still has it, and
 // sends it again when BamBuddy dropped it while the spool sits in the bay
 // (Spec 5.3 AC j07, services/ams_recheck_rules.h). Makes network calls: from

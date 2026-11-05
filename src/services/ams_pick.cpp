@@ -17,6 +17,7 @@
 #include "services/user_options.h"
 #include "ui/ams_view.h"
 #include "ui/info_popup.h"
+#include "ui/loading_overlay.h"
 #include "ui/more_info_screen.h"
 #include "ui/no_tag_create.h"     // noTagAfterCreateBusy()
 
@@ -44,6 +45,14 @@ Pending s_pending;
 // in the bay, it holds, because BamBuddy then configures the bay. So the
 // order of "put it in" and "tap the bay" no longer matters.
 AmsRecheck s_recheck[AMS_RECHECK_SLOTS];
+
+// "Loading AMS bays" from the moment the weight leaves the pad until the
+// question stands. Lifting, the two removal checks and the requests to
+// BamBuddy and Spoolman take about two seconds, and a blank screen in that
+// time looked like nothing had happened (Jensilein, 14.10.2026).
+bool          s_hint_up = false;
+unsigned long s_hint_ms = 0;
+const unsigned long kHintMaxMs = 6000;
 
 }  // namespace
 
@@ -277,17 +286,35 @@ static void onPicked(int ams_id, int tray_id) {
 static void openPicker() {
   char fmt[48], head[80];
   copyT(fmt, sizeof(fmt), STR_AMSV_PICK_HEAD);
+  // The page takes over from here; its own status line says when it loads.
+  amsPickHintHide();
   snprintf(head, sizeof(head), fmt,
            s_pending.name[0] ? s_pending.name : "");
   requestAmsView(AMS_VIEW_PICK, onPicked, head);
 }
 
+void amsPickHintShow() {
+  if (s_hint_up) return;
+  s_hint_up = true;
+  s_hint_ms = millis();
+  loadingOverlayShow(T(STR_AMSPICK_LOADING));
+}
+
+void amsPickHintHide() {
+  if (!s_hint_up) return;
+  s_hint_up = false;
+  loadingOverlayHide();
+}
+
+bool amsPickHintUp() { return s_hint_up; }
+
 void amsPickShow() {
-  if (!s_pending.active) return;
+  if (!s_pending.active) { amsPickHintHide(); return; }
   // A note taken under one backend can be asked about under another only if
   // that one can assign bays too, and the option is still on.
   if (!amsPickActive()) {
     amsPickDropPending();
+    amsPickHintHide();
     return;
   }
 
@@ -314,6 +341,9 @@ void amsPickOpenFor(int spool_id, const char* spool_name) {
 // a spool that was just weighed, and only these questions are asked first.
 // See test_ams_offer_clock.py.
 void amsPickTick() {
+  // Never left standing: a lift that turned out to be none, or a question
+  // that did not come, takes it down after a few seconds.
+  if (s_hint_up && (millis() - s_hint_ms > kHintMaxMs || isAmsViewOpen())) amsPickHintHide();
   if (!s_pending.active) return;
   if (isAmsViewOpen()) return;          // the question is on screen, let it stand
   if (noTagAfterCreateBusy()) s_pending.noted_ms = millis();
