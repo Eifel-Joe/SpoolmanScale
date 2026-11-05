@@ -163,8 +163,8 @@ This fork is built on the work of others, taken over with their commits or as ma
 
 - **[@Niko11111](https://github.com/Niko11111)** – SpoolmanScale itself, the original this fork follows.
 - **[@wolfrage76](https://github.com/wolfrage76)** – the Waveshare support from [Waveshare-Spoolman-Scale](https://github.com/wolfrage76/Waveshare-Spoolman-Scale): one firmware for several boards with the Waveshare 7 as the second, a touch that wakes the panel, and screenshots at the panel's size. Also the photo above and the 7" enclosure.
-- **[@AreYouThereAndi2](https://github.com/AreYouThereAndi2)** – from the fork [AreYouThereAndi2/SpoolmanScale](https://github.com/AreYouThereAndi2/SpoolmanScale): the subtraction of accessories on a spool, the settings backup and the scale test page, and the check that a spool picked in FilaMan without a tag has loaded before it is weighed, taken over in parts and adapted.
-- **Jensilein** – the Creality CFS tags, from the original's pre-releases.
+- **[@AreYouThereAndi2](https://github.com/AreYouThereAndi2)** – from the fork [AreYouThereAndi2/SpoolmanScale](https://github.com/AreYouThereAndi2/SpoolmanScale): the subtraction of accessories on a spool, the settings backup and the scale test page, the check that a spool picked in FilaMan without a tag has loaded before it is weighed, the reports to BamBuddy that no longer stall the screen, the busy ring while the scale waits on its server, and "Take out" on the AMS bay card, taken over in parts and adapted.
+- **[@Jensilein](https://github.com/Jensilein)** – the Creality CFS tags, from the original's pre-releases; from the fork [Jensilein/SpoolmanScale](https://github.com/Jensilein/SpoolmanScale): an AMS assignment that BamBuddy dropped is sent again, "Loading AMS bays" after the lift, and "Not into the AMS" in the bay question, taken over whole or in parts.
 - **[@lvmiller](https://github.com/lvmiller)** – from the fork [lvmiller/SpoolmanScale](https://github.com/lvmiller/SpoolmanScale): the read limits for the filament database and the catalogs.
 
 Credits for SpoolmanScale itself are in the original's README below.
