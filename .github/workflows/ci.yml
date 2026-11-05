@@ -50,6 +50,12 @@ jobs:
         run: python3 test/test_label_gaps.py
       - name: Test Brother QL rules
         run: python3 test/test_brother_ql.py
+      - name: Test printer numbers
+        run: python3 test/test_printer_numbers.py
+      - name: Test TSPL job of the TYPONOS PM240
+        run: python3 test/test_tspl_job.py
+      - name: Test label printer reach
+        run: python3 test/test_printer_reach.py
       - name: Test local date parser
         run: python3 test/test_local_date.py
       - name: Test accent fold
