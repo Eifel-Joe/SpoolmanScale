@@ -51,10 +51,11 @@ def squeeze(text):
 
 
 def body_of(rel, name):
-    code = cc.Source((src / rel).read_text(encoding="utf-8")).code
-    spans = [(start, end) for found, start, end in cc.find_functions(code) if found == name]
+    source = cc.Source((src / rel).read_text(encoding="utf-8"))
+    spans = [(start, end) for found, start, end in cc.find_functions(source.code) if found == name]
     assert len(spans) == 1, f"src/{rel}: {name}() is not defined exactly once"
-    return squeeze(code[spans[0][0] + 1:spans[0][1]])
+    # Comments blanked, string literals kept (code_str is aligned with code).
+    return squeeze(source.code_str[spans[0][0] + 1:spans[0][1]])
 
 
 # The name builder asks the rule before it puts the line in front.

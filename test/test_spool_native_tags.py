@@ -18,10 +18,11 @@ def squeeze(text):
 
 
 def body_of(rel, name):
-    code = cc.Source((src / rel).read_text(encoding="utf-8")).code
-    spans = [(start, end) for found, start, end in cc.find_functions(code) if found == name]
+    source = cc.Source((src / rel).read_text(encoding="utf-8"))
+    spans = [(start, end) for found, start, end in cc.find_functions(source.code) if found == name]
     assert len(spans) == 1, f"src/{rel}: {name}() is not defined exactly once"
-    return squeeze(code[spans[0][0] + 1:spans[0][1]])
+    # Comments blanked, string literals kept (code_str is aligned with code).
+    return squeeze(source.code_str[spans[0][0] + 1:spans[0][1]])
 
 
 # 1. The relation counts, and before the extra fields: a spool without extra
@@ -34,14 +35,14 @@ assert native < has.find("extra.isNull()"), \
     f"src/{FLOW}: spoolHasAnyTag() returns for a spool without extra fields before it reads the relation"
 
 # 2. The list fetch asks for the relation, or a filtered list has none of it.
-code = squeeze(cc.Source((src / FLOW).read_text(encoding="utf-8")).code)
+code = squeeze(cc.Source((src / FLOW).read_text(encoding="utf-8")).code_str)
 assert 'fL["tags"][0]["uid"]=true' in code, f"src/{FLOW}: the link list's filter drops the tag relation"
 
 # 3. After a link the cache says what a fresh list would say, whichever field
 # was written: no exception for the relation any more, here and for a link
 # that came from outside (tag_link.cpp).
 for rel in (FLOW, LINK):
-    text = squeeze(cc.Source((src / rel).read_text(encoding="utf-8")).code)
+    text = squeeze(cc.Source((src / rel).read_text(encoding="utf-8")).code_str)
     assert "spoolCacheSetBound(" in text, f"src/{rel}: spoolCacheSetBound() is gone"
     assert "if(!tagFieldSelected().is_native)spoolCacheSetBound(" not in text, \
         f"src/{rel}: a link through Spoolman's own relation still leaves the spool free in the cache"

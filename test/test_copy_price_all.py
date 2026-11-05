@@ -24,12 +24,14 @@ def squeeze(text):
 
 
 def code_of(rel):
-    return cc.Source((src / rel).read_text(encoding="utf-8")).code
+    """Comments blanked, string literals kept."""
+    return cc.Source((src / rel).read_text(encoding="utf-8")).code_str
 
 
 def functions_of(rel):
-    code = code_of(rel)
-    return [(name, squeeze(code[start + 1:end])) for name, start, end in cc.find_functions(code)]
+    source = cc.Source((src / rel).read_text(encoding="utf-8"))
+    return [(name, squeeze(source.code_str[start + 1:end]))
+            for name, start, end in cc.find_functions(source.code)]
 
 
 def body_of(rel, name):
@@ -40,8 +42,8 @@ def body_of(rel, name):
 
 def click_handler_of(rel, marker):
     source = cc.Source((src / rel).read_text(encoding="utf-8"))
-    found = [squeeze(source.code[b0 + 1:b1]) for _, _, b0, b1 in cc.handlers(source)
-             if squeeze(marker) in squeeze(source.code[b0 + 1:b1])]
+    found = [squeeze(source.code_str[b0 + 1:b1]) for _, _, b0, b1 in cc.handlers(source)
+             if squeeze(marker) in squeeze(source.code_str[b0 + 1:b1])]
     assert len(found) == 1, f"src/{rel}: {len(found)} event handlers contain {marker}, expected one"
     return found[0]
 

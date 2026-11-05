@@ -24,16 +24,17 @@ def source_of(rel):
 
 
 def body_of(rel, name):
-    code = source_of(rel).code
-    spans = [(start, end) for found, start, end in cc.find_functions(code) if found == name]
+    source = source_of(rel)
+    spans = [(start, end) for found, start, end in cc.find_functions(source.code) if found == name]
     assert len(spans) == 1, f"src/{rel}: {name}() is not defined exactly once"
-    return squeeze(code[spans[0][0] + 1:spans[0][1]])
+    # Comments blanked, string literals kept (code_str is aligned with code).
+    return squeeze(source.code_str[spans[0][0] + 1:spans[0][1]])
 
 
 def click_handler_of(rel, marker):
     source = source_of(rel)
-    found = [squeeze(source.code[b0 + 1:b1]) for _, _, b0, b1 in cc.handlers(source)
-             if squeeze(marker) in squeeze(source.code[b0 + 1:b1])]
+    found = [squeeze(source.code_str[b0 + 1:b1]) for _, _, b0, b1 in cc.handlers(source)
+             if squeeze(marker) in squeeze(source.code_str[b0 + 1:b1])]
     assert len(found) == 1, f"src/{rel}: {len(found)} event handlers contain {marker}, expected one"
     return found[0]
 
