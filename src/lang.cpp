@@ -2641,8 +2641,8 @@ const char* const STRINGS[][3] = {
   { "Der Drucker antwortet nicht. Ist er eingeschaltet und in Reichweite?",
     "The printer does not answer. Is it on and in range?",
     "L'imprimante ne répond pas. Allumée et à portée ?" },  // STR_PRN_ERR_CONNECT
-  { "Das Gerät ist kein Phomemo-Drucker.", "The device is not a Phomemo printer.",
-    "Pas une imprimante Phomemo." },  // STR_PRN_ERR_NOT_PRINTER
+  { "Das Gerät ist kein unterstützter Drucker.", "The device is not a supported printer.",
+    "Imprimante non prise en charge." },  // STR_PRN_ERR_NOT_PRINTER
   { "Die Verbindung ließ sich nicht trennen. Bitte neu starten.",
     "The link would not close. Please restart.",
     "Connexion bloquée. Redémarrez." },  // STR_PRN_ERR_STUCK

@@ -40,7 +40,8 @@ enum LabelPrinterModel : uint8_t {
   LP_MODEL_M120 = 6, LP_MODEL_M200 = 7, LP_MODEL_M221 = 8,
   LP_MODEL_M110S = 9,         // the M110's bytes, a row as wide as the label
   LP_MODEL_NIIMBOT_D110 = 10, // NIIMBOT D110 and D110 M: 12 mm tape, 96 dots, the label turned
-  LP_MODEL_BROTHER_QL820 = 100 // Brother QL-810W/820NWB over WLAN, see services/brother_ql.h
+  LP_MODEL_BROTHER_QL820 = 100, // Brother QL-810W/820NWB over WLAN, see services/brother_ql.h
+  LP_MODEL_PM240 = 101         // TYPONOS PM240, TSPL over BLE (AreYouThereAndi2), see services/tspl_printer.h
 };
 
 // How the scale reaches its label printer: not at all, over Bluetooth, or over
@@ -60,10 +61,11 @@ inline LabelPrinterLink labelPrinterLinkFrom(int stored, bool ble_on) {
 
 // Which bytes a model takes. Phomemo's two preambles share one write-only
 // transport; a NIIMBOT talks back and gets a driver of its own; a Brother QL
-// is reached over WLAN, not over Bluetooth.
+// is reached over WLAN, not over Bluetooth; the TYPONOS PM240 takes TSPL on
+// the Phomemo's write characteristic.
 enum LabelPrinterProtocol : uint8_t {
   LP_PROTO_PHOMEMO_M220 = 0, LP_PROTO_PHOMEMO_M110 = 1, LP_PROTO_NIIMBOT = 2,
-  LP_PROTO_BROTHER_QL = 3
+  LP_PROTO_BROTHER_QL = 3, LP_PROTO_TSPL = 4
 };
 
 struct LabelPrinterProfile {

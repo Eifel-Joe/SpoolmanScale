@@ -10,6 +10,7 @@
 #include "services/niimbot.h"
 #include "services/phomemo_m_series.h"
 #include "services/prefs_store.h"
+#include "services/tspl_printer.h"
 
 // The NVS keys. 15 characters at most, and never renamed: they sit in the
 // NVS of every device that ever picked a printer.
@@ -126,9 +127,20 @@ static const LabelPrinterProfile PROFILE_NIIMBOT_D110 = {
   203, LP_PROTO_NIIMBOT
 };
 
+// TYPONOS PM240 (AreYouThereAndi2's fork): TSPL over the Phomemo GATT pair,
+// 48 mm head, 384 dots. The vendor app prints 50 mm labels on it, the head
+// covering their middle 48 mm, so the row may be 400 dots and the driver cuts
+// it to the head. Read off a capture of the app; never printed from a scale
+// yet, hence experimental. The fork's own, so its number is above 100.
+static const LabelPrinterProfile PROFILE_PM240 = {
+  LP_MODEL_PM240, "TYPONOS", "PM240", 50, 30, 20, 50, 10, 150, 384, 400, true, true,
+  203, LP_PROTO_TSPL
+};
+
 const LabelPrinterModel LABEL_PRINTER_MODELS[] = {
   LP_MODEL_M220, LP_MODEL_NIIMBOT_M2, LP_MODEL_M110, LP_MODEL_M110S, LP_MODEL_M100,
   LP_MODEL_NIIMBOT_B, LP_MODEL_NIIMBOT_D110, LP_MODEL_M120, LP_MODEL_M200, LP_MODEL_M221,
+  LP_MODEL_PM240,
 };
 const int LABEL_PRINTER_MODEL_COUNT = sizeof(LABEL_PRINTER_MODELS) / sizeof(LABEL_PRINTER_MODELS[0]);
 // What the WLAN link offers: the one Brother profile there is.
@@ -200,6 +212,7 @@ const LabelPrinterProfile& labelPrinterProfile(LabelPrinterModel model) {
     case LP_MODEL_NIIMBOT_M2: return PROFILE_NIIMBOT_M2;
     case LP_MODEL_BROTHER_QL820: return PROFILE_BROTHER_QL820;
     case LP_MODEL_NIIMBOT_D110: return PROFILE_NIIMBOT_D110;
+    case LP_MODEL_PM240: return PROFILE_PM240;
     default:            return PROFILE_NONE;
   }
 }
@@ -629,6 +642,16 @@ static LabelPrintResult fromBrother(BrotherQlResult r) {
   }
 }
 
+// The Bluetooth printers: each protocol to its driver.
+static LabelPrintResult printBle(const LabelPrinterProfile& p, const LabelPrinterConfig& c,
+                                 const LabelRaster& image, BleProgressFn progress) {
+  if (p.protocol == LP_PROTO_NIIMBOT) return printNiimbot(p, c, image, progress);
+  if (p.protocol == LP_PROTO_TSPL)
+    return fromBle(tsplPrint(c.address, image, c.media_width_mm, c.media_length_mm, progress));
+  const PhomemoModel pm = p.protocol == LP_PROTO_PHOMEMO_M220 ? PHOMEMO_M220 : PHOMEMO_M110;
+  return fromBle(phomemoMSeriesPrint(pm, c.address, image, progress));
+}
+
 static LabelPrintResult printBrother(const LabelPrinterConfig& c, const LabelRaster& image,
                                      BleProgressFn progress) {
   // labelPrinterRasterFits() has made sure the table has this size.
@@ -650,10 +673,8 @@ LabelPrintResult labelPrinterPrint(const LabelPrinterConfig& c, const LabelRaste
   (void)progress;
   return docLabelNotPrinted(p);
 #else
-  if (p.protocol == LP_PROTO_NIIMBOT) return printNiimbot(p, c, image, progress);
   if (p.protocol == LP_PROTO_BROTHER_QL) return printBrother(c, image, progress);
-  const PhomemoModel pm = p.protocol == LP_PROTO_PHOMEMO_M220 ? PHOMEMO_M220 : PHOMEMO_M110;
-  return fromBle(phomemoMSeriesPrint(pm, c.address, image, progress));
+  return printBle(p, c, image, progress);
 #endif
 }
 
