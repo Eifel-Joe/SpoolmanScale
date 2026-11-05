@@ -105,39 +105,50 @@ inline bool labelLayoutHasCode(const LabelLayout& layout) {
 // 300 dpi. The renderer stops there, and the browser lets no more be on.
 int labelFactCapacity(const LabelLayout& layout, uint16_t width_mm, uint16_t length_mm);
 
+// The most fact lines a label has: what one list on the stack holds
+// (services/label_facts.h LABEL_MAX_FACTS, held equal there).
+#define LABEL_LAYOUT_MAX_FACTS 8
+
 // The shapes the fact counts are kept for (labelFactCapacity()). The Brother's
-// rolls of v0.8.7-beta.7 (Spec V75): 62 x 30 continuous prints 24 mm along the
-// feed, as good as the 62 x 29 die-cut, and counts as that one; 38 x 40 has
-// rows of its own; the 23 x 23 square (and anything under 30 mm both ways)
-// carries only the material and the code. A Bluetooth stock kept from earlier
-// betas (75 x 50, 75 x 30) keeps the rows it had.
-enum LabelRollShape : uint8_t { LRS_40, LRS_50, LRS_62, LRS_38X40, LRS_SMALL };
+// rolls of v0.8.7-beta.7 (Spec V75, changed on Joerg's word 05.11.2026):
+// continuous tape (length 0) has no budget of its own, the label grows with
+// its lines; the 23 x 23 square (and anything under 30 mm both ways) carries
+// the code alone. A Bluetooth stock kept from earlier betas (75 x 50, 75 x 30)
+// keeps the rows it had.
+enum LabelRollShape : uint8_t { LRS_40, LRS_50, LRS_62, LRS_ENDLESS, LRS_SMALL };
+
+// Continuous tape: a roll with a width and no length of its own.
+inline bool labelMediaEndless(uint16_t width_mm, uint16_t length_mm) {
+  return width_mm > 0 && length_mm == 0;
+}
 
 inline bool labelMediaSmall(uint16_t width_mm, uint16_t length_mm) {
-  return width_mm < 30 && length_mm < 30;
+  return !labelMediaEndless(width_mm, length_mm) && width_mm < 30 && length_mm < 30;
 }
 
 inline LabelRollShape labelRollShape(uint16_t width_mm, uint16_t length_mm) {
+  if (labelMediaEndless(width_mm, length_mm)) return LRS_ENDLESS;
   if (labelMediaSmall(width_mm, length_mm)) return LRS_SMALL;
   const uint16_t longer = width_mm > length_mm ? width_mm : length_mm;
   const uint16_t shorter = width_mm > length_mm ? length_mm : width_mm;
-  if ((longer >= 62 && shorter <= 29) || (longer == 62 && shorter == 30)) return LRS_62;
-  if (width_mm == 38 && length_mm == 40) return LRS_38X40;
+  if (longer >= 62 && shorter <= 29) return LRS_62;
   return longer >= 50 ? LRS_50 : LRS_40;
 }
 
-// The template as a roll of this size carries it: the square takes the
-// material and the code, in the standard arrangement, flat (f08, Ziopase:
-// "a small one keeps the code and the material"); every other roll takes it
-// as it is. Pure: the saved template is untouched.
+// The template as a roll of this size carries it: the square takes the code
+// alone, in the standard arrangement, flat (Joerg 05.11.2026: "nur fuer
+// QR-Code geeignet"); continuous tape takes it flat, the lines across the
+// tape ("Hochkant" does not apply there); every other roll takes it as it
+// is. Pure: the saved template is untouched.
 inline LabelLayout labelLayoutForMedia(const LabelLayout& layout, uint16_t width_mm,
                                        uint16_t length_mm) {
   LabelLayout l = layout;
-  if (labelRollShape(width_mm, length_mm) == LRS_SMALL) {
-    l.fields &= (1u << LF_MATERIAL) | (1u << LF_QR);
+  const LabelRollShape shape = labelRollShape(width_mm, length_mm);
+  if (shape == LRS_SMALL) {
+    l.fields &= 1u << LF_QR;
     l.preset = LABEL_PRESET_STANDARD;
-    l.options &= ~(1u << LO_PORTRAIT);
   }
+  if (shape == LRS_SMALL || shape == LRS_ENDLESS) l.options &= ~(1u << LO_PORTRAIT);
   return l;
 }
 // The fields that become a fact line in this arrangement, as a mask: what

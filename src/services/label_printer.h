@@ -259,6 +259,17 @@ bool labelPrinterTakesMedia(LabelPrinterModel model, uint16_t width_mm, uint16_t
 // Whether this stock is a Brother's continuous tape (cut where the label
 // ends) rather than die-cut labels; the size lists say so.
 bool labelPrinterMediaContinuous(LabelPrinterModel model, uint16_t width_mm, uint16_t length_mm);
+// How a stock size is named in the lists and on the print sheet: "62 x 29 mm",
+// and continuous tape, which has no length of its own, by its width alone:
+// "62 mm Endlos" (Joerg 05.11.2026). Cut to `n`.
+void labelMediaName(LabelPrinterModel model, uint16_t width_mm, uint16_t length_mm,
+                    char* out, size_t n);
+// The length the lists draw a stock's outline at: its own, and for
+// continuous tape (length 0) a piece of it.
+#define LABEL_MEDIA_ENDLESS_SHAPE_MM 40
+inline uint16_t labelMediaShapeMm(uint16_t length_mm) {
+  return length_mm ? length_mm : LABEL_MEDIA_ENDLESS_SHAPE_MM;
+}
 
 // The next stock size the model can take, after the current one; the first
 // fitting one when the current one is not in the model's list

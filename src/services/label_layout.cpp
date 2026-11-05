@@ -75,14 +75,11 @@ LabelLayout labelLayoutSanitized(const LabelLayout& in) {
 // too little for a spool's address - a layout question, not a count. They
 // are for that shape only: a Bluetooth stock kept from earlier betas, such
 // as 75 x 50, is wide as well and keeps the rows it had.
-// The Brother's 38 x 40 continuous roll (Spec V75) prints 413 x 402 dots, 279 x
-// 272 at 203 dpi: narrower than 40 x 30 and taller. Its rows start from 40 x 30
-// and 30 x 40 and are checked on the scale's previews with every fact on, as
-// 62 x 29 was. 62 x 30 counts as 62 x 29 (labelRollShape()); the square has
-// no fact lines.
+// Continuous tape and the square have no rows here: the one takes every line
+// a label can have and grows with them, the other carries the code alone
+// (labelRollShape(), Joerg 05.11.2026).
 enum CapacityRow {
-  CAP_FLAT_40, CAP_FLAT_50, CAP_UPRIGHT_40, CAP_UPRIGHT_50, CAP_FLAT_62, CAP_UPRIGHT_62,
-  CAP_FLAT_38, CAP_UPRIGHT_38, CAP_ROWS
+  CAP_FLAT_40, CAP_FLAT_50, CAP_UPRIGHT_40, CAP_UPRIGHT_50, CAP_FLAT_62, CAP_UPRIGHT_62, CAP_ROWS
 };
 static const uint8_t FACT_CAPACITY[CAP_ROWS][LABEL_PRESET_COUNT] = {
   // standard, compact, big code, material big, text only (never has a code)
@@ -92,8 +89,6 @@ static const uint8_t FACT_CAPACITY[CAP_ROWS][LABEL_PRESET_COUNT] = {
   { 5, 6, 4, 3, 6 },   // 30 x 50
   { 3, 4, 3, 2, 3 },   // 62 x 29, checked on the previews
   { 7, 8, 4, 3, 6 },   // 29 x 62, checked on the previews, standard and compact raised
-  { 4, 5, 5, 3, 5 },   // 38 x 40
-  { 4, 5, 3, 2, 6 },   // 40 x 38, upright
 };
 // The same with the code switched off: the facts get its room, in two
 // columns where they fit. Flat, a date line is too wide for half the label,
@@ -105,18 +100,17 @@ static const uint8_t FACT_CAPACITY_NO_CODE[CAP_ROWS][LABEL_PRESET_COUNT] = {
   { 6, 6, 6, 6, 6 },
   { 3, 4, 3, 3, 3 },   // 62 x 29, text only checked on the previews
   { 6, 6, 6, 6, 6 },   // 29 x 62, text only checked on the previews
-  { 6, 6, 6, 6, 6 },   // 38 x 40
-  { 6, 6, 6, 6, 6 },   // 40 x 38, upright
 };
 
 int labelFactCapacity(const LabelLayout& layout, uint16_t width_mm, uint16_t length_mm) {
   const uint8_t preset = layout.preset < LABEL_PRESET_COUNT ? layout.preset : LABEL_PRESET_STANDARD;
   const LabelRollShape shape = labelRollShape(width_mm, length_mm);
-  // The square carries the material and the code, no fact line (Spec V75).
+  // The square carries the code alone, no fact line; continuous tape every
+  // line a label can have, it grows with them (Joerg 05.11.2026).
   if (shape == LRS_SMALL) return 0;
+  if (shape == LRS_ENDLESS) return LABEL_LAYOUT_MAX_FACTS;
   const bool upright = labelLayoutOption(layout, LO_PORTRAIT);
   const CapacityRow row = shape == LRS_62 ? (upright ? CAP_UPRIGHT_62 : CAP_FLAT_62)
-                        : shape == LRS_38X40 ? (upright ? CAP_UPRIGHT_38 : CAP_FLAT_38)
                         : shape == LRS_50 ? (upright ? CAP_UPRIGHT_50 : CAP_FLAT_50)
                         : (upright ? CAP_UPRIGHT_40 : CAP_FLAT_40);
   return labelLayoutHasCode(layout) ? FACT_CAPACITY[row][preset]

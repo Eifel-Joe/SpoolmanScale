@@ -16,6 +16,7 @@
 // on the Brother's 62 x 29 upright, compact, the maker among them. Two lists
 // live on the loop's stack while a label is drawn, 120 bytes a line each.
 #define LABEL_MAX_FACTS 8
+static_assert(LABEL_MAX_FACTS == LABEL_LAYOUT_MAX_FACTS, "the line budget and the list agree");
 
 // One fact as its caption and its value; either may be missing (the maker
 // has no caption, the project name no value).

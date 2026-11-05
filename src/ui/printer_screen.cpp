@@ -257,14 +257,13 @@ static void mediaPicked(int index) {
 static void addMediaCard(ChoiceCard* cards, int* n, const LabelMediaSize& s, bool enabled) {
   if (*n >= CHOICE_GRID_MAX) return;
   ChoiceCard& card = cards[*n];
-  // The outline says enough; a Brother's continuous tape says so (Spec V75).
+  // The outline says enough; continuous tape is named by its width, "62 mm
+  // Endlos", and drawn as a piece of tape (labelMediaName()).
   const LabelPrinterConfig c = labelPrinterLoadConfig();
-  card.caption = labelPrinterMediaContinuous(c.model, s.width_mm, s.length_mm)
-                     ? T(STR_PRN_MEDIA_CONT) : nullptr;
-  snprintf(card.value, sizeof(card.value), T(STR_PRN_MEDIA_FMT),
-           (unsigned)s.width_mm, (unsigned)s.length_mm);
+  card.caption = nullptr;
+  labelMediaName(c.model, s.width_mm, s.length_mm, card.value, sizeof(card.value));
   card.shape_w_mm = s.width_mm;
-  card.shape_h_mm = s.length_mm;
+  card.shape_h_mm = labelMediaShapeMm(s.length_mm);
   card.enabled = enabled;
   s_media_offer[*n] = s;
   (*n)++;
@@ -365,8 +364,7 @@ void buildPrinterScreen() {
   // thermal paper its "?" says what a dryer does to it.
   { char buf_t[40]; copyT(buf_t, sizeof(buf_t), STR_PRN_MEDIA);
     char buf_s[48];
-    snprintf(buf_s, sizeof(buf_s), T(STR_PRN_MEDIA_FMT),
-             (unsigned)c.media_width_mm, (unsigned)c.media_length_mm);
+    labelMediaName(c.model, c.media_width_mm, c.media_length_mm, buf_s, sizeof(buf_s));
     lv_obj_t *help = nullptr;
     lv_obj_t *btn = makeListBtn(list, LV_SYMBOL_IMAGE, buf_t, buf_s, false,
                                 p.direct_thermal ? &help : nullptr);

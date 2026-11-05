@@ -142,8 +142,10 @@ static BrotherQlResult runJob(const char* host, const BrotherQlLabel& label,
   // The line of the label before ends here at the latest, on every way out
   // below; the screen has normally done it at the start of the attempt.
   brotherQlRelease();
+  // A die-cut label exactly its own lines, continuous tape as long as the
+  // label is within Brother's limits (brother_ql_rules.h).
   if (!labelRasterValid(image) || image.row_bytes != BROTHER_QL_ROW_BYTES ||
-      image.height != label.dots_h)
+      !brotherQlLinesOk(label, image.height))
     return BQ_BAD_RASTER;
   run.total = brotherQlJobBytes(run.model, image.height);
 

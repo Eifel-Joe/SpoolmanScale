@@ -224,20 +224,16 @@ static void stockCard(String& h, const LabelMediaSize& s, const LabelPrinterConf
   h += F("><span class='shape' style='width:");
   h += String((int)(s.width_mm * STOCK_SHAPE_PX_PER_MM));
   h += F("px;height:");
-  h += String((int)(s.length_mm * STOCK_SHAPE_PX_PER_MM));
+  h += String((int)(labelMediaShapeMm(s.length_mm) * STOCK_SHAPE_PX_PER_MM));
   h += F("px'></span><span class='mn'>");
-  char size[24];
-  snprintf(size, sizeof(size), T(STR_PRN_MEDIA_FMT), (unsigned)s.width_mm, (unsigned)s.length_mm);
+  // Continuous tape by its width: "62 mm Endlos" (labelMediaName()).
+  char size[32];
+  labelMediaName(c.model, s.width_mm, s.length_mm, size, sizeof(size));
   h += size;
   h += F("</span>");
   if (kind == STOCK_PLANNED) {
     h += F("<span class='nb'>");
     h += T(STR_PRN_MEDIA_NO_LAYOUT);
-    h += F("</span>");
-  } else if (labelPrinterMediaContinuous(c.model, s.width_mm, s.length_mm)) {
-    // A Brother's continuous tape, cut where the label ends (Spec V75).
-    h += F("<span class='nb'>");
-    h += T(STR_PRN_MEDIA_CONT);
     h += F("</span>");
   }
   h += F("</button>");

@@ -79,6 +79,11 @@
 // after the print (R p.16, p.18, p.28; bql feed_margin=35). A die-cut label
 // takes 0, its own gap is the margin.
 #define BROTHER_QL_FEED_DOTS    35
+// The lines a continuous label may have: 12.7 mm (R 2.3.4: "continuous
+// minimum 12.7 mm / 150 dots") to 100 mm, as long as its content is (Joerg,
+// 05.11.2026). A die-cut label has exactly its own (dots_h).
+#define BROTHER_QL_MIN_LINES    150
+#define BROTHER_QL_MAX_LINES    1181
 // How far the print position may move either way from where the roll's
 // table puts it: 5 mm at 300 dpi (f08: DK-11221 came out 3 to 4 mm off on a
 // QL-700), and never past the row's ends.
@@ -94,8 +99,8 @@ enum BrotherQlModel : uint8_t {
 // it at 300 dpi across and along the feed, the media type byte, and the pins
 // right of the print area in the row as the scale draws it (dot 0 on the
 // left; the row goes out mirrored, so these are the first pins the printer
-// reads). A continuous roll is offered at one length: its lines are that
-// length less the two feed margins.
+// reads). A continuous roll has length 0 and dots_h 0: the label is as long
+// as its content (brotherQlLinesOk()).
 struct BrotherQlLabel {
   uint8_t  width_mm, length_mm;
   uint16_t dots_w, dots_h;
@@ -116,6 +121,10 @@ const BrotherQlLabel* brotherQlLabel(uint8_t width_mm, uint8_t length_mm);
 // the table lacks.
 uint16_t brotherQlPrintWidth(uint8_t width_mm);
 
+// Whether a label of `lines` lines is one this roll takes: a die-cut label
+// exactly its own, continuous tape BROTHER_QL_MIN_LINES to _MAX_LINES.
+bool brotherQlLinesOk(const BrotherQlLabel& label, uint16_t lines);
+
 // The null bytes in front of a job and the bytes that follow them, by model.
 size_t brotherQlInvalidate(BrotherQlModel model);
 size_t brotherQlStartBytes(BrotherQlModel model);
@@ -135,8 +144,8 @@ uint16_t brotherQlContentX(const BrotherQlLabel& label);
 // either way, as far as the row goes. Negative is to the left.
 void brotherQlOffsetRange(const BrotherQlLabel& label, int16_t* min, int16_t* max);
 // The NVS key a roll's print position is kept under: "px_brother" for
-// DK-11209, as it always was, "px_bq_<w><l>" for the others. False when
-// `n` does not hold it.
+// DK-11209, as it always was, "px_bq_<w><l>" for the other die-cut rolls and
+// "px_bq_<w>c" for continuous tape. False when `n` does not hold it.
 bool brotherQlOffsetKey(const BrotherQlLabel& label, char* out, size_t n);
 
 // One line of the job, BROTHER_QL_LINE_BYTES into `out`, from one raster row

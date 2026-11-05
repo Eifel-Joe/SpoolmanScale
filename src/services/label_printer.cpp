@@ -287,6 +287,15 @@ bool labelPrinterMediaContinuous(LabelPrinterModel model, uint16_t width_mm, uin
   return label && label->media_type == BROTHER_QL_CONTINUOUS;
 }
 
+void labelMediaName(LabelPrinterModel model, uint16_t width_mm, uint16_t length_mm,
+                    char* out, size_t n) {
+  if (!out || !n) return;
+  if (labelPrinterMediaContinuous(model, width_mm, length_mm))
+    snprintf(out, n, T(STR_PRN_MEDIA_CONT), (unsigned)width_mm);
+  else
+    snprintf(out, n, T(STR_PRN_MEDIA_FMT), (unsigned)width_mm, (unsigned)length_mm);
+}
+
 // What is stored is taken as it is, except for two things that would leave
 // the printer unusable: no Bluetooth model becomes the M220, and a label size
 // the model cannot take becomes the picked one where it fits, else the
@@ -670,10 +679,15 @@ static bool nearDots(uint16_t px, uint16_t d) {
 bool labelPrinterRasterFits(LabelPrinterModel model, const LabelRaster& image,
                             uint16_t media_width_mm, uint16_t media_length_mm) {
   const LabelPrinterProfile& p = labelPrinterProfile(model);
-  return mediaFits(p, media_width_mm, media_length_mm) &&
-         image.width == labelPrinterRasterWidth(model, media_width_mm) &&
-         nearDots(image.content_width, labelPrinterContentWidth(model, media_width_mm)) &&
-         nearDots(image.height, labelPrinterContentHeight(model, media_width_mm, media_length_mm));
+  if (!mediaFits(p, media_width_mm, media_length_mm) ||
+      image.width != labelPrinterRasterWidth(model, media_width_mm) ||
+      !nearDots(image.content_width, labelPrinterContentWidth(model, media_width_mm)))
+    return false;
+  // Continuous tape has no length of its own: any the label comes to, within
+  // Brother's limits (Joerg 05.11.2026); the driver checks the same.
+  const BrotherQlLabel* roll = isBrother(p) ? brotherLabel(media_width_mm, media_length_mm) : nullptr;
+  if (roll && roll->media_type == BROTHER_QL_CONTINUOUS) return brotherQlLinesOk(*roll, image.height);
+  return nearDots(image.height, labelPrinterContentHeight(model, media_width_mm, media_length_mm));
 }
 
 #if defined(SSC_DOC_BUILD)

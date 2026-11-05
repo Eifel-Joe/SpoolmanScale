@@ -749,8 +749,9 @@ static void routes(WebServer &srv) {
     const long l = x > 0 ? strtol(v.c_str() + x + 1, nullptr, 10) : 0;
     LabelPrinterConfig c = labelPrinterLoadConfig();
     // What the model takes, as its size list shows it: a Brother's rolls are
-    // its label table's, not a span of millimetres (Spec V75).
-    if (w <= 0 || l <= 0 || w > 0xFF || l > 0xFF ||
+    // its label table's, not a span of millimetres (Spec V75), continuous
+    // tape with the length 0 ("62x0").
+    if (w <= 0 || l < 0 || w > 0xFF || l > 0xFF ||
         !labelPrinterTakesMedia(c.model, (uint16_t)w, (uint16_t)l)) {
       srv.send(400, "text/plain", T(STR_PRN_ERR_MEDIA));
       return;

@@ -51,17 +51,19 @@ void webPrinterMediaOptions(String& h, const LabelPrinterConfig& c) {
     h += F("'");
     if (cur) h += F(" selected");
     h += F(">");
-    h += String(s.width_mm); h += F(" x "); h += String(s.length_mm); h += F(" mm");
-    // A Brother's continuous tape, cut where the label ends (Spec V75).
-    if (labelPrinterMediaContinuous(c.model, s.width_mm, s.length_mm)) {
-      h += F(" \u00b7 "); h += T(STR_PRN_MEDIA_CONT);
-    }
+    // Continuous tape by its width: "62 mm Endlos" (labelMediaName()).
+    char name[32];
+    labelMediaName(c.model, s.width_mm, s.length_mm, name, sizeof(name));
+    h += name;
     h += F("</option>");
   }
   if (!listed) {
     // A size set elsewhere and not in the table: shown so it is not
     // silently replaced, inert so it cannot be picked again.
     h += F("<option value='' selected disabled>");
-    h += String(c.media_width_mm); h += F(" x "); h += String(c.media_length_mm); h += F(" mm</option>");
+    char name[32];
+    labelMediaName(c.model, c.media_width_mm, c.media_length_mm, name, sizeof(name));
+    h += name;
+    h += F("</option>");
   }
 }

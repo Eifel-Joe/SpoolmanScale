@@ -216,13 +216,18 @@ static String stateJson(LabelKind kind) {
   // A tape printer's label is fixed: the template stays in view, out of use.
   j += F(",\"tape\":");
   j += labelPrinterIsTape(c.model) ? F("true") : F("false");
-  // The 23 x 23 square takes material and code only (Spec V75): the template
-  // stays in use for the other rolls, a note says it does not apply here.
+  // The 23 x 23 square takes the code only (Spec V75, Joerg 05.11.2026):
+  // the template stays in use for the other rolls, a note says it does not
+  // apply here. On continuous tape a note says the label grows with its lines.
   j += F(",\"small\":");
   j += labelMediaSmall(c.media_width_mm, c.media_length_mm) ? F("true") : F("false");
+  j += F(",\"endless\":");
+  j += labelMediaEndless(c.media_width_mm, c.media_length_mm) ? F("true") : F("false");
   j += F(",\"media\":\"");
-  j += String((unsigned)c.media_width_mm); j += F(" x ");
-  j += String((unsigned)c.media_length_mm); j += F(" mm\",\"model\":\"");
+  { char name[32];
+    labelMediaName(c.model, c.media_width_mm, c.media_length_mm, name, sizeof(name));
+    j += jsonEsc(name); }
+  j += F("\",\"model\":\"");
   j += jsonEsc(labelPrinterProfile(c.model).brand); j += ' ';
   j += jsonEsc(labelPrinterProfile(c.model).name);
   j += F("\",\"configured\":");
@@ -277,6 +282,9 @@ static void templateCard(String& h) {
   sourceRow(h);
   h += F("<div class='field' id='lsq' style='display:none'><span class='hint'>");
   h += T(STR_W_L_SMALL_FIXED);
+  h += F("</span></div>");
+  h += F("<div class='field' id='len' style='display:none'><span class='hint'>");
+  h += T(STR_W_L_ENDLESS_HINT);
   h += F("</span></div>");
   h += F("<div class='field' id='ltp' style='display:none'><span class='hint'>");
   h += T(STR_W_L_TAPE_FIXED);
@@ -546,6 +554,7 @@ static void scriptFunctions(String& h) {
          "$('ltpl').style.display=srv(d)?'none':'';$('lsrv').style.display=srv(d)?'':'none';"
          "$('ltpl').disabled=!!d.tape;$('ltp').style.display=d.tape?'':'none';"
          "$('lsq').style.display=d.small&&!d.tape?'':'none';"
+         "$('len').style.display=d.endless&&!d.tape?'':'none';"
          "const k=d.source+'|'+JSON.stringify(d.presets);if(k===srcKey)return;srcKey=k;"
          "const b=$('lsrc');b.textContent='';"
          "[{id:0,name:L.scale,fit:true}].concat(d.presets).forEach(function(p){"

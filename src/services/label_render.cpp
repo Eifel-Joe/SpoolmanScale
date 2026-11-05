@@ -13,6 +13,7 @@
 #include "services/backend.h"
 #include "services/label_draw.h"
 #include "services/label_fact_size.h"
+#include "services/brother_ql_rules.h"
 #include "services/label_edit_rules.h"
 #include "services/label_facts.h"
 #include "services/label_tape.h"
@@ -30,6 +31,10 @@ using namespace labeldraw;
 // The 23 x 23 square (Spec V75): a die-cut label with its own white edge, and
 // its 20 x 17 mm need every dot for the code (f08, Ziopase c96098d7).
 #define LR_MARGIN_SMALL_PX 4
+// Continuous tape (Joerg 05.11.2026): drawn on the longest label there may
+// be and cut after its last line of ink; the calibration page, which has no
+// content of its own to measure, takes 24 mm.
+#define LR_ENDLESS_CALIB_LINES 284
 #define LR_GAP_PX          4    // between the blocks
 #define LR_COLUMN_GAP_PX  12    // between two columns of facts
 // The blocks grow with the roll. 40 x 30 is the base; from LR_TALL_PX in
@@ -100,11 +105,12 @@ struct LabelArea {
   bool columns;                  // the facts may stand in two columns
   // A name one line would cut goes on two in this font; null: it is cut.
   const lv_font_t* wrap_font;
-  // A roll under 30 x 30 mm (labelMediaSmall()): the band is as high as its
-  // line and its font as large as the material fits (f08), and as the code
-  // under it still allows (smallBandFont()); null: by the material alone.
+  // A roll under 30 x 30 mm (labelMediaSmall()): a smaller margin, and no
+  // gap over a code under no fact line (gapOverCode()).
   bool small;
-  const lv_font_t* band_font;
+  // Continuous tape: the blocks start at the top instead of the middle of
+  // the height, which is the longest label there may be (endlessLines()).
+  bool top;
 };
 
 // One of two columns side by side.
@@ -160,18 +166,9 @@ static lv_coord_t drawHeader(lv_obj_t* canvas, const LabelArea& a, bool tall,
     y += lineHeight(f) + dots(LR_GAP_PX);
   }
   if (d.material[0] && labelLayoutHas(layout, LF_MATERIAL)) {
-    // On the square the base size ran "TEST PRINT" off the band and left the
-    // code too little room (Ziopase c96098d7): there the band takes the
-    // largest of three sizes the material fits and is as high as its line.
-    static const lv_font_t* const small_fonts[] = { LR_BAND_FONT, &lv_font_montserrat_ext_20, &lv_font_montserrat_ext_16 };
-    const lv_font_t* f = tall ? &lv_font_montserrat_ext_28
-                       : a.small ? (a.band_font ? a.band_font
-                                                : fitFont(d.material, a.w - 2 * dots(LR_GAP_PX), small_fonts, 3))
-                                 : LR_BAND_FONT;
-    // On a small roll the band is exactly as high as its line: the square's
-    // 202 lines hold a band and a 148-dot code only that way.
-    const lv_coord_t band_h = a.small ? lineHeight(f)
-                                      : dots(tall ? LR_BAND_H_TALL_PX : LR_BAND_H_PX);
+    // The square has no band: it carries the code alone (labelLayoutForMedia()).
+    const lv_font_t* f = tall ? &lv_font_montserrat_ext_28 : LR_BAND_FONT;
+    const lv_coord_t band_h = dots(tall ? LR_BAND_H_TALL_PX : LR_BAND_H_PX);
     // Plain: the same line in black on white, for a roll that smears a band.
     const bool plain = labelLayoutOption(layout, LO_MATERIAL_PLAIN);
     if (!plain) fillRect(canvas, a.x, y, a.w, band_h, black);
@@ -258,8 +255,8 @@ struct BodyPlan {
 };
 
 // The space over a code drawn under the facts. None on a small roll with no
-// fact line: the header's gap already stands above it, and the square needs
-// every line for the code (acceptance of v0.8.7-beta.7, round 1).
+// fact line: nothing stands above it, and the square needs every line for
+// the code (acceptance of v0.8.7-beta.7, round 1).
 static lv_coord_t gapOverCode(const LabelArea& a, int rows) {
   return a.small && rows == 0 ? 0 : dots(LR_GAP_PX);
 }
@@ -279,7 +276,10 @@ static BodyPlan planOneLine(const LabelArea& a, bool tall, const LabelContent& c
     if (qr_beside > avail_h) qr_beside = avail_h;
     lv_coord_t qr_below = avail_h - rows * p.line - gapOverCode(a, rows);
     if (qr_below > a.w) qr_below = a.w;
-    p.beside = qr_beside >= qr_below;
+    // Continuous tape, whose height is the longest label there may be: the
+    // code beside the lines on the wide tape, under them on the narrow one,
+    // centred under the header when there are none (Joerg 05.11.2026).
+    p.beside = a.top ? tall && rows > 0 : qr_beside >= qr_below;
     p.qr = p.beside ? qr_beside : qr_below;
     if (p.qr > a.qr_max) p.qr = a.qr_max;
     if (p.qr >= dots(LR_QR_GOOD_PX) || p.font != &lv_font_montserrat_ext_20) break;
@@ -308,19 +308,21 @@ static void drawOneLine(lv_obj_t* canvas, const LabelArea& a, const LabelContent
       fact_font = &lv_font_montserrat_ext_14;
       text_h = paragraphHeight(c.lines[0], fact_font, facts_w);
     }
-    const lv_coord_t py = p.beside && text_h < avail_h ? facts_top + (avail_h - text_h) / 2 : facts_top;
+    const lv_coord_t py = p.beside && !a.top && text_h < avail_h ? facts_top + (avail_h - text_h) / 2
+                                                                 : facts_top;
     drawParagraph(canvas, a.x, py, facts_w, fact_font, c.lines[0]);
   } else {
     // Next to the code the lines stand in the middle of the height they share.
     const lv_coord_t block = c.n * p.line;
-    const lv_coord_t fy = p.beside && block < avail_h ? facts_top + (avail_h - block) / 2 : facts_top;
+    const lv_coord_t fy = p.beside && !a.top && block < avail_h ? facts_top + (avail_h - block) / 2
+                                                                : facts_top;
     for (int i = 0; i < c.n; i++)
       drawLine(canvas, a.x, fy + i * p.line, facts_w, fact_font,
                lv_color_black(), LV_TEXT_ALIGN_LEFT, c.lines[i]);
   }
   if (p.code) {
     const lv_coord_t qx = p.beside ? a.x + a.w - p.code : a.x + (a.w - p.code) / 2;
-    const lv_coord_t qy = p.beside ? facts_top + (avail_h - p.code) / 2
+    const lv_coord_t qy = p.beside ? (a.top ? facts_top : facts_top + (avail_h - p.code) / 2)
                                    : facts_top + text_h + gapOverCode(a, rows);
     drawQr(canvas, qx, qy, p.code, c.qr);
   }
@@ -528,7 +530,8 @@ static void drawLarger(lv_obj_t* canvas, const LabelArea& a, const LabelContent&
                        const FactsPlan& p, bool beside) {
   const lv_coord_t avail_h = a.bottom - a.y;
   const lv_coord_t text_w = (beside && p.code) ? a.w - p.code - dots(LR_GAP_PX) : a.w;
-  const lv_coord_t y = beside && p.text_h < avail_h ? a.y + (avail_h - p.text_h) / 2 : a.y;
+  // Continuous tape: from the top, the label ends where its content does.
+  const lv_coord_t y = beside && !a.top && p.text_h < avail_h ? a.y + (avail_h - p.text_h) / 2 : a.y;
   if (p.cols == 2) {
     const int half = (c.n + 1) / 2;
     const lv_coord_t col_w = columnWidth(a);
@@ -539,7 +542,8 @@ static void drawLarger(lv_obj_t* canvas, const LabelArea& a, const LabelContent&
   }
   if (p.code) {
     const lv_coord_t qx = beside ? a.x + a.w - p.code : a.x + (a.w - p.code) / 2;
-    const lv_coord_t qy = beside ? a.y + (avail_h - p.code) / 2 : a.y + p.text_h + dots(LR_GAP_PX);
+    const lv_coord_t qy = beside ? (a.top ? a.y : a.y + (avail_h - p.code) / 2)
+                                 : a.y + p.text_h + dots(LR_GAP_PX);
     drawQr(canvas, qx, qy, p.code, c.qr);
   }
 }
@@ -581,7 +585,8 @@ static lv_coord_t drawSideQr(lv_obj_t* canvas, LabelArea* a, const LabelContent&
   if (box < dots(LR_QR_MIN_PX)) { a->facts_font = nullptr; return 0; }
   const lv_coord_t code = drawQr(nullptr, 0, 0, box, c.qr, true);
   if (!code) { a->facts_font = nullptr; return 0; }
-  drawQr(canvas, a->x + a->w - code, a->y + (a->bottom - a->y - code) / 2, code, c.qr);
+  const lv_coord_t qy = a->top ? a->y : a->y + (a->bottom - a->y - code) / 2;
+  drawQr(canvas, a->x + a->w - code, qy, code, c.qr);
   a->w -= code + gap;
   return code;
 }
@@ -645,32 +650,27 @@ static const lv_font_t* nameWrapFont(const LabelArea& a, bool tall, const LabelC
   return nullptr;
 }
 
-// The band on a small roll: the largest size the material fits that still
-// leaves the code its room under it, else the smallest the material fits.
-// Root: on the 23 x 23 square the base band left 132 dots, and a spool
-// address of 33 modules needs (33 + 2 x 2) x 4 = 148 at 300 dpi, so the
-// code was dropped (acceptance of v0.8.7-beta.7, round 1). Fix: measured
-// like nameWrapFont(), nothing drawn. NOT-TO-DO: modules under 0.34 mm or a
-// smaller quiet zone (label_draw.cpp sets both for the phone's camera).
-static const lv_font_t* smallBandFont(const LabelArea& a, bool tall, const LabelContent& c,
-                                      const LabelLayout& layout) {
-  static const lv_font_t* const SIZES[] = {
-    LR_BAND_FONT, &lv_font_montserrat_ext_20, &lv_font_montserrat_ext_16,
-  };
-  const SpoolLabelData& d = *c.d;
-  const lv_font_t* last = nullptr;
-  for (const lv_font_t* f : SIZES) {
-    if (!fitsLine(d.material, f, a.w - 2 * dots(LR_GAP_PX)) && f != SIZES[2]) continue;
-    last = f;
-    if (!c.qr || !c.qr[0]) return f;
-    LabelArea trial = a;
-    trial.band_font = f;
-    trial.y = drawHead(nullptr, trial, tall, d, layout);
-    bool fits = false;
-    if (bodyCode(trial, tall, c, &fits) > 0) return f;
+// The lines a continuous label comes to: the last line that has ink on the
+// canvas, the margin under it, at least BROTHER_QL_MIN_LINES.
+// Root: Joerg 05.11.2026, "Endlos ... die Laenge entsprechend der angehakten
+//   Schalter": no fixed length. Fix: the label is drawn top-aligned on the
+//   longest one there may be and cut here, so the length is what the drawing
+//   made, measured once; the same planner as every label, nothing estimated.
+// NOT-TO-DO: a second, measuring pass that guesses the length first: every
+//   block (name wrapped or not, code beside or below) would need its height
+//   twice, and one that differed would cut a line.
+static uint16_t endlessLines(const void* buf, uint16_t cw, uint16_t ch, lv_coord_t margin) {
+  const lv_color_t* px = static_cast<const lv_color_t*>(buf);
+  const lv_color_t white = lv_color_white();
+  int last = -1;
+  for (int y = ch - 1; y >= 0 && last < 0; y--) {
+    const lv_color_t* row = px + size_t(y) * cw;
+    for (uint16_t x = 0; x < cw; x++)
+      if (row[x].full != white.full) { last = y; break; }
   }
-  logSD("Label: the code does not fit under the band on this roll");
-  return last;
+  const int lines = last + 1 + margin;
+  return (uint16_t)(lines < BROTHER_QL_MIN_LINES ? BROTHER_QL_MIN_LINES
+                    : lines > ch ? ch : lines);
 }
 
 // Every label the scale prints, laid out as `layout` says.
@@ -679,13 +679,19 @@ static bool renderLabel(const LabelPrinterConfig& printer, const LabelLayout& la
   if (!out || !c.d) return false;
   *out = LabelRaster{};
   const uint16_t content_w = labelPrinterContentWidth(printer.model, printer.media_width_mm);
-  const uint16_t h = labelPrinterContentHeight(printer.model, printer.media_width_mm,
-                                               printer.media_length_mm);
+  // Continuous tape has no length of its own: the longest there may be,
+  // cut to the content after drawing (endlessLines()).
+  const bool endless = labelPrinterMediaContinuous(printer.model, printer.media_width_mm,
+                                                   printer.media_length_mm);
+  uint16_t h = endless ? BROTHER_QL_MAX_LINES
+                       : labelPrinterContentHeight(printer.model, printer.media_width_mm,
+                                                   printer.media_length_mm);
   const uint16_t row_w = labelPrinterRasterWidth(printer.model, printer.media_width_mm);
   if (!row_w || !h || content_w > row_w) return false;
   setDpi(labelPrinterProfile(printer.model).dpi);
 
-  const bool turned = labelLayoutOption(layout, LO_PORTRAIT);
+  // Continuous tape always flat: the lines across the tape (labelLayoutForMedia()).
+  const bool turned = !endless && labelLayoutOption(layout, LO_PORTRAIT);
   setTurned(turned);
   // The canvas is the label as it reads: upright, the roll's length across.
   const uint16_t cw = turned ? h : content_w;
@@ -709,20 +715,24 @@ static bool renderLabel(const LabelPrinterConfig& printer, const LabelLayout& la
   const lv_coord_t qr_max = labelPrinterDotsForMm(printer.model,
       preset == LABEL_PRESET_MATERIAL_BIG ? LR_QR_SMALL_MM : LR_QR_MAX_MM);
   LabelArea area{ M, M, (lv_coord_t)(cw - 2 * M), (lv_coord_t)(ch - M), qr_max, !standard,
-                  nullptr, !c.qr || !c.qr[0], nullptr, small };
+                  nullptr, !c.qr || !c.qr[0], nullptr, small, endless };
   LabelContent body = c;
   lv_coord_t side_qr = 0;
-  if (preset == LABEL_PRESET_BIG_QR) {
+  // The narrow continuous tape has the code under the lines in every
+  // arrangement: beside them the 38 mm leave it too little width.
+  const bool wide = content_w >= dots(LR_TALL_PX);
+  if (preset == LABEL_PRESET_BIG_QR && (!endless || wide)) {
     side_qr = turned ? drawTopQr(canvas, &area, c) : drawSideQr(canvas, &area, c);
     if (side_qr) body.qr = nullptr;
   }
   // The larger sizes need room both ways: a 30 x 40 is tall but narrow, and
   // there the header blocks would eat what the code needs.
-  const bool tall = ch >= dots(LR_TALL_PX) && area.w + 2 * M >= dots(LR_TALL_PX);
-  if (small) area.band_font = smallBandFont(area, tall, body, layout);
+  // On continuous tape only the width says it: its length follows the content.
+  const bool tall = (endless || ch >= dots(LR_TALL_PX)) && area.w + 2 * M >= dots(LR_TALL_PX);
   area.wrap_font = nameWrapFont(area, tall, body, layout);
   area.y = drawHead(canvas, area, tall, *c.d, layout);
   const LabelBody placed = drawBody(canvas, area, tall, body);
+  if (endless) h = endlessLines(buf, cw, ch, M);
 
   const uint16_t x0 = labelPrinterContentX(printer);
   const bool ok = packCanvas(canvas, content_w, h, row_w, x0, out);
@@ -759,8 +769,8 @@ bool labelRenderTest(const LabelPrinterConfig& printer, LabelRaster* out) {
   const char* lines[] = { T(STR_LBL_TEST_DONATE) };
   // Always the standard arrangement: the test print checks the printer, not
   // the template. Narrowed to the roll like every label; the square keeps the
-  // band and the code, and no sentence: a wrapped one is sized for four rows
-  // even when it is empty, and took the code's room (Ziopase 6d2c27b2).
+  // code alone, and no sentence: a wrapped one is sized for four rows even
+  // when it is empty, and took the code's room (Ziopase 6d2c27b2).
   const bool small = labelMediaSmall(printer.media_width_mm, printer.media_length_mm);
   const LabelContent c{ &d, lines, small ? 0 : 1, !small, "https://" DONATION_URL, "test" };
   return renderLabel(printer,
@@ -782,8 +792,11 @@ bool labelRenderCalibration(const LabelPrinterConfig& printer, LabelRaster* out)
   if (labelPrinterIsTape(printer.model)) return labelRenderTest(printer, out);
   *out = LabelRaster{};
   const uint16_t content_w = labelPrinterContentWidth(printer.model, printer.media_width_mm);
-  const uint16_t h = labelPrinterContentHeight(printer.model, printer.media_width_mm,
-                                               printer.media_length_mm);
+  // Continuous tape: the ruler and the frame on a label of fixed length.
+  const uint16_t h = labelPrinterMediaContinuous(printer.model, printer.media_width_mm,
+                                                 printer.media_length_mm)
+      ? LR_ENDLESS_CALIB_LINES
+      : labelPrinterContentHeight(printer.model, printer.media_width_mm, printer.media_length_mm);
   const uint16_t row_w = labelPrinterRasterWidth(printer.model, printer.media_width_mm);
   if (!row_w || !h || content_w > row_w) return false;
   setDpi(labelPrinterProfile(printer.model).dpi);

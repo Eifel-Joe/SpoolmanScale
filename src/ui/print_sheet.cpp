@@ -195,13 +195,19 @@ static void refresh() {
   // FilaMan's preset has its own layout, and so has a tape printer: the rows
   // that change ours step aside.
   showLayoutRows(!server && !labelPrinterIsTape(c.model));
+  // The square and continuous tape print flat whatever the template says,
+  // the square in the standard arrangement too (labelLayoutForMedia()): no
+  // row that would change nothing.
+  const bool square = labelMediaSmall(c.media_width_mm, c.media_length_mm);
+  if (square || labelMediaEndless(c.media_width_mm, c.media_length_mm))
+    lv_obj_add_flag(s_row_turn, LV_OBJ_FLAG_HIDDEN);
+  if (square) lv_obj_add_flag(s_row_preset, LV_OBJ_FLAG_HIDDEN);
   if (server) lv_obj_clear_flag(s_row_server, LV_OBJ_FLAG_HIDDEN);
   else lv_obj_add_flag(s_row_server, LV_OBJ_FLAG_HIDDEN);
   lv_label_set_text(s_sub_preset, T(presetCaption(l.preset)));
   lv_label_set_text(s_sub_turn, T(labelLayoutOption(l, LO_PORTRAIT) ? STR_W_L_UPRIGHT : STR_W_L_FLAT));
   char buf[64];
-  snprintf(buf, sizeof(buf), T(STR_PRN_MEDIA_FMT), (unsigned)c.media_width_mm,
-           (unsigned)c.media_length_mm);
+  labelMediaName(c.model, c.media_width_mm, c.media_length_mm, buf, sizeof(buf));
   lv_label_set_text(s_sub_media, buf);
   snprintf(buf, sizeof(buf), "%s %s  \xE2\x80\xA2  %u dpi", p.brand, p.name, (unsigned)p.dpi);
   lv_label_set_text(s_sub_printer, buf);

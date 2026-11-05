@@ -9,16 +9,15 @@
 // The other three (Spec V75, f08), from Brother's print areas and pin
 // tables (R p.14-15, p.19-20; Q p.6-10), which bql follows except for the
 // square:
-//   DK-22205, 62 mm continuous, cut at 30 mm: 696 across, pins 12 on the
-//     right; 354 lines for 30 mm less 2 x 35 of feed = 284.
-//   DK-22225, 38 mm continuous, cut at 40 mm: 413 across, pins 295 left
-//     and 12 right; 472 - 70 = 402 lines.
+//   DK-22205, 62 mm continuous: 696 across, pins 12 on the right; as long
+//     as the label's content (Joerg 05.11.2026, brotherQlLinesOk()).
+//   DK-22225, 38 mm continuous: 413 across, pins 295 left and 12 right.
 //   DK-11221, 23 x 23 die-cut: 236 x 202 (bql and f08 take 202 x 202,
 //     Brother prints 236 across), pins 442 left and 42 right.
 const BrotherQlLabel BROTHER_QL_LABELS[] = {
   {62, 29, 696, 271, BROTHER_QL_DIE_CUT,    12},
-  {62, 30, 696, 284, BROTHER_QL_CONTINUOUS, 12},
-  {38, 40, 413, 402, BROTHER_QL_CONTINUOUS, 12},
+  {62,  0, 696,   0, BROTHER_QL_CONTINUOUS, 12},
+  {38,  0, 413,   0, BROTHER_QL_CONTINUOUS, 12},
   {23, 23, 236, 202, BROTHER_QL_DIE_CUT,    42},
 };
 const int BROTHER_QL_LABEL_COUNT = sizeof(BROTHER_QL_LABELS) / sizeof(BROTHER_QL_LABELS[0]);
@@ -34,6 +33,11 @@ uint16_t brotherQlPrintWidth(uint8_t width_mm) {
   for (int i = 0; i < BROTHER_QL_LABEL_COUNT; i++)
     if (BROTHER_QL_LABELS[i].width_mm == width_mm) return BROTHER_QL_LABELS[i].dots_w;
   return 0;
+}
+
+bool brotherQlLinesOk(const BrotherQlLabel& label, uint16_t lines) {
+  if (label.media_type != BROTHER_QL_CONTINUOUS) return lines == label.dots_h;
+  return lines >= BROTHER_QL_MIN_LINES && lines <= BROTHER_QL_MAX_LINES;
 }
 
 size_t brotherQlInvalidate(BrotherQlModel model) {
@@ -104,6 +108,8 @@ bool brotherQlOffsetKey(const BrotherQlLabel& label, char* out, size_t n) {
   // scale keeps it through the update.
   const int len = (label.width_mm == 62 && label.length_mm == 29)
       ? snprintf(out, n, "px_brother")
+      : label.length_mm == 0
+      ? snprintf(out, n, "px_bq_%02uc", (unsigned)label.width_mm)
       : snprintf(out, n, "px_bq_%02u%02u", (unsigned)label.width_mm, (unsigned)label.length_mm);
   if (len < 0 || (size_t)len >= n) {
     out[0] = '\0';

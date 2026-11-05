@@ -784,3 +784,4 @@ STR_LE_EMPTY	16	180	NEVER	src/ui/label_edit_screen.cpp row text, LE_TEXT_W
 STR_LE_RESET	16	180	NEVER	src/ui/label_edit_screen.cpp row text, LE_TEXT_W
 STR_LE_CLEAR	16	180	NEVER	src/ui/label_edit_screen.cpp row text, LE_TEXT_W
 STR_LE_TEMPLATE_HINT	14	216	WRAP:3	src/ui/label_edit_screen.cpp hint under the paper, LE_LEFT_W
+STR_PRN_MEDIA_CONT	16	134	NEVER	src/ui/printer_screen.cpp choice card value, 3 cards: (460 - 2 * 8 - 2 * 6) / 3 - 2 * 4 - 2
