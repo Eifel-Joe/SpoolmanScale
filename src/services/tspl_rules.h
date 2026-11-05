@@ -27,10 +27,12 @@
 struct TsplCut { uint16_t row_bytes; uint16_t skip; };
 TsplCut tsplCut(uint16_t raster_width, uint16_t raster_row_bytes);
 
+// One job's label: its size in mm and the rows that go to the head.
+struct TsplLabel { uint16_t media_w_mm, media_l_mm, row_bytes, rows; };
+
 // The text before the rows, up to and with "BITMAP x,y,w,h,1,". Its length;
 // 0 when it does not fit in cap, so a job is never sent cut.
-size_t tsplHead(char* out, size_t cap, uint16_t media_w_mm, uint16_t media_l_mm,
-                uint16_t row_bytes, uint16_t rows);
+size_t tsplHead(char* out, size_t cap, const TsplLabel& label);
 
 // One row as TSPL's BITMAP reads it: a 0 bit is a black dot, the raster's 1.
 void tsplRow(const uint8_t* raster_row, const TsplCut& cut, uint8_t* out);

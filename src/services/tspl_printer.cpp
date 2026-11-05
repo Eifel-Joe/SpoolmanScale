@@ -26,7 +26,8 @@ BleWriteResult tsplPrint(const char* address, const LabelRaster& image,
     tsplRow(image.pixels + size_t(y) * image.row_bytes, cut, bits + size_t(y) * cut.row_bytes);
 
   char head[160];
-  const size_t n = tsplHead(head, sizeof(head), media_w_mm, media_l_mm, cut.row_bytes, image.height);
+  const TsplLabel label = { media_w_mm, media_l_mm, cut.row_bytes, image.height };
+  const size_t n = tsplHead(head, sizeof(head), label);
   if (!n) { free(bits); return BLE_WRITE_FAILED; }
   logSDf("TSPL: %ux%u mm, %u bytes x %u rows (raster %u wide) to %s",
          (unsigned)media_w_mm, (unsigned)media_l_mm, (unsigned)cut.row_bytes, (unsigned)image.height,

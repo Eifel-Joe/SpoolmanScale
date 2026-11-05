@@ -34,13 +34,13 @@ int main() {
   char head[160];
   const char want[] = "SIZE 50.0 mm,30.0 mm\r\nGAP 6.0 mm,0 mm\r\nDIRECTION 0,0\r\n"
                       "DENSITY 10\r\nCLS\r\nBITMAP 0,0,48,240,1,";
-  const size_t n = tsplHead(head, sizeof(head), 50, 30, 48, 240);
+  const size_t n = tsplHead(head, sizeof(head), TsplLabel{50, 30, 48, 240});
   assert(n == strlen(want) && memcmp(head, want, n) == 0);
   // No room: nothing, never a cut job.
-  assert(tsplHead(head, strlen(want), 50, 30, 48, 240) == 0);
-  assert(tsplHead(nullptr, 0, 50, 30, 48, 240) == 0);
+  assert(tsplHead(head, strlen(want), TsplLabel{50, 30, 48, 240}) == 0);
+  assert(tsplHead(nullptr, 0, TsplLabel{50, 30, 48, 240}) == 0);
   // Another size says its own numbers.
-  assert(tsplHead(head, sizeof(head), 40, 30, 48, 240) > 0 && memcmp(head, "SIZE 40.0 mm,30.0 mm\r\n", 22) == 0);
+  assert(tsplHead(head, sizeof(head), TsplLabel{40, 30, 48, 240}) > 0 && memcmp(head, "SIZE 40.0 mm,30.0 mm\r\n", 22) == 0);
 
   // One row: the bytes under the head, every bit turned (0 is black in TSPL).
   uint8_t row[50];

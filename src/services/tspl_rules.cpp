@@ -15,14 +15,13 @@ TsplCut tsplCut(uint16_t raster_width, uint16_t raster_row_bytes) {
   return c;
 }
 
-size_t tsplHead(char* out, size_t cap, uint16_t media_w_mm, uint16_t media_l_mm,
-                uint16_t row_bytes, uint16_t rows) {
+size_t tsplHead(char* out, size_t cap, const TsplLabel& label) {
   if (!out || !cap) return 0;
   const int n = snprintf(out, cap,
                          "SIZE %u.0 mm,%u.0 mm\r\nGAP %u.0 mm,0 mm\r\nDIRECTION 0,0\r\n"
                          "DENSITY %u\r\nCLS\r\nBITMAP 0,0,%u,%u,1,",
-                         (unsigned)media_w_mm, (unsigned)media_l_mm, (unsigned)TSPL_GAP_MM,
-                         (unsigned)TSPL_DENSITY, (unsigned)row_bytes, (unsigned)rows);
+                         (unsigned)label.media_w_mm, (unsigned)label.media_l_mm, (unsigned)TSPL_GAP_MM,
+                         (unsigned)TSPL_DENSITY, (unsigned)label.row_bytes, (unsigned)label.rows);
   return (n > 0 && (size_t)n < cap) ? (size_t)n : 0;
 }
 
