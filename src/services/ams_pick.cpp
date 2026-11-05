@@ -313,17 +313,22 @@ static void openPicker() {
   requestAmsView(AMS_VIEW_PICK, onPicked, head);
 }
 
+// The hint stands while the loop waits on the server, and the web interface
+// is served from the same loop: no screenshot can show it. These two lines
+// are what tells when it came and went (screen trace, log level 1 and up).
 void amsPickHintShow() {
   if (s_hint_up) return;
   s_hint_up = true;
   s_hint_ms = millis();
   loadingOverlayShow(T(STR_AMSPICK_LOADING));
+  logSD("UI: 'Loading AMS bays' up");
 }
 
 void amsPickHintHide() {
   if (!s_hint_up) return;
   s_hint_up = false;
   loadingOverlayHide();
+  logSDf("UI: 'Loading AMS bays' down after %lu ms", millis() - s_hint_ms);
 }
 
 bool amsPickHintUp() { return s_hint_up; }
