@@ -52,6 +52,15 @@ void handleAmsViewDeferredActions();
 
 // True while the page is up, so the loop knows a fetch may still be running.
 bool isAmsViewOpen();
+
+// PICK only: whether the question was opened by the "Into AMS" button, so
+// its way out reads "Cancel" rather than "Not into the AMS". Set right before
+// requestAmsView(AMS_VIEW_PICK, ...).
+void amsViewSetPickByTap(bool by_tap);
+
+// True once after the page was left through "Not into the AMS"; the pick
+// callback reads it to tell that choice from a question let run out.
+bool amsViewTakeNotAms();
 // The page stands but its first fetch has not drawn yet.
 bool amsViewLoading();
 

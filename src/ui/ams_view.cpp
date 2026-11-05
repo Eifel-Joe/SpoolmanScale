@@ -133,6 +133,15 @@ static bool s_weights_redraw = false;
 // still busy. Made up by the loop once the task is idle (startWeights()).
 static bool s_weights_owed = false;
 static bool s_close_pending = false;
+// PICK: opened by the "Into AMS" button rather than by a lift. Then the way
+// out stays "Cancel" - there it means "not after all" - and "Not into the
+// AMS" is the answer to the question after a lift only (Spec 5.3 AC j11,
+// V71, beta.4 design note E4). Set by amsViewSetPickByTap() right before
+// every PICK opening.
+static bool s_pick_by_tap = false;
+// The page was left through "Not into the AMS": read once by the callback,
+// see amsViewTakeNotAms().
+static bool s_not_ams = false;
 // The printers, fetched once and kept: their names are what the status line
 // shows, and asking again on every redraw would double the cost of a reload.
 // In the PSRAM: the list holds AMS_MAX_PRINTERS (64) printers, the Bambu ones
@@ -204,6 +213,7 @@ void requestAmsView(AmsViewMode mode, AmsPickCb cb, const char* headline) {
   s_pick_pending = false;
   s_pick_ams     = -1;
   s_pick_tray    = -1;
+  s_not_ams      = false;
   // And a fresh switch. Only the close through showMainScreen() reaches
   // destroyAmsView(); coming back from the scale menu does not, so without
   // this an info mode left on once would still be on the next time a
@@ -224,6 +234,14 @@ void requestAmsViewFromScaleMenu() {
 }
 
 bool isAmsViewOpen() { return s_scr != nullptr; }
+
+void amsViewSetPickByTap(bool by_tap) { s_pick_by_tap = by_tap; }
+
+bool amsViewTakeNotAms() {
+  const bool was = s_not_ams;
+  s_not_ams = false;
+  return was;
+}
 
 bool amsViewLoading() { return s_scr != nullptr && (s_build_pending || s_fetch_pending); }
 
@@ -734,6 +752,7 @@ static void footCancelCb(lv_event_t* e) {
 // tells a deliberate "elsewhere" from a question that was let run out.
 static void footNotAmsCb(lv_event_t* e) {
   logSD("AMSV: 'not into the AMS' tapped, no bay assigned");
+  s_not_ams = true;
   s_close_pending = true;
 }
 
@@ -1025,7 +1044,9 @@ static void buildScreen() {
   if (s_mode == AMS_VIEW_PICK) {
     s_info_btn = footButton(240 - AMSV_FOOT_GAP / 2 - AMSV_FOOT_BTN_W,
                             STR_AMSV_INFO, false, footInfoCb);
-    addCancelFill(leaveCancel(footButton(240 + AMSV_FOOT_GAP / 2, STR_AMSV_NOT_AMS, false, footNotAmsCb)));
+    addCancelFill(leaveCancel(footButton(240 + AMSV_FOOT_GAP / 2,
+                                         s_pick_by_tap ? STR_CANCEL : STR_AMSV_NOT_AMS, false,
+                                         s_pick_by_tap ? footCancelCb : footNotAmsCb)));
     applyInfoMode();
   } else if (s_mode == AMS_VIEW_WINDOW) {
     footButton(240 - AMSV_FOOT_GAP / 2 - AMSV_FOOT_BTN_W, STR_AMSV_BTN_WINDOW, true, footOpenCb);

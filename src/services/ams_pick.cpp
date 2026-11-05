@@ -196,6 +196,8 @@ static int assignFailText(int code, bool klipper) {
 
 // Runs one pass after the picker closed, never from the tap itself.
 static void onPicked(int ams_id, int tray_id) {
+  // Read on every answer, so that it cannot carry over to the next question.
+  const bool not_ams = amsViewTakeNotAms();
   // The page went away without a tap: back, a backend switch, a navigation
   // that tore it down. The bay question was seen and not answered, so it is
   // not asked again for this spool - the location question still is, because
@@ -205,6 +207,9 @@ static void onPicked(int ams_id, int tray_id) {
     const bool by_tap   = s_pending.active && s_pending.by_tap;   // before the drop
     logSD("AMSPICK: picker closed without an answer, note dropped");
     amsPickDropPending();
+    // "Not into the AMS": the spool goes elsewhere, and an earlier
+    // assignment of it must not be sent back into a bay (E5).
+    if (not_ams && spool_id > 0) amsPickRecheckStop(spool_id);
     offerLocationAfterPick(spool_id, by_tap);
     return;
   }
@@ -288,6 +293,7 @@ static void openPicker() {
   copyT(fmt, sizeof(fmt), STR_AMSV_PICK_HEAD);
   // The hint stays up over the page until its bays are drawn, see
   // amsPickTick().
+  amsViewSetPickByTap(s_pending.by_tap);
   snprintf(head, sizeof(head), fmt,
            s_pending.name[0] ? s_pending.name : "");
   requestAmsView(AMS_VIEW_PICK, onPicked, head);
