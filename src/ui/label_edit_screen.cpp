@@ -330,6 +330,8 @@ static void buildUnderPaper() {
 
 static void build() {
   logSDf("BUILD: Label edit (mode %d, kind %d)", (int)s_st->mode, (int)s_st->kind);
+  // The memory the screen takes, for the acceptance (verbose only, Spec 8).
+  logLvMem("labeledit/pre", 0);
   freePicture();
   releaseScreen(&s_scr);
   s_img = s_msg = nullptr;
@@ -355,6 +357,7 @@ static void build() {
   else editRows(list, s_st->mode == EM_FREE ? *s_free : s_st->edit);
   renderPreview();
   lv_obj_clear_flag(s_scr, LV_OBJ_FLAG_HIDDEN);
+  logLvMem("labeledit/post", (int)lv_obj_get_child_cnt(list));
 }
 
 // ---- the keyboard ------------------------------------------------------
@@ -409,6 +412,7 @@ static void buildKeyboard(int row, const char* title) {
   lv_obj_add_event_cb(s_ta, [](lv_event_t*) { s_typed = true; }, LV_EVENT_READY, NULL);
   lv_obj_add_event_cb(kb, [](lv_event_t*) { s_kb_leave = true; }, LV_EVENT_CANCEL, NULL);
   lv_obj_clear_flag(s_kb_scr, LV_OBJ_FLAG_HIDDEN);
+  logLvMem("labelkb/post", 1);
 }
 
 // What was typed into the row it was typed for.

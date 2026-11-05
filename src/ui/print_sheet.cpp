@@ -388,6 +388,8 @@ static void buildSheet() {
   buildWebHint(list);
   refresh();
   lv_obj_clear_flag(s_scr, LV_OBJ_FLAG_HIDDEN);
+  // For comparing the label edit screen with it (verbose only, Spec 8).
+  logLvMem("printsheet/post", (int)lv_obj_get_child_cnt(list));
 }
 
 void closePrintSheet() {
