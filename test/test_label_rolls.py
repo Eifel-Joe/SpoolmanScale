@@ -107,6 +107,14 @@ need("top" in ks.squeeze(ks.body_of(RENDER, "drawLarger")),
 need("small&&!placed.qr" in rl, f"src/{RENDER}: renderLabel() prints the square blank without a code")
 need("a.small&&rows==0?" in ks.squeeze(ks.body_of(RENDER, "drawOneLine")),
      f"src/{RENDER}: drawOneLine() leaves the square's code at the top")
+# The print sheet's paper is sized to what it shows: switching between the
+# picture and the message has it measured again, or the refusal on the square
+# stood cut in a box the size of its code (acceptance, round 2). LVGL 8.3.11
+# skips hidden children in a content size, and showing or hiding one in a
+# parent without a layout marks nothing dirty (lv_obj.c lv_obj_add_flag()).
+for fn in ("showMessage", "showPicture"):
+    need("lv_obj_mark_layout_as_dirty(" in ks.squeeze(ks.body_of("ui/print_sheet.cpp", fn)),
+         f"src/ui/print_sheet.cpp: {fn}() leaves the paper at the size of what it showed before")
 # The raster check and the driver take any length within Brother's limits.
 need("brotherQlLinesOk(" in ks.squeeze(ks.body_of(LP, "labelPrinterRasterFits")),
      f"src/{LP}: labelPrinterRasterFits() wants a fixed length on continuous tape")
