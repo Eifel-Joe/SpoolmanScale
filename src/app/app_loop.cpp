@@ -108,6 +108,7 @@
 #include "ui/confirm_popup.h"
 #include "ui/tare_entry.h"
 #include "ui/no_tag_create.h"   // noTagAfterCreateBusy()
+#include "ui/ui_common.h"       // uiModalWaiting()
 #include "ui/batch_create.h"    // batchLabelsTick()
 #include "ui/tare_missing_popup.h"
 #include "services/weight_write_rules.h"
