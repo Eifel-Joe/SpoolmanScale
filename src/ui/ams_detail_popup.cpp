@@ -43,6 +43,8 @@
 #define AMSD_HDR_H        52
 #define AMSD_PAD          10
 #define AMSD_CLOSE        44
+// "Take out" in the header, where FilaMan's status chip would be (a16).
+#define AMSD_TAKEOUT_W    96
 
 // Two columns, as in more_info_screen.cpp.
 #define AMSD_CA           10
@@ -441,6 +443,15 @@ static void locationCellCb(lv_event_t* e) {
   showSpoolAsk(AMSD_ASK_TAKEOUT);
 }
 
+// The header's "Take out" (AreYouThereAndi2, ae00429; Spec 5.3 AC a16): the
+// same question as the location cell, so a stray tap loses nothing, and the
+// same shelf after it.
+static void takeoutBtnCb(lv_event_t* e) {
+  if (!canTakeOut(s_det)) return;
+  logSDf("AMSDETAIL: 'take out' tapped for spool %d in %s", s_det.spool_id, s_det.bay);
+  showSpoolAsk(AMSD_ASK_TAKEOUT);
+}
+
 // The answer comes back from status_picker.cpp a pass after its overlay is
 // gone, so the write below is parked like every other one.
 static void onStatusPicked(int status_id) {
@@ -569,6 +580,7 @@ static void buildHeader(lv_obj_t* box, const AmsSpoolDetail& d) {
     // the user's choosing can be longer than that room, and a label with
     // neither ran under the chip.
     const int left  = (d.status_id > 0) ? AMSD_PAD + STATUS_CHIP_W + AMSD_PAD
+                    : canTakeOut(d)     ? AMSD_PAD + AMSD_TAKEOUT_W + AMSD_PAD
                                         : AMSD_PAD + AMSD_CLOSE + AMSD_PAD;
     const int right = AMSD_BOX_W - AMSD_PAD - AMSD_CLOSE - AMSD_PAD;
     oneLine(title, right - left, UI_FONT_BODY);
@@ -589,6 +601,31 @@ static void buildHeader(lv_obj_t* box, const AmsSpoolDetail& d) {
     // for one thing. A button only where it can be changed.
     buildStatusChip(hdr, AMSD_PAD, 4, d.status_id,
                     canEditStatus(d) ? statusChipCb : nullptr);
+  }
+
+  // Taking the spool out of the bay, where the status chip would be: the two
+  // never meet, the chip is FilaMan's, and the scale assigns no bays there.
+  if (d.status_id == 0 && canTakeOut(d)) {
+    lv_obj_t* u = lv_btn_create(hdr);
+    if (u) {
+      lv_obj_set_size(u, AMSD_TAKEOUT_W, AMSD_CLOSE);
+      lv_obj_align(u, LV_ALIGN_LEFT_MID, AMSD_PAD, 0);
+      lv_obj_set_style_bg_color(u, lv_color_hex(UI_COL_SURFACE), 0);
+      lv_obj_set_style_bg_color(u, lv_color_hex(UI_COL_PRESS_FILL), LV_STATE_PRESSED);
+      lv_obj_set_style_border_width(u, 1, 0);
+      lv_obj_set_style_border_color(u, lv_color_hex(UI_COL_LINE), 0);
+      lv_obj_set_style_radius(u, UI_RADIUS_BTN, 0);
+      lv_obj_set_style_shadow_width(u, 0, 0);
+      lv_obj_set_style_pad_all(u, 2, 0);
+      lv_obj_add_event_cb(u, takeoutBtnCb, LV_EVENT_CLICKED, nullptr);
+      lv_obj_t* ul = lv_label_create(u);
+      if (ul) {
+        lv_label_set_text(ul, T(STR_AMSD_TAKEOUT_BTN));
+        lv_obj_set_style_text_color(ul, lv_color_hex(UI_COL_WARN), 0);
+        lv_obj_set_style_text_font(ul, UI_FONT_SMALL, 0);
+        lv_obj_center(ul);
+      }
+    }
   }
 
   lv_obj_t* x = lv_btn_create(hdr);
@@ -1073,6 +1110,9 @@ void handleAmsDetailDeferredActions() {
     logSDf("AMSDETAIL: spool %d out of bay %d/%d, HTTP %d", spool_id,
            (int)s_det.ams_id, (int)s_det.tray_id, code);
     if (code == 200) {
+      // Out on purpose: the recheck of an assignment must not send it back
+      // into the bay (Spec 5.3 AC, V71).
+      amsPickRecheckStop(spool_id);
       // Copied first: closing the card is what frees s_det for the next one.
       char loc[SD_LOCATION_MAX];
       snprintf(loc, sizeof(loc), "%s", s_det.location);

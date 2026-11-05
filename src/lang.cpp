@@ -3973,7 +3973,7 @@ const char* const STRINGS[][3] = {
     "Imprimante hors ligne" },  // STR_AMSV_ERR_OFFLINE
   { "Spule aus dem AMS nehmen?", "Take the spool out of the AMS?",
     "Retirer la bobine de l'AMS ?" },  // STR_AMSD_TAKEOUT_Q
-  { "Entnehmen", "Take out",
+  { "Austragen", "Take out",
     "Retirer" },  // STR_AMSD_TAKEOUT_BTN
   { "Erkannt: %s %s", "Found: %s %s",
     "Détecté : %s %s" },  // STR_W_AMS_SOURCE_SEEN

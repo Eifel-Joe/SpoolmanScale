@@ -465,9 +465,10 @@ bool backendHasAmsView();
 bool backendCanAssignAmsSlot();
 
 // Whether the bay card may offer to take a spool out of the AMS: release the
-// bay, then ask for a shelf. Spoolman through an AMS source that says it can
-// unassign. BamBuddy could release a bay as well, but its card has no such
-// path yet and nobody has asked for one.
+// bay, then ask for a shelf. BamBuddy (AreYouThereAndi2's "Take out", Spec
+// 5.3 AC a16, V71), and Spoolman through an AMS source that says it can
+// unassign. Not FilaMan: the scale assigns no bays there. A Klipper field is
+// the card's own business (canTakeOut() in ams_detail_popup.cpp).
 bool backendCanTakeOutOfAms();
 
 // The printers worth offering. Both backends answer with the active ones.

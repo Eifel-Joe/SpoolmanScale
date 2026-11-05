@@ -1452,7 +1452,10 @@ bool backendCanAssignAmsSlot() {
 }
 
 bool backendCanTakeOutOfAms() {
-  return spoolmanHasAmsSource() && amsSourceCanUnassign();
+  // BamBuddy releases a bay in both inventory modes (bbUnassignSlot()), the
+  // way the AMS question pins one (Spec 5.3 AC a16, V71).
+  return (backendMode() == BACKEND_BAMBUDDY && backendIsConfigured()) ||
+         (spoolmanHasAmsSource() && amsSourceCanUnassign());
 }
 
 int backendListPrinters(AmsPrinterList& out, uint32_t timeout_ms) {
