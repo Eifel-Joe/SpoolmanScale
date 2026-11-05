@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stddef.h>
+#include <stdint.h>
 
 // ============================================================
 //  THE FIRMWARE VERSION BAMBUDDY IS TOLD
@@ -39,3 +40,39 @@
 // BamBuddy is told something else. False for a null full (out then holds
 // an empty text) and for no out or no room at all (n 0, nothing written).
 bool bbFirmwareVersion(const char* full, const char* suffix, char* out, size_t n);
+
+// ============================================================
+//  THE SPACING OF THE REPORTS
+//
+//  Heartbeat and live weight go out from a task of their own (Spec 5.3 AC
+//  a03, v0.8.7-beta.4, V71; AreYouThereAndi2, 7abb09a): on the loop task, a
+//  BamBuddy that does not answer held touch and screen for 4 to 5 s per
+//  report, a dozen times in six minutes in Andi's field log. A report is a
+//  courtesy to the web interface, so it gets a short timeout, and is spaced
+//  out by what the last one cost: a server that answers in 150 ms hears of
+//  the weight once a second, one that does not answer at most every half
+//  minute. Rules here, without Arduino, for test_bambuddy_report_rules.py.
+// ============================================================
+
+// BamBuddy marks a device offline after 30 seconds without a heartbeat
+// (OFFLINE_THRESHOLD_SECONDS in its spoolbuddy routes), so this has to be
+// well inside that. Its own daemon uses 10 s.
+#define BB_HEARTBEAT_MS          10000
+// Live weight for the web interface: at most one a second.
+#define BB_WEIGHT_MIN_GAP_MS      1000
+#define BB_HEARTBEAT_TIMEOUT_MS   3000
+#define BB_WEIGHT_TIMEOUT_MS      1500
+#define BB_BACKOFF_MAX_MS        30000
+// A report may take a tenth of the time between two.
+#define BB_REPORT_COST_FACTOR       10
+
+// The gap to the next heartbeat after one that answered code: the plain rate
+// for any answer (a 404 is one: the device was removed and registers again),
+// twice the last gap for none, at most BB_BACKOFF_MAX_MS.
+uint32_t bbHeartbeatGapMs(int code, uint32_t prev_gap_ms);
+
+// The gap to the next weight report after one that answered code and took
+// cost_ms: ten times the cost after an answer, twice the last gap after a
+// failure; never closer than BB_WEIGHT_MIN_GAP_MS, never further than
+// BB_BACKOFF_MAX_MS.
+uint32_t bbWeightGapMs(int code, uint32_t cost_ms, uint32_t prev_gap_ms);

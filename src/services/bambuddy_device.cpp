@@ -1,6 +1,10 @@
 #include "bambuddy_device.h"
 
 #include <Arduino.h>
+#include <esp_heap_caps.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <freertos/idf_additions.h>
 #include <math.h>
 #include <string.h>
 
@@ -15,30 +19,140 @@
 #include "services/backend.h"
 #include "services/user_options.h"
 #include "services/wifi_manager.h"
+#include "services/worker_task.h"
 
-// BamBuddy marks a device offline after 30 seconds without a heartbeat
-// (OFFLINE_THRESHOLD_SECONDS in its spoolbuddy routes), so this has to be
-// well inside that. Its own daemon uses 10 s.
-#define BB_HEARTBEAT_MS       10000
+// The heartbeat's rate, the weight's and the timeouts of both are in
+// services/bambuddy_device_rules.h, with the rules that space them out.
 // A failed registration is retried, but not on every pass - a server that is
 // up and refusing the key would otherwise produce a request per loop.
 #define BB_REGISTER_RETRY_MS  30000
-// Live weight for the web interface. At most one per second, and only when
-// the reading moved far enough to be worth a request.
-#define BB_WEIGHT_MIN_GAP_MS   1000
+// Live weight for the web interface: only when the reading moved far enough
+// to be worth a request.
 #define BB_WEIGHT_MIN_DELTA_G     2.0f
+// The report task (Spec 5.3 AC a03, V71). Its stack lies in PSRAM: a task
+// that lives as long as the device with 12 kB of internal RAM would take the
+// 7B from 45 kB free in operation to 33 kB, below what the update check
+// needs to start (beta.4 design note, E1). It never touches the flash itself
+// - its log lines go to the loop through logSD()'s queue - so a stack in
+// PSRAM is safe (worker_task.h). Priority as the loop's, on the other core.
+#define BB_TASK_STACK_BYTES   12288
+#define BB_TASK_PRIORITY          1
+#define BB_TASK_CORE              0
+// A task that could not be had is tried again at most once a minute.
+#define BB_TASK_RETRY_MS      60000
 
 static bool          s_registered      = false;
 static unsigned long s_last_register_ms = 0;
 static unsigned long s_last_hb_ms       = 0;
 static bool          s_last_hb_ok       = false;
 static unsigned long s_last_weight_ms   = 0;
+static uint32_t      s_weight_gap_ms    = BB_WEIGHT_MIN_GAP_MS;
+static uint32_t      s_hb_gap_ms        = BB_HEARTBEAT_MS;
 static float         s_last_weight_g    = -9999.0f;
 // Spread of the readings since the last report, which is what decides
 // whether the value handed to the web interface counts as settled.
 static float         s_win_min          =  1e9f;
 static float         s_win_max          = -1e9f;
 static char          s_reported_tag[40] = "";
+
+// ---- the report task -----------------------------------------------------
+// One request at a time. The loop fills the slot and wakes the task, the task
+// runs the call and marks the slot done, the loop picks the answer up on a
+// later pass. Neither side touches a slot the other one owns. Commands that
+// come back with a heartbeat (tare, restart) are carried out by the loop.
+enum BbReportKind : uint8_t { BBR_HEARTBEAT, BBR_WEIGHT };
+enum BbReportSlot : uint8_t { BBR_IDLE, BBR_PENDING, BBR_DONE };
+
+struct BbReport {
+  volatile BbReportSlot slot;
+  BbReportKind kind;
+  uint32_t gen;                 // the server it was meant for, see bambuddyDeviceReset()
+  // in
+  char     base[80];
+  char     key[80];
+  char     ip[24];
+  char     fw[BB_FIRMWARE_VERSION_MAX + 1];
+  bool     scale_ok;
+  uint32_t uptime_s;
+  float    grams;
+  bool     stable;
+  int32_t  raw;
+  // out
+  int      code;
+  char     cmd[40];
+  int      write_spool_id;
+  uint32_t cost_ms;
+};
+
+static BbReport      s_job;
+static TaskHandle_t  s_task          = nullptr;
+static unsigned long s_task_tried_ms = 0;
+static bool          s_task_tried    = false;
+static uint32_t      s_gen           = 0;
+
+static void runJob(BbReport& j) {
+  const uint32_t t0 = millis();
+  j.cmd[0] = '\0';
+  j.write_spool_id = 0;
+  if (j.kind == BBR_HEARTBEAT) {
+    // scale_ok, not scale_ready: with no load cell fitted there is no fault to
+    // report, and sending false made BamBuddy render the device as a scale
+    // that is broken rather than a device that has none. has_scale in the
+    // registration is what distinguishes the two.
+    j.code = bbHeartbeat(j.base, j.key, /*nfc_ok=*/true, j.scale_ok, j.uptime_s,
+                         j.ip, j.fw, j.cmd, sizeof(j.cmd), &j.write_spool_id,
+                         BB_HEARTBEAT_TIMEOUT_MS);
+  } else {
+    j.code = bbScaleReading(j.base, j.key, j.grams, j.stable, j.raw, BB_WEIGHT_TIMEOUT_MS);
+  }
+  j.cost_ms = millis() - t0;
+}
+
+static void reportTask(void*) {
+  for (;;) {
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    if (s_job.slot != BBR_PENDING) continue;
+    runJob(s_job);
+    __sync_synchronize();
+    s_job.slot = BBR_DONE;
+  }
+}
+
+// Wurzel: the reports ran on the loop task with 4 and 5 s timeouts, and a
+// BamBuddy that did not answer stopped touch and drawing for that long.
+// Fix: a task of its own runs them (AreYouThereAndi2, 7abb09a), with its
+// stack in PSRAM; without PSRAM, or when no block is free, the request runs
+// right here as it always did, with the same short timeouts.
+// NOT-TO-DO: the stack in internal RAM, as in the original: 12 kB for the
+// device's lifetime that the 7B does not have (BB_TASK_STACK_BYTES). Nor
+// counting the stack in workerFreeHeap(): it takes no internal RAM, and the
+// floors of the other workers would sink by 12 kB for nothing.
+// See test_fachfrage_wiring.py (a03) and test_bambuddy_report_rules.py.
+static void submitJob() {
+  s_job.slot = BBR_PENDING;
+  if (!s_task && (!s_task_tried || millis() - s_task_tried_ms >= BB_TASK_RETRY_MS)) {
+    const bool first = !s_task_tried;
+    s_task_tried    = true;
+    s_task_tried_ms = millis();
+    if (workerStackCanGoOutside(BB_TASK_STACK_BYTES) &&
+        xTaskCreatePinnedToCoreWithCaps(reportTask, "bbreport", BB_TASK_STACK_BYTES, nullptr,
+                                        BB_TASK_PRIORITY, &s_task, BB_TASK_CORE,
+                                        MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) == pdPASS) {
+      logSDf("BamBuddy: reports go out from a task of their own (%u B stack in PSRAM), "
+             "internal heap %u", (unsigned)BB_TASK_STACK_BYTES,
+             (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+    } else {
+      s_task = nullptr;
+      if (first) logSD("BamBuddy: no PSRAM for the report task, reports stay in the loop");
+    }
+  }
+  if (s_task) {
+    xTaskNotifyGive(s_task);
+    return;
+  }
+  runJob(s_job);
+  s_job.slot = BBR_DONE;
+}
 
 // The version BamBuddy is told, in registration and heartbeat. Its schema
 // refuses more than BB_FIRMWARE_VERSION_MAX characters with HTTP 422, which the
@@ -63,6 +177,12 @@ void bambuddyDeviceReset() {
   s_registered = false;
   s_last_register_ms = 0;
   s_reported_tag[0] = '\0';
+  // An answer still on its way was meant for the old server: it is dropped
+  // when it arrives (s_gen), and the spacing starts over.
+  s_gen++;
+  s_hb_gap_ms     = BB_HEARTBEAT_MS;
+  s_weight_gap_ms = BB_WEIGHT_MIN_GAP_MS;
+  if (s_job.slot == BBR_DONE) s_job.slot = BBR_IDLE;
 }
 
 // Answers a command the scale cannot carry out. Every queued command must be
@@ -163,38 +283,64 @@ void bambuddyDeviceTick() {
     s_last_hb_ok = true;
   }
 
+  // --- answers from the report task ---------------------------
+  if (s_job.slot == BBR_DONE) {
+    __sync_synchronize();
+    const BbReportKind kind = s_job.kind;
+    const bool     current = (s_job.gen == s_gen);
+    const int      code    = s_job.code;
+    const uint32_t cost    = s_job.cost_ms;
+    char cmd[40];
+    strncpy(cmd, s_job.cmd, sizeof(cmd) - 1);
+    cmd[sizeof(cmd) - 1] = '\0';
+    const int write_spool_id = s_job.write_spool_id;
+    s_job.slot = BBR_IDLE;
+
+    if (!current) {
+      // For a server no longer in use: nothing in it applies here.
+    } else if (kind == BBR_HEARTBEAT) {
+      // Failed (nobody answered): ask less often while that lasts.
+      s_hb_gap_ms = bbHeartbeatGapMs(code, s_hb_gap_ms);
+      if (code == 404) {
+        // The device was removed in the web interface. Registering again is
+        // the documented way back, its own daemon does the same.
+        logSD("BamBuddy: device is gone from the server, registering again");
+        s_registered = false;
+        s_last_register_ms = 0;
+        return;
+      }
+      const bool ok = (code == 200);
+      if (ok != s_last_hb_ok) {
+        // Only on change. A line every ten seconds would bury everything else.
+        logSDf("BamBuddy: heartbeat %s (HTTP %d), next in %u s", ok ? "OK" : "FAILED", code,
+               (unsigned)(s_hb_gap_ms / 1000));
+        s_last_hb_ok = ok;
+      }
+      if (ok && cmd[0]) handleCommand(base, key, cmd, write_spool_id);
+    } else {
+      // Spaced by what it cost; a failure doubles the wait, an answer returns
+      // to the cost.
+      const uint32_t was = s_weight_gap_ms;
+      s_weight_gap_ms = bbWeightGapMs(code, cost, s_weight_gap_ms);
+      if (code != 200 && s_weight_gap_ms != was) {
+        logSDf("BamBuddy: weight report failed (HTTP %d), next in %u ms", code,
+               (unsigned)s_weight_gap_ms);
+      }
+    }
+  }
+
   // --- heartbeat ----------------------------------------------
-  if (millis() - s_last_hb_ms >= BB_HEARTBEAT_MS) {
+  if (s_job.slot == BBR_IDLE && millis() - s_last_hb_ms >= s_hb_gap_ms) {
     s_last_hb_ms = millis();
-
-    char cmd[40] = "";
-    int  write_spool_id = 0;
-    // scale_ok, not scale_ready: with no load cell fitted there is no fault to
-    // report, and sending false made BamBuddy render the device as a scale
-    // that is broken rather than a device that has none. has_scale in the
-    // registration is what distinguishes the two.
-    int  code = bbHeartbeat(base, key, /*nfc_ok=*/true,
-                            /*scale_ok=*/(!g_scale_fitted || scale_ready),
-                            millis() / 1000,
-                            wifiManagerLocalIP().toString().c_str(), firmwareForBamBuddy(),
-                            cmd, sizeof(cmd), &write_spool_id);
-
-    if (code == 404) {
-      // The device was removed in the web interface. Registering again is
-      // the documented way back, its own daemon does the same.
-      logSD("BamBuddy: device is gone from the server, registering again");
-      s_registered = false;
-      s_last_register_ms = 0;
-      return;
-    }
-
-    const bool ok = (code == 200);
-    if (ok != s_last_hb_ok) {
-      // Only on change. A line every ten seconds would bury everything else.
-      logSDf("BamBuddy: heartbeat %s (HTTP %d)", ok ? "OK" : "FAILED", code);
-      s_last_hb_ok = ok;
-    }
-    if (ok && cmd[0]) handleCommand(base, key, cmd, write_spool_id);
+    s_job.kind = BBR_HEARTBEAT;
+    s_job.gen  = s_gen;
+    snprintf(s_job.base, sizeof(s_job.base), "%s", base);
+    snprintf(s_job.key, sizeof(s_job.key), "%s", key ? key : "");
+    snprintf(s_job.ip, sizeof(s_job.ip), "%s", wifiManagerLocalIP().toString().c_str());
+    snprintf(s_job.fw, sizeof(s_job.fw), "%s", firmwareForBamBuddy());
+    s_job.scale_ok = (!g_scale_fitted || scale_ready);
+    s_job.uptime_s = millis() / 1000;
+    submitJob();
   }
 
   // --- tag removal --------------------------------------------
@@ -217,15 +363,21 @@ void bambuddyDeviceTick() {
     if (scale_weight_g < s_win_min) s_win_min = scale_weight_g;
     if (scale_weight_g > s_win_max) s_win_max = scale_weight_g;
 
-    if (millis() - s_last_weight_ms >= BB_WEIGHT_MIN_GAP_MS) {
+    if (s_job.slot == BBR_IDLE && millis() - s_last_weight_ms >= s_weight_gap_ms) {
       if (fabsf(scale_weight_g - s_last_weight_g) >= BB_WEIGHT_MIN_DELTA_G) {
         // Settled means the readings of the past second stayed inside the
         // same window the automatic weighing waits for. Reporting it lets
         // the web interface distinguish a spool being placed from one that
         // is lying still.
-        const bool stable = (s_win_max - s_win_min) < AUTO_WEIGHT_THRESH_G;
-        bbScaleReading(base, key, scale_weight_g, stable, scaleHardwareReadRaw());
+        s_job.kind   = BBR_WEIGHT;
+        s_job.gen    = s_gen;
+        snprintf(s_job.base, sizeof(s_job.base), "%s", base);
+        snprintf(s_job.key, sizeof(s_job.key), "%s", key ? key : "");
+        s_job.grams  = scale_weight_g;
+        s_job.stable = (s_win_max - s_win_min) < AUTO_WEIGHT_THRESH_G;
+        s_job.raw    = scaleHardwareReadRaw();
         s_last_weight_g = scale_weight_g;
+        submitJob();
       }
       s_last_weight_ms = millis();
       s_win_min =  1e9f;

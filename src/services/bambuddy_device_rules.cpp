@@ -23,3 +23,19 @@ bool bbFirmwareVersion(const char* full, const char* suffix, char* out, size_t n
   out[len] = '\0';
   return len != full_len;
 }
+
+static uint32_t doubledUpToMax(uint32_t gap_ms) {
+  return gap_ms < BB_BACKOFF_MAX_MS / 2 ? gap_ms * 2 : BB_BACKOFF_MAX_MS;
+}
+
+uint32_t bbHeartbeatGapMs(int code, uint32_t prev_gap_ms) {
+  if (code == 200 || code == 404) return BB_HEARTBEAT_MS;
+  return doubledUpToMax(prev_gap_ms < BB_HEARTBEAT_MS ? BB_HEARTBEAT_MS : prev_gap_ms);
+}
+
+uint32_t bbWeightGapMs(int code, uint32_t cost_ms, uint32_t prev_gap_ms) {
+  uint32_t gap = (code == 200) ? cost_ms * BB_REPORT_COST_FACTOR : doubledUpToMax(prev_gap_ms);
+  if (gap < BB_WEIGHT_MIN_GAP_MS) gap = BB_WEIGHT_MIN_GAP_MS;
+  if (gap > BB_BACKOFF_MAX_MS) gap = BB_BACKOFF_MAX_MS;
+  return gap;
+}

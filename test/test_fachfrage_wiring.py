@@ -157,7 +157,7 @@ def a03_task():
     assert "xTaskCreatePinnedToCoreWithCaps(" in code and "MALLOC_CAP_SPIRAM" in code, \
         f"{w}: the report task does not take its stack from PSRAM"
     assert "xTaskCreatePinnedToCore(" not in code, f"{w}: a task with an internal stack"
-    assert "WORKER_STACK_OUTSIDE" in code, f"{w}: boards without PSRAM are not kept apart"
+    assert "workerStackCanGoOutside(BB_TASK_STACK_BYTES)" in code, f"{w}: boards without PSRAM are not kept apart"
     run = body_of(DEVICE, "runJob")
     has(run, "BB_HEARTBEAT_TIMEOUT_MS", f"{w}: runJob()")
     has(run, "BB_WEIGHT_TIMEOUT_MS", f"{w}: runJob()")
