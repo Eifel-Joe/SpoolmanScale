@@ -61,6 +61,11 @@ struct UnlinkedSpool {
   char  tag_values[TAG_FIELD_COUNT][CARD_UIDS_MAX];
   int   filament_id;   // filament.id (for copy flow)
   float spool_weight;  // spool_weight (for copy flow)
+  // What the spool cost, in the server's unit (spoolTemplatePrice()): per kg
+  // with BamBuddy, per spool with Spoolman and FilaMan; 0 for none. The copy
+  // card starts its price button from it (o19, v0.8.7-beta.5). A row out of
+  // the cache has none: it is read again before the card (from_cache).
+  float price;
 };
 
 // ---- in spool_flow.cpp -------------------------------------------------------
@@ -93,6 +98,7 @@ struct CopyLook {
   char name[48];
   char vendor[32];
   char color_hex[SPOOL_COLOR_HEX_MAX];   // #RRGGBB, empty when unknown
+  float price;   // the template's, in the server's unit (UnlinkedSpool.price)
 };
 extern CopyLook copy_confirm_look;
 void copyLookFromRow(CopyLook& look, const UnlinkedSpool& s);
@@ -142,6 +148,21 @@ bool copyTypeAsked();
 // The maker of the template on the confirmation, "" when it came without a
 // look. Outlives the card: the create reads it after the card is closed.
 const char* copyCardVendor();
+// The price the copy is to get, in the server's unit: the one typed on the
+// card, else the template's; 0 for none (o19). copyCreateRequest() takes it.
+float copyCardPrice();
+// After a copy stood on Spoolman or FilaMan: its price, written on its own,
+// as the create there takes none. True when a price was due and did not
+// arrive; with BamBuddy the price went with the create (copy_bbs.cpp).
+bool copyPriceAfterCreate(int spool_id);
+// The template read before the copy card, once (Punkteliste n43): behind
+// BamBuddy on Spoolman the card's own load (copyBbsLoad(), taken by the card
+// as fresh), handed over mapped as the other servers' read is; elsewhere the
+// mapped read. The HTTP code, -2 for a load that could not be mapped.
+int copyTemplateRead(int spool_id, JsonDocument& doc, uint32_t timeout_ms, DeserializationError* err);
+// What a spool cost, in the server's unit: cost_per_kg with BamBuddy, price
+// with Spoolman and FilaMan; 0 for none or no number (o19).
+float spoolTemplatePrice(JsonObjectConst spool);
 // The status line once a copy stands: what it did not take over (CopyMissing
 // bits) in yellow, else "copied" in green. Also after a run of several copies
 // (batch_create.h), once for all of them.

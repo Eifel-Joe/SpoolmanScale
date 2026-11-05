@@ -84,6 +84,11 @@ static uint8_t s_missing      = CM_NONE;  // the last create's CopyMissing bits
 // with its filament: read at all, and whether spool, filament or brand has one.
 static bool    s_chain_read   = false;
 static bool    s_chain_any    = true;
+// The load was made for the card right after it (copyTemplateRead(), n43):
+// copyBbsTakeFresh() hands it over once, within COPY_BBS_FRESH_MS.
+static bool     s_fresh       = false;
+static uint32_t s_fresh_at    = 0;
+#define COPY_BBS_FRESH_MS 10000
 
 void copyBbsClear() {
   s_tpl.clear();
@@ -96,6 +101,7 @@ void copyBbsClear() {
   s_price        = 0.0f;
   s_chain_read   = false;
   s_chain_any    = true;
+  s_fresh        = false;
 }
 
 uint8_t copyBbsLastMissing() { return s_missing; }
@@ -148,8 +154,29 @@ static int loadTemplate(int template_spool_id) {
 int copyBbsLoad(int template_spool_id) {
   HttpStallTime stall(__func__);   // the loop stands still for these reads
   const int code = loadTemplate(template_spool_id);
-  if (code != 200) logSDf("Copy: template %d unreadable (HTTP %d)", template_spool_id, code);
+  if (code != 200) {
+    logSDf("Copy: template %d unreadable (HTTP %d)", template_spool_id, code);
+    return code;
+  }
+  // The card right after this may take it instead of reading again (n43).
+  s_fresh    = true;
+  s_fresh_at = millis();
   return code;
+}
+
+bool copyBbsTakeFresh(int template_spool_id) {
+  const bool fresh = s_fresh && s_loaded_id > 0 && s_loaded_id == template_spool_id &&
+                     (uint32_t)(millis() - s_fresh_at) < COPY_BBS_FRESH_MS;
+  s_fresh = false;   // once: any later card reads again
+  if (fresh) logSDf("Copy: template %d taken from the read before the card", template_spool_id);
+  return fresh;
+}
+
+bool copyBbsMapped(JsonDocument& out) {
+  if (s_loaded_id <= 0) return false;
+  // As the mapped read maps the same answer (bbGetSpoolJson()).
+  bbMapSpool(s_tpl.as<JsonObjectConst>(), out.to<JsonObject>());
+  return !out.overflowed();
 }
 
 float copyBbsNominal(int template_spool_id, float tpl_label_g) {
@@ -232,7 +259,10 @@ static int templateUnreadable(int template_spool_id, int code) {
 }
 
 // The copy in Bambuddy's own inventory, as it always was: what a copy takes
-// over beyond these fields is for Bambuddy on Spoolman only.
+// over beyond these fields is for Bambuddy on Spoolman only, but the price
+// (o19, v0.8.7-beta.5): the template's per kg, or the one typed on the card,
+// sent with the create as behind Spoolman (copyRulesCostPerKg()); one the
+// server refuses (207) is a part not taken over (CM_PRICE).
 // The template is read back raw at the create, because the mapped form folds
 // subtype and color_name into one name and trims rgba to six characters - a
 // copy built from it would be poorer than its template. How big from the
@@ -246,8 +276,16 @@ static int createAsBefore(const CopyBbsCreate& in, int* out_spool_id) {
   BbNewSpool ns;
   commonFields(tpl.as<JsonObjectConst>(), in, tpl["label_weight"] | (int)lroundf(in.initial_g), ns);
   ns.color_name = tpl["color_name"] | "";
-  return bbCreateSpool(backendBaseUrl(), bambuddyApiKey(), ns, out_spool_id,
-                       BB_CREATE_TIMEOUT_MS);
+  const float cost = copyRulesCostPerKg(tpl["cost_per_kg"] | 0.0f, s_price, s_price_typed);
+  if (cost > 0.0f && isfinite(cost)) ns.cost_per_kg = cost;
+  bool warned = false;
+  const int code = bbCreateSpool(backendBaseUrl(), bambuddyApiKey(), ns, out_spool_id,
+                                 BB_CREATE_TIMEOUT_MS, &warned);
+  if (code == 200 && warned && ns.cost_per_kg > 0.0f) {
+    logSDf("Copy: spool %d, price not taken over (207)", out_spool_id ? *out_spool_id : 0);
+    s_missing = CM_PRICE;
+  }
+  return code;
 }
 
 // One list of the template onto the new spool, complete, and only when the

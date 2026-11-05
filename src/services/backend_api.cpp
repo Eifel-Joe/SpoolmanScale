@@ -912,13 +912,22 @@ static int filamentForSpool(const TagCreateInput& in, const TagFilamentPlan& pla
   return (code == 200 || code == 201) ? -1 : code;
 }
 
+int backendPatchSpoolPrice(int spool_id, float price, uint32_t timeout_ms) {
+  HttpStallTime stall(__func__);   // the loop stands still for this call
+  if (!(price > 0.0f) || spool_id <= 0) return 200;   // nothing to write
+  // BamBuddy keeps a price per kg and takes it with the create (copy_bbs.cpp).
+  if (backendIsBamBuddy()) return notSupported("PatchSpoolPrice");
+  return backendIsFilaMan()
+    ? filamanPatchSpoolPrice(backendBaseUrl(), filamanApiKey(), spool_id, price, timeout_ms)
+    : spoolmanPatchSpoolPrice(backendBaseUrl(), spool_id, price, timeout_ms);
+}
+
 // The price on a spool that exists now. Its own request: the create calls
-// are shared with the copy flow, which has no price.
+// are shared with the copy flow, which writes its price the same way after
+// its own create (copyPriceAfterCreate()).
 static void patchSpoolPrice(int spool_id, float price, TagCreateResult* out) {
   if (price <= 0.0f || spool_id <= 0) return;
-  const int code = backendIsFilaMan()
-    ? filamanPatchSpoolPrice(backendBaseUrl(), filamanApiKey(), spool_id, price)
-    : spoolmanPatchSpoolPrice(backendBaseUrl(), spool_id, price);
+  const int code = backendPatchSpoolPrice(spool_id, price);
   out->price_lost = !backendWriteOk(code);
   if (out->price_lost) logSDf("Tag create: price %.2f for spool %d -> HTTP %d", price, spool_id, code);
 }

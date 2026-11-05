@@ -285,6 +285,11 @@ static void mapSpool(JsonObjectConst src, JsonObject dst) {
   const char* loc = locationNameById(src["location_id"] | 0);
   if (loc) dst["location"] = loc;
 
+  // What the spool cost, under Spoolman's name (both keep it per spool): a
+  // copy's card starts its price from it (o19). The list filter names it.
+  const float price = src["purchase_price"] | 0.0f;
+  if (price > 0.0f && isfinite(price)) dst["price"] = price;
+
   // Spoolman keeps the tag in extra.tag, FilaMan in the native rfid_uid.
   // Spoolman stores extra values JSON encoded, so the reader strips quotes
   // with replace("\"",""). Writing the bare value is therefore safe and
@@ -1529,7 +1534,7 @@ static void spoolListFilter(JsonDocument& filter) {
   JsonObject s = filter["items"].to<JsonArray>().add<JsonObject>();
   for (const char* key : { "id", "remaining_weight_g", "empty_spool_weight_g", "initial_total_weight_g",
                            "status_id", "last_used_at", "created_at", "location_id", "rfid_uid",
-                           "rfid_uid_2", "external_id" })
+                           "rfid_uid_2", "external_id", "purchase_price" })
     s[key] = true;
   JsonObject cf = s["custom_fields"].to<JsonObject>();
   for (const char* key : { "spoolmanscale_tag", "bambu_rfid_tag_1", "bambu_rfid_tag_2", "last_dried" })

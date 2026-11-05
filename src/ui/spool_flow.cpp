@@ -6,6 +6,7 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <lvgl.h>
+#include <cmath>
 #include <cstring>
 
 #include "app_config.h"
@@ -230,6 +231,15 @@ void copyLookFromRow(CopyLook& look, const UnlinkedSpool& s) {
   snprintf(look.name,      sizeof(look.name),      "%s", s.name);
   snprintf(look.vendor,    sizeof(look.vendor),    "%s", s.vendor);
   snprintf(look.color_hex, sizeof(look.color_hex), "%s", s.color_hex);
+  look.price = s.price;
+}
+
+float spoolTemplatePrice(JsonObjectConst spool) {
+  // BamBuddy keeps a price per kg, with and without Spoolman behind it (its
+  // mapping hands it on, bambuddy_api.cpp mapSpool()); Spoolman and FilaMan
+  // (mapped from purchase_price) a price for the spool.
+  const float p = backendIsBamBuddy() ? (spool["cost_per_kg"] | 0.0f) : (spool["price"] | 0.0f);
+  return (p > 0.0f && isfinite(p)) ? p : 0.0f;
 }
 
 // "From the tag" on the copy or the link entry. The card is built by the
@@ -650,6 +660,8 @@ LinkFetch fetchAllSpoolsForLink(bool is_bambu, const char* material_filter, bool
   // flow has to see that whichever one the user has selected right now.
   for (uint8_t f = 0; f < TAG_FIELD_EXTRA_COUNT; f++)
     fL["extra"][tagFieldSpec(f).key] = true;
+  // What the spool cost: a copy's card starts its price from it (o19).
+  fL["price"] = true;
   // And Spoolman's own tag relation, which spoolHasAnyTag() asks as well (f11).
   // A filter on an array of objects describes one element.
   fL["tags"][0]["uid"] = true;
@@ -877,6 +889,7 @@ static bool linkFetchBuild(JsonDocument& doc, bool from_cache, bool is_bambu,
     s.total = spool["filament"]["weight"] | 1000.0f;
     s.filament_id = spool["filament"]["id"] | 0;
     s.spool_weight = spoolTare(spool);
+    s.price = spoolTemplatePrice(spool);
 
     // On Serial, not on the card. A line to the card is an open, an append and
     // a close, 26 ms each on the loop task: for an inventory of 227 spools that
@@ -1176,8 +1189,12 @@ static LinkRowRefresh linkRefreshRow(int idx) {
   JsonDocument doc;
   DeserializationError err = DeserializationError::Ok;
   const uint32_t t0 = millis();
-  const int code = serverReachNote(
-      backendGetSpoolJson(cfg_spoolman_base, s.id, doc, LINK_ROW_REFRESH_TIMEOUT_MS, &err), true);
+  // A copy through the picker reads its template once: behind BamBuddy on
+  // Spoolman the card's own load, which the card then takes (n43, the sister
+  // of copyRowRefresh()); a link reads the spool as before.
+  const int code = serverReachNote(copy_flow_via_list
+      ? copyTemplateRead(s.id, doc, LINK_ROW_REFRESH_TIMEOUT_MS, &err)
+      : backendGetSpoolJson(cfg_spoolman_base, s.id, doc, LINK_ROW_REFRESH_TIMEOUT_MS, &err), true);
   const unsigned long took = (unsigned long)(millis() - t0);
 
   // The server did not answer. serverReachNote() has asked for the popup; the
@@ -1226,6 +1243,7 @@ static LinkRowRefresh linkRefreshRow(int idx) {
   s.total        = spool["filament"]["weight"] | 1000.0f;
   s.filament_id  = spool["filament"]["id"] | 0;
   s.spool_weight = spoolTare(spool);
+  s.price        = spoolTemplatePrice(spool);
   s.from_cache   = false;
   spoolCacheSetBound(s.id, bound);
   spoolCacheSetRemaining(s.id, s.remaining);
@@ -2182,6 +2200,7 @@ void linkIdLookupAndPatch(int entered_id, bool is_bambu) {
       row.total        = doc["filament"]["weight"] | 0.0f;
       row.filament_id  = doc["filament"]["id"] | 0;
       row.spool_weight = spoolTare(doc);
+      row.price        = spoolTemplatePrice(doc.as<JsonObjectConst>());
       row.from_cache   = false;
       logSDf("link: row of spool %d read fresh behind the numpad", entered_id);
     }
@@ -2222,6 +2241,7 @@ void linkIdLookupAndPatch(int entered_id, bool is_bambu) {
     s.total        = doc["filament"]["weight"] | 0.0f;
     s.filament_id  = doc["filament"]["id"] | 0;
     s.spool_weight = spoolTare(doc);
+    s.price        = spoolTemplatePrice(doc.as<JsonObjectConst>());
     link_spool_count++;
   }
 
@@ -3778,6 +3798,51 @@ static void linkReloadSpoolList() {
                LF_NEXT_RELOAD);
 }
 
+// A template typed by its number on the copy pad: read, then the copy card.
+// From the loop, not from the pad's callback (stack, HTTP). Read once behind
+// BamBuddy on Spoolman (copyTemplateRead(), Punkteliste n43): the card takes
+// the same load instead of reading the spool again.
+static void copyIdLookup(int cid) {
+  JsonDocument cdoc;
+  DeserializationError derr2 = DeserializationError::Ok;
+  int hcode = serverReachNote(copyTemplateRead(cid, cdoc, 5000, &derr2), true);
+  // "Not found" for a 404 only: a 500 or the like is the server's error, not
+  // a wrong number (Punkteliste n42).
+  if (hcode != 200) {
+    idPadSay(T(serverReachIsNetworkFailure(hcode) ? STR_NO_CONNECTION
+               : hcode == 404                    ? STR_LINK_ID_NOT_FOUND
+                                                 : STR_SERVER_ERR_TITLE),
+             true);
+    return;
+  }
+  if (derr2) {
+    idPadSay(T(STR_LINK_JSON_ERR), true);
+    return;
+  }
+  int cfid   = cdoc["filament"]["id"] | 0;
+  float cini = cdoc["filament"]["weight"] | 1000.0f;
+  float cspw = spoolTare(cdoc);
+  float crem = cdoc["remaining_weight"] | 0.0f;
+  const char *cfname = cdoc["filament"]["name"] | "?";
+  const char *cfmat  = cdoc["filament"]["material"] | "";
+  const char *cfvnd  = cdoc["filament"]["vendor"]["name"] | "";
+  char ctmpl[80];
+  char cjoined[64];
+  joinMaterialName(cfmat, cfname, cjoined, sizeof(cjoined));
+  snprintf(ctmpl, sizeof(ctmpl), "%s (%s)", cjoined, cfvnd);
+  idPadRelease();
+  id_input_open = false;   // the pad is gone; NFC lookups may run again
+  CopyLook look = {};
+  snprintf(look.material, sizeof(look.material), "%s", cfmat);
+  snprintf(look.name,     sizeof(look.name),     "%s", cfname);
+  snprintf(look.vendor,   sizeof(look.vendor),   "%s", cfvnd);
+  const char *ccol = cdoc["filament"]["color_hex"] | "";
+  if (ccol[0] == '#') ccol++;
+  if (ccol[0]) snprintf(look.color_hex, sizeof(look.color_hex), "#%s", ccol);
+  look.price = spoolTemplatePrice(cdoc.as<JsonObjectConst>());
+  showCopyConfirmPopup(cid, cfid, ctmpl, crem, cini, cspw, &look);
+}
+
 void handleSpoolFlowDeferredActions() {
   // A link list on its way from the backend worker.
   linkFetchTick();
@@ -4042,44 +4107,7 @@ void handleSpoolFlowDeferredActions() {
   if (copy_id_lookup_pending > 0) {
     int cid = copy_id_lookup_pending;
     copy_id_lookup_pending = 0;
-    // Fetch spool data for copy confirm - done in loop to avoid stack overflow in lambda.
-    JsonDocument cdoc;
-    DeserializationError derr2 = DeserializationError::Ok;
-    int hcode = serverReachNote(backendGetSpoolJson(cfg_spoolman_base, cid, cdoc, 5000, &derr2), true);
-    // "Not found" for a 404 only: a 500 or the like is the server's error, not
-    // a wrong number (Punkteliste n42).
-    if (hcode != 200) {
-      idPadSay(T(serverReachIsNetworkFailure(hcode) ? STR_NO_CONNECTION
-                 : hcode == 404                    ? STR_LINK_ID_NOT_FOUND
-                                                   : STR_SERVER_ERR_TITLE),
-               true);
-    } else {
-      if (!derr2) {
-        int cfid   = cdoc["filament"]["id"] | 0;
-        float cini = cdoc["filament"]["weight"] | 1000.0f;
-        float cspw = spoolTare(cdoc);
-        float crem = cdoc["remaining_weight"] | 0.0f;
-        const char *cfname = cdoc["filament"]["name"] | "?";
-        const char *cfmat  = cdoc["filament"]["material"] | "";
-        const char *cfvnd  = cdoc["filament"]["vendor"]["name"] | "";
-        char ctmpl[80];
-        char cjoined[64];
-        joinMaterialName(cfmat, cfname, cjoined, sizeof(cjoined));
-        snprintf(ctmpl, sizeof(ctmpl), "%s (%s)", cjoined, cfvnd);
-        idPadRelease();
-        id_input_open = false;   // the pad is gone; NFC lookups may run again
-        CopyLook look = {};
-        snprintf(look.material, sizeof(look.material), "%s", cfmat);
-        snprintf(look.name,     sizeof(look.name),     "%s", cfname);
-        snprintf(look.vendor,   sizeof(look.vendor),   "%s", cfvnd);
-        const char *ccol = cdoc["filament"]["color_hex"] | "";
-        if (ccol[0] == '#') ccol++;
-        if (ccol[0]) snprintf(look.color_hex, sizeof(look.color_hex), "#%s", ccol);
-        showCopyConfirmPopup(cid, cfid, ctmpl, crem, cini, cspw, &look);
-      } else {
-        idPadSay(T(STR_LINK_JSON_ERR), true);
-      }
-    }
+    copyIdLookup(cid);
   }
 }
 

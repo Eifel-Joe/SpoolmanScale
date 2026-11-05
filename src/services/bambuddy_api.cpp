@@ -395,6 +395,11 @@ static void mapSpool(JsonObjectConst src, JsonObject dst) {
   const char* loc = src["storage_location"] | (const char*)nullptr;
   if (loc && loc[0]) dst["location"] = loc;
 
+  // BamBuddy's price per kg, under its own name: Spoolman's "price" is the
+  // spool's, another unit. A copy's card starts its price from it (o19).
+  const float cost = src["cost_per_kg"] | 0.0f;
+  if (cost > 0.0f && isfinite(cost)) dst["cost_per_kg"] = cost;
+
   const char* note = src["note"] | (const char*)nullptr;
   if (note && note[0]) dst["comment"] = note;
 
@@ -575,6 +580,8 @@ int bbGetSpoolRawJson(const char* base_url, const char* api_key, int spool_id,
   snprintf(suffix, sizeof(suffix), "/spools/%d", spool_id);
   return getInventoryJson(base_url, api_key, suffix, doc, timeout_ms, out_err);
 }
+
+void bbMapSpool(JsonObjectConst raw, JsonObject out) { mapSpool(raw, out); }
 
 int bbGetSpoolJson(const char* base_url, const char* api_key, int spool_id,
                    JsonDocument& doc, uint32_t timeout_ms,

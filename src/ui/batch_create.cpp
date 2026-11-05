@@ -228,7 +228,11 @@ void batchCopyCreate(int template_spool_id, int template_filament_id, const Spoo
     const bool ok = (code == 200 || code == 201) && new_id > 0;
     if (ok) {
       ids[made++] = new_id;
-      if (spoolTypesActive()) missing |= copyBbsLastMissing();
+      // BamBuddy in both modes creates through copyBbsCreate(); Spoolman and
+      // FilaMan get the card's price after each create (o19, V44: one price
+      // for every copy of the run).
+      if (backendIsBamBuddy()) missing |= copyBbsLastMissing();
+      if (copyPriceAfterCreate(new_id)) missing |= CM_PRICE;
     }
     logSDf("Batch: copy %d of %d from template %d: HTTP %d, spool %d",
            made + (ok ? 0 : 1), wanted, template_spool_id, code, new_id);

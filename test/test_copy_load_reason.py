@@ -128,8 +128,8 @@ if flow is not None:
                       "(STR_LINK_SERVER_ERR missing)")
     # "Copy by ID": the pad says "ID not found" for a 404 only, and the
     # server's error for anything else that is not a network failure.
-    at = code.find("if (copy_id_lookup_pending > 0)")
-    block = function_body(code[at:], "if (copy_id_lookup_pending > 0)") if at >= 0 else None
+    # Since v0.8.7-beta.5 in a function of its own (copyIdLookup(), n43).
+    block = function_body(code, "static void copyIdLookup(")
     if block is None:
         errors.append("src/ui/spool_flow.cpp: the lookup of \"Copy by ID\" (copy_id_lookup_pending) is not there")
     else:

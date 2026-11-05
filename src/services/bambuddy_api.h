@@ -120,6 +120,11 @@ int  bbGetSpoolRawJson(const char* base_url, const char* api_key, int spool_id,
        JsonDocument& doc, uint32_t timeout_ms = 8000,
        DeserializationError* out_err = nullptr);
 
+// One spool as BamBuddy sends it, translated into the Spoolman shape the way
+// bbGetSpoolJson() translates its answer: for a template read raw once and
+// needed in both shapes (copy_bbs.h copyBbsMapped(), Punkteliste n43).
+void bbMapSpool(JsonObjectConst raw, JsonObject out);
+
 // Single spool, translated into the Spoolman shape.
 int  bbGetSpoolJson(const char* base_url, const char* api_key, int spool_id,
        JsonDocument& doc, uint32_t timeout_ms = 8000,

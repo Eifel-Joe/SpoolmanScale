@@ -102,8 +102,8 @@ assert "backendIsBamBuddy()" in per_kg, f"src/{CARD}: copyPricePerKg() is not Ba
 typed = body_of(CARD, "copyPriceTyped")
 assert "!s_copy_bbs" not in typed, f"src/{CARD}: a price typed outside BamBuddy on Spoolman is dropped"
 assert "copyBbsSetPrice(price)" in typed, f"src/{CARD}: a typed price does not reach the BamBuddy create"
-assert "copyCardPrice()" in body_of(COPY, "copyCreateRequest"), \
-    f"src/{COPY}: the create does not take the card's price along"
+assert "copyCardPrice()" in body_of(CARD, "copyPriceAfterCreate"), \
+    f"src/{CARD}: the price after the create is not the card's"
 
 # 4. BamBuddy without Spoolman takes the price with the create; a refused one
 # is a part not taken over.
@@ -117,14 +117,20 @@ assert "backendIsBamBuddy()?copyBbsLastMissing()" in create, \
 
 # 5. Spoolman and FilaMan: the price right after the create, for one copy and
 # for several, and the status line says when it did not arrive.
-assert "backendPatchSpoolPrice(" in body_of(COPY, "copyPriceAfterCreate"), \
-    f"src/{COPY}: copyPriceAfterCreate() does not write the price"
+assert "backendPatchSpoolPrice(" in body_of(CARD, "copyPriceAfterCreate"), \
+    f"src/{CARD}: copyPriceAfterCreate() does not write the price"
+assert "backendIsBamBuddy()" in body_of(CARD, "copyPriceAfterCreate"), \
+    f"src/{CARD}: copyPriceAfterCreate() writes a second price for BamBuddy, whose create took it"
 patch = body_of(BACKEND, "backendPatchSpoolPrice")
 assert "spoolmanPatchSpoolPrice(" in patch and "filamanPatchSpoolPrice(" in patch, \
     f"src/{BACKEND}: backendPatchSpoolPrice() does not cover Spoolman and FilaMan"
 for rel, name in ((COPY, "doCopySpoolCreate"), (BATCH, "batchCopyCreate")):
     body = body_of(rel, name)
-    assert "copyPriceAfterCreate(" in body, f"src/{rel}: {name}() does not write the price of the copy"
-    assert "STR_TAGNEW_PRICE_LOST" in body, f"src/{rel}: {name}() does not say that the price was lost"
+    assert "if(copyPriceAfterCreate(new_id))missing|=CM_PRICE;" in body, \
+        f"src/{rel}: {name}() does not write the price of the copy, or drops a lost one"
+status = body_of(COPY, "copyCreatedStatus")
+lost = status.find("STR_TAGNEW_PRICE_LOST")
+assert lost >= 0 and "missing==CM_PRICE&&!backendIsBamBuddy()" in status, \
+    f"src/{COPY}: copyCreatedStatus() does not say 'Spool created, price not saved' for a lost price"
 
 print("copy price on every server: ok")

@@ -471,8 +471,12 @@ def part_loop():
     body, inner, after, where = runs["batchCopyCreate"]
     assert body.count("copyBbsClear();") == 1, f"{where}: copyBbsClear() is not called exactly once"
     unconditional_in(after, "copyBbsClear();", where + " after the loop")
-    assert "if(spoolTypesActive())missing|=copyBbsLastMissing();" in inner, \
+    # BamBuddy in both modes since v0.8.7-beta.5 (o19: the price of a copy in
+    # its own inventory), and the price Spoolman or FilaMan did not take.
+    assert "if(backendIsBamBuddy())missing|=copyBbsLastMissing();" in inner, \
         f"{where}: the parts each copy left behind are not gathered as in doCopySpoolCreate()"
+    assert "if(copyPriceAfterCreate(new_id))missing|=CM_PRICE;" in inner, \
+        f"{where}: a price Spoolman or FilaMan did not take is not gathered with the parts"
     failed = after[after.find("if(made==0){"):]
     failed = failed[:failed.find("return;}")]
     for needle in ("linkPickerClose();", "T(STR_COPY_FAIL)", "UI_COL_BAD_TEXT"):

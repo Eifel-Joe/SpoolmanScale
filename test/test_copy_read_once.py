@@ -30,14 +30,14 @@ def body_of(rel, name):
 
 # 1. One read for the template: behind BamBuddy on Spoolman the card's load,
 # mapped for the row; elsewhere the mapped read as before.
-read = body_of(COPY, "copyTemplateRead")
+read = body_of(CARD, "copyTemplateRead")
 bbs = read.find("spoolTypesActive()")
-assert bbs >= 0, f"src/{COPY}: copyTemplateRead() does not tell BamBuddy on Spoolman apart"
+assert bbs >= 0, f"src/{CARD}: copyTemplateRead() does not tell BamBuddy on Spoolman apart"
 assert "copyBbsLoad(" in read and "copyBbsMapped(" in read, \
-    f"src/{COPY}: copyTemplateRead() does not load the template the card needs and map it"
+    f"src/{CARD}: copyTemplateRead() does not load the template the card needs and map it"
 assert read.find("copyBbsLoad(") < read.find("copyBbsMapped("), \
-    f"src/{COPY}: copyTemplateRead() maps before it loads"
-assert "backendGetSpoolJson(" in read, f"src/{COPY}: copyTemplateRead() lost the read for the other servers"
+    f"src/{CARD}: copyTemplateRead() maps before it loads"
+assert "backendGetSpoolJson(" in read, f"src/{CARD}: copyTemplateRead() lost the read for the other servers"
 
 # 2. Both ways that read a template before the card go through it, and none
 # of them reads the spool by itself any more.
@@ -45,6 +45,12 @@ for rel, name in ((COPY, "copyRowRefresh"), (FLOW, "copyIdLookup")):
     body = body_of(rel, name)
     assert "copyTemplateRead(" in body, f"src/{rel}: {name}() does not read through copyTemplateRead()"
     assert "backendGetSpoolJson(" not in body, f"src/{rel}: {name}() reads the template a second way"
+
+# The picker's row out of the cache (an NTAG copy) is the third way: in copy
+# mode it reads through copyTemplateRead() as well, a link reads as before.
+row = body_of(FLOW, "linkRefreshRow")
+assert "copy_flow_via_list?copyTemplateRead(" in row, \
+    f"src/{FLOW}: linkRefreshRow() reads a copy's template a second way"
 
 # 3. The card takes a fresh load of the same template instead of reading it
 # again; any other card reads as before.

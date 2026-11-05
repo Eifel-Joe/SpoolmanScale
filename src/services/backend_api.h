@@ -293,6 +293,12 @@ int  backendCreateSpool(const char* base_url, int template_spool_id, int filamen
        float initial_weight, float spool_weight, float remaining_weight,
        int* out_spool_id = nullptr, uint32_t timeout_ms = 8000, float chosen_core_g = 0.0f);
 
+// What a spool that exists now cost, in the server's currency, per spool:
+// Spoolman's price, FilaMan's purchase_price. 200 without a write for a price
+// of 0; BamBuddy is not supported here, it takes its price per kg with the
+// create. From Niko11111 c3a1ec3 (o19), for the copy and the card from a tag.
+int  backendPatchSpoolPrice(int spool_id, float price, uint32_t timeout_ms = 5000);
+
 // A new spool from a tag, on every backend (services/tag_create.h).
 // First the plan, which only reads: whether the inventory has the tag's
 // filament, or how it would be created. BamBuddy keeps no filaments; its plan

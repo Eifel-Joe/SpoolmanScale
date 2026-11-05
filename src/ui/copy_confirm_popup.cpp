@@ -9,6 +9,7 @@
 #include <cstring>
 
 #include "hardware/sd_logger.h"
+#include "services/backend_api.h"   // backendIsBamBuddy()
 #include "services/copy_bbs.h"      // what a copy behind Bambuddy on Spoolman takes over
 #include "services/server_reach.h"   // a template read that never reached the server
 #include "services/spool_cache.h"
@@ -84,14 +85,17 @@ static float    s_copy_core            = 0.0f;
 // The template is behind Bambuddy on Spoolman and was read for this card
 // (copyBbsLoad()): the card shows what the copy takes over.
 static bool     s_copy_bbs             = false;
-// The price button (BBS), a price per kg as the server keeps it. copyBbsView()
-// gives the template's, never a typed one, so what was typed since the card
-// was asked for is kept here: for the button, and for a card built again
-// within the same copy, which must show what copy_bbs.h will send.
+// The price button, on every server since o19 (v0.8.7-beta.5), in the unit
+// the server keeps (copyPricePerKg()): per kg with BamBuddy, per spool with
+// Spoolman and FilaMan. Behind BamBuddy on Spoolman copyBbsView() gives the
+// template's, elsewhere the look of the row it came from; never a typed one,
+// so what was typed since the card was asked for is kept here: for the button,
+// and for a card built again within the same copy, which must show what the
+// create will send.
 static lv_obj_t* s_copy_price_lbl      = nullptr;
-static float     s_copy_price_tpl      = 0.0f;   // the template's price per kg
+static float     s_copy_price_tpl      = 0.0f;   // the template's price
 static bool      s_copy_price_typed    = false;
-static float     s_copy_price          = 0.0f;   // typed per kg; 0: emptied, no price
+static float     s_copy_price          = 0.0f;   // typed; 0: emptied, no price
 // The list of types was answered for this copy, a type or "without type":
 // copyCreateRequest() takes it along with the values for the create, which
 // marks the new spool for the first weighing (tareEntryFirstWeighDone()).
@@ -140,9 +144,18 @@ static void copyBackToList() {
   linkPickerShowList();
 }
 
-// The price button shows the price per kg that goes to the server: the one
-// typed, else the template's ("10.99/kg"), and "Price" where there is none
-// (0 is no price).
+// Whether the copy's price is one per kg: BamBuddy keeps cost_per_kg, with
+// and without Spoolman behind it; Spoolman and FilaMan keep the spool's price.
+static bool copyPricePerKg() { return backendIsBamBuddy(); }
+
+float copyCardPrice() {
+  const float price = s_copy_price_typed ? s_copy_price : s_copy_price_tpl;
+  return (price > 0.0f && isfinite(price)) ? price : 0.0f;
+}
+
+// The price button shows the price that goes to the server: the one typed,
+// else the template's, per kg with BamBuddy ("10.99/kg") and per spool
+// elsewhere ("24.99"), and "Price" where there is none (0 is no price).
 //
 // Wurzel: the button is 80 px and its text gets 72 of them, and with cents a
 // price per kg of 100 or more can be wider than that in UI_FONT_SMALL
@@ -156,12 +169,18 @@ static void copyBackToList() {
 // this one label apart from the answers beside it.
 static void copyPriceRefresh() {
   if (!s_copy_price_lbl) return;
-  const float price = s_copy_price_typed ? s_copy_price : s_copy_price_tpl;
+  const float price = copyCardPrice();
   if (!(price > 0.0f)) {
     lv_label_set_text(s_copy_price_lbl, T(STR_TAGNEW_PRICE_BTN));
     return;
   }
   char buf[48];   // "%.2f" of the largest float is 42 characters, nothing is cut
+  if (!copyPricePerKg()) {
+    // A spool's price, as the card for a new spool shows it (refreshPrice()).
+    snprintf(buf, sizeof(buf), "%.2f", price);
+    lv_label_set_text(s_copy_price_lbl, buf);
+    return;
+  }
   snprintf(buf, sizeof(buf), T(STR_COPY_CARD_PRICE_KG), price);
   lv_point_t size = { 0, 0 };
   lv_txt_get_size(&size, buf, UI_FONT_SMALL, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
@@ -169,9 +188,11 @@ static void copyPriceRefresh() {
   lv_label_set_text(s_copy_price_lbl, buf);
 }
 
-// The pad's answer, from the loop (pricePadTick()): the price per kg of the
-// new spool, 0 for an emptied field; a cancelled pad does not call. A card
-// that was closed meanwhile takes no price: nothing is created from it.
+// The pad's answer, from the loop (pricePadTick()): the price of the new spool
+// in the server's unit, 0 for an emptied field; a cancelled pad does not call.
+// A card that was closed meanwhile takes no price: nothing is created from it.
+// BamBuddy's create takes it from copy_bbs.h (with and without Spoolman), the
+// others from copyCardPrice() through copyCreateRequest().
 //
 // Wurzel: OK calls back with whatever the field holds, also with the value it
 // was filled in with, and that is the template's price per kg cut to the cent
@@ -181,12 +202,13 @@ static void copyPriceRefresh() {
 // was typed. NOT-TO-DO: copyBbsSetPrice() for it, which would hand the shown
 // cent on as typed in place of the template's own value.
 static void copyPriceTyped(float price) {
-  if (!scr_copy_confirm || !s_copy_bbs) return;
+  if (!scr_copy_confirm) return;
   if (!s_copy_price_typed && fabsf(price - s_copy_price_tpl) < 0.005f) return;
   s_copy_price_typed = true;
   s_copy_price       = price;
-  copyBbsSetPrice(price);
-  logSDf("Copy: price %.2f per kg typed for the copy of spool %d", price, copy_template_spool_id);
+  if (backendIsBamBuddy()) copyBbsSetPrice(price);
+  logSDf("Copy: price %.2f %s typed for the copy of spool %d", price,
+         copyPricePerKg() ? "per kg" : "per spool", copy_template_spool_id);
   copyPriceRefresh();
 }
 
@@ -202,10 +224,10 @@ static void buildCopyPriceButton(lv_obj_t* box, int y) {
   lv_obj_set_style_shadow_width(btn, 0, 0);
   lv_obj_add_event_cb(btn, [](lv_event_t*) {
     logSD("BTN: CopyConfirm -> Price");
-    // Filled in with the price per kg the button stands for, to the cent,
-    // under a title that says it is one.
-    showPricePadTitled(s_copy_price_typed ? s_copy_price : s_copy_price_tpl,
-                       STR_PRICE_PAD_TITLE_KG, copyPriceTyped);
+    // Filled in with the price the button stands for, to the cent, under a
+    // title that says what it is: per kg with BamBuddy, the spool's elsewhere.
+    if (copyPricePerKg()) showPricePadTitled(copyCardPrice(), STR_PRICE_PAD_TITLE_KG, copyPriceTyped);
+    else                  showPricePad(copyCardPrice(), copyPriceTyped);
   }, LV_EVENT_CLICKED, NULL);
   s_copy_price_lbl = lv_label_create(btn);
   lv_obj_set_style_text_color(s_copy_price_lbl, lv_color_hex(UI_COL_INK_2), 0);
@@ -303,6 +325,50 @@ static void buildCopyTakenOver(lv_obj_t* box, const CopyBbsView& v, int y) {
   utf8Cut(v.supplier[0] ? v.supplier : "-", sizeof(sup) - 1, sup, sizeof(sup));
   snprintf(place, sizeof(place), "%s | %s", loc, sup);
   copyCardSmallLine(box, place, y + COPY_CARD_SMALL_PITCH, true);
+}
+
+// The price of a copy on Spoolman and FilaMan (o19, part of Niko11111
+// c3a1ec3). Wurzel: their create of a copy takes no price, so a copy stood
+// there without one, and the card had no price button outside BamBuddy on
+// Spoolman. Fix: the card's price (copyCardPrice(): the template's in the
+// server's unit, or the one typed) goes onto the spool right after the create,
+// on its own; a price that does not arrive leaves the spool where it is and is
+// said on the status line ("Spool created, price not saved"). BamBuddy (with
+// and without Spoolman) takes it with the create (copy_bbs.cpp), so nothing
+// is written here. NOT-TO-DO: undoing the spool for a lost price, which it
+// only lacks. See test_copy_price_all.py.
+// The card's price stays what it was until the next card opens
+// (showCopyConfirmPopup()), past the close before the create
+// (copyFlowDeferredActions()) and through every copy of a run (V44).
+bool copyPriceAfterCreate(int spool_id) {
+  const float price = copyCardPrice();
+  if (backendIsBamBuddy() || spool_id <= 0 || !(price > 0.0f)) return false;
+  const int code = backendPatchSpoolPrice(spool_id, price);
+  if (backendWriteOk(code)) {
+    logSDf("Copy: price %.2f on spool %d", price, spool_id);
+    return false;
+  }
+  logSDf("Copy: price %.2f for spool %d -> HTTP %d, spool kept", price, spool_id, code);
+  return true;
+}
+
+// The template, read once before the copy card (Punkteliste n43).
+// Wurzel: behind BamBuddy on Spoolman a row out of the cache and a template
+// typed by its number were read through the mapped spool (copyRowRefresh(),
+// copyIdLookup()), and the card read the same spool right after again, raw,
+// with its profiles and its empty weight (copyBbsLoad()): two reads of one
+// spool, up to about 12 s before the card. Fix: there the card's load is the
+// read; its mapped form fills the row as the mapped read did, and the card
+// takes the load as fresh (copyBbsTakeFresh()) instead of reading again.
+// Every other server reads as before. NOT-TO-DO: skipping the read before the
+// card altogether, which would build the card on a row out of the cache.
+// See test_copy_read_once.py.
+int copyTemplateRead(int spool_id, JsonDocument& doc, uint32_t timeout_ms, DeserializationError* err) {
+  if (!spoolTypesActive()) return backendGetSpoolJson(cfg_spoolman_base, spool_id, doc, timeout_ms, err);
+  const int code = copyBbsLoad(spool_id);
+  if (code != 200) return code;
+  if (!copyBbsMapped(doc)) return -2;
+  return 200;
 }
 
 // Whether the copy needs a fill weight typed in (X): made without a tag, from
@@ -419,11 +485,17 @@ static void buildCopyCard() {
 
   // Behind Bambuddy on Spoolman, between lines 2 and 3: what the copy takes
   // over, and its price per kg for the button, the same whatever the label.
+  // Elsewhere the price the row of the template brought, in the server's unit
+  // (spoolTemplatePrice(), o19).
   if (s_copy_bbs) {
     CopyBbsView view;
     copyBbsView(&view);   // dashes and no price when nothing is loaded
     s_copy_price_tpl = view.cost_per_kg;
     buildCopyTakenOver(box, view, y2 + COPY_CARD_SMALL_PITCH);
+  } else if (copy_template_has_look) {
+    s_copy_price_tpl = copy_template_look.price;
+  } else {
+    s_copy_price_tpl = 0.0f;
   }
   char line3[80];
   if (fill_missing) {
@@ -451,10 +523,11 @@ static void buildCopyCard() {
   lv_obj_set_width(lbl3, UI_POPUP_W - UI_CARD_TEXT_PAD);
   lv_obj_align(lbl3, LV_ALIGN_TOP_MID, 0, UI_CARD_TEXT_Y - 4 + 2 * COPY_CARD_LINE_H + 8 + grow);
 
-  // The answers, in the card's bottom row: two of UI_POPUP_BTN_W, or behind
-  // Bambuddy on Spoolman two narrower ones with the price between them.
+  // The answers, in the card's bottom row: two narrower ones with the price
+  // between them, on every server since o19 (before only behind Bambuddy on
+  // Spoolman; elsewhere two of UI_POPUP_BTN_W).
   const int row_y = UI_CARD_ROW_Y + grow;
-  const int ans_w = s_copy_bbs ? COPY_CARD_ANSWER_W : UI_POPUP_BTN_W;
+  const int ans_w = COPY_CARD_ANSWER_W;
   lv_obj_t *btn_ok = copyAnswerButton(box, UI_CARD_ROW_X, row_y, ans_w, true);
   // The label is the button's first child (copyAnswerButton()); the count, if
   // any, after the fill weight.
@@ -476,7 +549,7 @@ static void buildCopyCard() {
                       copy_template_initial, copyTare(), s_copy_core);
   }, LV_EVENT_CLICKED, NULL);
 
-  if (s_copy_bbs) buildCopyPriceButton(box, row_y);
+  buildCopyPriceButton(box, row_y);
 
   lv_obj_t *btn_no = copyAnswerButton(box, UI_POPUP_W - ans_w - UI_CARD_ROW_X, row_y, ans_w, false);
   lv_obj_add_event_cb(btn_no, [](lv_event_t *e) {
@@ -582,7 +655,10 @@ void showCopyConfirmPopup(int template_spool_id, int template_filament_id,
   // same template would reuse them once the mode is back.
   if (!s_copy_bbs) copyBbsClear();
   if (s_copy_bbs) {
-    const int code = copyBbsLoad(template_spool_id);
+    // Read once (Punkteliste n43): a load made for this template right before
+    // the card, for the row out of the cache or the template typed by its
+    // number (copyTemplateRead()), is this read; any other card reads here.
+    const int code = copyBbsTakeFresh(template_spool_id) ? 200 : copyBbsLoad(template_spool_id);
     if (code != 200) {
       copyTemplateUnread(code);
       return;

@@ -173,6 +173,12 @@ void copyCreatedStatus(uint8_t missing) {
     statusMessageShow(T(STR_COPY_OK), UI_COL_GOOD);
     return;
   }
+  // With Spoolman and FilaMan the price is all a copy can leave behind (o19):
+  // said as the card for a new spool says it.
+  if (missing == CM_PRICE && !backendIsBamBuddy()) {
+    statusMessageShow(T(STR_TAGNEW_PRICE_LOST), UI_COL_WARN);
+    return;
+  }
   if (!lbl_status) return;
   int ids[sizeof(COPY_MISSING_PARTS) / sizeof(COPY_MISSING_PARTS[0])];
   int n = 0;
@@ -234,7 +240,8 @@ void doCopySpoolCreate(int template_spool_id, int template_filament_id, float te
   // Read before the load is cleared. Elsewhere nothing goes missing, and the
   // bits an earlier copy behind Spoolman left must not speak for this one:
   // only copyBbsCreate() resets them, a Spoolman or FilaMan create does not.
-  const uint8_t missing = spoolTypesActive() ? copyBbsLastMissing() : (uint8_t)CM_NONE;
+  // BamBuddy in both modes creates through copyBbsCreate(), which resets them.
+  uint8_t missing = backendIsBamBuddy() ? copyBbsLastMissing() : (uint8_t)CM_NONE;
   copyBbsClear();
   if ((code == 200 || code == 201) && new_id > 0) {
     Serial.printf("Copy spool created: new ID=%d\n", new_id);
@@ -243,6 +250,9 @@ void doCopySpoolCreate(int template_spool_id, int template_filament_id, float te
     // A spool the kept list does not have, and a row for it cannot be made up
     // from here. The stamp would catch it; BamBuddy has none.
     spoolCacheForget("spool created by copy");
+    // Before the link, which leaves for the main screen: a price Spoolman or
+    // FilaMan did not take is a part not taken over (o19, copyCreatedStatus()).
+    if (copyPriceAfterCreate(new_id)) missing |= CM_PRICE;
     // No tag: no link and no mark for the first weighing, see
     // noTagCreateFinish(). The green line gives way to what did not come
     // across, unless the Bambu chip hint stands on it (noTagYellowLineAllowed());
@@ -388,6 +398,7 @@ static bool copyListBuild(JsonDocument& doc, bool archived, const char* material
     float spw = spoolTare(spool);
     s.filament_id  = spool["filament"]["id"] | 0;
     s.spool_weight = spw;
+    s.price        = spoolTemplatePrice(spool);
     idx++;
   }
   link_spool_count = idx;
@@ -876,7 +887,8 @@ static void copyFetchTick() {
 #define COPY_ROW_REFRESH_TIMEOUT_MS 3000
 
 // The template a row out of the cache names, read from the server before the
-// copy confirmation shows its numbers and a new spool is built on them.
+// copy confirmation shows its numbers and a new spool is built on them; behind
+// BamBuddy on Spoolman with the read the card takes over (copyTemplateRead()).
 static void copyRowRefresh(int idx) {
   if (!link_spools || idx < 0 || idx >= link_spool_count || !scr_copy_list) return;
   UnlinkedSpool &s = link_spools[idx];
@@ -884,8 +896,9 @@ static void copyRowRefresh(int idx) {
   JsonDocument doc;
   DeserializationError err = DeserializationError::Ok;
   const uint32_t t0 = millis();
+  // Behind BamBuddy on Spoolman this is the card's own read (n43).
   const int code = serverReachNote(
-      backendGetSpoolJson(cfg_spoolman_base, s.id, doc, COPY_ROW_REFRESH_TIMEOUT_MS, &err), true);
+      copyTemplateRead(s.id, doc, COPY_ROW_REFRESH_TIMEOUT_MS, &err), true);
   const unsigned long took = (unsigned long)(millis() - t0);
 
   // No answer: serverReachNote() has asked for the popup, the list stays.
@@ -899,6 +912,7 @@ static void copyRowRefresh(int idx) {
                     (code == 200 && !err && (doc["archived"] | false) != s_cf_archived);
   if (gone) {
     logSDf("copy row: spool %d gone or archived meanwhile (%lu ms), list reloaded", s.id, took);
+    copyBbsClear();   // no card for it: the load behind BamBuddy on Spoolman goes
     spoolCacheForget("a listed template changed");
     char mat[sizeof(s_cf_material)];   // copyFetchStart() writes into s_cf_material
     snprintf(mat, sizeof(mat), "%s", s_cf_material);
@@ -911,6 +925,7 @@ static void copyRowRefresh(int idx) {
   if (code != 200 || err) {
     logSDf("copy row: spool %d not read, HTTP %d %s (%lu ms)", s.id, code,
            err ? err.c_str() : "", took);
+    copyBbsClear();
     showInfoPopup(STR_SERVER_ERR_TITLE, STR_SERVER_ERR_TEXT, INFO_WARN);
     return;
   }
@@ -919,6 +934,7 @@ static void copyRowRefresh(int idx) {
   s.total        = doc["filament"]["weight"] | 1000.0f;
   s.filament_id  = doc["filament"]["id"] | 0;
   s.spool_weight = spoolTare(doc);
+  s.price        = spoolTemplatePrice(doc.as<JsonObjectConst>());
   s.from_cache   = false;
   spoolCacheSetRemaining(s.id, s.remaining);
   logSDf("copy row: spool %d read fresh (%lu ms)", s.id, took);

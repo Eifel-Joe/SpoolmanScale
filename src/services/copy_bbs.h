@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+#include <ArduinoJson.h>   // copyBbsMapped()
+
 // ============================================================
 //  A COPY BEHIND BAMBUDDY: READ THE TEMPLATE, CREATE THE SPOOL
 //
@@ -142,3 +144,14 @@ bool copyBbsChainNone();
 
 // Frees what copyBbsLoad() holds and forgets a typed price.
 void copyBbsClear();
+
+// Whether the last copyBbsLoad() was for template_spool_id and made right
+// before (within 10 s, and not handed over yet): the card takes it instead of
+// reading the same spool again (Punkteliste n43, v0.8.7-beta.5). Once: the
+// next call says false until the next load.
+bool copyBbsTakeFresh(int template_spool_id);
+
+// The loaded template as the mapped read gives it (Spoolman's shape,
+// bbMapSpool()), for the row and the look the card is built from. False with
+// nothing loaded or a document too small for it.
+bool copyBbsMapped(JsonDocument& out);
