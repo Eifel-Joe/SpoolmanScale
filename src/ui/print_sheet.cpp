@@ -95,6 +95,13 @@ static void showMessage(const char* text) {
   lv_obj_add_flag(s_img, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(s_msg, LV_OBJ_FLAG_HIDDEN);
   lv_label_set_text(s_msg, text);
+  // Root: the paper is sized to its content, LVGL 8.3 leaves hidden children
+  //   out of that size, and showing or hiding one in a parent without a
+  //   layout marks nothing dirty: after the square's code the refusal stood
+  //   cut in a box the code's size (acceptance of v0.8.7-beta.7, round 2).
+  // Fix: the paper measured again on every switch, here and in showPicture().
+  // NOT-TO-DO: a fixed paper size, the picture's own size is the point.
+  lv_obj_mark_layout_as_dirty(lv_obj_get_parent(s_msg));
 }
 
 static void showPicture(const LabelRaster& r, const LabelThumbSpec& spec) {
@@ -112,6 +119,8 @@ static void showPicture(const LabelRaster& r, const LabelThumbSpec& spec) {
   lv_img_set_src(s_img, &s_dsc);
   lv_obj_clear_flag(s_img, LV_OBJ_FLAG_HIDDEN);
   lv_obj_add_flag(s_msg, LV_OBJ_FLAG_HIDDEN);
+  // The paper measured again, see showMessage().
+  lv_obj_mark_layout_as_dirty(lv_obj_get_parent(s_img));
 }
 
 // The label FilaMan draws for the spool, once it is in; asked again later
