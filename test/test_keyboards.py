@@ -15,7 +15,8 @@ import check_conventions as cc  # noqa: E402
 MAPS_H = "ui/key_maps.h"
 MAPS = "ui/key_maps.cpp"
 # The keyboards there are, and the layout each asks for.
-KEYBOARDS = {"ui/sort_entry_keys.cpp": "false", "ui/spool_type_name.cpp": "false", "ui/wifi_pass_screen.cpp": "true"}
+KEYBOARDS = {"ui/sort_entry_keys.cpp": "false", "ui/spool_type_name.cpp": "false", "ui/wifi_pass_screen.cpp": "true",
+             "ui/label_edit_screen.cpp": "false"}
 
 
 def squeeze(text):
