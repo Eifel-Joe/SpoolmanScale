@@ -52,6 +52,22 @@ assert last_link > ask, \
 assert body.find("showWarnPopupA(") < ask, \
     f"src/{FLOW}: the question comes before the warning about a bound spool"
 
+# 2b. The row a typed number appends is judged as the list judges its rows:
+# with the article number of the tag (review v0.8.7-beta.5). Without it a
+# spool the article vouched for came up as "does not match" in the question.
+assert "s.article_hit=false;" not in body, \
+    f"src/{FLOW}: the row of a typed number never has the article hit, the question warns for the right spool"
+assert "tagSpoolTagArticle(" in body and "s.article_hit=" in body, \
+    f"src/{FLOW}: the row of a typed number is not judged by the article number"
+
+# 2c. The copy by number, the sister of this path: an unreadable answer (-2)
+# is said as such, before the server error for every other code.
+copy = body_of(FLOW, "copyIdLookup")
+assert "if(hcode==-2" in copy and copy.find("if(hcode==-2") < copy.find("if(hcode!=200)"), \
+    f"src/{FLOW}: copyIdLookup() says 'server error' for an answer it could not read"
+assert "STR_LINK_JSON_ERR" in copy[:copy.find("if(hcode!=200)")], \
+    f"src/{FLOW}: copyIdLookup() does not call an unreadable answer unreadable"
+
 # 3. The question shows the colour of the spool (6eff48d): the swatch is
 # painted from the row's colour.
 popup = body_of(FLOW, "showLinkConfirmPopup")

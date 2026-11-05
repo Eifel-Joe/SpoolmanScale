@@ -33,9 +33,9 @@ def body_of(rel, name):
 read = body_of(CARD, "copyTemplateRead")
 bbs = read.find("spoolTypesActive()")
 assert bbs >= 0, f"src/{CARD}: copyTemplateRead() does not tell BamBuddy on Spoolman apart"
-assert "copyBbsLoad(" in read and "copyBbsMapped(" in read, \
+assert "copyBbsLoadFresh(" in read and "copyBbsMapped(" in read, \
     f"src/{CARD}: copyTemplateRead() does not load the template the card needs and map it"
-assert read.find("copyBbsLoad(") < read.find("copyBbsMapped("), \
+assert read.find("copyBbsLoadFresh(") < read.find("copyBbsMapped("), \
     f"src/{CARD}: copyTemplateRead() maps before it loads"
 assert "backendGetSpoolJson(" in read, f"src/{CARD}: copyTemplateRead() lost the read for the other servers"
 
@@ -51,6 +51,10 @@ for rel, name in ((COPY, "copyRowRefresh"), (FLOW, "copyIdLookup")):
 row = body_of(FLOW, "linkRefreshRow")
 assert "copy_flow_via_list?copyTemplateRead(" in row, \
     f"src/{FLOW}: linkRefreshRow() reads a copy's template a second way"
+# A read that leads to no card lets go of its load, on every way out.
+assert row.count("linkRowDropLoad(") >= 3, f"src/{FLOW}: linkRefreshRow() keeps a load it builds no card on"
+by_id = body_of(FLOW, "copyIdLookup")
+assert by_id.count("copyBbsClear()") >= 2, f"src/{FLOW}: copyIdLookup() keeps a load it builds no card on"
 
 # 3. The card takes a fresh load of the same template instead of reading it
 # again; any other card reads as before.
@@ -65,7 +69,17 @@ assert 0 <= fresh < load, f"src/{CARD}: showCopyConfirmPopup() loads before it l
 take = body_of(BBS, "copyBbsTakeFresh")
 assert "s_loaded_id==template_spool_id" in take and "s_fresh=false" in take, \
     f"src/{BBS}: copyBbsTakeFresh() is not one-shot for its own template"
-assert "s_fresh=true" in body_of(BBS, "copyBbsLoad"), f"src/{BBS}: copyBbsLoad() does not mark its load fresh"
+# Only the read before the card is fresh: the card's own load is not, or a card
+# closed from outside could hand its load, with a price typed on it, to the
+# next card of the same template (review v0.8.7-beta.5).
+assert "s_fresh=true" not in body_of(BBS, "copyBbsLoad"), f"src/{BBS}: copyBbsLoad() marks every load fresh"
+fresh_load = body_of(BBS, "copyBbsLoadFresh")
+assert "s_fresh=true" in fresh_load, f"src/{BBS}: copyBbsLoadFresh() does not mark its load fresh"
+assert fresh_load.find("copyBbsLoad(") < fresh_load.find("s_fresh=true"), \
+    f"src/{BBS}: copyBbsLoadFresh() marks before it loads"
+# A load handed over carries no typed price: the new card starts from the template's.
+for needle in ("s_price_typed=false", "s_price=0"):
+    assert needle in take, f"src/{BBS}: copyBbsTakeFresh() hands over a typed price ({needle})"
 assert "s_fresh=false" in body_of(BBS, "copyBbsClear"), f"src/{BBS}: copyBbsClear() leaves a load fresh"
 mapped = body_of(BBS, "copyBbsMapped")
 assert "bbMapSpool(" in mapped, f"src/{BBS}: copyBbsMapped() does not map like the mapped read"
