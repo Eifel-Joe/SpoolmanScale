@@ -609,8 +609,8 @@ bool labelPrinterRasterFits(LabelPrinterModel model, const LabelRaster& image,
 // Documentation firmware only (services/doc_build_rules.h): no label leaves
 // the scale, over WLAN or Bluetooth. Wurzel: Spec 5.3 AA locks every way
 // out, and the firmware of beta.14 locked only the servers (Punkteliste
-// n54). Fix: this is the one door to the three drivers, and here none of
-// their calls is compiled; the answer is the one a printer gives once it has
+// n54). Fix: this is the one door to the four drivers (Brother, NIIMBOT,
+// Phomemo, TSPL), and here none of their calls is compiled; the answer is the one a printer gives once it has
 // the label (a Brother's "sent", any other's "printed"), so the card and a
 // run of labels go on as they do for a user, and the log says nothing went
 // out. NOT-TO-DO: an error instead, it would end a run of labels at the first

@@ -14,6 +14,7 @@ source = r'''
 #include "services/label_printer_reach.h"
 #include <cassert>
 #include <cstring>
+#include <initializer_list>
 
 static BleDevice dev(const char* address) {
   BleDevice d{};

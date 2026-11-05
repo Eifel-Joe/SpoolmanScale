@@ -270,9 +270,10 @@ void docRoutes(WebServer& srv) {
   // nobody here has a D110, a PM240 or any other Bluetooth label printer. The
   // next print on the chosen Bluetooth printer ends as taken or not reached
   // once its label is drawn and checked, the next scan finds the printer set
-  // up or not once it has run; each for one use, so a forgotten one cannot
-  // stand in for a real printer later. Never the Brother: its print goes its
-  // own way before the question (services/label_printer.cpp, printBle()).
+  // up or not once it has run. Each answer is used once; one never used stays
+  // until it is set off or the scale restarts, so the acceptance script sets
+  // both off at its end. Never the Brother: its print goes its own way before
+  // the question (services/label_printer.cpp, printBle()).
   srv.on("/api/sim/label-printer", HTTP_POST, [&srv]() {
     if (!webRequire(srv, GATE_MAINT, T(STR_W_NAV_LOGS))) return;
     const String print = srv.arg("print"), scan = srv.arg("scan");

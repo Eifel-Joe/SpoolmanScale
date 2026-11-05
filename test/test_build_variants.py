@@ -401,7 +401,7 @@ for rel, api in (("app/doc_build.h", STATE_API), ("web/web_doc.h", ROUTES_API)):
 # attaches. Everywhere in src/ but web_doc.cpp they are absent, comments
 # included, so that the search needs no exception and a hit means a switch got
 # into a release.
-ROUTE_TEXTS = ("/api/touch", "/api/sim/weight")
+ROUTE_TEXTS = ("/api/touch", "/api/sim/weight", "/api/sim/label-printer")
 ROUTE_FILE = "web/web_doc.cpp"
 found_in_route_file = set()
 for path in sorted(src.rglob("*")):
@@ -545,7 +545,7 @@ for config in CONFIGS:
 # Nor to a printer or a tag (Spec 5.3 AA: every way out; Punkteliste n54).
 # Each has one door, and the documentation firmware has no call through it:
 #   - a label, over WLAN or Bluetooth, leaves only by labelPrinterPrint() in
-#     services/label_printer.cpp, the one caller of the three drivers; the
+#     services/label_printer.cpp, the one caller of the four drivers; the
 #     documentation firmware compiles none of those calls and answers with
 #     docLabelNotPrinted() instead: nothing is sent, the screen shows what a
 #     printer's answer shows, so a run of labels goes on for the camera
@@ -556,7 +556,8 @@ for config in CONFIGS:
 # The acceptance firmware keeps every call: it prints and writes like a
 # release, and a lock there would leave both untested.
 DOORS = (
-    ("services/label_printer.cpp", ("brotherQlPrint", "niimbotPrint", "phomemoMSeriesPrint"), "docLabelNotPrinted"),
+    ("services/label_printer.cpp", ("brotherQlPrint", "niimbotPrint", "phomemoMSeriesPrint", "tsplPrint"),
+     "docLabelNotPrinted"),
     ("hardware/nfc.cpp", ("ntag2xx_WritePage", "mifareclassic_WriteDataBlock"), "docTagWriteRefused"),
 )
 for rel, calls, stand_in in DOORS:
@@ -580,7 +581,9 @@ NAMED_ONLY_IN = {
     "brotherQlPrint": ("services/label_printer.cpp", "services/brother_ql.cpp", "services/brother_ql.h"),
     "niimbotPrint": ("services/label_printer.cpp", "services/niimbot.cpp", "services/niimbot.h"),
     "phomemoMSeriesPrint": ("services/label_printer.cpp", "services/phomemo_m_series.cpp", "services/phomemo_m_series.h"),
-    "bleWriteBlocks": ("services/phomemo_m_series.cpp", "services/ble_service.cpp", "services/ble_service.h"),
+    "tsplPrint": ("services/label_printer.cpp", "services/tspl_printer.cpp", "services/tspl_printer.h"),
+    "bleWriteBlocks": ("services/phomemo_m_series.cpp", "services/tspl_printer.cpp", "services/ble_service.cpp",
+                       "services/ble_service.h"),
     "bleTalkOpen": ("services/niimbot.cpp", "services/ble_service.cpp", "services/ble_service.h"),
     "bleTalkSend": ("services/niimbot.cpp", "services/ble_service.cpp", "services/ble_service.h"),
     "ntag2xx_WritePage": ("hardware/nfc.cpp",),
