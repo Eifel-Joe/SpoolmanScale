@@ -327,7 +327,23 @@ unsigned long link_tag_first_seen_ms = 0;       // time of first detection
 //
 // Not static: the tag lookup hands it to the list cache together with the
 // inventory it has just scanned, so that there stays one version of this rule.
+//
+// Spoolman's own tag relation (0.27, tags[].uid) binds a spool just as well
+// (f11, from renatobrunella's patch sdfp-v0.8.3-1). Wurzel: only the extra
+// fields were asked, so with Spoolman direct a spool bound through the
+// relation alone - written by the scale itself on the native field, or by
+// Spoolman's own page - stood in the link list as free. Fix: a uid in the
+// relation counts first, before a spool without extra fields returns. Behind
+// BamBuddy the relation never arrives here: BamBuddy folds it into
+// tag_uid/tray_uuid itself, which the mapping turns into extra.tag
+// (bambuddy_api.cpp mapSpool()). NOT-TO-DO: renatobrunella's chime and tag
+// write after a link, which came with the same patch and were not chosen.
+// See test_spool_native_tags.py.
 bool spoolHasAnyTag(JsonObjectConst spool) {
+  for (JsonObjectConst t : spool["tags"].as<JsonArrayConst>()) {
+    const char* uid = t["uid"] | "";
+    if (uid[0]) return true;
+  }
   JsonObjectConst extra = spool["extra"];
   if (extra.isNull()) return false;
 
@@ -634,6 +650,9 @@ LinkFetch fetchAllSpoolsForLink(bool is_bambu, const char* material_filter, bool
   // flow has to see that whichever one the user has selected right now.
   for (uint8_t f = 0; f < TAG_FIELD_EXTRA_COUNT; f++)
     fL["extra"][tagFieldSpec(f).key] = true;
+  // And Spoolman's own tag relation, which spoolHasAnyTag() asks as well (f11).
+  // A filter on an array of objects describes one element.
+  fL["tags"][0]["uid"] = true;
   fL["filament"]["id"] = true;
   fL["filament"]["name"] = true;
   fL["filament"]["material"] = true;
@@ -1559,11 +1578,11 @@ bool doLinkPatchUid(int spool_id, bool is_bambu, const char* link_uuid) {
   // Asked before the reload below, because the answer to it is already in.
   if (patchSpoolTagTakeNativeMissing()) nativemissing_pending = true;
 
-  // The next list comes out of the cache, and this spool is no longer free.
-  // Not for Spoolman's own tag relation: spoolHasAnyTag() does not see it, so
-  // a downloaded list keeps offering such a spool, and the cache has to say
-  // what a download would say - no more and no less.
-  if (!tagFieldSelected().is_native) spoolCacheSetBound(spool_id, true);
+  // The next list comes out of the cache, and this spool is no longer free -
+  // through Spoolman's own tag relation as well, now that spoolHasAnyTag()
+  // sees it (f11): the cache says what a download would say, no more and no
+  // less.
+  spoolCacheSetBound(spool_id, true);
 
   // And the uid index learns the tag it has just watched being bound. The
   // searches find it from now on, but the index must not be what calls it

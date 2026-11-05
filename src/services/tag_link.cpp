@@ -200,8 +200,10 @@ static uint8_t bindToSpool(int id, const char* value, int* held_by) {
   }
 
   // What doLinkPatch() does after its write, so the next list and the next
-  // lookup know the tag the way the device's own link would have left them.
-  if (!tagFieldSelected().is_native) spoolCacheSetBound(id, true);
+  // lookup know the tag the way the device's own link would have left them:
+  // bound, whichever field was written, Spoolman's own relation included (f11,
+  // spoolHasAnyTag() sees it).
+  spoolCacheSetBound(id, true);
   const char* linked[3] = { value, tagNativeUid(value), g_tag.uid_str };
   uidIndexNote(linked, 3);
   return TL_OK;
