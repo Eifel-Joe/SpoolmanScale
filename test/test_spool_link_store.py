@@ -22,11 +22,15 @@ source = r"""
 #include <string>
 
 static SpoolLinkSlot s[SPOOL_LINK_SLOTS];
-static int next_slot = 0;
+static SpoolLinkSlots all = { s, SPOOL_LINK_SLOTS, 0 };
 
 static const char* at(int id, unsigned gen) {
-  const int i = spoolLinkSlotFind(s, SPOOL_LINK_SLOTS, id, gen);
+  const int i = spoolLinkSlotFind(all, id, gen);
   return i < 0 ? nullptr : s[i].url;
+}
+
+static bool put(int id, unsigned gen, const char* url) {
+  return spoolLinkSlotPut(all, id, gen, url);
 }
 
 int main() {
@@ -34,32 +38,32 @@ int main() {
   const char* a = "https://dev.spooly.eu/filament/e050d133";
   const char* b = "http://192.168.4.100:7913/spool/show/12";
   // Kept by id and by the server's generation.
-  assert(spoolLinkSlotPut(s, SPOOL_LINK_SLOTS, &next_slot, 12, 1, a));
+  assert(put(12, 1, a));
   assert(at(12, 1) && strcmp(at(12, 1), a) == 0);
   assert(!at(12, 2) && !at(13, 1));
   // A second read of the same spool replaces its link, in the same slot.
-  assert(spoolLinkSlotPut(s, SPOOL_LINK_SLOTS, &next_slot, 12, 1, b));
+  assert(put(12, 1, b));
   assert(strcmp(at(12, 1), b) == 0);
   int held = 0;
   for (const SpoolLinkSlot& x : s) held += x.id == 12;
   assert(held == 1);
   // A read without a link, or with one the rules refuse, drops the kept one.
-  assert(!spoolLinkSlotPut(s, SPOOL_LINK_SLOTS, &next_slot, 12, 1, ""));
+  assert(!put(12, 1, ""));
   assert(!at(12, 1));
-  assert(spoolLinkSlotPut(s, SPOOL_LINK_SLOTS, &next_slot, 12, 1, a));
-  assert(!spoolLinkSlotPut(s, SPOOL_LINK_SLOTS, &next_slot, 12, 1, "ftp://a.example/1"));
+  assert(put(12, 1, a));
+  assert(!put(12, 1, "ftp://a.example/1"));
   assert(!at(12, 1));
-  assert(spoolLinkSlotPut(s, SPOOL_LINK_SLOTS, &next_slot, 12, 1, a));
-  assert(!spoolLinkSlotPut(s, SPOOL_LINK_SLOTS, &next_slot, 12, 1, nullptr));
+  assert(put(12, 1, a));
+  assert(!put(12, 1, nullptr));
   assert(!at(12, 1));
   // No spool, no link.
-  assert(!spoolLinkSlotPut(s, SPOOL_LINK_SLOTS, &next_slot, 0, 1, a));
-  assert(!spoolLinkSlotPut(s, SPOOL_LINK_SLOTS, &next_slot, -3, 1, a));
+  assert(!put(0, 1, a));
+  assert(!put(-3, 1, a));
   assert(!at(0, 1));
   // More spools than slots: the oldest goes, the newest are all there.
   for (int id = 1; id <= SPOOL_LINK_SLOTS + 1; id++) {
     std::string u = "https://a.example/s/" + std::to_string(id);
-    assert(spoolLinkSlotPut(s, SPOOL_LINK_SLOTS, &next_slot, id, 1, u.c_str()));
+    assert(put(id, 1, u.c_str()));
   }
   assert(!at(1, 1));
   for (int id = 2; id <= SPOOL_LINK_SLOTS + 1; id++) {
@@ -70,14 +74,14 @@ int main() {
   for (int id = 2; id <= SPOOL_LINK_SLOTS + 1; id++) assert(!at(id, 2));
   for (int id = 100; id < 100 + SPOOL_LINK_SLOTS; id++) {
     std::string u = "https://b.example/" + std::to_string(id);
-    assert(spoolLinkSlotPut(s, SPOOL_LINK_SLOTS, &next_slot, id, 2, u.c_str()));
+    assert(put(id, 2, u.c_str()));
   }
   for (int id = 100; id < 100 + SPOOL_LINK_SLOTS; id++) assert(at(id, 2));
   // Never longer than the room, never cut: one character too many is refused.
   std::string room = "https://a.example/" + std::string(SPOOL_LINK_LEN - 1 - 18, 'x');
-  assert(spoolLinkSlotPut(s, SPOOL_LINK_SLOTS, &next_slot, 7, 2, room.c_str()));
+  assert(put(7, 2, room.c_str()));
   assert(room == at(7, 2));
-  assert(!spoolLinkSlotPut(s, SPOOL_LINK_SLOTS, &next_slot, 7, 2, (room + "x").c_str()));
+  assert(!put(7, 2, (room + "x").c_str()));
   assert(!at(7, 2));
   return 0;
 }

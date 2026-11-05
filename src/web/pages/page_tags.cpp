@@ -15,6 +15,7 @@
 #include "hardware/sd_logger.h"
 #include "services/backend.h"
 #include "services/backend_api.h"
+#include "services/spool_link_store.h"
 #include "services/backend_job.h"
 #include "services/prefs_store.h"
 #include "services/tag_field.h"
@@ -729,9 +730,9 @@ static String spoolJson() {
   if (!sm_found || sm_id <= 0) return String("{\"found\":false}");
 
   char url[160];
-  // The server's own link where it names one, it knows its pages best.
-  if (sm_page_url[0]) snprintf(url, sizeof(url), "%s", sm_page_url);
-  else                backendSpoolPageUrl(sm_id, url, sizeof(url));
+  // The server's own link where it names one, it knows its pages best (o18;
+  // kept by id in PSRAM, services/spool_link_store.h).
+  if (!spoolLinkCopy(sm_id, url, sizeof(url))) backendSpoolPageUrl(sm_id, url, sizeof(url));
 
   // Only six plain hex digits reach the style attribute the card puts this
   // in. A spool with several colours, or anything odd, shows no chip.

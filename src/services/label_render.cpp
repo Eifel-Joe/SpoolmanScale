@@ -15,6 +15,7 @@
 #include "services/label_fact_size.h"
 #include "services/label_facts.h"
 #include "services/label_tape.h"
+#include "services/spool_link_store.h"
 #include "services/text_util.h"
 
 using namespace labeldraw;
@@ -854,7 +855,7 @@ void labelQrForFilament(const SpoolLabelData& spool, char* out, size_t n) {
   out[0] = '\0';
   // A server that names its spools' pages itself may have no filament page at
   // all: Spooly has none, and a code that opens nothing is worse than no code.
-  if (spool.page_url[0]) return;
+  if (spoolLinkHas(spool.id)) return;
   const int filament_id = spool.filament_id;
   const char* base = labelLinkBase();
   // BamBuddy keeps no filament, and a Spoolman with no address has no page.
@@ -885,10 +886,10 @@ bool labelRenderSpool(const LabelPrinterConfig& printer, const LabelLayout& layo
   // The tape's own arrangement: maker, material, name and the number.
   if (labelPrinterIsTape(printer.model)) return labelRenderTape(printer, spool, true, "spool", out);
   char qr[LABEL_QR_LEN];
-  if (spool.page_url[0]) {
+  // The server's own link where it named one when the spool was read (o18;
+  // kept in PSRAM, services/spool_link_store.h), else the one built from the id.
+  if (spoolLinkCopy(spool.id, qr, sizeof(qr)))
     logSDf("Label: spool #%d carries its own link, the QR code uses it", spool.id);
-    snprintf(qr, sizeof(qr), "%s", spool.page_url);
-  }
   else labelQrForSpool(spool.id, qr, sizeof(qr));
   const int capacity = labelFactCapacity(layout, printer.media_width_mm, printer.media_length_mm);
   LabelFactList l;

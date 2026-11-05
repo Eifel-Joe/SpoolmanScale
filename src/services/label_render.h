@@ -48,9 +48,9 @@ struct SpoolLabelData {
   int16_t nozzle_min, nozzle_max, bed_temp;
   // The drying the filament wants, 0 where neither backend nor tag names one.
   int16_t dry_temp_c, dry_hours;
-  // The link the server itself names for this spool, asked with the dates.
-  // Empty where it names none: the QR code is then built from the id.
-  char  page_url[LABEL_QR_LEN];
+  // The link a server may name for the spool (o18) is not kept here but in
+  // services/spool_link_store.h, in PSRAM: this struct sits in two statics
+  // and many stack frames (Spec V75).
 };
 
 // The test label for the printer's loaded stock. The raster is allocated in

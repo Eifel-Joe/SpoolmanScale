@@ -18,6 +18,7 @@
 #include "services/worker_task.h"
 #include "services/drying_sync.h"
 #include "services/local_date.h"
+#include "services/spool_link_store.h"
 #include "services/tag_spool_match.h"
 #include "services/text_util.h"
 #include "ui/date_display.h"
@@ -56,7 +57,6 @@ struct LabelExtras {
   char first[12], added[12];
   int16_t nozzle_min, nozzle_max, bed;
   int16_t dry_c, dry_h;
-  char page_url[LABEL_QR_LEN];
 };
 
 static void extrasInto(SpoolLabelData* d, const LabelExtras& e) {
@@ -65,8 +65,6 @@ static void extrasInto(SpoolLabelData* d, const LabelExtras& e) {
   d->nozzle_min = e.nozzle_min;
   d->nozzle_max = e.nozzle_max;
   d->bed_temp = e.bed;
-  // Known from the scan already; an answer without one takes nothing away.
-  if (e.page_url[0]) snprintf(d->page_url, sizeof(d->page_url), "%s", e.page_url);
   // The backend's drying wins; without one the tag's from the scan stays.
   if (e.dry_c > 0 && e.dry_h > 0) {
     d->dry_temp_c = e.dry_c;
@@ -81,7 +79,6 @@ static LabelExtras extrasOf(const SpoolLabelData& d) {
   e.nozzle_min = d.nozzle_min;
   e.nozzle_max = d.nozzle_max;
   e.bed = d.bed_temp;
-  snprintf(e.page_url, sizeof(e.page_url), "%s", d.page_url);
   e.dry_c = d.dry_temp_c;
   e.dry_h = d.dry_hours;
   return e;
@@ -111,7 +108,6 @@ bool labelSpoolFromScan(SpoolLabelData* out) {
   if (!out || !(sm_found && sm_id > 0)) return false;
   *out = SpoolLabelData{};
   out->id = sm_id;
-  snprintf(out->page_url, sizeof(out->page_url), "%s", sm_page_url);
   out->filament_id = sm_filament_id > 0 ? sm_filament_id : 0;
   snprintf(out->name, sizeof(out->name), "%s", sm_filament_name);
   snprintf(out->vendor, sizeof(out->vendor), "%s", sm_vendor_g);
@@ -187,8 +183,10 @@ static int16_t tempOf(JsonVariantConst v) {
 }
 
 // One spool's dates and temperatures from the backend. False when it did not
-// answer; `out` is written only on an answer. Any task.
-static bool fetchDates(const char* base_url, int id, LabelExtras* out) {
+// answer; `out` is written only on an answer. Any task. `gen` is
+// backendGeneration() when the request was set up: the link the spool names
+// belongs to that server.
+static bool fetchDates(const char* base_url, int id, uint32_t gen, LabelExtras* out) {
   SpiRamAllocator alloc;
   JsonDocument doc(&alloc);
   if (backendGetSpoolJson(base_url, id, doc, LABEL_DATE_TIMEOUT_MS) != 200) {
@@ -203,7 +201,8 @@ static bool fetchDates(const char* base_url, int id, LabelExtras* out) {
   // A server on the Spoolman way may name the spool's page itself. Spooly does:
   // its link keeps working when its numbers are counted anew, which a link built
   // from the id would not.
-  snprintf(e.page_url, sizeof(e.page_url), "%s", backendSpoolLink(doc.as<JsonObjectConst>()));
+  // Kept by id in PSRAM (services/spool_link_store.h), not in the extras.
+  spoolLinkPut(id, backendSpoolLink(doc.as<JsonObjectConst>()), gen);
   // Spoolman's filament settings; BamBuddy's range arrives under the same
   // name for its upper end and a name of the scale's own for the lower.
   JsonObjectConst f = doc["filament"];
@@ -243,7 +242,7 @@ void labelSpoolFetchDates(SpoolLabelData* d) {
     return;
   }
   LabelExtras e{};
-  if (!fetchDates(backendBaseUrl(), d->id, &e)) return;
+  if (!fetchDates(backendBaseUrl(), d->id, backendGeneration(), &e)) return;
   extrasInto(d, e);
   // A print fetches them too: the copy of the same spool learns them as well.
   if (s_have_last && s_last.id == d->id) {
@@ -271,7 +270,7 @@ static WorkerTask s_date_worker{};
 
 static void dateTask(void*) {
   if (s_job.want_link) labelLinkFetchAt(s_job.at, s_job.gen, &s_job.link);
-  s_job.ok = fetchDates(s_job.at.base, s_job.id, &s_job.extras);
+  s_job.ok = fetchDates(s_job.at.base, s_job.id, s_job.gen, &s_job.extras);
   __sync_synchronize();
   s_job_done = true;
   workerTaskPark(&s_date_worker);

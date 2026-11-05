@@ -28,6 +28,7 @@ bool spoolHasAnyTag(JsonObjectConst spool);
 #include "services/backend.h"
 #include "services/breadcrumb.h"
 #include "services/backend_api.h"
+#include "services/spool_link_store.h"
 #include "services/filaman_api.h"
 #include "services/http_progress.h"
 #include "services/recheck_pace.h"
@@ -631,7 +632,8 @@ void querySpoolmanById(int spool_id) {
 
   sm_found        = true;
   sm_id           = spool["id"] | 0;
-  snprintf(sm_page_url, sizeof(sm_page_url), "%s", backendSpoolLink(spool));
+  // The server's own link for the spool, if it names one (o18), by id in PSRAM.
+  spoolLinkPut(sm_id, backendSpoolLink(spool), backendGeneration());
   // One spool, asked for by id: a duplicate count left over from the last
   // scan would keep the status line saying "more than one answered".
   sm_dup_count    = 0;
@@ -1260,7 +1262,6 @@ void querySpoolman(const char* tray_uuid, LookupOrigin origin) {
   sm_found = false;
   sm_archived = false;
   sm_id = 0;
-  sm_page_url[0] = '\0';
   sm_dup_count = 0;
   tagSpoolLookupClear();
   for (uint8_t i = 0; i < TAG_FIELD_EXTRA_COUNT; i++) sm_tag_values[i][0] = '\0';

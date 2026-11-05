@@ -47,6 +47,7 @@ bool spoolHasAnyTag(JsonObjectConst spool);
 #include "services/drying_sync.h"
 #include "services/backend.h"
 #include "services/backend_api.h"
+#include "services/spool_link_store.h"
 #include "services/backend_job.h"
 #include "services/breadcrumb.h"
 #include "services/filaman_api.h"
@@ -500,7 +501,8 @@ LookupStep lookupResolveActive(const LookupCtx& c, JsonDocument& doc,
     // FOUND
     sm_found    = true;
     sm_id       = spool["id"] | 0;
-    snprintf(sm_page_url, sizeof(sm_page_url), "%s", backendSpoolLink(spool));
+    // The server's own link for the spool, if it names one (o18), by id in PSRAM.
+    spoolLinkPut(sm_id, backendSpoolLink(spool), backendGeneration());
 
     // One-off migration to the plain hex notation. Older firmware wrote an
     // NTAG uid into extra.tag with colons, which is the one notation the
