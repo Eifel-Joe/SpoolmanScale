@@ -238,6 +238,18 @@ jobs:
         run: python3 test/test_bambuddy_report_rules.py
       - name: Test bay question wiring (v0.8.7-beta.4)
         run: python3 test/test_fachfrage_wiring.py
+      - name: Test link by id asks first (v0.8.7-beta.5)
+        run: python3 test/test_link_id_confirm.py
+      - name: Test tag line name (v0.8.7-beta.5)
+        run: python3 test/test_tag_line_name.py
+      - name: Test typical density on the card (v0.8.7-beta.5)
+        run: python3 test/test_density_typical_card.py
+      - name: Test native tag relation in the link list (v0.8.7-beta.5)
+        run: python3 test/test_spool_native_tags.py
+      - name: Test copy price on every server (v0.8.7-beta.5)
+        run: python3 test/test_copy_price_all.py
+      - name: Test copy reads its template once (v0.8.7-beta.5)
+        run: python3 test/test_copy_read_once.py
       - name: Test create tag rules
         run: python3 test/test_create_tag_rules.py
       - name: Test create card swap
