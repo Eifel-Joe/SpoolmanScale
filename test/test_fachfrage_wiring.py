@@ -116,6 +116,30 @@ def j07_stops():
     before(b, "if (code == 200)", "amsPickRecheckStop(spool_id);", f"src/{CARD}: handleAmsDetailDeferredActions()")
 
 
+def j07_review():
+    """Findings of the review of beta.4, each with its place."""
+    w = f"src/{PICK}"
+    t = body_of(PICK, "amsPickRecheckTick")
+    # Not between the lift and the bay question: its blocking calls would hold
+    # the hint up and the page back.
+    before(t, "if (s_pending.active || s_hint_up) return;", "amsRecheckDue(", f"{w}: amsPickRecheckTick()")
+    # A watch belongs to the server and the inventory mode it was started on.
+    has(t, "strcmp(s_recheck_base, backendBaseUrl()) != 0", f"{w}: amsPickRecheckTick()")
+    has(t, "s_recheck_mode != (int)bbInventoryMode()", f"{w}: amsPickRecheckTick()")
+    # A failed lookup of the bay's spool is no answer.
+    has(t, "if (step == RC_NO_ANSWER || step == RC_OTHER_SPOOL)", f"{w}: amsPickRecheckTick()")
+    # A resend in the background raises no popup minutes after the tap.
+    has(t, "serverReachNote(", f"{w}: amsPickRecheckTick()")
+    hasnt(t, ", 8000), true)", f"{w}: amsPickRecheckTick()")
+    # The note's clock stands still while the question is on screen: closing
+    # the page parks the answer for the next pass, and a note that ran out in
+    # between lost it ("answer arrived with no spool remembered").
+    k = body_of(PICK, "amsPickTick")
+    has(k, "if (isAmsViewOpen()) { s_pending.noted_ms = millis(); return; }", f"{w}: amsPickTick()")
+    # The short limits of the reports bound the connection as well.
+    has(body_of("services/bambuddy_api.cpp", "sendJson"), "http.setConnectTimeout(", "src/services/bambuddy_api.cpp: sendJson()")
+
+
 # ---- j09 ---------------------------------------------------------------------
 def j09_hint():
     b = body_of(PICK, "amsPickHintShow")
@@ -218,7 +242,7 @@ def sim_bay():
     assert "logSD" in m.group(0), f"src/{DOC}: /api/sim/bay does not log"
 
 
-for fn in (j07_started_for_bambuddy_only, j07_tick, j07_loop, j07_stops, j09_hint, j11_button,
+for fn in (j07_started_for_bambuddy_only, j07_tick, j07_loop, j07_stops, j07_review, j09_hint, j11_button,
            a03_task, a06_badge, a16_takeout, texts, sim_bay):
     check(fn)
 for f in failures:

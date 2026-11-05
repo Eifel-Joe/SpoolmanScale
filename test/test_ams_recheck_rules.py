@@ -112,7 +112,10 @@ int main() {
   assert(amsRecheckAfterBay(r, 7) == RC_OTHER_SPOOL);
   assert(amsRecheckStepEnds(RC_OTHER_SPOOL));
   assert(amsRecheckAfterBay(r, 0) == RC_GO_ON);
-  assert(amsRecheckAfterBay(r, -1) == RC_GO_ON);
+  // A lookup that failed is no answer, not "no other spool": sending on it
+  // could put the spool over one BamBuddy has in the bay (review, beta.4).
+  assert(amsRecheckAfterBay(r, -1) == RC_NO_ANSWER);
+  assert(amsRecheckAfterBay(r, -503) == RC_NO_ANSWER);
   assert(amsRecheckAfterBay(r, 51) == RC_GO_ON);  // itself: the lookup raced the drop
   // The AMS: an empty or unreadable answer sends nothing.
   assert(amsRecheckAfterPresence(r, true, false) == RC_BAY_EMPTY);
