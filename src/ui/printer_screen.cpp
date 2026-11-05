@@ -14,8 +14,10 @@
 #include "services/brother_ql.h"
 #include "services/label_layout.h"
 #include "services/label_printer.h"
+#include "services/label_edit_rules.h"
 #include "services/label_render.h"
 #include "ui/choice_grid.h"
+#include "ui/label_edit_screen.h"
 #include "ui/info_popup.h"
 #include "ui/print_card.h"
 #include "ui/print_sheet.h"
@@ -137,6 +139,31 @@ static LabelPrintResult printSpoolLabel(SpoolLabelData spool, bool own_layout = 
 LabelPrintResult printerPrintSpoolData(const SpoolLabelData& spool, LabelKind kind) {
   printerOffsetFlush();
   return printSpoolLabel(spool, false, kind);
+}
+
+// The label at the scale (Spec 5.3 AC f14, V75): drawn by the renderer with
+// its rows applied (labelRenderEdit()) and printed through the one door every
+// label takes, labelPrinterPrint(). Kept for the browser's last-label line.
+LabelPrintResult printerPrintEdit(const LabelEdit& edit, const SpoolLabelData& spool, LabelKind kind) {
+  printerOffsetFlush();
+  const LabelPrinterLink link = labelPrinterLink();
+  const LabelPrinterConfig c = labelPrinterLoadConfig();
+  printAttemptStart();
+  LabelPrintResult result = labelPrinterReadiness();
+  if (result == LP_OK) {
+    printCardShow();
+    const LabelLayout layout = edit.free ? labelEditFreeLayout(labelLayoutLoad(LABEL_KIND_SPOOL))
+                                         : labelLayoutLoad(kind);
+    LabelRaster raster{};
+    result = labelRenderEdit(c, layout, edit, spool, &raster)
+                 ? labelPrinterPrint(c, raster, printCardTick) : LP_BAD_RASTER;
+    labelRasterFree(&raster);
+  }
+  logSDf("Printer: %s label%s result=%d", edit.free ? "free" : "edited",
+         edit.free ? "" : (kind == LABEL_KIND_FILAMENT ? " (filament)" : " (spool)"), (int)result);
+  keepVerdict(s_last_label, result, link);
+  printCardResult(result);
+  return result;
 }
 
 void printerPrintPadLabel(LabelKind kind) {
@@ -366,6 +393,16 @@ void buildPrinterScreen() {
       printer_toggle_ask_pending = true;
     }, LV_EVENT_CLICKED, NULL); }
 
+  // A free label, no spool needed (Spec 5.3 AC f14, V75); not for the tape
+  // printer, whose label is fixed.
+  if (!labelPrinterIsTape(c.model)) { char buf_t[40]; copyT(buf_t, sizeof(buf_t), STR_PRN_FREE_LABEL);
+    char buf_s[64]; copyT(buf_s, sizeof(buf_s), STR_PRN_FREE_LABEL_SUB);
+    lv_obj_t *btn = makeListBtn(list, LV_SYMBOL_EDIT, buf_t, buf_s);
+    lv_obj_add_event_cb(btn, [](lv_event_t *e){
+      logSD("BTN: Printer -> free label");
+      labelEditOpenFree();   // parked: the loop opens it
+    }, LV_EVENT_CLICKED, NULL); }
+
   // The test print: the first thing to try with a new printer.
   { char buf_t[40]; copyT(buf_t, sizeof(buf_t), STR_PRN_TEST);
     char buf_s[64]; copyT(buf_s, sizeof(buf_s), STR_PRN_TEST_SUB);
@@ -458,6 +495,7 @@ void handlePrinterDeferredActions() {
   brotherReplyTick();
   printCardLoop();
   printSheetTick();
+  labelEditTick();
   printerOffsetTick();
   if (show_printer_offset_pending) {
     show_printer_offset_pending = false;

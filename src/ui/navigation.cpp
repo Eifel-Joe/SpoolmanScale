@@ -1,4 +1,5 @@
 #include "navigation.h"
+#include "ui/label_edit_screen.h"
 #include "scale_menu.h"
 #include "app/app_state.h"
 #include "ui_common.h"
@@ -96,6 +97,9 @@ void hideAllOverlays() {
   // Closed, not hidden: it holds its picture in PSRAM, and it is built
   // anew from what is saved whenever it is opened.
   closePrintSheet();
+  // Closed as well: its picture and rows are in PSRAM, a spool's changes are
+  // for one print only (ui/label_edit_screen.h).
+  labelEditClose();
   if (scr_spoolman)    lv_obj_add_flag(scr_spoolman,    LV_OBJ_FLAG_HIDDEN);
   if (scr_welcome)     lv_obj_add_flag(scr_welcome,     LV_OBJ_FLAG_HIDDEN);
   if (scr_first_boot)  lv_obj_add_flag(scr_first_boot,  LV_OBJ_FLAG_HIDDEN);

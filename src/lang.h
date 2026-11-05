@@ -2216,6 +2216,22 @@ enum StringID {
   STR_PRN_MEDIA_CONT,          // a Brother's continuous tape in the size lists (v0.8.7-beta.7)
   STR_W_P_QL700_HINT,          // the printer page: how a QL-700 is reached, experimental
   STR_W_L_SMALL_FIXED,         // the label page: the 23 x 23 square takes material and code only
+  STR_PS_EDIT_LINES,           // the print sheet's row: change the label's lines for this print (f14)
+  STR_PS_EDIT_LINES_SUB,       // its subtitle
+  STR_PS_TEMPLATE,             // the print sheet's row: the template at the scale
+  STR_PS_TEMPLATE_SUB,         // its subtitle
+  STR_PRN_FREE_LABEL,          // the printer screen's row: a label without a spool
+  STR_PRN_FREE_LABEL_SUB,      // its subtitle
+  STR_LE_HEAD,                 // the label edit screen: the head line's caption
+  STR_LE_BAND,                 // the black band's caption
+  STR_LE_TITLE,                // the title's caption
+  STR_LE_LINE,                 // a line's caption, its number
+  STR_LE_CODE,                 // the code on or off
+  STR_LE_CODE_TEXT,            // a free label's code text
+  STR_LE_EMPTY,                // a row without text
+  STR_LE_RESET,                // a spool's label back as the template
+  STR_LE_CLEAR,                // a free label emptied
+  STR_LE_TEMPLATE_HINT,        // under the template preview
 
   STR_COUNT
 };

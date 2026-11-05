@@ -16,6 +16,7 @@
 #include "services/label_thumb.h"
 #include "services/device_name.h"
 #include "ui/batch_create.h"
+#include "ui/label_edit_screen.h"
 #include "ui/more_info_screen.h"
 #include "ui/navigation.h"
 #include "ui/printer_screen.h"
@@ -50,6 +51,10 @@ static lv_obj_t* s_msg = nullptr;
 static lv_obj_t* s_row_preset = nullptr;
 static lv_obj_t* s_row_turn = nullptr;
 static lv_obj_t* s_row_server = nullptr;
+// The label at the scale (Spec 5.3 AC f14, V75): its lines for this print,
+// and the template of the kind on show.
+static lv_obj_t* s_row_edit = nullptr;
+static lv_obj_t* s_row_template = nullptr;
 static lv_obj_t* s_sub_preset = nullptr;
 static lv_obj_t* s_sub_turn = nullptr;
 static lv_obj_t* s_sub_media = nullptr;
@@ -161,8 +166,17 @@ static void styleKind(lv_obj_t* b, bool on) {
   if (l) lv_obj_set_style_text_color(l, lv_color_hex(on ? UI_COL_ACCENT : UI_COL_OFF_TEXT), 0);
 }
 
-// The rows that change our layout: the arrangement and upright or flat.
+// The rows that change our layout: the arrangement and upright or flat, and
+// the label at the scale. Neither for FilaMan's preset nor for the tape
+// printer's fixed label; the edit rows not for a run's sheet either, whose
+// print goes on with the others (batch_create.h).
 static void showLayoutRows(bool show) {
+  lv_obj_t* const edit[] = { s_row_edit, s_row_template };
+  const bool edit_on = show && !batchLabelsSheetWait();
+  for (lv_obj_t* r : edit) {
+    if (edit_on) lv_obj_clear_flag(r, LV_OBJ_FLAG_HIDDEN);
+    else lv_obj_add_flag(r, LV_OBJ_FLAG_HIDDEN);
+  }
   lv_obj_t* const rows[] = { s_row_preset, s_row_turn };
   for (lv_obj_t* r : rows) {
     if (show) lv_obj_clear_flag(r, LV_OBJ_FLAG_HIDDEN);
@@ -347,6 +361,20 @@ static void buildSheet() {
   s_sub_preset = settingRow(list, LV_SYMBOL_LIST, STR_W_L_ARRANGE, PS_NEXT_PRESET, &s_row_preset);
   s_sub_turn = settingRow(list, LV_SYMBOL_REFRESH, STR_W_L_ORIENT, PS_TURN, &s_row_turn);
   s_sub_media = settingRow(list, LV_SYMBOL_IMAGE, STR_PRN_MEDIA, PS_NEXT_MEDIA, nullptr);
+  { char buf_t[40]; copyT(buf_t, sizeof(buf_t), STR_PS_EDIT_LINES);
+    char buf_s[64]; copyT(buf_s, sizeof(buf_s), STR_PS_EDIT_LINES_SUB);
+    s_row_edit = makeListBtn(list, LV_SYMBOL_EDIT, buf_t, buf_s);
+    lv_obj_add_event_cb(s_row_edit, [](lv_event_t*) {
+      logSD("BTN: Print sheet -> edit lines");
+      labelEditOpenSpool(s_kind);   // parked: the loop closes the sheet and opens it
+    }, LV_EVENT_CLICKED, NULL); }
+  { char buf_t[40]; copyT(buf_t, sizeof(buf_t), STR_PS_TEMPLATE);
+    char buf_s[64]; copyT(buf_s, sizeof(buf_s), STR_PS_TEMPLATE_SUB);
+    s_row_template = makeListBtn(list, LV_SYMBOL_LIST, buf_t, buf_s);
+    lv_obj_add_event_cb(s_row_template, [](lv_event_t*) {
+      logSD("BTN: Print sheet -> template");
+      labelEditOpenTemplate(s_kind);
+    }, LV_EVENT_CLICKED, NULL); }
   s_sub_printer = settingRow(list, LV_SYMBOL_SETTINGS, STR_PRN_TITLE, PS_NONE, nullptr);
   // In place of the two layout rows while FilaMan draws the label: where
   // that layout is changed. No tap: it is a note.
@@ -369,6 +397,7 @@ void closePrintSheet() {
   releaseScreen(&s_scr);
   s_img = s_msg = nullptr;
   s_row_preset = s_row_turn = s_row_server = nullptr;
+  s_row_edit = s_row_template = nullptr;
   s_sub_preset = s_sub_turn = s_sub_media = s_sub_printer = nullptr;
   s_kind_btn[LABEL_KIND_SPOOL] = s_kind_btn[LABEL_KIND_FILAMENT] = nullptr;
   s_waiting = false;

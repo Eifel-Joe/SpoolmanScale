@@ -80,3 +80,11 @@ bool labelRenderFilament(const LabelPrinterConfig& printer, const LabelLayout& l
                          const SpoolLabelData& spool, LabelRaster* out);
 // The filament's page, empty when there is none to open.
 void labelQrForFilament(const SpoolLabelData& spool, char* out, size_t n);
+
+// A label changed at the scale or a free one (Spec 5.3 AC f14, V75): the rows
+// of `edit` (services/label_edit_rules.h) applied to `spool` and drawn with
+// `layout` narrowed to the roll, by the same renderer and rules as every
+// label. False for a tape printer: its label is fixed.
+struct LabelEdit;
+bool labelRenderEdit(const LabelPrinterConfig& printer, const LabelLayout& layout,
+                     const LabelEdit& edit, const SpoolLabelData& spool, LabelRaster* out);

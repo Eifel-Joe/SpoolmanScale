@@ -46,6 +46,9 @@ Compared with the original's current release, 0.8.3. Each line names the stable 
 - 🏷️ **Brother QL over WiFi** – the QL-810W/820NWB with DK-11209 (62×29 mm), printed by the scale itself, no PC or app needed; "Label printer" chooses Off, Bluetooth or WiFi. *since 0.8.5*
 - 🔠 **Larger label text** – the lines take the largest font that fits the label, and a switch adds the colour as an RGB line for the slicer. *since 0.8.6*
 - 🎞️ **More Bluetooth label printers** – the NIIMBOT D110 and D110 M with a fixed 12×40 mm tape label (by NDRST, from the original), the TYPONOS PM240 (experimental, never tried on a real one - feedback welcome), and a Bluetooth symbol that turns green while the printer was there at the last scan or print. *since 0.8.7*
+- 🧻 **More Brother rolls and the QL-700** – 62 mm and 38 mm continuous tape (cut at 30 and 40 mm) and the 23×23 mm square besides DK-11209, each with its own layout and print position; the USB-only QL-700 through a small computer that forwards port 9100 to it (experimental, feedback welcome). *since 0.8.7*
+- ✏️ **The label at the scale** – the label as it prints next to its lines: change a line for one print, switch the template's lines on and off, or print a free label without a spool. *since 0.8.7*
+- 🔗 **The spool's own link in the code** – a server that names a page for each spool gets it in the label's QR code (from the original). *since 0.8.7*
 
 **Printers**
 
@@ -170,6 +173,8 @@ This fork is built on the work of others, taken over with their commits or as ma
 - **[@renatobrunella](https://github.com/renatobrunella)** – from the fork [renatobrunella/SpoolmanScale](https://github.com/renatobrunella/SpoolmanScale): the link list counts Spoolman's own tag relation as bound, taken over in parts.
 - **[@NDRST](https://github.com/NDRST)** – the NIIMBOT D110 and D110 M with their 12 × 40 mm tape label, from the original's pre-releases, taken over with the commits.
 - **[@akira69](https://github.com/akira69)** – the idea of a Bluetooth symbol that shows whether the label printer was there, from the fork [akira69/SpoolmanScale](https://github.com/akira69/SpoolmanScale), built anew here.
+- **[@Ziopase](https://github.com/Ziopase)** – from the fork [Ziopase/SpoolmanScale](https://github.com/Ziopase/SpoolmanScale): the Brother's continuous rolls and the 23 × 23 mm square with their layouts and print position, and the QL-700 behind a forwarder, taken over in parts into our Brother driver.
+- **[@MitKIprogrammieren](https://github.com/MitKIprogrammieren)** – the idea of editing a label on the scale's screen and printing a free label, from [MitKIprogrammieren/SpoolmanScaleatPi](https://github.com/MitKIprogrammieren/SpoolmanScaleatPi), built anew here.
 
 Credits for SpoolmanScale itself are in the original's README below.
 

@@ -40,6 +40,11 @@ void printerPrintLastLabel(LabelKind kind);
 // (batch_create.h). Like any print it first closes the line a Brother still
 // holds for the label before. From the loop, like the two above.
 LabelPrintResult printerPrintSpoolData(const SpoolLabelData& spool, LabelKind kind);
+// A label changed at the scale or a free one (ui/label_edit_screen.h), under
+// the print card like every label: `edit` applied to `spool` (empty for a free
+// label) and drawn with the template of `kind`, or the free label's.
+struct LabelEdit;
+LabelPrintResult printerPrintEdit(const LabelEdit& edit, const SpoolLabelData& spool, LabelKind kind);
 // The next build of the screen is entered from the print sheet: its back
 // button leads there instead of to the label printer screen.
 void printerScreenFromSheet();

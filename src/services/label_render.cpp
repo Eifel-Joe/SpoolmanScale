@@ -13,6 +13,7 @@
 #include "services/backend.h"
 #include "services/label_draw.h"
 #include "services/label_fact_size.h"
+#include "services/label_edit_rules.h"
 #include "services/label_facts.h"
 #include "services/label_tape.h"
 #include "services/spool_link_store.h"
@@ -921,4 +922,18 @@ bool labelRenderSpool(const LabelPrinterConfig& printer, const LabelLayout& save
   const LabelContent c{ &spool, l.line_ptrs, l.n, false,
                         labelLayoutHasCode(layout) ? qr : nullptr, "spool", l.facts };
   return renderLabel(printer, layout, c, out);
+}
+
+bool labelRenderEdit(const LabelPrinterConfig& printer, const LabelLayout& layout,
+                     const LabelEdit& edit, const SpoolLabelData& spool, LabelRaster* out) {
+  // The tape's label is fixed (label_tape.h); the edit screen is not offered.
+  if (labelPrinterIsTape(printer.model)) return false;
+  const LabelLayout narrowed = labelLayoutForMedia(layout, printer.media_width_mm,
+                                                   printer.media_length_mm);
+  SpoolLabelData d = spool;
+  LabelFactList f;
+  const LabelLayout l = labelEditApply(edit, narrowed, &d, &f);
+  const LabelContent c{ &d, f.line_ptrs, f.n, false, labelLayoutHasCode(l) ? edit.qr : nullptr,
+                        edit.free ? "free" : "edited", f.facts };
+  return renderLabel(printer, l, c, out);
 }

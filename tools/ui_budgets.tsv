@@ -758,3 +758,29 @@ STR_ID_PAD_COPY_TITLE	18	330	NEVER	src/ui/num_pad.cpp header title between back 
 STR_DENSITY_TYPICAL	14	360	NEVER	src/ui/tag_create_popup.cpp status line in the small font, one line (showDensityOffer()): the hint names the buttons below it
 STR_DENSITY_TAKE	18	132	NEVER	src/ui/tag_create_popup.cpp left answer button, TCP_ANSWER_W 140 px beside the price button, -8 air
 STR_DENSITY_CHANGE	14	64	NEVER	src/ui/tag_create_popup.cpp 80 px price button, 8 px air each side
+
+# --- the label at the scale (v0.8.7-beta.7, Spec 5.3 AC f14, V75) --------------
+# Rows of src/ui/label_edit_screen.cpp: LE_ROW_W 236, the text LE_TEXT_W 180 wide,
+# a caption in 12 px over a text in 16 px; the sheet and printer rows are
+# makeListBtn() (title 16 px, sub 12 px, text_w 320); the sub header 376.
+STR_PS_EDIT_LINES	16	320	NEVER	src/ui/print_sheet.cpp makeListBtn title, text_w 320
+STR_PS_EDIT_LINES	18	376	NEVER	src/ui/label_edit_screen.cpp sub header title, 480 - 2 * (44 + 2 * 4)
+STR_PS_EDIT_LINES_SUB	12	320	NEVER	src/ui/print_sheet.cpp makeListBtn sub, text_w 320
+STR_PS_TEMPLATE	16	320	NEVER	src/ui/print_sheet.cpp makeListBtn title, text_w 320
+STR_PS_TEMPLATE	18	376	NEVER	src/ui/label_edit_screen.cpp sub header title
+STR_PS_TEMPLATE_SUB	12	320	NEVER	src/ui/print_sheet.cpp makeListBtn sub, text_w 320
+STR_PRN_FREE_LABEL	16	320	NEVER	src/ui/printer_screen.cpp makeListBtn title, text_w 320
+STR_PRN_FREE_LABEL	18	376	NEVER	src/ui/label_edit_screen.cpp sub header title
+STR_PRN_FREE_LABEL_SUB	12	320	NEVER	src/ui/printer_screen.cpp makeListBtn sub, text_w 320
+STR_LE_HEAD	12	180	NEVER	src/ui/label_edit_screen.cpp row caption, LE_TEXT_W
+STR_LE_HEAD	18	376	NEVER	src/ui/label_edit_screen.cpp keyboard sub header title
+STR_LE_BAND	12	180	NEVER	src/ui/label_edit_screen.cpp row caption, LE_TEXT_W
+STR_LE_TITLE	12	180	NEVER	src/ui/label_edit_screen.cpp row caption, LE_TEXT_W
+STR_LE_LINE	12	180	NEVER	src/ui/label_edit_screen.cpp row caption with its number, LE_TEXT_W
+STR_LE_CODE	16	180	NEVER	src/ui/label_edit_screen.cpp row text, LE_TEXT_W
+STR_LE_CODE_TEXT	12	180	NEVER	src/ui/label_edit_screen.cpp row caption, LE_TEXT_W
+STR_LE_CODE_TEXT	18	376	NEVER	src/ui/label_edit_screen.cpp keyboard sub header title
+STR_LE_EMPTY	16	180	NEVER	src/ui/label_edit_screen.cpp row text, LE_TEXT_W
+STR_LE_RESET	16	180	NEVER	src/ui/label_edit_screen.cpp row text, LE_TEXT_W
+STR_LE_CLEAR	16	180	NEVER	src/ui/label_edit_screen.cpp row text, LE_TEXT_W
+STR_LE_TEMPLATE_HINT	14	216	WRAP:3	src/ui/label_edit_screen.cpp hint under the paper, LE_LEFT_W
