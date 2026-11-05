@@ -7,6 +7,7 @@
 
 #include "hardware/sd_logger.h"
 #include "services/accent_fold.h"
+#include "services/brother_ql_rules.h"
 #include "services/label_render.h"
 #include "services/text_util.h"
 #include "src/extra/libs/qrcode/qrcodegen.h"
@@ -121,6 +122,27 @@ bool packCanvas(lv_obj_t* canvas, uint16_t content_w, uint16_t h,
   out->length = length;
   out->content_width = content_w;
   return labelRasterValid(*out);
+}
+
+// Root: Joerg 05.11.2026, "Endlos ... die Laenge entsprechend der angehakten
+//   Schalter": continuous tape has no fixed length.
+// Fix: the label is drawn top-aligned on the longest one there may be and cut
+//   here, after the last line packCanvas() prints (darker than mid grey), so
+//   the length is what the drawing made, measured once by the same planner
+//   as every label, nothing estimated.
+// NOT-TO-DO: a measuring pass that guesses the length first: every block
+//   (name wrapped or not, code beside or below) would need its height twice,
+//   and one that differed would cut a line.
+uint16_t endlessLines(lv_obj_t* canvas, uint16_t w, uint16_t h, lv_coord_t margin) {
+  const lv_color_t* px = (const lv_color_t*)lv_canvas_get_img(canvas)->data;
+  int last = -1;
+  for (int y = h - 1; y >= 0 && last < 0; y--) {
+    const lv_color_t* row = px + size_t(y) * w;
+    for (uint16_t x = 0; x < w; x++)
+      if (lv_color_brightness(row[x]) < LR_BLACK_BELOW) { last = y; break; }
+  }
+  const int lines = last + 1 + margin;
+  return (uint16_t)(lines < BROTHER_QL_MIN_LINES ? BROTHER_QL_MIN_LINES : lines > h ? h : lines);
 }
 
 // Whether the large fonts can spell a line: ASCII, the degree sign of the

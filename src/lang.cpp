@@ -4876,9 +4876,9 @@ const char* const STRINGS[][3] = {
   { "QL-700: Er hat nur USB. Ein kleiner Rechner daneben (Raspberry Pi, NAS) reicht Port 9100 an den Drucker weiter, z. B. mit socat TCP-LISTEN:9100,fork,reuseaddr FILE:/dev/usb/lp0; trage hier dessen Adresse ein. Am Drucker Editor Lite ausschalten. Experimentell: noch an keinem echten QL-700 geprüft, eine Rückmeldung ist ausdrücklich erwünscht.",
     "QL-700: it has USB only. A small computer next to it (Raspberry Pi, NAS) forwards port 9100 to the printer, for example with socat TCP-LISTEN:9100,fork,reuseaddr FILE:/dev/usb/lp0; type that computer's address here. Switch Editor Lite off on the printer. Experimental: not yet tried on a real QL-700, feedback is very welcome.",
     "QL-700 : USB uniquement. Un petit ordinateur à côté (Raspberry Pi, NAS) transmet le port 9100 à l'imprimante, par exemple avec socat TCP-LISTEN:9100,fork,reuseaddr FILE:/dev/usb/lp0 ; saisissez ici l'adresse de cet ordinateur. Désactivez Editor Lite sur l'imprimante. Expérimental : pas encore essayé sur un vrai QL-700, vos retours sont les bienvenus." },  // STR_W_P_QL700_HINT
-  { "Das Quadrat 23 x 23 trägt nur den QR-Code; die Vorlage gilt hier nicht. Sie bleibt gespeichert und gilt wieder auf den anderen Rollen.",
-    "The 23 x 23 square carries the QR code alone; the template does not apply here. It stays saved and applies again on the other rolls.",
-    "Le carré 23 x 23 ne porte que le code QR ; le modèle ne s'applique pas ici. Il reste enregistré et s'applique de nouveau sur les autres rouleaux." },  // STR_W_L_SMALL_FIXED
+  { "Das Quadrat 23 x 23 trägt nur den QR-Code; die Vorlage gilt hier nicht, und ein Etikett ohne Code, etwa das Filament-Etikett ohne Filamentseite, wird darauf nicht gedruckt. Die Vorlage bleibt gespeichert und gilt wieder auf den anderen Rollen.",
+    "The 23 x 23 square carries the QR code alone; the template does not apply here, and a label without a code, such as the filament label without a filament page, is not printed on it. The template stays saved and applies again on the other rolls.",
+    "Le carré 23 x 23 ne porte que le code QR ; le modèle ne s'applique pas ici, et une étiquette sans code, comme l'étiquette de filament sans page de filament, n'y est pas imprimée. Le modèle reste enregistré et s'applique de nouveau sur les autres rouleaux." },  // STR_W_L_SMALL_FIXED
   { "Zeilen ändern", "Edit lines",
     "Modifier les lignes" },  // STR_PS_EDIT_LINES
   { "nur für diesen Druck", "for this print only",

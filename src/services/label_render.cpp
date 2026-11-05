@@ -322,8 +322,10 @@ static void drawOneLine(lv_obj_t* canvas, const LabelArea& a, const LabelContent
   }
   if (p.code) {
     const lv_coord_t qx = p.beside ? a.x + a.w - p.code : a.x + (a.w - p.code) / 2;
+    // The square, which carries the code alone, has it in the middle.
     const lv_coord_t qy = p.beside ? (a.top ? facts_top : facts_top + (avail_h - p.code) / 2)
-                                   : facts_top + text_h + gapOverCode(a, rows);
+                        : a.small && rows == 0 ? facts_top + (avail_h - p.code) / 2
+                                               : facts_top + text_h + gapOverCode(a, rows);
     drawQr(canvas, qx, qy, p.code, c.qr);
   }
 }
@@ -650,29 +652,6 @@ static const lv_font_t* nameWrapFont(const LabelArea& a, bool tall, const LabelC
   return nullptr;
 }
 
-// The lines a continuous label comes to: the last line that has ink on the
-// canvas, the margin under it, at least BROTHER_QL_MIN_LINES.
-// Root: Joerg 05.11.2026, "Endlos ... die Laenge entsprechend der angehakten
-//   Schalter": no fixed length. Fix: the label is drawn top-aligned on the
-//   longest one there may be and cut here, so the length is what the drawing
-//   made, measured once; the same planner as every label, nothing estimated.
-// NOT-TO-DO: a second, measuring pass that guesses the length first: every
-//   block (name wrapped or not, code beside or below) would need its height
-//   twice, and one that differed would cut a line.
-static uint16_t endlessLines(const void* buf, uint16_t cw, uint16_t ch, lv_coord_t margin) {
-  const lv_color_t* px = static_cast<const lv_color_t*>(buf);
-  const lv_color_t white = lv_color_white();
-  int last = -1;
-  for (int y = ch - 1; y >= 0 && last < 0; y--) {
-    const lv_color_t* row = px + size_t(y) * cw;
-    for (uint16_t x = 0; x < cw; x++)
-      if (row[x].full != white.full) { last = y; break; }
-  }
-  const int lines = last + 1 + margin;
-  return (uint16_t)(lines < BROTHER_QL_MIN_LINES ? BROTHER_QL_MIN_LINES
-                    : lines > ch ? ch : lines);
-}
-
 // Every label the scale prints, laid out as `layout` says.
 static bool renderLabel(const LabelPrinterConfig& printer, const LabelLayout& layout,
                         const LabelContent& c, LabelRaster* out) {
@@ -680,7 +659,7 @@ static bool renderLabel(const LabelPrinterConfig& printer, const LabelLayout& la
   *out = LabelRaster{};
   const uint16_t content_w = labelPrinterContentWidth(printer.model, printer.media_width_mm);
   // Continuous tape has no length of its own: the longest there may be,
-  // cut to the content after drawing (endlessLines()).
+  // cut to the content after drawing (label_draw.h endlessLines()).
   const bool endless = labelPrinterMediaContinuous(printer.model, printer.media_width_mm,
                                                    printer.media_length_mm);
   uint16_t h = endless ? BROTHER_QL_MAX_LINES
@@ -732,7 +711,16 @@ static bool renderLabel(const LabelPrinterConfig& printer, const LabelLayout& la
   area.wrap_font = nameWrapFont(area, tall, body, layout);
   area.y = drawHead(canvas, area, tall, *c.d, layout);
   const LabelBody placed = drawBody(canvas, area, tall, body);
-  if (endless) h = endlessLines(buf, cw, ch, M);
+  if (endless) h = endlessLines(canvas, cw, ch, M);
+  // The square carries the code alone (Spec V76): a label with none, such as
+  // a filament's without a page to open, or one whose code does not fit,
+  // would come out blank. Refused instead; the label page says why.
+  if (small && !placed.qr) {
+    logSDf("Label: %s has no code for the 23 x 23 square, nothing to print", c.what);
+    lv_obj_del(parent);
+    heap_caps_free(buf);
+    return false;
+  }
 
   const uint16_t x0 = labelPrinterContentX(printer);
   const bool ok = packCanvas(canvas, content_w, h, row_w, x0, out);
@@ -948,7 +936,8 @@ bool labelRenderFilament(const LabelPrinterConfig& printer, const LabelLayout& l
   char qr[LABEL_QR_LEN];
   labelQrForFilament(spool, qr, sizeof(qr));
   // No page to open: the label is laid out as one without a code. The
-  // template as the roll carries it (the square: material and code).
+  // template as the roll carries it (the square: the code alone, refused
+  // without one in renderLabel()).
   LabelLayout l = labelLayoutForMedia(layout, printer.media_width_mm, printer.media_length_mm);
   if (!qr[0]) l.fields &= ~(1u << LF_QR);
   const int capacity = labelFactCapacity(l, printer.media_width_mm, printer.media_length_mm);
@@ -963,7 +952,7 @@ bool labelRenderSpool(const LabelPrinterConfig& printer, const LabelLayout& save
                       const SpoolLabelData& spool, LabelRaster* out) {
   // The tape's own arrangement: maker, material, name and the number.
   if (labelPrinterIsTape(printer.model)) return labelRenderTape(printer, spool, true, "spool", out);
-  // The template as the roll carries it (the square: material and code).
+  // The template as the roll carries it (the square: the code alone).
   const LabelLayout layout = labelLayoutForMedia(saved, printer.media_width_mm,
                                                  printer.media_length_mm);
   char qr[LABEL_QR_LEN];

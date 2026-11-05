@@ -93,4 +93,9 @@ lv_coord_t drawQr(lv_obj_t* canvas, lv_coord_t x, lv_coord_t y, lv_coord_t box,
 bool packCanvas(lv_obj_t* canvas, uint16_t content_w, uint16_t h, uint16_t row_w,
                 uint16_t x0, LabelRaster* out);
 
+// The lines a continuous label comes to, drawn top-aligned on a w x h canvas
+// (flat, true colour): down to its last line that prints, the margin under
+// it, at least BROTHER_QL_MIN_LINES (12.7 mm), at most h.
+uint16_t endlessLines(lv_obj_t* canvas, uint16_t w, uint16_t h, lv_coord_t margin);
+
 }  // namespace labeldraw
