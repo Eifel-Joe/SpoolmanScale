@@ -10,6 +10,7 @@
 
 #include "app_config.h"
 #include "bambu/bambu_catalog.h"
+#include "services/label_printer.h"
 #include "services/filament_db_store.h"
 #include "bambu/bambu_catalog_sync.h"
 #include "services/dried_migrate.h"
@@ -1871,6 +1872,26 @@ void appLoop() {
     amsWindowEnd("another spool");
   }
   updateAmsMainButton();
+
+  // The Bluetooth symbol's colour (Spec 5.3 AC f21, V74): green while the
+  // Bluetooth printer was there at the last scan or print.
+  // Root: the header is redrawn on a change only (server reach, load cell,
+  //   a screen that rebuilds it), never on a timer, so a print or a scan that
+  //   turned the printer green left the symbol grey until something else
+  //   changed (acceptance v0.8.7-beta.6A, 05.11.2026).
+  // Fix: the loop redraws it when the reach changes, as it does for the
+  //   server's reach below. Prints and scans run in this loop, so the next
+  //   pass after one sees it.
+  // NOT-TO-DO: the label printer service calling the header itself: a
+  //   service has no business with the screen, and the doc and host builds
+  //   would need a stub. See test_printer_reach.py, 4b.
+  {
+    static bool was_reached = false;
+    if (labelPrinterReachable() != was_reached) {
+      was_reached = !was_reached;
+      updateHeaderStatus();
+    }
+  }
 
   // Fix 10: Spoolman health check every 30s
   perfSection("netsvc");

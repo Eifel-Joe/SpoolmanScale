@@ -205,7 +205,7 @@ static uint16_t s_want_w = 0, s_want_l = 0;
 // (Spec 5.3 AC f21, V74; services/label_printer_reach.h): grey after a start
 // until a scan finds it or it takes a print, and grey again for another
 // device. Memory only: a printer switched off overnight is not green from
-// yesterday. The header reads it on its five second round.
+// yesterday. The loop redraws the header when it changes (app_loop.cpp).
 static bool s_reachable = false;
 
 static void noteReach(LabelPrinterReach r, const char* after) {

@@ -98,6 +98,15 @@ hdr = ks.squeeze(ks.body_of("ui/header_status.cpp", "updateHeaderStatus"))
 need("labelPrinterReachable()" in hdr and "UI_COL_GOOD" in hdr and "UI_COL_CAPTION" in hdr,
      "src/ui/header_status.cpp: the Bluetooth symbol does not show the printer's reach")
 
+# 4b. The header is redrawn on a change only (server reach, load cell), not
+#     on a timer: the loop redraws it when the printer's reach changes, or the
+#     symbol keeps its old colour until something else changes (acceptance
+#     v0.8.7-beta.6A, 05.11.2026: "symbol green" in the log, the symbol grey).
+loop = ks.squeeze(ks.body_of("app/app_loop.cpp", "appLoop"))
+i_reach = loop.find("labelPrinterReachable()")
+need(i_reach >= 0 and "updateHeaderStatus()" in loop[i_reach:i_reach + 200],
+     "src/app/app_loop.cpp: appLoop() does not redraw the header when the printer's reach changes")
+
 # 5. The acceptance build's made-up answer (Spec 5.3 AA, V74): asked before
 #    any Bluetooth driver, never on the Brother's way, and for a scan; a
 #    release gets stubs that answer "none".
