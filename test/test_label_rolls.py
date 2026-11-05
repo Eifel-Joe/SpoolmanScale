@@ -97,8 +97,12 @@ need("fitFont(" in ks.squeeze(ks.body_of(RENDER, "drawHeader")),
 lp = ks.source_of(LP).code_str
 for key in ('"printer_bqm"', '"printer_bqw"', '"printer_bqh"'):
     need(key in lp, f"src/{LP}: no key {key} for the Brother")
+# The roll's own key, read through netOffsetOf() or directly.
+need("brotherQlOffsetKey(" in ks.squeeze(ks.body_of(LP, "netOffsetOf")),
+     f"src/{LP}: netOffsetOf() does not take the roll's own key")
 net_cfg = ks.squeeze(ks.body_of(LP, "netConfig"))
-need("brotherQlOffsetKey(" in net_cfg, f"src/{LP}: netConfig() does not read the roll's own position")
+need("netOffsetOf(" in net_cfg or "brotherQlOffsetKey(" in net_cfg,
+     f"src/{LP}: netConfig() does not read the roll's own position")
 net_save = ks.squeeze(ks.body_of(LP, "netSave"))
 need("brotherQlOffsetKey(" in net_save, f"src/{LP}: netSave() does not write the roll's own position")
 norm = ks.squeeze(ks.body_of(LP, "netNormalized"))
@@ -111,7 +115,9 @@ need("brotherQlContentX(" in ks.squeeze(ks.body_of(LP, "labelPrinterContentX")),
 need("brotherQlOffsetRange(" in ks.squeeze(ks.body_of(LP, "labelPrinterOffsetRange")),
      f"src/{LP}: labelPrinterOffsetRange() is not the roll's own for a Brother")
 # The driver learns which Brother it is: the QL-700 takes other bytes.
-need("BQM_QL700" in ks.squeeze(ks.body_of(LP, "printBrother")),
+pb = ks.squeeze(ks.body_of(LP, "printBrother"))
+need("BQM_QL700" in pb or ("brotherModelOf(" in pb and
+                           "BQM_QL700" in ks.squeeze(ks.body_of(LP, "brotherModelOf"))),
      f"src/{LP}: printBrother() sends every Brother the QL-810W's bytes")
 
 # 4. The browser may pick any roll the model takes, not only the profile's
