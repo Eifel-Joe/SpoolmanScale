@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "app/app_state.h"
+#include "app/doc_build.h"
 #include "hardware/sd_logger.h"
 #include "services/auto_weight_state.h"
 #include "services/backend.h"
@@ -373,6 +374,15 @@ void amsPickTick() {
 // any time, and the recheck runs while the view is closed but not torn down.
 static bool bayHoldsSpool(int printer_id, int ams_id, int tray_id, bool* known) {
   *known = false;
+  // The acceptance firmware can make an empty bay look occupied for this look
+  // only (Spec 5.3 AA, V71); a release always asks the printer (-1).
+  const int made_up = docBayPresence(printer_id, ams_id, tray_id);
+  if (made_up >= 0) {
+    *known = true;
+    logSDf("AMSPICK: recheck, bay %d/%d of printer %d %s by the acceptance switch", ams_id,
+           tray_id, printer_id, made_up ? "occupied" : "empty");
+    return made_up == 1;
+  }
   void* mem = heap_caps_malloc(sizeof(AmsSlotState), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
   if (!mem) mem = heap_caps_malloc(sizeof(AmsSlotState), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
   if (!mem) {

@@ -150,6 +150,31 @@ bool docTagPage(uint8_t page, uint8_t* data) {
   return simNtagPage(s_tag_uid, page, data);
 }
 
+// ---- a bay seen as occupied or empty (v0.8.7-beta.4) --------------------------
+// Read by the recheck in the loop; the web route sets it from the loop as well.
+static bool s_bay_on = false;
+static int  s_bay_printer = 0, s_bay_ams = -1, s_bay_tray = -1;
+static bool s_bay_present = false;
+
+void docBaySet(int printer_id, int ams_id, int tray_id, bool present) {
+  s_bay_printer = printer_id;
+  s_bay_ams     = ams_id;
+  s_bay_tray    = tray_id;
+  s_bay_present = present;
+  s_bay_on      = true;
+}
+
+void docBayOff() {
+  s_bay_on = false;
+}
+
+int docBayPresence(int printer_id, int ams_id, int tray_id) {
+  if (!s_bay_on || printer_id != s_bay_printer || ams_id != s_bay_ams || tray_id != s_bay_tray) {
+    return -1;
+  }
+  return s_bay_present ? 1 : 0;
+}
+
 // The release literal is cut out of FW_VERSION here instead of being written a
 // second time: it lives in app_config.h alone, the one place the release run
 // and scripts/check.sh read, and a copy would drift at the next version.

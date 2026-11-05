@@ -60,6 +60,14 @@ bool docTagActive();
 bool docTagUid(uint8_t* uid, uint8_t* uid_len);
 bool docTagPage(uint8_t page, uint8_t* data);
 
+// A bay the recheck of an assignment sees as occupied or empty (Spec 5.3 AA,
+// v0.8.7-beta.4, V71): the AMS of Jörg's printers cannot be made to report a
+// spool in an empty bay without a spool. One bay at a time; read in the loop.
+void docBaySet(int printer_id, int ams_id, int tray_id, bool present);
+void docBayOff();
+// 1 occupied, 0 empty for the bay that is set, -1 for any other (ask the printer).
+int  docBayPresence(int printer_id, int ams_id, int tray_id);
+
 // The version every text on the display shows (header line, info screen, the
 // firmware screens): FW_VERSION in the acceptance firmware, which says
 // "A" there (Spec V61), and FW_VERSION without "-doku" in the documentation
@@ -86,6 +94,9 @@ static inline void  docTagOff() {}
 static inline bool  docTagActive() { return false; }
 static inline bool  docTagUid(uint8_t*, uint8_t*) { return false; }
 static inline bool  docTagPage(uint8_t, uint8_t*) { return false; }
+static inline void  docBaySet(int, int, int, bool) {}
+static inline void  docBayOff() {}
+static inline int   docBayPresence(int, int, int) { return -1; }
 
 // A release shows what it is.
 static inline const char* fwVersionShown() { return FW_VERSION; }

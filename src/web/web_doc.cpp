@@ -40,6 +40,10 @@
 //                                           reader (v0.8.7-beta.2)
 //   POST /api/sim/popup?name=tare-missing   a new popup opened for the picture
 //                                           (v0.8.7-beta.2)
+//   POST /api/sim/bay?printer=&ams=&tray=&present=1|0 | off
+//                                           the recheck of an assignment sees
+//                                           that bay as occupied or empty
+//                                           (v0.8.7-beta.4)
 // This file is the only place in src/ that spells them: the release run looks
 // for these two texts in every file it attaches, and a hit means a switch got
 // into a release (test_build_variants.py keeps the texts out of every other file).
@@ -226,6 +230,36 @@ void docRoutes(WebServer& srv) {
     showTareMissingPopup();
     logSD("Acceptance build: popup tare-missing opened for the picture");
     srv.send(200, "application/json", "{\"popup\":\"tare-missing\"}");
+  });
+
+  // A bay the recheck of an assignment (j07) sees as occupied or empty (Spec
+  // 5.3 AA, v0.8.7-beta.4, V71): BamBuddy drops an assignment to an empty bay
+  // after two minutes, and the scale sends it again only while the AMS
+  // reports a spool there, which an empty bay of Jörg's printers never does.
+  // Only the recheck reads it (services/ams_pick.cpp, bayHoldsSpool()); the
+  // AMS view and BamBuddy see the printer as it is. off asks the printer again.
+  srv.on("/api/sim/bay", HTTP_POST, [&srv]() {
+    if (!webRequire(srv, GATE_MAINT, T(STR_W_NAV_LOGS))) return;
+    if (srv.arg("printer") == "off") {
+      docBayOff();
+      logSD("Acceptance build: bay switch off, the recheck asks the printer");
+      srv.send(200, "application/json", "{\"bay\":false}");
+      return;
+    }
+    const int printer = intArg(srv, "printer", -1);
+    const int ams     = intArg(srv, "ams", -1);
+    const int tray    = intArg(srv, "tray", -1);
+    const int present = intArg(srv, "present", -1);
+    if (printer <= 0 || ams < 0 || ams > 255 || tray < 0 || tray > 3 || (present != 0 && present != 1)) {
+      srv.send(400, "application/json",
+               "{\"error\":\"printer >= 1, ams 0-255, tray 0-3, present 0 or 1; or printer=off\"}");
+      return;
+    }
+    docBaySet(printer, ams, tray, present == 1);
+    logSDf("Acceptance build: the recheck sees bay %d/%d of printer %d as %s", ams, tray, printer,
+           present ? "occupied" : "empty");
+    srv.send(200, "application/json", String("{\"bay\":true,\"printer\":") + printer + ",\"ams\":" + ams +
+                                          ",\"tray\":" + tray + ",\"present\":" + present + "}");
   });
 
   // The battery as the rules would see it (Spec 5.3 AA, V60): readings made
