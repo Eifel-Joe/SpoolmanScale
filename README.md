@@ -166,6 +166,7 @@ This fork is built on the work of others, taken over with their commits or as ma
 - **[@AreYouThereAndi2](https://github.com/AreYouThereAndi2)** – from the fork [AreYouThereAndi2/SpoolmanScale](https://github.com/AreYouThereAndi2/SpoolmanScale): the subtraction of accessories on a spool, the settings backup and the scale test page, the check that a spool picked in FilaMan without a tag has loaded before it is weighed, the reports to BamBuddy that no longer stall the screen, the busy ring while the scale waits on its server, and "Take out" on the AMS bay card, taken over in parts and adapted.
 - **[@Jensilein](https://github.com/Jensilein)** – the Creality CFS tags, from the original's pre-releases; from the fork [Jensilein/SpoolmanScale](https://github.com/Jensilein/SpoolmanScale): an AMS assignment that BamBuddy dropped is sent again, "Loading AMS bays" after the lift, and "Not into the AMS" in the bay question, taken over whole or in parts.
 - **[@lvmiller](https://github.com/lvmiller)** – from the fork [lvmiller/SpoolmanScale](https://github.com/lvmiller/SpoolmanScale): the read limits for the filament database and the catalogs.
+- **[@renatobrunella](https://github.com/renatobrunella)** – from the fork [renatobrunella/SpoolmanScale](https://github.com/renatobrunella/SpoolmanScale): the link list counts Spoolman's own tag relation as bound, taken over in parts.
 
 Credits for SpoolmanScale itself are in the original's README below.
 
