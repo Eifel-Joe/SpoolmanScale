@@ -45,6 +45,7 @@ Compared with the original's current release, 0.8.3. Each line names the stable 
 
 - 🏷️ **Brother QL over WiFi** – the QL-810W/820NWB with DK-11209 (62×29 mm), printed by the scale itself, no PC or app needed; "Label printer" chooses Off, Bluetooth or WiFi. *since 0.8.5*
 - 🔠 **Larger label text** – the lines take the largest font that fits the label, and a switch adds the colour as an RGB line for the slicer. *since 0.8.6*
+- 🎞️ **More Bluetooth label printers** – the NIIMBOT D110 and D110 M with a fixed 12×40 mm tape label (by NDRST, from the original), the TYPONOS PM240 (experimental, never tried on a real one - feedback welcome), and a Bluetooth symbol that turns green while the printer was there at the last scan or print. *since 0.8.7*
 
 **Printers**
 
@@ -163,10 +164,12 @@ This fork is built on the work of others, taken over with their commits or as ma
 
 - **[@Niko11111](https://github.com/Niko11111)** – SpoolmanScale itself, the original this fork follows.
 - **[@wolfrage76](https://github.com/wolfrage76)** – the Waveshare support from [Waveshare-Spoolman-Scale](https://github.com/wolfrage76/Waveshare-Spoolman-Scale): one firmware for several boards with the Waveshare 7 as the second, a touch that wakes the panel, and screenshots at the panel's size. Also the photo above and the 7" enclosure.
-- **[@AreYouThereAndi2](https://github.com/AreYouThereAndi2)** – from the fork [AreYouThereAndi2/SpoolmanScale](https://github.com/AreYouThereAndi2/SpoolmanScale): the subtraction of accessories on a spool, the settings backup and the scale test page, the check that a spool picked in FilaMan without a tag has loaded before it is weighed, the reports to BamBuddy that no longer stall the screen, the busy ring while the scale waits on its server, and "Take out" on the AMS bay card, taken over in parts and adapted.
+- **[@AreYouThereAndi2](https://github.com/AreYouThereAndi2)** – from the fork [AreYouThereAndi2/SpoolmanScale](https://github.com/AreYouThereAndi2/SpoolmanScale): the subtraction of accessories on a spool, the settings backup and the scale test page, the check that a spool picked in FilaMan without a tag has loaded before it is weighed, the reports to BamBuddy that no longer stall the screen, the busy ring while the scale waits on its server, "Take out" on the AMS bay card, and labels on the TYPONOS PM240 (experimental), taken over in parts and adapted.
 - **[@Jensilein](https://github.com/Jensilein)** – the Creality CFS tags, from the original's pre-releases; from the fork [Jensilein/SpoolmanScale](https://github.com/Jensilein/SpoolmanScale): an AMS assignment that BamBuddy dropped is sent again, "Loading AMS bays" after the lift, and "Not into the AMS" in the bay question, taken over whole or in parts.
 - **[@lvmiller](https://github.com/lvmiller)** – from the fork [lvmiller/SpoolmanScale](https://github.com/lvmiller/SpoolmanScale): the read limits for the filament database and the catalogs.
 - **[@renatobrunella](https://github.com/renatobrunella)** – from the fork [renatobrunella/SpoolmanScale](https://github.com/renatobrunella/SpoolmanScale): the link list counts Spoolman's own tag relation as bound, taken over in parts.
+- **[@NDRST](https://github.com/NDRST)** – the NIIMBOT D110 and D110 M with their 12 × 40 mm tape label, from the original's pre-releases, taken over with the commits.
+- **[@akira69](https://github.com/akira69)** – the idea of a Bluetooth symbol that shows whether the label printer was there, from the fork [akira69/SpoolmanScale](https://github.com/akira69/SpoolmanScale), built anew here.
 
 Credits for SpoolmanScale itself are in the original's README below.
 
