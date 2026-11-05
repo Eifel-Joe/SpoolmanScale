@@ -72,14 +72,15 @@ assert at + 1 < len(entries) and entries[at + 1] == ("LF_COLOR_RGB", "STR_LBL_F_
 
 # 4. The layouts: a fact line in every arrangement (not under a condition of
 # the preset), a field the filament label has, on in neither default.
-body = body_of(LAYOUT, "labelFactFields")
+# labelFactFields() is inline in the header since v0.8.7-beta.7.
+body = body_of(LAYOUT_H, "labelFactFields")
 hits = [m.start() for m in re.finditer(r"LF_COLOR_RGB", body)]
-assert hits, f"src/{LAYOUT}: labelFactFields() does not count LF_COLOR_RGB"
+assert hits, f"src/{LAYOUT_H}: labelFactFields() does not count LF_COLOR_RGB"
 for pos in hits:
     depth = body[:pos].count("{") - body[:pos].count("}")
     start = max(body.rfind(";", 0, pos), body.rfind("{", 0, pos), body.rfind("}", 0, pos)) + 1
     assert depth == 0 and not body[start:].startswith("if("), \
-        f"src/{LAYOUT}: labelFactFields() counts LF_COLOR_RGB for some arrangements only"
+        f"src/{LAYOUT_H}: labelFactFields() counts LF_COLOR_RGB for some arrangements only"
 layout = view_of(LAYOUT)
 for name, want in (("FILAMENT_FIELDS", True), ("DEFAULT_FIELDS", False), ("FILAMENT_DEFAULT_FIELDS", False)):
     m = re.search(r"\b" + name + r"\s*=\s*([^;]*);", layout)

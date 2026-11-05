@@ -57,22 +57,6 @@ LabelLayout labelLayoutSanitized(const LabelLayout& in) {
   return l;
 }
 
-bool labelLayoutHas(const LabelLayout& layout, LabelField field) {
-  return (layout.fields >> field) & 1u;
-}
-
-bool labelLayoutOption(const LabelLayout& layout, LabelOption option) {
-  return (layout.options >> option) & 1u;
-}
-
-bool labelPresetHasQr(uint8_t preset) {
-  return preset != LABEL_PRESET_TEXT_ONLY;
-}
-
-bool labelLayoutHasCode(const LabelLayout& layout) {
-  return labelLayoutHas(layout, LF_QR) && labelPresetHasQr(layout.preset);
-}
-
 // The rolls come 30 mm along the feed, 40 or 50 across. Measured in the
 // simulator on 40 x 30 and 50 x 30, flat and upright, with the longest
 // lines of the fixture spools: what each arrangement prints without a line
@@ -137,16 +121,6 @@ int labelFactCapacity(const LabelLayout& layout, uint16_t width_mm, uint16_t len
                         : (upright ? CAP_UPRIGHT_40 : CAP_FLAT_40);
   return labelLayoutHasCode(layout) ? FACT_CAPACITY[row][preset]
                                     : FACT_CAPACITY_NO_CODE[row][preset];
-}
-
-uint32_t labelFactFields(uint8_t preset) {
-  uint32_t m = (1u << LF_SPOOL_ID) | (1u << LF_COLOR) | (1u << LF_DATE) | (1u << LF_BRAND) |
-               (1u << LF_ARTICLE) | (1u << LF_SPOOL_WEIGHT) | (1u << LF_NET_WEIGHT) |
-               (1u << LF_TEMPS) | (1u << LF_LOCATION) | (1u << LF_DRIED) | (1u << LF_FREE_TEXT) |
-               (1u << LF_DRYING) | (1u << LF_COLOR_RGB);
-  // The compact arrangement sets the maker among the facts.
-  if (preset == LABEL_PRESET_COMPACT) m |= 1u << LF_VENDOR;
-  return m;
 }
 
 LabelLayout labelLayoutLoad(LabelKind kind) {

@@ -81,15 +81,25 @@ LabelLayout labelLayoutDefault(LabelKind kind = LABEL_KIND_SPOOL);
 uint32_t labelKindFields(LabelKind kind);
 // Known bits only, a known arrangement: what the browser sent may be anything.
 LabelLayout labelLayoutSanitized(const LabelLayout& in);
-bool labelLayoutHas(const LabelLayout& layout, LabelField field);
-bool labelLayoutOption(const LabelLayout& layout, LabelOption option);
+// Inline since v0.8.7-beta.7: the pure rules of the label at the scale
+// (label_edit_rules.h) and their host tests use them without NVS.
+inline bool labelLayoutHas(const LabelLayout& layout, LabelField field) {
+  return (layout.fields >> field) & 1u;
+}
+inline bool labelLayoutOption(const LabelLayout& layout, LabelOption option) {
+  return (layout.options >> option) & 1u;
+}
 
 // Whether an arrangement draws a code at all; the QR field means nothing
 // where it does not.
-bool labelPresetHasQr(uint8_t preset);
+inline bool labelPresetHasQr(uint8_t preset) {
+  return preset != LABEL_PRESET_TEXT_ONLY;
+}
 // Whether this layout's label carries a code: the arrangement has one and
 // the field is on.
-bool labelLayoutHasCode(const LabelLayout& layout);
+inline bool labelLayoutHasCode(const LabelLayout& layout) {
+  return labelLayoutHas(layout, LF_QR) && labelPresetHasQr(layout.preset);
+}
 // How many fact lines this layout keeps whole on a roll of this size, upright
 // or not, with its code or without. In millimetres, so it holds at 203 and
 // 300 dpi. The renderer stops there, and the browser lets no more be on.
@@ -132,7 +142,15 @@ inline LabelLayout labelLayoutForMedia(const LabelLayout& layout, uint16_t width
 }
 // The fields that become a fact line in this arrangement, as a mask: what
 // the capacity counts. The header blocks and the code are not among them.
-uint32_t labelFactFields(uint8_t preset);
+inline uint32_t labelFactFields(uint8_t preset) {
+  uint32_t m = (1u << LF_SPOOL_ID) | (1u << LF_COLOR) | (1u << LF_DATE) | (1u << LF_BRAND) |
+               (1u << LF_ARTICLE) | (1u << LF_SPOOL_WEIGHT) | (1u << LF_NET_WEIGHT) |
+               (1u << LF_TEMPS) | (1u << LF_LOCATION) | (1u << LF_DRIED) | (1u << LF_FREE_TEXT) |
+               (1u << LF_DRYING) | (1u << LF_COLOR_RGB);
+  // The compact arrangement sets the maker among the facts.
+  if (preset == LABEL_PRESET_COMPACT) m |= 1u << LF_VENDOR;
+  return m;
+}
 
 // Cached after the first read; every write goes through the save.
 LabelLayout labelLayoutLoad(LabelKind kind = LABEL_KIND_SPOOL);
