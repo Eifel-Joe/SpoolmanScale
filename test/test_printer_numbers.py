@@ -77,10 +77,13 @@ norm = ks.squeeze(ks.body_of(LP, "normalized"))
 need("isBrother(p)" in norm or "LP_PROTO_BROTHER_QL" in norm,
      f"src/{LP}: normalized() takes the Brother's number from printer_model as it is")
 
-# 3. The print goes to the TSPL driver for the PM240.
-pr = ks.squeeze(ks.body_of(LP, "labelPrinterPrint"))
-need("LP_PROTO_TSPL" in pr and "tsplPrint(" in ks.squeeze(code),
-     f"src/{LP}: labelPrinterPrint() has no way to the TSPL driver")
+# 3. The print goes to the TSPL driver for the PM240: the Bluetooth printers'
+#    door (printBle(), behind labelPrinterPrint()) sends LP_PROTO_TSPL there.
+ble = ks.squeeze(ks.body_of(LP, "printBle"))
+need("LP_PROTO_TSPL" in ble and "tsplPrint(" in ble,
+     f"src/{LP}: printBle() has no way to the TSPL driver")
+need("printBle(" in ks.squeeze(ks.body_of(LP, "labelPrinterPrint")),
+     f"src/{LP}: labelPrinterPrint() does not reach the Bluetooth printers through printBle()")
 
 # 4. The size lists of the pages carry the models of the chosen link, the
 #    Brother's under WLAN too (our fitList() did; the original's helper lists

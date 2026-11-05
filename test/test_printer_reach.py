@@ -109,7 +109,7 @@ need("docPrinterPrintTake" not in ks.squeeze(ks.body_of(LP, "printBrother")),
      f"src/{LP}: the Brother's print asks for a made-up answer")
 need("docPrinterScanTake()" in scan, f"src/{LP}: labelPrinterNoteScan() does not ask for a made-up scan")
 doc_h = (ks.src / "app/doc_build.h").read_text(encoding="utf-8")
-split = doc_h.find("#else")
+split = doc_h.find("\n#else")   # the branch, not the word in a comment
 need(split > 0 and "int docPrinterPrintTake();" in doc_h[:split] and "int docPrinterScanTake();" in doc_h[:split],
      "src/app/doc_build.h: the acceptance build does not declare the made-up printer answers")
 need("docPrinterPrintTake() { return -1; }" in doc_h[split:] and "docPrinterScanTake() { return -1; }" in doc_h[split:],
