@@ -101,8 +101,10 @@ struct LabelArea {
   // A name one line would cut goes on two in this font; null: it is cut.
   const lv_font_t* wrap_font;
   // A roll under 30 x 30 mm (labelMediaSmall()): the band is as high as its
-  // line and its font as large as the material fits (f08).
+  // line and its font as large as the material fits (f08), and as the code
+  // under it still allows (smallBandFont()); null: by the material alone.
   bool small;
+  const lv_font_t* band_font;
 };
 
 // One of two columns side by side.
@@ -163,9 +165,12 @@ static lv_coord_t drawHeader(lv_obj_t* canvas, const LabelArea& a, bool tall,
     // largest of three sizes the material fits and is as high as its line.
     static const lv_font_t* const small_fonts[] = { LR_BAND_FONT, &lv_font_montserrat_ext_20, &lv_font_montserrat_ext_16 };
     const lv_font_t* f = tall ? &lv_font_montserrat_ext_28
-                       : a.small ? fitFont(d.material, a.w - 2 * dots(LR_GAP_PX), small_fonts, 3)
+                       : a.small ? (a.band_font ? a.band_font
+                                                : fitFont(d.material, a.w - 2 * dots(LR_GAP_PX), small_fonts, 3))
                                  : LR_BAND_FONT;
-    const lv_coord_t band_h = a.small ? (lv_coord_t)(lineHeight(f) + dots(LR_GAP_PX))
+    // On a small roll the band is exactly as high as its line: the square's
+    // 202 lines hold a band and a 148-dot code only that way.
+    const lv_coord_t band_h = a.small ? lineHeight(f)
                                       : dots(tall ? LR_BAND_H_TALL_PX : LR_BAND_H_PX);
     // Plain: the same line in black on white, for a roll that smears a band.
     const bool plain = labelLayoutOption(layout, LO_MATERIAL_PLAIN);
@@ -252,6 +257,13 @@ struct BodyPlan {
   bool beside;
 };
 
+// The space over a code drawn under the facts. None on a small roll with no
+// fact line: the header's gap already stands above it, and the square needs
+// every line for the code (acceptance of v0.8.7-beta.7, round 1).
+static lv_coord_t gapOverCode(const LabelArea& a, int rows) {
+  return a.small && rows == 0 ? 0 : dots(LR_GAP_PX);
+}
+
 // The facts and the code under the header. The code goes where it comes out
 // larger: next to the facts on a wide label, under them on a tall one, and it
 // takes all the height it gets. When that leaves it small, the fact lines
@@ -265,7 +277,7 @@ static BodyPlan planOneLine(const LabelArea& a, bool tall, const LabelContent& c
   for (int pass = 0; pass < 2; pass++) {
     lv_coord_t qr_beside = a.w - textKeep(a, c, p.font) - dots(LR_GAP_PX);
     if (qr_beside > avail_h) qr_beside = avail_h;
-    lv_coord_t qr_below = avail_h - rows * p.line - dots(LR_GAP_PX);
+    lv_coord_t qr_below = avail_h - rows * p.line - gapOverCode(a, rows);
     if (qr_below > a.w) qr_below = a.w;
     p.beside = qr_beside >= qr_below;
     p.qr = p.beside ? qr_beside : qr_below;
@@ -308,7 +320,8 @@ static void drawOneLine(lv_obj_t* canvas, const LabelArea& a, const LabelContent
   }
   if (p.code) {
     const lv_coord_t qx = p.beside ? a.x + a.w - p.code : a.x + (a.w - p.code) / 2;
-    const lv_coord_t qy = p.beside ? facts_top + (avail_h - p.code) / 2 : facts_top + text_h + dots(LR_GAP_PX);
+    const lv_coord_t qy = p.beside ? facts_top + (avail_h - p.code) / 2
+                                   : facts_top + text_h + gapOverCode(a, rows);
     drawQr(canvas, qx, qy, p.code, c.qr);
   }
 }
@@ -595,8 +608,9 @@ static lv_coord_t bodyCode(const LabelArea& a, bool tall, const LabelContent& c,
   *fits = true;
   if (planLarger(a, tall, c, one, &larger)) return larger.code;
   const lv_coord_t text = (c.wrap ? LR_WRAP_ROWS : c.n) * one.line;
+  const int rows = c.wrap ? LR_WRAP_ROWS : c.n;
   const lv_coord_t need = one.beside ? LV_MAX(text, one.code)
-                                     : text + (one.code ? one.code + dots(LR_GAP_PX) : 0);
+                                     : text + (one.code ? one.code + gapOverCode(a, rows) : 0);
   *fits = need <= a.bottom - a.y;
   return one.code;
 }
@@ -629,6 +643,34 @@ static const lv_font_t* nameWrapFont(const LabelArea& a, bool tall, const LabelC
     if (fits && trial_code >= code) return f;
   }
   return nullptr;
+}
+
+// The band on a small roll: the largest size the material fits that still
+// leaves the code its room under it, else the smallest the material fits.
+// Root: on the 23 x 23 square the base band left 132 dots, and a spool
+// address of 33 modules needs (33 + 2 x 2) x 4 = 148 at 300 dpi, so the
+// code was dropped (acceptance of v0.8.7-beta.7, round 1). Fix: measured
+// like nameWrapFont(), nothing drawn. NOT-TO-DO: modules under 0.34 mm or a
+// smaller quiet zone (label_draw.cpp sets both for the phone's camera).
+static const lv_font_t* smallBandFont(const LabelArea& a, bool tall, const LabelContent& c,
+                                      const LabelLayout& layout) {
+  static const lv_font_t* const SIZES[] = {
+    LR_BAND_FONT, &lv_font_montserrat_ext_20, &lv_font_montserrat_ext_16,
+  };
+  const SpoolLabelData& d = *c.d;
+  const lv_font_t* last = nullptr;
+  for (const lv_font_t* f : SIZES) {
+    if (!fitsLine(d.material, f, a.w - 2 * dots(LR_GAP_PX)) && f != SIZES[2]) continue;
+    last = f;
+    if (!c.qr || !c.qr[0]) return f;
+    LabelArea trial = a;
+    trial.band_font = f;
+    trial.y = drawHead(nullptr, trial, tall, d, layout);
+    bool fits = false;
+    if (bodyCode(trial, tall, c, &fits) > 0) return f;
+  }
+  logSD("Label: the code does not fit under the band on this roll");
+  return last;
 }
 
 // Every label the scale prints, laid out as `layout` says.
@@ -677,6 +719,7 @@ static bool renderLabel(const LabelPrinterConfig& printer, const LabelLayout& la
   // The larger sizes need room both ways: a 30 x 40 is tall but narrow, and
   // there the header blocks would eat what the code needs.
   const bool tall = ch >= dots(LR_TALL_PX) && area.w + 2 * M >= dots(LR_TALL_PX);
+  if (small) area.band_font = smallBandFont(area, tall, body, layout);
   area.wrap_font = nameWrapFont(area, tall, body, layout);
   area.y = drawHead(canvas, area, tall, *c.d, layout);
   const LabelBody placed = drawBody(canvas, area, tall, body);

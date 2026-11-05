@@ -88,9 +88,15 @@ for fn in ("labelRenderSpool", "labelRenderFilament", "labelRenderTest"):
          f"src/{RENDER}: {fn}() does not narrow the template to the roll")
 need("labelMediaSmall(" in ks.squeeze(ks.body_of(RENDER, "labelRenderTest")),
      f"src/{RENDER}: labelRenderTest() keeps its sentence on the square")
-# The band on a small roll takes the largest font the material fits.
+# The band on a small roll takes the largest font the material fits and
+# that still leaves the code its room: on the square the base size left 132
+# dots and a spool address of 33 modules needs 148 (acceptance, round 1).
 need("fitFont(" in ks.squeeze(ks.body_of(RENDER, "drawHeader")),
      f"src/{RENDER}: drawHeader() sets the band in one size whatever the roll")
+need("bodyCode(" in ks.squeeze(ks.body_of(RENDER, "smallBandFont")),
+     f"src/{RENDER}: smallBandFont() does not ask whether the code still fits")
+need("smallBandFont(" in ks.squeeze(ks.body_of(RENDER, "renderLabel")),
+     f"src/{RENDER}: renderLabel() does not pick the small roll's band by the code")
 
 # 3. The Brother keeps its model, its roll and a position per roll, under keys
 #    of its own; the roll and the model are checked when they are read.
