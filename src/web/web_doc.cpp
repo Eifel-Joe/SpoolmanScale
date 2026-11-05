@@ -44,6 +44,10 @@
 //                                           the recheck of an assignment sees
 //                                           that bay as occupied or empty
 //                                           (v0.8.7-beta.4)
+//   POST /api/sim/label-printer?print=ok|unreachable|off[&scan=found|missing|off]
+//                                           the next print on the Bluetooth
+//                                           printer and the next scan answer
+//                                           so, without the radio (v0.8.7-beta.6)
 // This file is the only place in src/ that spells them: the release run looks
 // for these two texts in every file it attaches, and a hit means a switch got
 // into a release (test_build_variants.py keeps the texts out of every other file).
@@ -260,6 +264,33 @@ void docRoutes(WebServer& srv) {
            present ? "occupied" : "empty");
     srv.send(200, "application/json", String("{\"bay\":true,\"printer\":") + printer + ",\"ams\":" + ams +
                                           ",\"tray\":" + tray + ",\"present\":" + present + "}");
+  });
+
+  // The Bluetooth label printer's answer (Spec 5.3 AA, v0.8.7-beta.6, V74):
+  // nobody here has a D110, a PM240 or any other Bluetooth label printer. The
+  // next print on the chosen Bluetooth printer ends as taken or not reached
+  // once its label is drawn and checked, the next scan finds the printer set
+  // up or not once it has run; each for one use, so a forgotten one cannot
+  // stand in for a real printer later. Never the Brother: its print goes its
+  // own way before the question (services/label_printer.cpp, printBle()).
+  srv.on("/api/sim/label-printer", HTTP_POST, [&srv]() {
+    if (!webRequire(srv, GATE_MAINT, T(STR_W_NAV_LOGS))) return;
+    const String print = srv.arg("print"), scan = srv.arg("scan");
+    const int p = print == "ok" ? 1 : print == "unreachable" ? 0 : print == "off" ? -1 : -2;
+    const int f = scan == "found" ? 1 : scan == "missing" ? 0 : scan == "off" ? -1 : -2;
+    const bool p_given = print.length() > 0, f_given = scan.length() > 0;
+    if ((!p_given && !f_given) || (p_given && p == -2) || (f_given && f == -2)) {
+      srv.send(400, "application/json",
+               "{\"error\":\"print=ok|unreachable|off and/or scan=found|missing|off\"}");
+      return;
+    }
+    if (p_given) docPrinterPrintSet(p);
+    if (f_given) docPrinterScanSet(f);
+    logSDf("Acceptance build: label printer answers - next print %s, next scan %s",
+           !p_given ? "unchanged" : p == 1 ? "taken" : p == 0 ? "not reached" : "real",
+           !f_given ? "unchanged" : f == 1 ? "finds it" : f == 0 ? "misses it" : "real");
+    srv.send(200, "application/json",
+             String("{\"print\":") + (p_given ? p : -3) + ",\"scan\":" + (f_given ? f : -3) + "}");
   });
 
   // The battery as the rules would see it (Spec 5.3 AA, V60): readings made

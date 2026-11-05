@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include <string.h>
 
+#include "app/doc_build.h"
 #include "hardware/sd_logger.h"
 #include "lang.h"
 #include "services/brother_ql.h"
@@ -509,6 +510,13 @@ bool labelPrinterForget() {
 }
 
 void labelPrinterNoteScan(const BleDevice* found, int count) {
+  // The acceptance build may say what the scan found instead (Spec 5.3 AA).
+  const int sim = docPrinterScanTake();
+  if (sim >= 0) {
+    logSDf("Acceptance build: scan made up as %s the printer set up", sim ? "finding" : "missing");
+    noteReach(sim ? LP_REACH_YES : LP_REACH_NO, "a made-up scan");
+    return;
+  }
   noteReach(labelScanReach(bleConfig().address, found, count), "a scan");
 }
 
@@ -671,9 +679,18 @@ static LabelPrintResult fromBrother(BrotherQlResult r) {
   }
 }
 
-// The Bluetooth printers: each protocol to its driver.
+// The Bluetooth printers: each protocol to its driver. The acceptance build
+// may answer in the printer's place first (app/doc_build.h, Spec 5.3 AA,
+// V74): the label was drawn and checked as for a real print, only the radio
+// is left out. A release's stub answers -1 and the driver runs.
 static LabelPrintResult printBle(const LabelPrinterProfile& p, const LabelPrinterConfig& c,
                                  const LabelRaster& image, BleProgressFn progress) {
+  const int sim = docPrinterPrintTake();
+  if (sim >= 0) {
+    logSDf("Acceptance build: print on %s %s made up as %s, nothing sent", p.brand, p.name,
+           sim ? "taken" : "not reached");
+    return sim ? LP_OK : LP_BLE_CONNECT;
+  }
   if (p.protocol == LP_PROTO_NIIMBOT) return printNiimbot(p, c, image, progress);
   if (p.protocol == LP_PROTO_TSPL)
     return fromBle(tsplPrint(c.address, image, c.media_width_mm, c.media_length_mm, progress));

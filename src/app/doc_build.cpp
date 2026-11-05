@@ -175,6 +175,24 @@ int docBayPresence(int printer_id, int ams_id, int tray_id) {
   return s_bay_present ? 1 : 0;
 }
 
+// The made-up answers of the Bluetooth label printer, each for one use.
+static int s_printer_print = -1, s_printer_scan = -1;
+
+void docPrinterPrintSet(int accepted) { s_printer_print = accepted < 0 ? -1 : (accepted ? 1 : 0); }
+void docPrinterScanSet(int found) { s_printer_scan = found < 0 ? -1 : (found ? 1 : 0); }
+
+int docPrinterPrintTake() {
+  const int v = s_printer_print;
+  s_printer_print = -1;
+  return v;
+}
+
+int docPrinterScanTake() {
+  const int v = s_printer_scan;
+  s_printer_scan = -1;
+  return v;
+}
+
 // The release literal is cut out of FW_VERSION here instead of being written a
 // second time: it lives in app_config.h alone, the one place the release run
 // and scripts/check.sh read, and a copy would drift at the next version.

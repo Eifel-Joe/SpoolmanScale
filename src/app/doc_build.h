@@ -67,6 +67,17 @@ void docBaySet(int printer_id, int ams_id, int tray_id, bool present);
 void docBayOff();
 // 1 occupied, 0 empty for the bay that is set, -1 for any other (ask the printer).
 int  docBayPresence(int printer_id, int ams_id, int tray_id);
+// A made-up answer of the Bluetooth label printer (Spec 5.3 AA, v0.8.7-beta.6,
+// V74): nobody here has one of these printers. The next print on the chosen
+// Bluetooth printer ends without the radio as taken (1) or not reached (0),
+// after it was drawn and checked as for a real one; the next scan finds the
+// printer set up (1) or not (0), after it ran as a real one. Each is taken
+// once; -1 clears it. Never asked for the Brother. Read in the loop.
+void docPrinterPrintSet(int accepted);
+void docPrinterScanSet(int found);
+// The answer that is set, once: 1 or 0, -1 for none (the radio decides).
+int docPrinterPrintTake();
+int docPrinterScanTake();
 
 // The version every text on the display shows (header line, info screen, the
 // firmware screens): FW_VERSION in the acceptance firmware, which says
@@ -97,6 +108,10 @@ static inline bool  docTagPage(uint8_t, uint8_t*) { return false; }
 static inline void  docBaySet(int, int, int, bool) {}
 static inline void  docBayOff() {}
 static inline int   docBayPresence(int, int, int) { return -1; }
+static inline void  docPrinterPrintSet(int) {}
+static inline void  docPrinterScanSet(int) {}
+static inline int docPrinterPrintTake() { return -1; }
+static inline int docPrinterScanTake() { return -1; }
 
 // A release shows what it is.
 static inline const char* fwVersionShown() { return FW_VERSION; }
