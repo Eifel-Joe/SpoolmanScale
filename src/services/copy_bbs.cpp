@@ -279,13 +279,13 @@ static int createAsBefore(const CopyBbsCreate& in, int* out_spool_id) {
   const float cost = copyRulesCostPerKg(tpl["cost_per_kg"] | 0.0f, s_price, s_price_typed);
   if (cost > 0.0f && isfinite(cost)) ns.cost_per_kg = cost;
   bool warned = false;
-  const int code = bbCreateSpool(backendBaseUrl(), bambuddyApiKey(), ns, out_spool_id,
-                                 BB_CREATE_TIMEOUT_MS, &warned);
-  if (code == 200 && warned && ns.cost_per_kg > 0.0f) {
+  const int created = bbCreateSpool(backendBaseUrl(), bambuddyApiKey(), ns, out_spool_id,
+                                    BB_CREATE_TIMEOUT_MS, &warned);
+  if (created == 200 && warned && ns.cost_per_kg > 0.0f) {
     logSDf("Copy: spool %d, price not taken over (207)", out_spool_id ? *out_spool_id : 0);
     s_missing = CM_PRICE;
   }
-  return code;
+  return created;
 }
 
 // One list of the template onto the new spool, complete, and only when the
