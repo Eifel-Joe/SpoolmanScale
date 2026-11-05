@@ -101,6 +101,12 @@ need("BROTHER_QL_MAX_LINES" in ks.squeeze(ks.source_of(RENDER).code) or
      "labelPrinterMaxLines(" in rl, f"src/{RENDER}: no longest continuous label")
 need("top" in ks.squeeze(ks.body_of(RENDER, "drawLarger")),
      f"src/{RENDER}: drawLarger() centres the lines on a continuous label")
+# The square carries the code alone (V76): centred on it, and a label with no
+# code (a filament without a page) is refused, never printed blank
+# (acceptance of v0.8.7-beta.7, round 2).
+need("small&&!placed.qr" in rl, f"src/{RENDER}: renderLabel() prints the square blank without a code")
+need("a.small&&rows==0?" in ks.squeeze(ks.body_of(RENDER, "drawOneLine")),
+     f"src/{RENDER}: drawOneLine() leaves the square's code at the top")
 # The raster check and the driver take any length within Brother's limits.
 need("brotherQlLinesOk(" in ks.squeeze(ks.body_of(LP, "labelPrinterRasterFits")),
      f"src/{LP}: labelPrinterRasterFits() wants a fixed length on continuous tape")
