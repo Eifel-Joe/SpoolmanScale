@@ -41,7 +41,10 @@ enum LabelPrinterModel : uint8_t {
   LP_MODEL_M110S = 9,         // the M110's bytes, a row as wide as the label
   LP_MODEL_NIIMBOT_D110 = 10, // NIIMBOT D110 and D110 M: 12 mm tape, 96 dots, the label turned
   LP_MODEL_BROTHER_QL820 = 100, // Brother QL-810W/820NWB over WLAN, see services/brother_ql.h
-  LP_MODEL_PM240 = 101         // TYPONOS PM240, TSPL over BLE (AreYouThereAndi2), see services/tspl_printer.h
+  LP_MODEL_PM240 = 101,        // TYPONOS PM240, TSPL over BLE (AreYouThereAndi2), see services/tspl_printer.h
+  // Brother QL-700, USB only, behind a computer that forwards port 9100 to it
+  // (Ziopase; Spec V75). Like the other Brother never stored as printer_model.
+  LP_MODEL_BROTHER_QL700 = 102
 };
 
 // How the scale reaches its label printer: not at all, over Bluetooth, or over
@@ -211,10 +214,12 @@ uint16_t labelPrinterContentWidth(LabelPrinterModel model, uint16_t media_width_
 uint16_t labelPrinterContentHeight(LabelPrinterModel model, uint16_t width_mm,
                                    uint16_t length_mm);
 // The first dot of the label in the print row: the middle plus the offset,
-// clamped so the label stays in the row.
+// clamped so the label stays in the row. A Brother's roll has its own place
+// in the row (brotherQlContentX()), and the offset moves it from there.
 uint16_t labelPrinterContentX(const LabelPrinterConfig& config);
 // The offsets the loaded stock allows: the label at the row's left edge and
-// at its right edge. Both 0 when the label fills the row.
+// at its right edge. Both 0 when the label fills the row. A Brother's: a few
+// millimetres either way of its roll's place (brotherQlOffsetRange()).
 void labelPrinterOffsetRange(const LabelPrinterConfig& config, int16_t* min, int16_t* max);
 // The offset in effect: the stored one, clamped to that range.
 int16_t labelPrinterOffset(const LabelPrinterConfig& config);
@@ -238,7 +243,8 @@ LabelPrintResult labelPrinterReadiness();
 BleSessionPhase labelPrinterSessionPhase();
 void labelPrinterSessionBytes(size_t* sent, size_t* total);
 
-// The models a link offers: the Brother under WLAN, else LABEL_PRINTER_MODELS.
+// The models a link offers: the two Brothers under WLAN (QL-810W/820NWB, the
+// QL-700 behind a forwarder), else LABEL_PRINTER_MODELS.
 const LabelPrinterModel* labelPrinterModels(LabelPrinterLink link, int* count);
 // The label sizes offered for a model: a Brother's from its label table, else
 // LABEL_MEDIA_SIZES.
@@ -250,6 +256,9 @@ bool labelPrinterIsTape(LabelPrinterModel model);
 
 // Whether the model takes label stock of this size.
 bool labelPrinterTakesMedia(LabelPrinterModel model, uint16_t width_mm, uint16_t length_mm);
+// Whether this stock is a Brother's continuous tape (cut where the label
+// ends) rather than die-cut labels; the size lists say so.
+bool labelPrinterMediaContinuous(LabelPrinterModel model, uint16_t width_mm, uint16_t length_mm);
 
 // The next stock size the model can take, after the current one; the first
 // fitting one when the current one is not in the model's list

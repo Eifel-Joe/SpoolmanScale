@@ -748,8 +748,10 @@ static void routes(WebServer &srv) {
     const long w = x > 0 ? strtol(v.c_str(), nullptr, 10) : 0;
     const long l = x > 0 ? strtol(v.c_str() + x + 1, nullptr, 10) : 0;
     LabelPrinterConfig c = labelPrinterLoadConfig();
-    const LabelPrinterProfile& p = labelPrinterProfile(c.model);
-    if (w < p.min_width_mm || w > p.max_width_mm || l < p.min_length_mm || l > p.max_length_mm) {
+    // What the model takes, as its size list shows it: a Brother's rolls are
+    // its label table's, not a span of millimetres (Spec V75).
+    if (w <= 0 || l <= 0 || w > 0xFF || l > 0xFF ||
+        !labelPrinterTakesMedia(c.model, (uint16_t)w, (uint16_t)l)) {
       srv.send(400, "text/plain", T(STR_PRN_ERR_MEDIA));
       return;
     }

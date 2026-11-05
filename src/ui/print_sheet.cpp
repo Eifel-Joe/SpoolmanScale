@@ -138,7 +138,9 @@ static void renderPreview() {
   // The dates come a moment later; the picture is drawn again then.
   s_waiting = !labelSpoolDatesKnown();
   if (s_waiting) label_dates_pending = true;
-  const LabelLayout layout = labelLayoutLoad(s_kind);
+  // As the roll carries it: on the square flat whatever the template says.
+  const LabelLayout layout = labelLayoutForMedia(labelLayoutLoad(s_kind), c.media_width_mm,
+                                                 c.media_length_mm);
   LabelRaster r{};
   const bool ok = s_kind == LABEL_KIND_FILAMENT ? labelRenderFilament(c, layout, spool, &r)
                                                : labelRenderSpool(c, layout, spool, &r);

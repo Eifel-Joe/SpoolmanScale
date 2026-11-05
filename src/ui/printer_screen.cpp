@@ -230,7 +230,10 @@ static void mediaPicked(int index) {
 static void addMediaCard(ChoiceCard* cards, int* n, const LabelMediaSize& s, bool enabled) {
   if (*n >= CHOICE_GRID_MAX) return;
   ChoiceCard& card = cards[*n];
-  card.caption = nullptr;   // the outline says enough
+  // The outline says enough; a Brother's continuous tape says so (Spec V75).
+  const LabelPrinterConfig c = labelPrinterLoadConfig();
+  card.caption = labelPrinterMediaContinuous(c.model, s.width_mm, s.length_mm)
+                     ? T(STR_PRN_MEDIA_CONT) : nullptr;
   snprintf(card.value, sizeof(card.value), T(STR_PRN_MEDIA_FMT),
            (unsigned)s.width_mm, (unsigned)s.length_mm);
   card.shape_w_mm = s.width_mm;

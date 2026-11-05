@@ -32,6 +32,12 @@ void webPrinterHostTile(String& h, const LabelPrinterConfig& c) {
   // Once on the printer: in "P-touch Template" a new QL prints nothing
   // (befunde 4).
   h += T(STR_W_P_HOST_HINT);
+  // The QL-700 is reached through a computer at its USB (Spec V75); shown
+  // while it is the model, see host(d).
+  h += F("</span><span class='hint' id='hq'");
+  if (c.model != LP_MODEL_BROTHER_QL700) h += F(" style='display:none'");
+  h += F(">");
+  h += T(STR_W_P_QL700_HINT);
   h += F("</span></div>");
 }
 
@@ -44,7 +50,8 @@ void webPrinterHostScript(String& h) {
          "n=m?m.querySelector('.br').textContent+' '+m.querySelector('.mn').textContent:'';"
          "t.className='dev'+(on?'':' empty');"
          "$('hn').textContent=on?n:P.none;$('hd').textContent=on?d.host:n;"
-         "const i=$('hi');if(document.activeElement!==i)i.value=d.host;}"
+         "const i=$('hi');if(document.activeElement!==i)i.value=d.host;"
+         "const q=$('hq');if(q)q.style.display=d.printer&&d.printer.model===102?'':'none';}"
          // A refused address stays in the field to be corrected; only a saved
          // one brings the new state, with the print buttons it unlocks.
          "function saveHost(){postFlash('/api/printer/host',$('hi').value.trim(),'hs-s',6000)"

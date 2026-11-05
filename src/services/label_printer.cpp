@@ -32,10 +32,17 @@
 // characters (befunde 7), and "_brother" is no hex, so no device's key is it.
 #define LP_KEY_LINK     "printer_link"
 #define LP_KEY_HOST     "printer_host"
-#define LP_KEY_NET_XOFF "px_brother"
+// Since v0.8.7-beta.7 (Spec V75): which Brother (100 or 102) and which roll
+// (width and length in mm, a row of its label table). Each roll keeps its own
+// print position under brotherQlOffsetKey(): DK-11209's under "px_brother",
+// as before, so a scale keeps its position through the update.
+#define LP_KEY_NET_MODEL "printer_bqm"
+#define LP_KEY_NET_W     "printer_bqw"
+#define LP_KEY_NET_H     "printer_bqh"
 static_assert(sizeof(LP_KEY_LINK) - 1 <= 15, "an NVS key has 15 characters at most");
 static_assert(sizeof(LP_KEY_HOST) - 1 <= 15, "an NVS key has 15 characters at most");
-static_assert(sizeof(LP_KEY_NET_XOFF) - 1 <= 15, "an NVS key has 15 characters at most");
+static_assert(sizeof(LP_KEY_NET_MODEL) - 1 <= 15 && sizeof(LP_KEY_NET_W) - 1 <= 15 &&
+              sizeof(LP_KEY_NET_H) - 1 <= 15, "an NVS key has 15 characters at most");
 
 static const LabelPrinterProfile PROFILE_NONE = {};
 // M220: 2 inch head, 576 dots, takes stock from 20 to 75 mm wide; the vendor
@@ -116,6 +123,17 @@ static const LabelPrinterProfile PROFILE_BROTHER_QL820 = {
   false, true /* DK paper is thermal */,
   300, LP_PROTO_BROTHER_QL
 };
+// Brother QL-700 (Ziopase, f08; Spec V75): USB only, so a small computer
+// forwards port 9100 to it (socat TCP-LISTEN:9100,fork FILE:/dev/usb/lp0) and
+// the scale prints to that computer's address. The same head, rows and rolls;
+// it starts a job without the raster-mode switch and the compression command
+// (brother_ql_rules.h, BQM_QL700). Nobody of us has one: experimental, with
+// a request for feedback (Joerg's note on "Weitere Brother-Modelle").
+static const LabelPrinterProfile PROFILE_BROTHER_QL700 = {
+  LP_MODEL_BROTHER_QL700, "Brother", "QL-700", 62, 29, 62, 62, 29, 29, 720, 720,
+  true, true /* DK paper is thermal */,
+  300, LP_PROTO_BROTHER_QL
+};
 // NIIMBOT D110 and D110 M: 96 dots, 12 mm, 203 dpi, each on its task from
 // niimbluelib (the D110 M on the V4 task from protocol 4 on). The roll runs
 // lengthwise under the head, so a 12 x 40 label is 96 dots across and 320
@@ -145,8 +163,10 @@ const LabelPrinterModel LABEL_PRINTER_MODELS[] = {
   LP_MODEL_PM240,
 };
 const int LABEL_PRINTER_MODEL_COUNT = sizeof(LABEL_PRINTER_MODELS) / sizeof(LABEL_PRINTER_MODELS[0]);
-// What the WLAN link offers: the one Brother profile there is.
-static const LabelPrinterModel LABEL_PRINTER_MODELS_WLAN[] = { LP_MODEL_BROTHER_QL820 };
+// What the WLAN link offers: the QL-810W/820NWB, proven, then the QL-700.
+static const LabelPrinterModel LABEL_PRINTER_MODELS_WLAN[] = {
+  LP_MODEL_BROTHER_QL820, LP_MODEL_BROTHER_QL700
+};
 static const int LABEL_PRINTER_MODEL_WLAN_COUNT =
   sizeof(LABEL_PRINTER_MODELS_WLAN) / sizeof(LABEL_PRINTER_MODELS_WLAN[0]);
 
@@ -230,6 +250,7 @@ const LabelPrinterProfile& labelPrinterProfile(LabelPrinterModel model) {
     case LP_MODEL_NIIMBOT_B:  return PROFILE_NIIMBOT_B;
     case LP_MODEL_NIIMBOT_M2: return PROFILE_NIIMBOT_M2;
     case LP_MODEL_BROTHER_QL820: return PROFILE_BROTHER_QL820;
+    case LP_MODEL_BROTHER_QL700: return PROFILE_BROTHER_QL700;
     case LP_MODEL_NIIMBOT_D110: return PROFILE_NIIMBOT_D110;
     case LP_MODEL_PM240: return PROFILE_PM240;
     default:            return PROFILE_NONE;
@@ -258,6 +279,12 @@ static bool mediaFits(const LabelPrinterProfile& p, uint16_t w, uint16_t h) {
 
 bool labelPrinterTakesMedia(LabelPrinterModel model, uint16_t width_mm, uint16_t length_mm) {
   return mediaFits(labelPrinterProfile(model), width_mm, length_mm);
+}
+
+bool labelPrinterMediaContinuous(LabelPrinterModel model, uint16_t width_mm, uint16_t length_mm) {
+  if (!isBrother(labelPrinterProfile(model))) return false;
+  const BrotherQlLabel* label = brotherLabel(width_mm, length_mm);
+  return label && label->media_type == BROTHER_QL_CONTINUOUS;
 }
 
 // What is stored is taken as it is, except for two things that would leave
@@ -362,22 +389,33 @@ static bool hostAccepted(const char* host) {
 }
 
 // The Brother as the config the rest of the code knows: its model, its IP
-// address as the device, no name, its label and its own offset. Only the
-// address and the offset are taken from `in`: the model is the one Brother
-// profile there is (the save refuses any other), and the label is the
-// table's whatever a caller sends. There is one label so far, so it is not
-// stored: a second one gets a key of its own.
+// address as the device, no name, its roll and that roll's own offset. The
+// model is one of the two Brothers (anything else the QL-810W/820NWB), the
+// roll a row of the label table (anything else DK-11209, its first row).
+// Wurzel: until v0.8.7-beta.6 there was one roll and it was not stored
+// (design L1); four rolls and the QL-700 now are (Spec V75), under keys of
+// their own (LP_KEY_NET_*). NOT-TO-DO: one offset for all rolls - a roll's
+// place in the row is its own (brotherQlContentX()).
 static LabelPrinterConfig netNormalized(const LabelPrinterConfig& in) {
   LabelPrinterConfig c{};
-  c.model = LP_MODEL_BROTHER_QL820;
+  c.model = in.model == LP_MODEL_BROTHER_QL700 ? LP_MODEL_BROTHER_QL700 : LP_MODEL_BROTHER_QL820;
   memcpy(c.address, in.address, sizeof(c.address));
   c.address[sizeof(c.address) - 1] = '\0';
-  c.media_width_mm  = BROTHER_QL_LABELS[0].width_mm;
-  c.media_length_mm = BROTHER_QL_LABELS[0].length_mm;
+  const BrotherQlLabel* roll = brotherLabel(in.media_width_mm, in.media_length_mm);
+  if (!roll) roll = &BROTHER_QL_LABELS[0];
+  c.media_width_mm  = roll->width_mm;
+  c.media_length_mm = roll->length_mm;
   c.x_offset = in.x_offset;
   if (c.x_offset > LP_OFFSET_RIGHT) c.x_offset = LP_OFFSET_RIGHT;
   if (c.x_offset < LP_OFFSET_LEFT)  c.x_offset = LP_OFFSET_LEFT;
   return c;
+}
+
+// The print position kept for the roll the config holds; 0 for none yet.
+static int16_t netOffsetOf(const LabelPrinterConfig& c) {
+  const BrotherQlLabel* roll = brotherLabel(c.media_width_mm, c.media_length_mm);
+  char key[16];
+  return roll && brotherQlOffsetKey(*roll, key, sizeof(key)) ? (int16_t)prefsGetInt(key, 0) : 0;
 }
 
 static LabelPrinterConfig netConfig() {
@@ -387,25 +425,42 @@ static LabelPrinterConfig netConfig() {
   // ends up as the address the socket is opened to.
   const String host = prefsGetString(LP_KEY_HOST, "");
   if (hostAccepted(host.c_str())) snprintf(c.address, sizeof(c.address), "%s", host.c_str());
-  c.x_offset = (int16_t)prefsGetInt(LP_KEY_NET_XOFF, 0);
+  // Before v0.8.7-beta.7 none of these keys: the QL-810W/820NWB on DK-11209.
+  c.model = (LabelPrinterModel)prefsGetInt(LP_KEY_NET_MODEL, LP_MODEL_BROTHER_QL820);
+  c.media_width_mm  = (uint16_t)prefsGetInt(LP_KEY_NET_W, BROTHER_QL_LABELS[0].width_mm);
+  c.media_length_mm = (uint16_t)prefsGetInt(LP_KEY_NET_H, BROTHER_QL_LABELS[0].length_mm);
+  c = netNormalized(c);
+  // The roll's own position (brotherQlOffsetKey()).
+  c.x_offset = netOffsetOf(c);
   s_net = netNormalized(c);
   s_net_loaded = true;
   return s_net;
 }
 
-// The address through the same check as labelPrinterSetHost(), and the
-// offset. Nothing else is the Brother's to write, and no Bluetooth key is
-// touched.
+// The address through the same check as labelPrinterSetHost(), the model,
+// the roll and the roll's offset. Nothing else is the Brother's to write,
+// and no Bluetooth key is touched. A config with another roll than the one
+// kept carries the old roll's offset (a page or a screen changed only the
+// roll): the new roll gets its own back instead.
 static bool netSave(const LabelPrinterConfig& in) {
-  const LabelPrinterConfig c = netNormalized(in);
+  const LabelPrinterConfig was = netConfig();
+  LabelPrinterConfig c = netNormalized(in);
   if (!hostAccepted(c.address)) {
     logSDf("Printer: config %s address '%s' is no IPv4 address, NOT saved",
-           PROFILE_BROTHER_QL820.name, c.address);
+           labelPrinterProfile(c.model).name, c.address);
     return false;
   }
+  if (c.media_width_mm != was.media_width_mm || c.media_length_mm != was.media_length_mm)
+    c.x_offset = netOffsetOf(c);
+  const BrotherQlLabel* roll = brotherLabel(c.media_width_mm, c.media_length_mm);
+  char key[16];
+  if (!roll || !brotherQlOffsetKey(*roll, key, sizeof(key))) return false;
   bool ok = true;
   ok = prefsPutString(LP_KEY_HOST, c.address) && ok;
-  ok = prefsPutInt(LP_KEY_NET_XOFF, c.x_offset) && ok;
+  ok = prefsPutInt(LP_KEY_NET_MODEL, (int)c.model) && ok;
+  ok = prefsPutInt(LP_KEY_NET_W, (int)c.media_width_mm) && ok;
+  ok = prefsPutInt(LP_KEY_NET_H, (int)c.media_length_mm) && ok;
+  ok = prefsPutInt(key, c.x_offset) && ok;
   if (ok) { s_net = c; s_net_loaded = true; }
   logConfig(c, ok);
   return ok;
@@ -570,6 +625,16 @@ uint16_t labelPrinterContentHeight(LabelPrinterModel model, uint16_t width_mm,
 // the fixed wall of the roll holder (30.09.2026). Where the roll runs is how
 // it sits in the holder, not the model, so it is a setting of its own.
 void labelPrinterOffsetRange(const LabelPrinterConfig& c, int16_t* min, int16_t* max) {
+  // A Brother's roll sits against its guide where its table says (Spec V75):
+  // a few millimetres either way of that, not the middle of the slack.
+  if (isBrother(labelPrinterProfile(c.model))) {
+    const BrotherQlLabel* roll = brotherLabel(c.media_width_mm, c.media_length_mm);
+    int16_t lo = 0, hi = 0;
+    if (roll) brotherQlOffsetRange(*roll, &lo, &hi);
+    if (min) *min = lo;
+    if (max) *max = hi;
+    return;
+  }
   const uint16_t row = labelPrinterRasterWidth(c.model, c.media_width_mm);
   const uint16_t content = labelPrinterContentWidth(c.model, c.media_width_mm);
   const int16_t slack = content < row ? int16_t(row - content) : 0;
@@ -585,6 +650,12 @@ int16_t labelPrinterOffset(const LabelPrinterConfig& c) {
 }
 
 uint16_t labelPrinterContentX(const LabelPrinterConfig& c) {
+  // A Brother's roll from its own place in the row; for DK-11209 that is dot
+  // 12, the middle of its 24 dots of slack, as before (Spec V75).
+  if (isBrother(labelPrinterProfile(c.model))) {
+    const BrotherQlLabel* roll = brotherLabel(c.media_width_mm, c.media_length_mm);
+    return roll ? uint16_t(brotherQlContentX(*roll) + labelPrinterOffset(c)) : 0;
+  }
   int16_t lo;
   labelPrinterOffsetRange(c, &lo, nullptr);
   return uint16_t(labelPrinterOffset(c) - lo);
@@ -698,12 +769,18 @@ static LabelPrintResult printBle(const LabelPrinterProfile& p, const LabelPrinte
   return fromBle(phomemoMSeriesPrint(pm, c.address, image, progress));
 }
 
+// Which bytes the Brother's driver sends (brother_ql_rules.h).
+static BrotherQlModel brotherModelOf(LabelPrinterModel model) {
+  return model == LP_MODEL_BROTHER_QL700 ? BQM_QL700 : BQM_QL800;
+}
+
 static LabelPrintResult printBrother(const LabelPrinterConfig& c, const LabelRaster& image,
                                      BleProgressFn progress) {
   // labelPrinterRasterFits() has made sure the table has this size.
   const BrotherQlLabel* label = brotherLabel(c.media_width_mm, c.media_length_mm);
   if (!label) return LP_MEDIA_MISMATCH;
-  return fromBrother(brotherQlPrint(c.address, *label, image, progress));
+  // The QL-700 behind its forwarder takes other start bytes (BQM_QL700).
+  return fromBrother(brotherQlPrint(c.address, *label, brotherModelOf(c.model), image, progress));
 }
 #endif  // SSC_DOC_BUILD
 

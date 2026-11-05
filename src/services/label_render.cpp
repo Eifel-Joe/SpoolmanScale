@@ -26,6 +26,9 @@ using namespace labeldraw;
 // length goes through dots() and every font through sized() (label_draw.h).
 #define LR_BASE_DPI      203    // the head these lengths and fonts are for
 #define LR_MARGIN_PX       8    // 1 mm: the stock is never cut exactly
+// The 23 x 23 square (Spec V75): a die-cut label with its own white edge, and
+// its 20 x 17 mm need every dot for the code (f08, Ziopase c96098d7).
+#define LR_MARGIN_SMALL_PX 4
 #define LR_GAP_PX          4    // between the blocks
 #define LR_COLUMN_GAP_PX  12    // between two columns of facts
 // The blocks grow with the roll. 40 x 30 is the base; from LR_TALL_PX in
@@ -96,6 +99,9 @@ struct LabelArea {
   bool columns;                  // the facts may stand in two columns
   // A name one line would cut goes on two in this font; null: it is cut.
   const lv_font_t* wrap_font;
+  // A roll under 30 x 30 mm (labelMediaSmall()): the band is as high as its
+  // line and its font as large as the material fits (f08).
+  bool small;
 };
 
 // One of two columns side by side.
@@ -151,11 +157,18 @@ static lv_coord_t drawHeader(lv_obj_t* canvas, const LabelArea& a, bool tall,
     y += lineHeight(f) + dots(LR_GAP_PX);
   }
   if (d.material[0] && labelLayoutHas(layout, LF_MATERIAL)) {
-    const lv_coord_t band_h = dots(tall ? LR_BAND_H_TALL_PX : LR_BAND_H_PX);
+    // On the square the base size ran "TEST PRINT" off the band and left the
+    // code too little room (Ziopase c96098d7): there the band takes the
+    // largest of three sizes the material fits and is as high as its line.
+    static const lv_font_t* const small_fonts[] = { LR_BAND_FONT, &lv_font_montserrat_ext_20, &lv_font_montserrat_ext_16 };
+    const lv_font_t* f = tall ? &lv_font_montserrat_ext_28
+                       : a.small ? fitFont(d.material, a.w - 2 * dots(LR_GAP_PX), small_fonts, 3)
+                                 : LR_BAND_FONT;
+    const lv_coord_t band_h = a.small ? (lv_coord_t)(lineHeight(f) + dots(LR_GAP_PX))
+                                      : dots(tall ? LR_BAND_H_TALL_PX : LR_BAND_H_PX);
     // Plain: the same line in black on white, for a roll that smears a band.
     const bool plain = labelLayoutOption(layout, LO_MATERIAL_PLAIN);
     if (!plain) fillRect(canvas, a.x, y, a.w, band_h, black);
-    const lv_font_t* f = tall ? &lv_font_montserrat_ext_28 : LR_BAND_FONT;
     const lv_coord_t ty = y + (band_h - lineHeight(f)) / 2;
     // White on black is drawn heavier still: the black around it bleeds into
     // the strokes on a thermal head, and the base size's 22 px came out thin.
@@ -646,13 +659,14 @@ static bool renderLabel(const LabelPrinterConfig& printer, const LabelLayout& la
   lv_canvas_set_buffer(canvas, buf, cw, ch, LV_IMG_CF_TRUE_COLOR);
   lv_canvas_fill_bg(canvas, lv_color_white(), LV_OPA_COVER);
 
-  const lv_coord_t M = dots(LR_MARGIN_PX);
+  const bool small = labelMediaSmall(printer.media_width_mm, printer.media_length_mm);
+  const lv_coord_t M = dots(small ? LR_MARGIN_SMALL_PX : LR_MARGIN_PX);
   const uint8_t preset = layout.preset;
   const bool standard = preset == LABEL_PRESET_STANDARD;
   const lv_coord_t qr_max = labelPrinterDotsForMm(printer.model,
       preset == LABEL_PRESET_MATERIAL_BIG ? LR_QR_SMALL_MM : LR_QR_MAX_MM);
   LabelArea area{ M, M, (lv_coord_t)(cw - 2 * M), (lv_coord_t)(ch - M), qr_max, !standard,
-                  nullptr, !c.qr || !c.qr[0], nullptr };
+                  nullptr, !c.qr || !c.qr[0], nullptr, small };
   LabelContent body = c;
   lv_coord_t side_qr = 0;
   if (preset == LABEL_PRESET_BIG_QR) {
@@ -700,9 +714,14 @@ bool labelRenderTest(const LabelPrinterConfig& printer, LabelRaster* out) {
   }
   const char* lines[] = { T(STR_LBL_TEST_DONATE) };
   // Always the standard arrangement: the test print checks the printer, not
-  // the template.
-  const LabelContent c{ &d, lines, 1, true, "https://" DONATION_URL, "test" };
-  return renderLabel(printer, labelLayoutDefault(), c, out);
+  // the template. Narrowed to the roll like every label; the square keeps the
+  // band and the code, and no sentence: a wrapped one is sized for four rows
+  // even when it is empty, and took the code's room (Ziopase 6d2c27b2).
+  const bool small = labelMediaSmall(printer.media_width_mm, printer.media_length_mm);
+  const LabelContent c{ &d, lines, small ? 0 : 1, !small, "https://" DONATION_URL, "test" };
+  return renderLabel(printer,
+                     labelLayoutForMedia(labelLayoutDefault(), printer.media_width_mm,
+                                         printer.media_length_mm), c, out);
 }
 
 // The dot of millimetre v on the calibration ruler, counted from the label's
@@ -737,11 +756,12 @@ bool labelRenderCalibration(const LabelPrinterConfig& printer, LabelRaster* out)
   lv_canvas_fill_bg(canvas, lv_color_white(), LV_OPA_COVER);
   const lv_color_t black = lv_color_black();
 
-  int16_t lo;
-  labelPrinterOffsetRange(printer, &lo, nullptr);
-  const lv_coord_t centre = -lo;          // the label's first dot at offset 0
+  // The label's first dot at offset 0: the middle of the slack on a
+  // Bluetooth printer, the roll's own place on a Brother (Spec V75; the two
+  // agree for DK-11209, dot 12).
   const lv_coord_t x = labelPrinterContentX(printer);
   const int16_t offset = labelPrinterOffset(printer);
+  const lv_coord_t centre = x - offset;
 
   // The ruler across the row, in millimetres of offset, read like any
   // ruler: a tick every millimetre, a longer one every second, and every
@@ -870,8 +890,9 @@ bool labelRenderFilament(const LabelPrinterConfig& printer, const LabelLayout& l
   if (labelPrinterIsTape(printer.model)) return labelRenderTape(printer, spool, false, "filament", out);
   char qr[LABEL_QR_LEN];
   labelQrForFilament(spool, qr, sizeof(qr));
-  // No page to open: the label is laid out as one without a code.
-  LabelLayout l = layout;
+  // No page to open: the label is laid out as one without a code. The
+  // template as the roll carries it (the square: material and code).
+  LabelLayout l = labelLayoutForMedia(layout, printer.media_width_mm, printer.media_length_mm);
   if (!qr[0]) l.fields &= ~(1u << LF_QR);
   const int capacity = labelFactCapacity(l, printer.media_width_mm, printer.media_length_mm);
   LabelFactList f;
@@ -881,10 +902,13 @@ bool labelRenderFilament(const LabelPrinterConfig& printer, const LabelLayout& l
   return renderLabel(printer, l, c, out);
 }
 
-bool labelRenderSpool(const LabelPrinterConfig& printer, const LabelLayout& layout,
+bool labelRenderSpool(const LabelPrinterConfig& printer, const LabelLayout& saved,
                       const SpoolLabelData& spool, LabelRaster* out) {
   // The tape's own arrangement: maker, material, name and the number.
   if (labelPrinterIsTape(printer.model)) return labelRenderTape(printer, spool, true, "spool", out);
+  // The template as the roll carries it (the square: material and code).
+  const LabelLayout layout = labelLayoutForMedia(saved, printer.media_width_mm,
+                                                 printer.media_length_mm);
   char qr[LABEL_QR_LEN];
   // The server's own link where it named one when the spool was read (o18;
   // kept in PSRAM, services/spool_link_store.h), else the one built from the id.

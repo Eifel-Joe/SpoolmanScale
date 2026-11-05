@@ -50,11 +50,13 @@ enum BrotherQlResult : uint8_t {
   BQ_WRITE,      // the line broke or stalled mid-job; nothing is resent
 };
 
-// `host` is the printer's IPv4 address as typed. Blocking while it connects
+// `host` is the printer's IPv4 address as typed (for a QL-700, the address
+// of the computer that forwards port 9100 to it). Blocking while it connects
 // and sends, from appLoop() only; a line still held from the job before is
-// closed first (brotherQlRelease()). `progress` is called about once per row.
-// BQ_SENT leaves the line held (brotherQlTick()).
-BrotherQlResult brotherQlPrint(const char* host, const BrotherQlLabel& label,
+// closed first (brotherQlRelease()). `model` picks the start bytes
+// (brother_ql_rules.h). `progress` is called about once per row. BQ_SENT
+// leaves the line held (brotherQlTick()).
+BrotherQlResult brotherQlPrint(const char* host, const BrotherQlLabel& label, BrotherQlModel model,
                                const LabelRaster& image, BleProgressFn progress);
 
 // Looks at the held line, at most every 50 ms, and ends the hold when the

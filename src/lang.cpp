@@ -4872,6 +4872,13 @@ const char* const STRINGS[][3] = {
   { "Für das schmale Band gibt es ein festes Etikett: Hersteller, Material, Name, auf dem Spulenetikett dazu die Nummer. Deine Vorlage bleibt gespeichert und gilt wieder, sobald ein anderer Drucker gewählt ist.",
     "The narrow tape has a fixed label: maker, material, name, and on a spool label its number. Your template stays saved and applies again once another printer is picked.",
     "Le ruban étroit a une étiquette fixe : fabricant, matière, nom et, sur l'étiquette de bobine, son numéro. Votre modèle reste enregistré et s'applique de nouveau dès qu'une autre imprimante est choisie." },  // STR_W_L_TAPE_FIXED
+  { "Endlos", "continuous", "continu" },  // STR_PRN_MEDIA_CONT
+  { "QL-700: Er hat nur USB. Ein kleiner Rechner daneben (Raspberry Pi, NAS) reicht Port 9100 an den Drucker weiter, z. B. mit socat TCP-LISTEN:9100,fork,reuseaddr FILE:/dev/usb/lp0; trage hier dessen Adresse ein. Am Drucker Editor Lite ausschalten. Experimentell: noch an keinem echten QL-700 geprüft, eine Rückmeldung ist ausdrücklich erwünscht.",
+    "QL-700: it has USB only. A small computer next to it (Raspberry Pi, NAS) forwards port 9100 to the printer, for example with socat TCP-LISTEN:9100,fork,reuseaddr FILE:/dev/usb/lp0; type that computer's address here. Switch Editor Lite off on the printer. Experimental: not yet tried on a real QL-700, feedback is very welcome.",
+    "QL-700 : USB uniquement. Un petit ordinateur Ã  cÃ´tÃ© (Raspberry Pi, NAS) transmet le port 9100 Ã  l'imprimante, par exemple avec socat TCP-LISTEN:9100,fork,reuseaddr FILE:/dev/usb/lp0 ; saisissez ici l'adresse de cet ordinateur. DÃ©sactivez Editor Lite sur l'imprimante. ExpÃ©rimental : pas encore essayÃ© sur un vrai QL-700, vos retours sont les bienvenus." },  // STR_W_P_QL700_HINT
+  { "Auf das Quadrat 23 x 23 passen nur Material und Code; die Vorlage gilt hier nicht. Sie bleibt gespeichert und gilt wieder auf den anderen Rollen.",
+    "The 23 x 23 square takes only the material and the code; the template does not apply here. It stays saved and applies again on the other rolls.",
+    "Le carrÃ© 23 x 23 ne porte que la matiÃ¨re et le code ; le modÃ¨le ne s'applique pas ici. Il reste enregistrÃ© et s'applique de nouveau sur les autres rouleaux." },  // STR_W_L_SMALL_FIXED
 };
 
 StringID tagWriteResultString(uint8_t code) {

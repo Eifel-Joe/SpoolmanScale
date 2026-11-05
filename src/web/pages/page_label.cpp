@@ -216,6 +216,10 @@ static String stateJson(LabelKind kind) {
   // A tape printer's label is fixed: the template stays in view, out of use.
   j += F(",\"tape\":");
   j += labelPrinterIsTape(c.model) ? F("true") : F("false");
+  // The 23 x 23 square takes material and code only (Spec V75): the template
+  // stays in use for the other rolls, a note says it does not apply here.
+  j += F(",\"small\":");
+  j += labelMediaSmall(c.media_width_mm, c.media_length_mm) ? F("true") : F("false");
   j += F(",\"media\":\"");
   j += String((unsigned)c.media_width_mm); j += F(" x ");
   j += String((unsigned)c.media_length_mm); j += F(" mm\",\"model\":\"");
@@ -271,6 +275,9 @@ static void templateCard(String& h) {
   h += T(STR_W_L_FIL_NO_PAGE);
   h += F("</span></div>");
   sourceRow(h);
+  h += F("<div class='field' id='lsq' style='display:none'><span class='hint'>");
+  h += T(STR_W_L_SMALL_FIXED);
+  h += F("</span></div>");
   h += F("<div class='field' id='ltp' style='display:none'><span class='hint'>");
   h += T(STR_W_L_TAPE_FIXED);
   // A fieldset: disabling it switches off every control inside at once, and
@@ -538,6 +545,7 @@ static void scriptFunctions(String& h) {
          "if(t||m.dataset.st)m.textContent=t;m.dataset.st=t;"
          "$('ltpl').style.display=srv(d)?'none':'';$('lsrv').style.display=srv(d)?'':'none';"
          "$('ltpl').disabled=!!d.tape;$('ltp').style.display=d.tape?'':'none';"
+         "$('lsq').style.display=d.small&&!d.tape?'':'none';"
          "const k=d.source+'|'+JSON.stringify(d.presets);if(k===srcKey)return;srcKey=k;"
          "const b=$('lsrc');b.textContent='';"
          "[{id:0,name:L.scale,fit:true}].concat(d.presets).forEach(function(p){"
@@ -687,7 +695,9 @@ static void sendPreview(WebServer& srv, LabelKind kind) {
   }
   SpoolLabelData spool{};
   if (!labelSpoolLast(&spool)) sampleSpool(&spool);
-  const LabelLayout layout = labelLayoutLoad(kind);
+  // As the roll carries it: on the square flat whatever the template says.
+  const LabelLayout layout = labelLayoutForMedia(labelLayoutLoad(kind), c.media_width_mm,
+                                                 c.media_length_mm);
   LabelRaster r{};
   const bool ok = kind == LABEL_KIND_FILAMENT ? labelRenderFilament(c, layout, spool, &r)
                                               : labelRenderSpool(c, layout, spool, &r);

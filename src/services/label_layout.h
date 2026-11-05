@@ -94,6 +94,42 @@ bool labelLayoutHasCode(const LabelLayout& layout);
 // or not, with its code or without. In millimetres, so it holds at 203 and
 // 300 dpi. The renderer stops there, and the browser lets no more be on.
 int labelFactCapacity(const LabelLayout& layout, uint16_t width_mm, uint16_t length_mm);
+
+// The shapes the fact counts are kept for (labelFactCapacity()). The Brother's
+// rolls of v0.8.7-beta.7 (Spec V75): 62 x 30 continuous prints 24 mm along the
+// feed, as good as the 62 x 29 die-cut, and counts as that one; 38 x 40 has
+// rows of its own; the 23 x 23 square (and anything under 30 mm both ways)
+// carries only the material and the code. A Bluetooth stock kept from earlier
+// betas (75 x 50, 75 x 30) keeps the rows it had.
+enum LabelRollShape : uint8_t { LRS_40, LRS_50, LRS_62, LRS_38X40, LRS_SMALL };
+
+inline bool labelMediaSmall(uint16_t width_mm, uint16_t length_mm) {
+  return width_mm < 30 && length_mm < 30;
+}
+
+inline LabelRollShape labelRollShape(uint16_t width_mm, uint16_t length_mm) {
+  if (labelMediaSmall(width_mm, length_mm)) return LRS_SMALL;
+  const uint16_t longer = width_mm > length_mm ? width_mm : length_mm;
+  const uint16_t shorter = width_mm > length_mm ? length_mm : width_mm;
+  if ((longer >= 62 && shorter <= 29) || (longer == 62 && shorter == 30)) return LRS_62;
+  if (width_mm == 38 && length_mm == 40) return LRS_38X40;
+  return longer >= 50 ? LRS_50 : LRS_40;
+}
+
+// The template as a roll of this size carries it: the square takes the
+// material and the code, in the standard arrangement, flat (f08, Ziopase:
+// "a small one keeps the code and the material"); every other roll takes it
+// as it is. Pure: the saved template is untouched.
+inline LabelLayout labelLayoutForMedia(const LabelLayout& layout, uint16_t width_mm,
+                                       uint16_t length_mm) {
+  LabelLayout l = layout;
+  if (labelRollShape(width_mm, length_mm) == LRS_SMALL) {
+    l.fields &= (1u << LF_MATERIAL) | (1u << LF_QR);
+    l.preset = LABEL_PRESET_STANDARD;
+    l.options &= ~(1u << LO_PORTRAIT);
+  }
+  return l;
+}
 // The fields that become a fact line in this arrangement, as a mask: what
 // the capacity counts. The header blocks and the code are not among them.
 uint32_t labelFactFields(uint8_t preset);

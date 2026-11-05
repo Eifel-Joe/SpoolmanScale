@@ -2213,6 +2213,9 @@ enum StringID {
   STR_DENSITY_TAKE,            // its left button: take the typical density
   STR_DENSITY_CHANGE,          // its price button: change the typical density
   STR_W_L_TAPE_FIXED,          // the label page: a tape printer has a fixed label (web/pages/page_label.cpp)
+  STR_PRN_MEDIA_CONT,          // a Brother's continuous tape in the size lists (v0.8.7-beta.7)
+  STR_W_P_QL700_HINT,          // the printer page: how a QL-700 is reached, experimental
+  STR_W_L_SMALL_FIXED,         // the label page: the 23 x 23 square takes material and code only
 
   STR_COUNT
 };

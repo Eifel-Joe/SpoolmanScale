@@ -234,6 +234,11 @@ static void stockCard(String& h, const LabelMediaSize& s, const LabelPrinterConf
     h += F("<span class='nb'>");
     h += T(STR_PRN_MEDIA_NO_LAYOUT);
     h += F("</span>");
+  } else if (labelPrinterMediaContinuous(c.model, s.width_mm, s.length_mm)) {
+    // A Brother's continuous tape, cut where the label ends (Spec V75).
+    h += F("<span class='nb'>");
+    h += T(STR_PRN_MEDIA_CONT);
+    h += F("</span>");
   }
   h += F("</button>");
 }

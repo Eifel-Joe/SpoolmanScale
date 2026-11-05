@@ -51,7 +51,12 @@ void webPrinterMediaOptions(String& h, const LabelPrinterConfig& c) {
     h += F("'");
     if (cur) h += F(" selected");
     h += F(">");
-    h += String(s.width_mm); h += F(" x "); h += String(s.length_mm); h += F(" mm</option>");
+    h += String(s.width_mm); h += F(" x "); h += String(s.length_mm); h += F(" mm");
+    // A Brother's continuous tape, cut where the label ends (Spec V75).
+    if (labelPrinterMediaContinuous(c.model, s.width_mm, s.length_mm)) {
+      h += F(" \u00b7 "); h += T(STR_PRN_MEDIA_CONT);
+    }
+    h += F("</option>");
   }
   if (!listed) {
     // A size set elsewhere and not in the table: shown so it is not

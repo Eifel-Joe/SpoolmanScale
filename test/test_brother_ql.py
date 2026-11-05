@@ -88,7 +88,7 @@ int main() {
          memcmp(s, want_700, sizeof(want_700)) == 0);
   assert(brotherQlStart(*l, BQM_QL700, 271, s, sizeof(want_700) - 1) == 0);
   assert(brotherQlStart(*c62, BQM_QL700, 284, s, sizeof(s)) == BROTHER_QL700_START_BYTES &&
-         s[6] == 0x0A && s[8] == 0x00 && s[29] == 0x23);
+         s[6] == 0x0A && s[8] == 0x00 && s[30] == 0x23);
   assert(brotherQlInvalidate(BQM_QL800) == 400 && brotherQlInvalidate(BQM_QL700) == 200);
   assert(brotherQlStartBytes(BQM_QL800) == 38 && brotherQlStartBytes(BQM_QL700) == 32);
   assert(brotherQlJobBytes(BQM_QL700, 271) == 200 + 32 + 271 * 93 + 1);

@@ -20,10 +20,12 @@
 // The null bytes in front of a job, from flash: a block of 100 written four
 // times, so no buffer of 400 bytes ever sits in RAM.
 static const uint8_t NULL_BLOCK[100] = {0};
-static_assert(BROTHER_QL_INVALIDATE % sizeof(NULL_BLOCK) == 0,
+static_assert(BROTHER_QL_INVALIDATE % sizeof(NULL_BLOCK) == 0 &&
+              BROTHER_QL700_INVALIDATE % sizeof(NULL_BLOCK) == 0,
               "the null bytes must be a whole number of blocks");
-// One buffer serves for the 38 start bytes and for every row.
-static_assert(BROTHER_QL_LINE_BYTES >= BROTHER_QL_START_BYTES,
+// One buffer serves for the start bytes (38, the QL-700's 32) and for every row.
+static_assert(BROTHER_QL_LINE_BYTES >= BROTHER_QL_START_BYTES &&
+              BROTHER_QL_START_BYTES >= BROTHER_QL700_START_BYTES,
               "the row buffer must hold the start bytes");
 // The log lines say "10 s" in words, so the two go together.
 static_assert(BROTHER_QL_HOLD_MS == 10000, "the log text says 10 s");
@@ -66,11 +68,13 @@ bool brotherQlTakeReply(BrotherQlReply* out) {
   return true;
 }
 
-// What one run knows about itself, for the log line.
+// What one run knows about itself, for the log line, and which Brother it
+// goes to (its start bytes, brother_ql_rules.h).
 struct BqRun {
   size_t      total;   // the job's size, known once the raster has passed
   size_t      low;     // the least internal heap that was free at any check
   const char* line;    // what became of the line after the job
+  BrotherQlModel model;
 };
 
 #define BQ_LINE_NONE "line not held"
@@ -114,12 +118,13 @@ static bool putBytes(WiFiClient& client, const uint8_t* data, size_t len) {
 static bool sendJob(WiFiClient& client, const BrotherQlLabel& label, const LabelRaster& image,
                     BleProgressFn progress, BqRun& run) {
   uint8_t buf[BROTHER_QL_LINE_BYTES];
+  const BrotherQlModel model = run.model;
 
-  for (size_t i = 0; i < BROTHER_QL_INVALIDATE / sizeof(NULL_BLOCK); i++)
+  for (size_t i = 0; i < brotherQlInvalidate(model) / sizeof(NULL_BLOCK); i++)
     if (!putBytes(client, NULL_BLOCK, sizeof(NULL_BLOCK))) return false;
 
-  const size_t head = brotherQlStart(label, image.height, buf, sizeof(buf));
-  if (head != BROTHER_QL_START_BYTES || !putBytes(client, buf, head)) return false;
+  const size_t head = brotherQlStart(label, model, image.height, buf, sizeof(buf));
+  if (head != brotherQlStartBytes(model) || !putBytes(client, buf, head)) return false;
 
   for (uint16_t y = 0; y < image.height; y++) {
     brotherQlRow(image.pixels + size_t(y) * image.row_bytes, buf);
@@ -140,7 +145,7 @@ static BrotherQlResult runJob(const char* host, const BrotherQlLabel& label,
   if (!labelRasterValid(image) || image.row_bytes != BROTHER_QL_ROW_BYTES ||
       image.height != label.dots_h)
     return BQ_BAD_RASTER;
-  run.total = brotherQlJobBytes(image.height);
+  run.total = brotherQlJobBytes(run.model, image.height);
 
   if (WiFi.status() != WL_CONNECTED) return BQ_NO_WIFI;
 
@@ -252,18 +257,20 @@ static const char* resultName(BrotherQlResult r) {
   return "?";
 }
 
-BrotherQlResult brotherQlPrint(const char* host, const BrotherQlLabel& label,
+BrotherQlResult brotherQlPrint(const char* host, const BrotherQlLabel& label, BrotherQlModel model,
                                const LabelRaster& image, BleProgressFn progress) {
   const uint32_t started = millis();
   s_sent = s_total = 0;
-  BqRun run{0, heap_caps_get_free_size(MALLOC_CAP_INTERNAL), BQ_LINE_NONE};
+  BqRun run{0, heap_caps_get_free_size(MALLOC_CAP_INTERNAL), BQ_LINE_NONE, model};
 
   const BrotherQlResult r = runJob(host, label, image, progress, run);
 
   s_phase = BLE_PHASE_IDLE;
   crumbSet("loop");
-  logSDf("Printer: Brother %s %s %u/%u B in %u ms, %s, internal low %u B",
-         host ? host : "(none)", resultName(r), (unsigned)s_sent, (unsigned)run.total,
+  logSDf("Printer: Brother%s %s %ux%u %s %u/%u B in %u ms, %s, internal low %u B",
+         model == BQM_QL700 ? " QL-700" : "", host ? host : "(none)",
+         (unsigned)label.width_mm, (unsigned)label.length_mm, resultName(r),
+         (unsigned)s_sent, (unsigned)run.total,
          (unsigned)(millis() - started), run.line, (unsigned)run.low);
   return r;
 }
