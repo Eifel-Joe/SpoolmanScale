@@ -70,7 +70,7 @@ int main() {
   // their captions, the code on.
   SpoolLabelData out = d;
   LabelFactList g{};
-  LabelLayout l2 = labelEditApply(e, std_l, &out, &g);
+  LabelLayout l2 = labelEditApply(e, std_l, LABEL_MAX_FACTS, &out, &g);
   assert(l2.fields == std_l.fields && l2.preset == std_l.preset);
   assert(strcmp(out.vendor, "Bambu Lab") == 0 && strcmp(out.name, "PLA Basic Jade White") == 0);
   assert(g.n == 2 && g.facts[0].caption == CAP_COLOR && strcmp(g.facts[0].value, "#F2F2E8") == 0);
@@ -97,13 +97,13 @@ int main() {
   assert(!labelEditSet(&e, 5, "x") && !labelEditSet(&e, -1, "x"));
   out = d;
   g = LabelFactList{};
-  l2 = labelEditApply(e, std_l, &out, &g);
+  l2 = labelEditApply(e, std_l, LABEL_MAX_FACTS, &out, &g);
   assert(strcmp(out.vendor, "Mein Hersteller") == 0 && strcmp(out.material, "PLA") == 0);
   assert(g.n == 1 && strcmp(g.facts[0].caption, "") == 0);
   assert(strcmp(g.facts[0].value, "Lager: Regal 7") == 0 && strcmp(g.line_ptrs[0], "Lager: Regal 7") == 0);
   // The code switched off: the layout loses it, the template is not touched.
   e.code = false;
-  l2 = labelEditApply(e, std_l, &out, &g);
+  l2 = labelEditApply(e, std_l, LABEL_MAX_FACTS, &out, &g);
   assert(!(l2.fields & B(LF_QR)) && (std_l.fields & B(LF_QR)));
   // "As the template": everything back.
   labelEditFromLabel(&e, d, std_l, f, "http://bambuddy/inventory?spool=42");
@@ -115,7 +115,9 @@ int main() {
   for (int i = 0; i < 60; i++) strcat(longer, "\xC3\xBC");   // 60 x "ü", 120 bytes
   assert(labelEditSet(&e, 4, longer));
   const size_t len = strlen(e.row[4].text);
-  assert(len < LABEL_EDIT_TEXT && len % 2 == 0);
+  // Typed text is cut where it prints: a header block and a fact's value
+  // hold LABEL_LINE_LEN bytes (review, finding 4).
+  assert(len < LABEL_LINE_LEN && len % 2 == 0);
 
   // 3. The free label: head, band, title and as many lines as the roll takes
   //    for the arrangement, all empty, no code until one is typed.
@@ -131,15 +133,15 @@ int main() {
   labelEditSet(&fr, 4, "nur trocken lagern");
   SpoolLabelData blank{};
   g = LabelFactList{};
-  l2 = labelEditApply(fr, free_l, &blank, &g);
+  l2 = labelEditApply(fr, free_l, LABEL_MAX_FACTS, &blank, &g);
   assert(strcmp(blank.vendor, "Fach 3") == 0 && strcmp(blank.material, "PETG") == 0 && !blank.name[0]);
   assert(g.n == 1 && strcmp(g.line_ptrs[0], "nur trocken lagern") == 0);
   assert(!(l2.fields & B(LF_QR)));           // no code: none typed
   fr.code = true;
-  l2 = labelEditApply(fr, free_l, &blank, &g);
+  l2 = labelEditApply(fr, free_l, LABEL_MAX_FACTS, &blank, &g);
   assert(!(l2.fields & B(LF_QR)));           // on, but empty: still none
   assert(labelEditSetCode(&fr, "https://example.org/fach3"));
-  l2 = labelEditApply(fr, free_l, &blank, &g);
+  l2 = labelEditApply(fr, free_l, LABEL_MAX_FACTS, &blank, &g);
   assert((l2.fields & B(LF_QR)) && strcmp(fr.qr, "https://example.org/fach3") == 0);
   // In the compact arrangement the head is the first line, as the maker is.
   const LabelLayout free_c = labelEditFreeLayout(layout(LABEL_PRESET_COMPACT, 0));
@@ -149,8 +151,20 @@ int main() {
   labelEditSet(&fr, 3, "Zeile");
   blank = SpoolLabelData{};
   g = LabelFactList{};
-  labelEditApply(fr, free_c, &blank, &g);
+  labelEditApply(fr, free_c, LABEL_MAX_FACTS, &blank, &g);
   assert(!blank.vendor[0] && g.n == 2 && strcmp(g.line_ptrs[0], "Fach 3") == 0);
+  // Never more lines than the roll takes now: a free label made on a
+  // larger roll, printed on a smaller one, keeps its first lines only
+  // (review, finding 1).
+  labelEditFree(&fr, free_l, 3);
+  labelEditSet(&fr, 3, "eins");
+  labelEditSet(&fr, 4, "zwei");
+  labelEditSet(&fr, 5, "drei");
+  g = LabelFactList{};
+  labelEditApply(fr, free_l, 1, &blank, &g);
+  assert(g.n == 1 && strcmp(g.line_ptrs[0], "eins") == 0);
+  labelEditApply(fr, free_l, 0, &blank, &g);
+  assert(g.n == 0);
   // The 23 x 23 square: the band and the code, nothing else.
   const LabelLayout free_sq = labelLayoutForMedia(free_l, 23, 23);
   labelEditFree(&fr, free_sq, 0);
@@ -217,7 +231,13 @@ need("labelRenderEdit(" in ps and "labelPrinterPrint(" in ps,
      "src/ui/printer_screen.cpp: an edited label does not go through labelPrinterPrint()")
 need("labelEditApply(" in ks.squeeze(ks.body_of("services/label_render.cpp", "labelRenderEdit")),
      "src/services/label_render.cpp: labelRenderEdit() does not apply the rows")
-# 6. The template's switches save the template the browser shows.
+# 6. The template's switches save the template the browser shows, with the
+#    browser's budget: a filament label without a filament page has no code
+#    (page_label.cpp stateJson(); review, finding 2).
+need("labelQrForFilament(" in ks.squeeze(ks.body_of(SCREEN, "codePossible")),
+     f"src/{SCREEN}: the template does not ask whether the filament label can have a code")
+# 7. A free label belongs to the roll it was made for: another roll, new rows.
+need("roll_w" in code and "roll_l" in code, f"src/{SCREEN}: a free label is not tied to its roll")
 need("labelLayoutSave(" in code and "labelLayoutMayTurnOn(" in code,
      f"src/{SCREEN}: the template's switches skip the budget or the save")
 
