@@ -20,12 +20,12 @@ source = r"""
 #include <cassert>
 
 int main() {
-  // The shapes the fact counts are kept for. 62 x 30 continuous prints 24 mm
-  // along the feed, as good as the 62 x 29 die-cut: it counts as that one.
+  // The shapes the fact counts are kept for. Continuous tape (length 0) has
+  // no budget of its own: the label grows with its lines (Joerg, 05.11.2026).
   assert(labelRollShape(62, 29) == LRS_62 && labelRollShape(29, 62) == LRS_62);
-  assert(labelRollShape(62, 30) == LRS_62);
-  assert(labelRollShape(38, 40) == LRS_38X40);
+  assert(labelRollShape(62, 0) == LRS_ENDLESS && labelRollShape(38, 0) == LRS_ENDLESS);
   assert(labelRollShape(23, 23) == LRS_SMALL);
+  assert(labelMediaEndless(62, 0) && !labelMediaEndless(62, 29) && !labelMediaEndless(23, 23));
   // What there was stays: the Bluetooth rolls and a stock kept from earlier
   // betas such as 75 x 50 or 75 x 30, and the D110's tape.
   assert(labelRollShape(40, 30) == LRS_40 && labelRollShape(12, 40) == LRS_40);
@@ -33,18 +33,23 @@ int main() {
   assert(labelRollShape(75, 30) == LRS_50);
   assert(labelMediaSmall(23, 23) && !labelMediaSmall(38, 40) && !labelMediaSmall(12, 40));
 
-  // The square: the material and the code, the standard arrangement, flat,
-  // whatever the template says; the saved template is untouched.
+  // The square: the code alone, the standard arrangement, flat, whatever the
+  // template says (Joerg, 05.11.2026: "nur fuer QR-Code geeignet"); the saved
+  // template is untouched.
   LabelLayout t{};
   t.preset = LABEL_PRESET_COMPACT;
   t.fields = 0x1FFFF;
   t.options = (1u << LO_PORTRAIT) | (1u << LO_MATERIAL_PLAIN);
   const LabelLayout sq = labelLayoutForMedia(t, 23, 23);
   assert(sq.preset == LABEL_PRESET_STANDARD);
-  assert(sq.fields == ((1u << LF_MATERIAL) | (1u << LF_QR)));
+  assert(sq.fields == (1u << LF_QR));
   assert(!labelLayoutOption(sq, LO_PORTRAIT) && labelLayoutOption(sq, LO_MATERIAL_PLAIN));
+  // Continuous tape: the template's fields and arrangement, always flat.
+  const LabelLayout en = labelLayoutForMedia(t, 62, 0);
+  assert(en.preset == t.preset && en.fields == t.fields && !labelLayoutOption(en, LO_PORTRAIT));
+  assert(labelLayoutOption(en, LO_MATERIAL_PLAIN));
   // Every other roll takes the template as it is.
-  static const uint16_t rolls[][2] = {{62, 29}, {62, 30}, {38, 40}, {40, 30}, {12, 40}};
+  static const uint16_t rolls[][2] = {{62, 29}, {40, 30}, {50, 30}, {12, 40}};
   for (const auto& wl : rolls) {
     const LabelLayout same = labelLayoutForMedia(t, wl[0], wl[1]);
     assert(same.preset == t.preset && same.fields == t.fields && same.options == t.options);
@@ -73,13 +78,13 @@ LAYOUT = "services/label_layout.cpp"
 LP = "services/label_printer.cpp"
 RENDER = "services/label_render.cpp"
 
-# 1. The fact counts go by the roll's shape: the square has none, 38 x 40 has
-#    rows of its own, flat and upright, with the code and without.
+# 1. The fact counts go by the roll's shape: the square has none, continuous
+#    tape takes every line a label can have (LABEL_MAX_FACTS).
 cap = ks.squeeze(ks.body_of(LAYOUT, "labelFactCapacity"))
 need("labelRollShape(" in cap, f"src/{LAYOUT}: labelFactCapacity() does not go by labelRollShape()")
 need("LRS_SMALL" in cap and "return0" in cap, f"src/{LAYOUT}: the square is given fact lines")
-code = ks.squeeze(ks.source_of(LAYOUT).code)
-need("CAP_FLAT_38" in code and "CAP_UPRIGHT_38" in code, f"src/{LAYOUT}: no fact rows for 38 x 40")
+need("LRS_ENDLESS" in cap and "LABEL_LAYOUT_MAX_FACTS" in cap,
+     f"src/{LAYOUT}: continuous tape gets a fixed line budget")
 
 # 2. The renderer narrows every label of the scale's own to the roll: spool,
 #    filament and the test print; the square's test print has no sentence.
@@ -88,15 +93,23 @@ for fn in ("labelRenderSpool", "labelRenderFilament", "labelRenderTest"):
          f"src/{RENDER}: {fn}() does not narrow the template to the roll")
 need("labelMediaSmall(" in ks.squeeze(ks.body_of(RENDER, "labelRenderTest")),
      f"src/{RENDER}: labelRenderTest() keeps its sentence on the square")
-# The band on a small roll takes the largest font the material fits and
-# that still leaves the code its room: on the square the base size left 132
-# dots and a spool address of 33 modules needs 148 (acceptance, round 1).
-need("fitFont(" in ks.squeeze(ks.body_of(RENDER, "drawHeader")),
-     f"src/{RENDER}: drawHeader() sets the band in one size whatever the roll")
-need("bodyCode(" in ks.squeeze(ks.body_of(RENDER, "smallBandFont")),
-     f"src/{RENDER}: smallBandFont() does not ask whether the code still fits")
-need("smallBandFont(" in ks.squeeze(ks.body_of(RENDER, "renderLabel")),
-     f"src/{RENDER}: renderLabel() does not pick the small roll's band by the code")
+# Continuous tape: drawn on the longest label there may be, top-aligned,
+# and cut after the last line that has ink (endlessLines()).
+rl = ks.squeeze(ks.body_of(RENDER, "renderLabel"))
+need("endlessLines(" in rl, f"src/{RENDER}: renderLabel() does not cut a continuous label to its content")
+need("BROTHER_QL_MAX_LINES" in ks.squeeze(ks.source_of(RENDER).code) or
+     "labelPrinterMaxLines(" in rl, f"src/{RENDER}: no longest continuous label")
+need("top" in ks.squeeze(ks.body_of(RENDER, "drawLarger")),
+     f"src/{RENDER}: drawLarger() centres the lines on a continuous label")
+# The raster check and the driver take any length within Brother's limits.
+need("brotherQlLinesOk(" in ks.squeeze(ks.body_of(LP, "labelPrinterRasterFits")),
+     f"src/{LP}: labelPrinterRasterFits() wants a fixed length on continuous tape")
+need("brotherQlLinesOk(" in ks.squeeze(ks.source_of("services/brother_ql.cpp").code),
+     "src/services/brother_ql.cpp: the driver wants a fixed length on continuous tape")
+# The size lists name continuous tape by its width: "62 mm Endlos".
+need("labelMediaName(" in ks.squeeze(ks.source_of("web/web_printer_cards.cpp").code) and
+     "labelMediaName(" in ks.squeeze(ks.source_of("ui/printer_screen.cpp").code),
+     "src: the size lists do not name continuous tape by its width")
 
 # 3. The Brother keeps its model, its roll and a position per roll, under keys
 #    of its own; the roll and the model are checked when they are read.
@@ -127,10 +140,12 @@ need("BQM_QL700" in pb or ("brotherModelOf(" in pb and
      f"src/{LP}: printBrother() sends every Brother the QL-810W's bytes")
 
 # 4. The browser may pick any roll the model takes, not only the profile's
-#    span (the Brother's span is 62 x 29 alone).
-media = ks.route_text("web/pages/page_printer.cpp", "/api/printer/media")
-need("labelPrinterTakesMedia(" in ks.squeeze(media),
+#    span (the Brother's span is 62 x 29 alone), continuous tape ("62x0") too.
+media = ks.squeeze(ks.route_text("web/pages/page_printer.cpp", "/api/printer/media"))
+need("labelPrinterTakesMedia(" in media,
      "src/web/pages/page_printer.cpp: /api/printer/media checks the profile's span, not the rolls")
+need("l<=0" not in media and "l<0" in media,
+     "src/web/pages/page_printer.cpp: /api/printer/media refuses the length 0 of continuous tape")
 
 assert not problems, "\n" + "\n".join(f"  - {p}" for p in problems)
 print("test_label_rolls: ok")

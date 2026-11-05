@@ -165,10 +165,10 @@ int main() {
   assert(g.n == 1 && strcmp(g.line_ptrs[0], "eins") == 0);
   labelEditApply(fr, free_l, 0, &blank, &g);
   assert(g.n == 0);
-  // The 23 x 23 square: the band and the code, nothing else.
+  // The 23 x 23 square: the code alone (Joerg, 05.11.2026).
   const LabelLayout free_sq = labelLayoutForMedia(free_l, 23, 23);
   labelEditFree(&fr, free_sq, 0);
-  assert(fr.n == 1 && fr.row[0].part == LEP_BAND && fr.code_allowed);
+  assert(fr.n == 0 && fr.code_allowed);
 
   // 4. The template at the scale: the line budget of the browser. A fact
   //    switch that is off stays off once the budget is full; the code and the

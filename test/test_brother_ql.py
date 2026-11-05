@@ -33,17 +33,23 @@ int main() {
   assert(l && l->dots_w == 696 && l->dots_h == 271 && l->media_type == 0x0B && l->margin_r == 12);
   assert(!brotherQlLabel(50, 30) && !brotherQlLabel(62, 31) && !brotherQlLabel(23, 24));
   assert(brotherQlPrintWidth(62) == 696 && brotherQlPrintWidth(50) == 0);
-  // The other rolls (Spec V75), as Brother's references give them: the dots
-  // across and the pins right of them (R p.14-20; QL series reference p.6-10;
-  // brother_ql labels.py lines 86, 89, 95). 62 and 38 mm are continuous tape,
-  // cut where the job ends; 3 mm of feed come before and after the print
-  // (R p.18), so a label cut at 30 mm prints 24 of them: 354 - 2 x 35 = 284
-  // lines, at 40 mm 472 - 70 = 402. The 23 x 23 square prints 236 x 202
-  // (Brother; brother_ql leaves it at 202 x 202).
-  const BrotherQlLabel* c62 = brotherQlLabel(62, 30);
-  assert(c62 && c62->dots_w == 696 && c62->dots_h == 284 && c62->media_type == 0x0A && c62->margin_r == 12);
-  const BrotherQlLabel* c38 = brotherQlLabel(38, 40);
-  assert(c38 && c38->dots_w == 413 && c38->dots_h == 402 && c38->media_type == 0x0A && c38->margin_r == 12);
+  // The other rolls (Spec V75 and its change after Joerg's word), as
+  // Brother's references give them: the dots across and the pins right of
+  // them (R p.14-20; QL series reference p.6-10; brother_ql labels.py lines
+  // 86, 89, 95). 62 and 38 mm are continuous tape with no length of their
+  // own (0): the label is as long as what is on it, cut where the job ends.
+  // The 23 x 23 square prints 236 x 202 (Brother; brother_ql 202 x 202).
+  const BrotherQlLabel* c62 = brotherQlLabel(62, 0);
+  assert(c62 && c62->dots_w == 696 && c62->dots_h == 0 && c62->media_type == 0x0A && c62->margin_r == 12);
+  const BrotherQlLabel* c38 = brotherQlLabel(38, 0);
+  assert(c38 && c38->dots_w == 413 && c38->dots_h == 0 && c38->media_type == 0x0A && c38->margin_r == 12);
+  assert(!brotherQlLabel(62, 30) && !brotherQlLabel(38, 40));
+  // How many lines a label may have: a die-cut one exactly its own, a
+  // continuous one from 12.7 mm (150 lines, R 2.3.4) to 100 mm (1181).
+  static_assert(BROTHER_QL_MIN_LINES == 150 && BROTHER_QL_MAX_LINES == 1181, "the continuous lengths");
+  assert(brotherQlLinesOk(*l, 271) && !brotherQlLinesOk(*l, 270) && !brotherQlLinesOk(*l, 272));
+  assert(brotherQlLinesOk(*c62, 150) && brotherQlLinesOk(*c62, 1181) && brotherQlLinesOk(*c38, 600));
+  assert(!brotherQlLinesOk(*c62, 149) && !brotherQlLinesOk(*c38, 1182) && !brotherQlLinesOk(*c62, 0));
   const BrotherQlLabel* sq = brotherQlLabel(23, 23);
   assert(sq && sq->dots_w == 236 && sq->dots_h == 202 && sq->media_type == 0x0B && sq->margin_r == 42);
   assert(BROTHER_QL_LABEL_COUNT == 4 && &BROTHER_QL_LABELS[0] == l);
@@ -60,7 +66,8 @@ int main() {
   brotherQlStart(*l, BQM_QL800, 300, s, sizeof(s));
   assert(s[13] == 0x2C && s[14] == 0x01 && s[15] == 0 && s[16] == 0);
   // Continuous tape: media 0A, length 0 (the lines set it), 35 dots of feed
-  // margin (brother_ql conversion.py, R p.28, p.32).
+  // margin (brother_ql conversion.py, R p.28, p.32). 284 lines here: any
+  // length the label comes to.
   const uint8_t want_c62[] = {0x1B,0x40, 0x1B,0x69,0x61,0x01,
     0x1B,0x69,0x7A,0xCE,0x0A,0x3E,0x00,0x1C,0x01,0x00,0x00,0x00,0x00,
     0x1B,0x69,0x4D,0x40, 0x1B,0x69,0x41,0x01, 0x1B,0x69,0x4B,0x08,
@@ -107,11 +114,11 @@ int main() {
   brotherQlOffsetRange(*c38, &lo, &hi); assert(lo == -59 && hi == 12);
   brotherQlOffsetRange(*sq, &lo, &hi);  assert(lo == -59 && hi == 42);
   // Each roll keeps its own: 62 x 29 under the key it always had, the others
-  // under keys of their own, 15 characters at most.
+  // under keys of their own, 15 characters at most; "c" for continuous.
   char key[16];
   assert(brotherQlOffsetKey(*l, key, sizeof(key)) && strcmp(key, "px_brother") == 0);
-  assert(brotherQlOffsetKey(*c62, key, sizeof(key)) && strcmp(key, "px_bq_6230") == 0);
-  assert(brotherQlOffsetKey(*c38, key, sizeof(key)) && strcmp(key, "px_bq_3840") == 0);
+  assert(brotherQlOffsetKey(*c62, key, sizeof(key)) && strcmp(key, "px_bq_62c") == 0);
+  assert(brotherQlOffsetKey(*c38, key, sizeof(key)) && strcmp(key, "px_bq_38c") == 0);
   assert(brotherQlOffsetKey(*sq, key, sizeof(key)) && strcmp(key, "px_bq_2323") == 0);
   assert(!brotherQlOffsetKey(*sq, key, 8));
   // A row: the raster's dot 0 lands on the printer's last pin.
