@@ -232,6 +232,12 @@ jobs:
         run: python3 test/test_id_pad_context.py
       - name: Test AMS offer clock
         run: python3 test/test_ams_offer_clock.py
+      - name: Test AMS recheck rules
+        run: python3 test/test_ams_recheck_rules.py
+      - name: Test BamBuddy report rules
+        run: python3 test/test_bambuddy_report_rules.py
+      - name: Test bay question wiring (v0.8.7-beta.4)
+        run: python3 test/test_fachfrage_wiring.py
       - name: Test create tag rules
         run: python3 test/test_create_tag_rules.py
       - name: Test create card swap
