@@ -215,12 +215,23 @@ bool labelPrinterTakesMedia(LabelPrinterModel model, uint16_t width_mm, uint16_t
 }
 
 // What is stored is taken as it is, except for two things that would leave
-// the printer unusable: no model becomes the M220, and a label size the model
-// cannot take becomes the picked one where it fits, else the model's default.
+// the printer unusable: no Bluetooth model becomes the M220, and a label size
+// the model cannot take becomes the picked one where it fits, else the
+// model's default.
+// Root: printer_model is the Bluetooth printer's key, and any number with a
+//   profile came out of it as that printer - the Brother's too, which would
+//   then be driven over Bluetooth. Our Brother never stood there (its own
+//   keys since v0.8.5-beta.6), but the original stores its D110 as 10, our
+//   Brother's number until v0.8.7-beta.6 (Spec V74).
+// Fix: the Brother's number counts as none here, like a number the table does
+//   not know; the D110 has the original's 10 and the Brother 100.
+// NOT-TO-DO: mapping a stored 10 onto the Brother for old scales: no release
+//   ever wrote it, and a scale coming from the original holds a D110 there.
+//   See test_printer_numbers.py.
 static LabelPrinterConfig normalized(const LabelPrinterConfig& in) {
   LabelPrinterConfig c = in;
   const LabelPrinterProfile& p = labelPrinterProfile(c.model);
-  const LabelPrinterProfile& use = p.model == LP_MODEL_NONE ? PROFILE_M220 : p;
+  const LabelPrinterProfile& use = (p.model == LP_MODEL_NONE || isBrother(p)) ? PROFILE_M220 : p;
   c.model = use.model;
   c.name[sizeof(c.name) - 1] = '\0';
   c.address[sizeof(c.address) - 1] = '\0';

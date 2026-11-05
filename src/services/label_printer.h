@@ -28,14 +28,18 @@
 // ============================================================
 
 // The values are NVS content (printer_model): a new model goes at the end,
-// none is ever renumbered or reused.
+// none is ever renumbered or reused. Below 100 the numbers are the
+// original's, so a scale moving between its firmware and ours keeps its
+// printer; the fork's own printers count from 100 (Spec V74). The Brother's
+// number is never stored - it has keys of its own, see label_printer.cpp -
+// so it could move from 10 (until v0.8.7-beta.6) to 100.
 enum LabelPrinterModel : uint8_t {
   LP_MODEL_NONE = 0, LP_MODEL_M220 = 1, LP_MODEL_M110 = 2, LP_MODEL_M100 = 3,
   LP_MODEL_NIIMBOT_B = 4,     // the 50 mm NIIMBOT class: B1, B21, B203 ...
   LP_MODEL_NIIMBOT_M2 = 5,    // NIIMBOT M2, 300 dpi, thermal transfer
   LP_MODEL_M120 = 6, LP_MODEL_M200 = 7, LP_MODEL_M221 = 8,
   LP_MODEL_M110S = 9,         // the M110's bytes, a row as wide as the label
-  LP_MODEL_BROTHER_QL820 = 10 // Brother QL-810W/820NWB over WLAN, see services/brother_ql.h
+  LP_MODEL_BROTHER_QL820 = 100 // Brother QL-810W/820NWB over WLAN, see services/brother_ql.h
 };
 
 // How the scale reaches its label printer: not at all, over Bluetooth, or over
