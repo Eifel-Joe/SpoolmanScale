@@ -60,3 +60,12 @@ void amsPickTick();
 // The Spoolman location an assignment writes for a bay's unit, "X1C AMS 1".
 // Public so taking a spool out can tell this name from one the user chose.
 void amsLocationName(char* out, size_t n, const char* printer, int ams_id);
+
+// Looks a few minutes after an assignment whether BamBuddy still has it, and
+// sends it again when BamBuddy dropped it while the spool sits in the bay
+// (Spec 5.3 AC j07, services/ams_recheck_rules.h). Makes network calls: from
+// appLoop() with WiFi up and nothing on screen.
+void amsPickRecheckTick();
+
+// Ends the recheck of a spool: taken out of its bay, or "not into the AMS".
+void amsPickRecheckStop(int spool_id);

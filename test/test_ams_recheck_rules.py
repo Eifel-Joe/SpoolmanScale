@@ -11,6 +11,13 @@ source = r'''
 
 static AmsRecheck t[AMS_RECHECK_SLOTS];
 
+// The spool and the bay an assignment names.
+static AmsRecheck bay(int spool, int printer, int ams, int tray) {
+  AmsRecheck w{};
+  w.spool_id = spool; w.printer_id = printer; w.ams_id = ams; w.tray_id = tray;
+  return w;
+}
+
 static int activeCount() {
   int n = 0;
   for (int i = 0; i < AMS_RECHECK_SLOTS; i++) n += t[i].active ? 1 : 0;
@@ -29,32 +36,32 @@ int main() {
   amsRecheckClear(t, AMS_RECHECK_SLOTS);
   assert(activeCount() == 0);
   const uint32_t t0 = 1000;
-  const int a = amsRecheckStart(t, AMS_RECHECK_SLOTS, 51, 2, 0, 1, t0);
+  const int a = amsRecheckStart(t, AMS_RECHECK_SLOTS, bay(51, 2, 0, 1), t0);
   assert(a >= 0 && t[a].active && t[a].spool_id == 51 && t[a].printer_id == 2 &&
          t[a].ams_id == 0 && t[a].tray_id == 1 && t[a].round == 0 && t[a].resent == 0);
   assert(amsRecheckDue(t, AMS_RECHECK_SLOTS, t0 + 149999) == -1);
   assert(amsRecheckDue(t, AMS_RECHECK_SLOTS, t0 + 150000) == a);
 
   // A second spool into another bay is watched beside the first (E3).
-  const int b = amsRecheckStart(t, AMS_RECHECK_SLOTS, 52, 2, 0, 2, t0 + 5000);
+  const int b = amsRecheckStart(t, AMS_RECHECK_SLOTS, bay(52, 2, 0, 2), t0 + 5000);
   assert(b >= 0 && b != a && activeCount() == 2);
   // The same spool assigned again (moved) takes its own watch's place.
-  const int a2 = amsRecheckStart(t, AMS_RECHECK_SLOTS, 51, 2, 0, 3, t0 + 6000);
+  const int a2 = amsRecheckStart(t, AMS_RECHECK_SLOTS, bay(51, 2, 0, 3), t0 + 6000);
   assert(a2 == a && activeCount() == 2 && t[a].tray_id == 3 && t[a].since_ms == t0 + 6000);
   // Another spool into a watched bay takes that bay's watch.
-  const int c = amsRecheckStart(t, AMS_RECHECK_SLOTS, 53, 2, 0, 2, t0 + 7000);
+  const int c = amsRecheckStart(t, AMS_RECHECK_SLOTS, bay(53, 2, 0, 2), t0 + 7000);
   assert(c == b && activeCount() == 2 && t[b].spool_id == 53);
   // The same bay number on another printer is another bay.
-  const int d = amsRecheckStart(t, AMS_RECHECK_SLOTS, 54, 3, 0, 2, t0 + 7000);
+  const int d = amsRecheckStart(t, AMS_RECHECK_SLOTS, bay(54, 3, 0, 2), t0 + 7000);
   assert(d != b && activeCount() == 3);
 
   // Full: the ninth replaces the oldest watch.
   amsRecheckClear(t, AMS_RECHECK_SLOTS);
   for (int i = 0; i < AMS_RECHECK_SLOTS; i++) {
-    amsRecheckStart(t, AMS_RECHECK_SLOTS, 100 + i, 3, i / 4, i % 4, t0 + (uint32_t)i * 10);
+    amsRecheckStart(t, AMS_RECHECK_SLOTS, bay(100 + i, 3, i / 4, i % 4), t0 + (uint32_t)i * 10);
   }
   assert(activeCount() == AMS_RECHECK_SLOTS);
-  const int ninth = amsRecheckStart(t, AMS_RECHECK_SLOTS, 200, 1, 0, 0, t0 + 1000);
+  const int ninth = amsRecheckStart(t, AMS_RECHECK_SLOTS, bay(200, 1, 0, 0), t0 + 1000);
   assert(ninth >= 0 && t[ninth].spool_id == 200 && activeCount() == AMS_RECHECK_SLOTS);
   for (int i = 0; i < AMS_RECHECK_SLOTS; i++) assert(t[i].spool_id != 100);   // the oldest is gone
 
@@ -64,15 +71,15 @@ int main() {
   assert(amsRecheckStop(t, AMS_RECHECK_SLOTS, 103) == 0);
   assert(amsRecheckStop(t, AMS_RECHECK_SLOTS, 999) == 0);
   // A nonsense start is refused.
-  assert(amsRecheckStart(t, AMS_RECHECK_SLOTS, 0, 1, 0, 0, t0) == -1);
-  assert(amsRecheckStart(t, AMS_RECHECK_SLOTS, 5, 0, 0, 0, t0) == -1);
-  assert(amsRecheckStart(t, AMS_RECHECK_SLOTS, 5, 1, -1, 0, t0) == -1);
-  assert(amsRecheckStart(t, AMS_RECHECK_SLOTS, 5, 1, 0, -1, t0) == -1);
+  assert(amsRecheckStart(t, AMS_RECHECK_SLOTS, bay(0, 1, 0, 0), t0) == -1);
+  assert(amsRecheckStart(t, AMS_RECHECK_SLOTS, bay(5, 0, 0, 0), t0) == -1);
+  assert(amsRecheckStart(t, AMS_RECHECK_SLOTS, bay(5, 1, -1, 0), t0) == -1);
+  assert(amsRecheckStart(t, AMS_RECHECK_SLOTS, bay(5, 1, 0, -1), t0) == -1);
 
   // Round by round; the clock may wrap around.
   amsRecheckClear(t, AMS_RECHECK_SLOTS);
   const uint32_t wrap = 0xFFFFFFF0u;
-  const int w = amsRecheckStart(t, AMS_RECHECK_SLOTS, 60, 2, 0, 1, wrap);
+  const int w = amsRecheckStart(t, AMS_RECHECK_SLOTS, bay(60, 2, 0, 1), wrap);
   assert(amsRecheckDue(t, AMS_RECHECK_SLOTS, wrap + 149999u) == -1);
   assert(amsRecheckDue(t, AMS_RECHECK_SLOTS, wrap + 150000u) == w);
   amsRecheckLooked(t[w]);

@@ -1,12 +1,15 @@
 #include "ams_pick.h"
 
 #include <Arduino.h>
+#include <esp_heap_caps.h>
+#include <new>
 #include <string.h>
 
 #include "app/app_state.h"
 #include "hardware/sd_logger.h"
 #include "services/auto_weight_state.h"
 #include "services/backend.h"
+#include "services/ams_recheck_rules.h"
 #include "services/backend_api.h"
 #include "services/klipper_printers.h"
 #include "services/server_reach.h"
@@ -32,6 +35,15 @@ struct Pending {
 };
 
 Pending s_pending;
+
+// Assignments sent from the picker, watched for a few minutes (j07,
+// services/ams_recheck_rules.h). BamBuddy releases a bay that the AMS
+// reports as unreadable ("?") once that has lasted two minutes - which is
+// what an assignment sent before the spool went in turns into (Jensilein,
+// 14.10.2026, Overture #10 in AMS-A bay 4). Sent again while the spool sits
+// in the bay, it holds, because BamBuddy then configures the bay. So the
+// order of "put it in" and "tap the bay" no longer matters.
+AmsRecheck s_recheck[AMS_RECHECK_SLOTS];
 
 }  // namespace
 
@@ -236,6 +248,17 @@ static void onPicked(int ams_id, int tray_id) {
     // setting is on and Happy Hare does not write it): a second write here
     // would put the AMS source's "<printer> AMS 1" over it.
     if (!klipper) setAmsLocation(spool_id, ams_id);
+    // Watched only on a BamBuddy printer: BamBuddy is what releases a bay
+    // that reads empty. A Klipper field is held by the printer, and an AMS
+    // source gives no sign of releasing anything (Spec 5.3 AC, V71).
+    if (!klipper && backendIsBamBuddy()) {
+      AmsRecheck want{};
+      want.spool_id   = spool_id;
+      want.printer_id = printer_id;
+      want.ams_id     = ams_id;
+      want.tray_id    = tray_id;
+      amsRecheckStart(s_recheck, AMS_RECHECK_SLOTS, want, (uint32_t)millis());
+    }
     showInfoPopup(STR_AMSV_TITLE, moved ? STR_AMSV_MOVED : STR_AMSV_ASSIGNED,
                   INFO_DONE);
     // A spool going into the printer does not also need the storage location
@@ -297,4 +320,115 @@ void amsPickTick() {
   if (amsPickPendingAgeMs() <= AMS_PICK_MAX_MS) return;
   logSDf("AMSPICK: note for spool %d expired", s_pending.spool_id);
   amsPickDropPending();
+}
+
+// ---- the recheck (j07) ----------------------------------------------------
+
+// Whether the AMS reports a spool in the bay: the printer's presence bit, as
+// BamBuddy passes it on. An unreadable spool ("?") counts as present.
+//
+// Wurzel: Jensilein kept the printer's AMS for this look in a fixed buffer of
+// its own, and that is up to 1.8 kB of internal RAM (ams_slots.h) on the 7B,
+// which has 45 kB free in operation and two such buffers already.
+// Fix: the buffer comes from PSRAM for the one look and goes again; on a board
+// without PSRAM from the internal heap, for the same moment only.
+// NOT-TO-DO: sharing the AMS view's buffer - the view may be drawn from it at
+// any time, and the recheck runs while the view is closed but not torn down.
+static bool bayHoldsSpool(int printer_id, int ams_id, int tray_id, bool* known) {
+  *known = false;
+  void* mem = heap_caps_malloc(sizeof(AmsSlotState), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (!mem) mem = heap_caps_malloc(sizeof(AmsSlotState), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  if (!mem) {
+    logSD("AMSPICK: recheck, no memory to read the AMS");
+    return false;
+  }
+  AmsSlotState* st = new (mem) AmsSlotState();
+  bool present = false;
+  if (backendGetAmsState(printer_id, *st, 8000) == 200 && st->valid) {
+    for (uint8_t u = 0; u < st->unit_count && u < AMS_UNITS_TOTAL && !*known; u++) {
+      const AmsSlotUnit& unit = st->unit[u];
+      if (unit.is_ext || unit.ams_id != ams_id) continue;
+      for (uint8_t k = 0; k < unit.tray_count && k < AMS_MAX_TRAYS; k++) {
+        if (unit.tray[k].tray_id != tray_id) continue;
+        *known  = true;
+        present = unit.tray[k].exists;
+        break;
+      }
+    }
+  }
+  st->~AmsSlotState();
+  heap_caps_free(mem);
+  return present;
+}
+
+void amsPickRecheckStop(int spool_id) {
+  const int n = amsRecheckStop(s_recheck, AMS_RECHECK_SLOTS, spool_id);
+  if (n > 0) logSDf("AMSPICK: recheck of spool %d ended", spool_id);
+}
+
+void amsPickRecheckTick() {
+  if (!backendIsBamBuddy() || !backendCanAssignAmsSlot()) {
+    amsRecheckClear(s_recheck, AMS_RECHECK_SLOTS);
+    return;
+  }
+  const int i = amsRecheckDue(s_recheck, AMS_RECHECK_SLOTS, (uint32_t)millis());
+  if (i < 0) return;
+  AmsRecheck& r = s_recheck[i];
+  const unsigned look = (unsigned)r.round + 1;
+  // Counted before the questions: a look that fails is still a look.
+  const AmsRecheck asked = r;
+  amsRecheckLooked(r);
+
+  int ams = -1, tray = -1;
+  const int code = backendFindSpoolSlot(asked.spool_id, asked.printer_id, &ams, &tray, 6000);
+  AmsRecheckStep step = amsRecheckAfterFind(asked, code, ams, tray);
+  if (step == RC_NO_ANSWER) {
+    logSDf("AMSPICK: recheck %u of spool %d could not ask BamBuddy, HTTP %d", look,
+           asked.spool_id, code);
+    return;
+  }
+  if (step == RC_STILL_THERE) {
+    logSDf("AMSPICK: recheck %u, spool %d still in bay %d/%d", look, asked.spool_id,
+           asked.ams_id, asked.tray_id);
+    return;
+  }
+  if (step == RC_MOVED) {
+    // Moved since, by a tap here or in BamBuddy. Not ours to undo.
+    logSDf("AMSPICK: recheck, spool %d is in bay %d/%d now, not %d/%d - leaving it",
+           asked.spool_id, ams, tray, asked.ams_id, asked.tray_id);
+    r.active = false;
+    return;
+  }
+  // Gone. Only sent again when the bay holds no other spool on file and the
+  // AMS reports something in it - an empty bay means the spool went
+  // elsewhere, or has not gone in yet.
+  const int other = backendFindBaySpool(asked.printer_id, asked.ams_id, asked.tray_id, 6000);
+  step = amsRecheckAfterBay(asked, other);
+  if (step == RC_OTHER_SPOOL) {
+    logSDf("AMSPICK: recheck, bay %d/%d holds spool %d now - leaving it",
+           asked.ams_id, asked.tray_id, other);
+    r.active = false;
+    return;
+  }
+  bool known = false;
+  const bool present = bayHoldsSpool(asked.printer_id, asked.ams_id, asked.tray_id, &known);
+  step = amsRecheckAfterPresence(asked, known, present);
+  if (step == RC_BAY_EMPTY || step == RC_BAY_UNKNOWN) {
+    logSDf("AMSPICK: recheck %u, assignment of spool %d to bay %d/%d is gone and the bay %s",
+           look, asked.spool_id, asked.ams_id, asked.tray_id,
+           step == RC_BAY_EMPTY ? "is empty" : "could not be read");
+    return;
+  }
+  if (step == RC_GIVE_UP) {
+    logSDf("AMSPICK: recheck, assignment of spool %d dropped again, giving up", asked.spool_id);
+    r.active = false;
+    return;
+  }
+  const int ac = serverReachNote(
+      backendAssignAmsSlot(asked.spool_id, asked.printer_id, asked.ams_id, asked.tray_id, 8000), true);
+  r.resent = (uint8_t)(asked.resent + 1);
+  logSDf("AMSPICK: recheck %u, BamBuddy had dropped spool %d from bay %d/%d - sent again (%u of %d), HTTP %d",
+         look, asked.spool_id, asked.ams_id, asked.tray_id, (unsigned)r.resent,
+         AMS_RECHECK_RESEND_MAX, ac);
+  // Looked at once more in the next round, if there is one.
 }

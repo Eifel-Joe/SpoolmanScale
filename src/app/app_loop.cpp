@@ -1221,6 +1221,10 @@ void appLoop() {
   perfSection("ams");
   amsDetailBatchTick();
   amsPickTick();
+  // An assignment the picker sent, checked again once BamBuddy may have
+  // dropped it (j07). A few requests, never under a question on screen and
+  // not while the drying batch reads the inventory mode on the other core.
+  if (wifi_ok && !uiModalWaiting() && !isAmsViewOpen() && !driedBatchBusy()) amsPickRecheckTick();
   amsPresenceTick();
   // Watches the reader for the tag on the other flange while its question
   // stands. It has to run every pass, not only when something happened: the
