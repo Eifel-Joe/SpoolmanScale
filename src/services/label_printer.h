@@ -188,6 +188,14 @@ bool labelPrinterRecommended(LabelPrinterModel model);
 bool labelPrinterForget();
 // True when this address is the picked printer.
 bool labelPrinterIsDevice(const char* address);
+// Whether the Bluetooth printer set up was there at the last scan or print:
+// the header's Bluetooth symbol is green while it is (Spec 5.3 AC f21). False
+// after a start and after another device is picked; the rules are in
+// services/label_printer_reach.h.
+bool labelPrinterReachable();
+// A scan found these devices (count < 0: it failed): notes whether the
+// Bluetooth printer set up was among them.
+void labelPrinterNoteScan(const BleDevice* found, int count);
 
 // Millimetres to dots at the model's resolution; 0 for no model.
 uint16_t labelPrinterDotsForMm(LabelPrinterModel model, uint16_t mm);

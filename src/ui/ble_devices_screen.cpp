@@ -346,6 +346,8 @@ void handleBleDevicesDeferredActions() {
       const int n = bleScan(ble_devices, BLE_SCAN_MAX, BLE_SCAN_MS, loadingOverlayTick,
                             printer.address);
       loadingOverlayHide();
+      // Whether the printer set up was among them: the header's symbol.
+      labelPrinterNoteScan(ble_devices, n);
       ble_scanned = true;
       ble_device_count = n < 0 ? 0 : n;
       ble_page = 0;

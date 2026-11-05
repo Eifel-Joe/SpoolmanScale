@@ -4,6 +4,7 @@
 #include "services/backend.h"
 #include "services/battery.h"
 #include "services/ble_service.h"
+#include "services/label_printer.h"
 
 #include <Arduino.h>
 #include <cstring>
@@ -152,10 +153,15 @@ void updateHeaderStatus() {
   lv_obj_set_style_text_color(lbl_hdr_wifi, wifiColor(), 0);
 
   // Bluetooth follows the master switch: shown while BLE may be used, gone
-  // otherwise. The chip chain leaves no hole for a hidden one.
+  // otherwise. The chip chain leaves no hole for a hidden one. Green while
+  // the Bluetooth printer set up was there at the last scan or print, the
+  // caption's grey otherwise (Spec 5.3 AC f21, V74; idea from akira69's
+  // fork, where it showed under FilaMan only).
   if (lbl_hdr_bt) {
     if (bleEnabled()) lv_obj_clear_flag(lbl_hdr_bt, LV_OBJ_FLAG_HIDDEN);
     else              lv_obj_add_flag(lbl_hdr_bt, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_style_text_color(lbl_hdr_bt,
+      lv_color_hex(labelPrinterReachable() ? UI_COL_GOOD : UI_COL_CAPTION), 0);
   }
 
   if (lbl_hdr_nfc) {

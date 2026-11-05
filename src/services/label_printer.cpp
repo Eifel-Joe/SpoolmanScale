@@ -10,6 +10,7 @@
 #include "services/niimbot.h"
 #include "services/phomemo_m_series.h"
 #include "services/prefs_store.h"
+#include "services/label_printer_reach.h"
 #include "services/tspl_printer.h"
 
 // The NVS keys. 15 characters at most, and never renamed: they sit in the
@@ -199,6 +200,23 @@ static int16_t loadOffset(const char* address) {
 // before this (30.09.2026): the M110 took 40 x 30 and that was saved.
 static uint16_t s_want_w = 0, s_want_l = 0;
 
+// Whether the Bluetooth printer set up was there at the last scan or print
+// (Spec 5.3 AC f21, V74; services/label_printer_reach.h): grey after a start
+// until a scan finds it or it takes a print, and grey again for another
+// device. Memory only: a printer switched off overnight is not green from
+// yesterday. The header reads it on its five second round.
+static bool s_reachable = false;
+
+static void noteReach(LabelPrinterReach r, const char* after) {
+  if (r == LP_REACH_KEEP) return;
+  const bool now = r == LP_REACH_YES;
+  logSDf("Printer: Bluetooth printer %s after %s%s", now ? "reached" : "not reached", after,
+         now == s_reachable ? "" : (now ? " (symbol green)" : " (symbol grey)"));
+  s_reachable = now;
+}
+
+bool labelPrinterReachable() { return s_reachable; }
+
 const LabelPrinterProfile& labelPrinterProfile(LabelPrinterModel model) {
   switch (model) {
     case LP_MODEL_M220: return PROFILE_M220;
@@ -321,8 +339,15 @@ static bool bleSave(const LabelPrinterConfig& in) {
   ok = prefsPutInt(LP_KEY_H, s_want_l) && ok;
   char key[20];
   if (offsetKey(c.address, key, sizeof(key))) ok = prefsPutInt(key, c.x_offset) && ok;
-  if (ok) { s_config = c; s_loaded = true; }
-  else { s_want_w = want_w; s_want_l = want_l; }
+  if (ok) {
+    // Another device is another printer: grey until it is found or prints.
+    if (strcmp(c.address, before.address) != 0) noteReach(LP_REACH_NO, "another device was picked");
+    s_config = c;
+    s_loaded = true;
+  } else {
+    s_want_w = want_w;
+    s_want_l = want_l;
+  }
   logConfig(c, ok);
   return ok;
 }
@@ -481,6 +506,10 @@ bool labelPrinterForget() {
   c.address[0] = '\0';
   c.name[0] = '\0';
   return bleSave(c);
+}
+
+void labelPrinterNoteScan(const BleDevice* found, int count) {
+  noteReach(labelScanReach(bleConfig().address, found, count), "a scan");
 }
 
 bool labelPrinterIsDevice(const char* address) {
@@ -674,7 +703,9 @@ LabelPrintResult labelPrinterPrint(const LabelPrinterConfig& c, const LabelRaste
   return docLabelNotPrinted(p);
 #else
   if (p.protocol == LP_PROTO_BROTHER_QL) return printBrother(c, image, progress);
-  return printBle(p, c, image, progress);
+  const LabelPrintResult r = printBle(p, c, image, progress);
+  noteReach(labelPrintReach(r), "a print");
+  return r;
 #endif
 }
 
