@@ -95,6 +95,10 @@ def j07_tick():
     assert "MALLOC_CAP_SPIRAM" in code and "heap_caps_free(" in code, \
         f"src/{PICK}: the AMS state for the recheck does not come from PSRAM"
     hasnt(code, "AmsSlotStates_recheck_state;", f"src/{PICK}")
+    # The eight watches as well: in PSRAM, made on the first assignment.
+    hasnt(code, "AmsRechecks_recheck[AMS_RECHECK_SLOTS];", f"src/{PICK}")
+    has(body_of(PICK, "recheckTable"), "heap_caps_calloc(AMS_RECHECK_SLOTS, sizeof(AmsRecheck), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)",
+        f"src/{PICK}: recheckTable()")
     # The acceptance switch for an occupied bay (Spec 5.3 AA, V71).
     has(body_of(PICK, "bayHoldsSpool"), "docBayPresence(", f"src/{PICK}: bayHoldsSpool()")
 
@@ -194,7 +198,12 @@ def a03_task():
     has(tick, "bbHeartbeatGapMs(", f"{w}: bambuddyDeviceTick()")
     has(tick, "bbWeightGapMs(", f"{w}: bambuddyDeviceTick()")
     # Without a task the request runs here, as it always did.
-    has(body_of(DEVICE, "submitJob"), "runJob(s_job);", f"{w}: submitJob()")
+    has(body_of(DEVICE, "submitJob"), "runJob(*s_jobp);", f"{w}: submitJob()")
+    # The mailbox is ~300 B: in PSRAM, so the internal RAM after the start is
+    # what beta.3 had (Spec 8, U3/AC beta.4).
+    assert "staticBbReports_job;" not in code, f"{w}: the mailbox is a fixed buffer in internal RAM"
+    has(body_of(DEVICE, "jobSlot"), "heap_caps_calloc(1, sizeof(BbReport), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)",
+        f"{w}: jobSlot()")
 
 
 # ---- a06 ---------------------------------------------------------------------

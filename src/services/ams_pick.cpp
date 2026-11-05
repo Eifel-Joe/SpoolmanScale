@@ -46,7 +46,9 @@ Pending s_pending;
 // 14.10.2026, Overture #10 in AMS-A bay 4). Sent again while the spool sits
 // in the bay, it holds, because BamBuddy then configures the bay. So the
 // order of "put it in" and "tap the bay" no longer matters.
-AmsRecheck s_recheck[AMS_RECHECK_SLOTS];
+// Made on the first assignment, in PSRAM: about 250 bytes that the internal
+// RAM of the 7B keeps (Spec 8, U3/AC beta.4: no less free than in beta.3).
+AmsRecheck* s_recheck = nullptr;
 // The server and BamBuddy's inventory mode the watches belong to: a spool
 // number means another spool on another server, and the local inventory and
 // Spoolman number their spools apart (review, beta.4).
@@ -166,6 +168,8 @@ static void setAmsLocation(int spool_id, int ams_id) {
   }
 }
 
+static AmsRecheck* recheckTable();
+
 // What a refused or failed assignment says. A Klipper printer is told by its
 // own codes (klipper_rules.h), then by the ones Moonraker and the transport
 // give; they come first, before the test of the backend's mode below: a
@@ -280,7 +284,8 @@ static void onPicked(int ams_id, int tray_id) {
       want.printer_id = printer_id;
       want.ams_id     = ams_id;
       want.tray_id    = tray_id;
-      amsRecheckStart(s_recheck, AMS_RECHECK_SLOTS, want, (uint32_t)millis());
+      AmsRecheck* table = recheckTable();
+      if (table) amsRecheckStart(table, AMS_RECHECK_SLOTS, want, (uint32_t)millis());
     }
     showInfoPopup(STR_AMSV_TITLE, moved ? STR_AMSV_MOVED : STR_AMSV_ASSIGNED,
                   INFO_DONE);
@@ -426,12 +431,25 @@ static bool bayHoldsSpool(int printer_id, int ams_id, int tray_id, bool* known) 
   return present;
 }
 
+static AmsRecheck* recheckTable() {
+  if (!s_recheck) {
+    s_recheck = static_cast<AmsRecheck*>(
+        heap_caps_calloc(AMS_RECHECK_SLOTS, sizeof(AmsRecheck), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    if (!s_recheck) {
+      s_recheck = static_cast<AmsRecheck*>(calloc(AMS_RECHECK_SLOTS, sizeof(AmsRecheck)));
+    }
+    if (!s_recheck) logSD("AMSPICK: no memory for the recheck, assignments are not watched");
+  }
+  return s_recheck;
+}
+
 void amsPickRecheckStop(int spool_id) {
   const int n = amsRecheckStop(s_recheck, AMS_RECHECK_SLOTS, spool_id);
   if (n > 0) logSDf("AMSPICK: recheck of spool %d ended", spool_id);
 }
 
 void amsPickRecheckTick() {
+  if (!s_recheck) return;           // nothing assigned since the start
   if (!backendIsBamBuddy() || !backendCanAssignAmsSlot() ||
       strcmp(s_recheck_base, backendBaseUrl()) != 0 ||
       s_recheck_mode != (int)bbInventoryMode()) {

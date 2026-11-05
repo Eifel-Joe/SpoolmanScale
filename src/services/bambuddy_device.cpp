@@ -84,7 +84,10 @@ struct BbReport {
   uint32_t cost_ms;
 };
 
-static BbReport      s_job;
+// Made on the first report, in PSRAM: about 300 bytes that the internal RAM
+// of the 7B keeps (Spec 8, U3/AC beta.4: no less free than in beta.3). The
+// pointer is set before the task exists and never changes after.
+static BbReport*     s_jobp          = nullptr;
 static TaskHandle_t  s_task          = nullptr;
 static unsigned long s_task_tried_ms = 0;
 static bool          s_task_tried    = false;
@@ -108,13 +111,22 @@ static void runJob(BbReport& j) {
   j.cost_ms = millis() - t0;
 }
 
+static BbReport* jobSlot() {
+  if (!s_jobp) {
+    s_jobp = static_cast<BbReport*>(
+        heap_caps_calloc(1, sizeof(BbReport), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    if (!s_jobp) s_jobp = static_cast<BbReport*>(calloc(1, sizeof(BbReport)));
+  }
+  return s_jobp;
+}
+
 static void reportTask(void*) {
   for (;;) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    if (s_job.slot != BBR_PENDING) continue;
-    runJob(s_job);
+    if (s_jobp->slot != BBR_PENDING) continue;
+    runJob(*s_jobp);
     __sync_synchronize();
-    s_job.slot = BBR_DONE;
+    s_jobp->slot = BBR_DONE;
   }
 }
 
@@ -129,7 +141,7 @@ static void reportTask(void*) {
 // floors of the other workers would sink by 12 kB for nothing.
 // See test_fachfrage_wiring.py (a03) and test_bambuddy_report_rules.py.
 static void submitJob() {
-  s_job.slot = BBR_PENDING;
+  s_jobp->slot = BBR_PENDING;
   if (!s_task && (!s_task_tried || millis() - s_task_tried_ms >= BB_TASK_RETRY_MS)) {
     const bool first = !s_task_tried;
     s_task_tried    = true;
@@ -150,8 +162,8 @@ static void submitJob() {
     xTaskNotifyGive(s_task);
     return;
   }
-  runJob(s_job);
-  s_job.slot = BBR_DONE;
+  runJob(*s_jobp);
+  s_jobp->slot = BBR_DONE;
 }
 
 // The version BamBuddy is told, in registration and heartbeat. Its schema
@@ -182,7 +194,7 @@ void bambuddyDeviceReset() {
   s_gen++;
   s_hb_gap_ms     = BB_HEARTBEAT_MS;
   s_weight_gap_ms = BB_WEIGHT_MIN_GAP_MS;
-  if (s_job.slot == BBR_DONE) s_job.slot = BBR_IDLE;
+  if (s_jobp && s_jobp->slot == BBR_DONE) s_jobp->slot = BBR_IDLE;
 }
 
 // Answers a command the scale cannot carry out. Every queued command must be
@@ -284,17 +296,18 @@ void bambuddyDeviceTick() {
   }
 
   // --- answers from the report task ---------------------------
-  if (s_job.slot == BBR_DONE) {
+  if (!jobSlot()) return;           // no memory: no reports, as with no server
+  if (s_jobp->slot == BBR_DONE) {
     __sync_synchronize();
-    const BbReportKind kind = s_job.kind;
-    const bool     current = (s_job.gen == s_gen);
-    const int      code    = s_job.code;
-    const uint32_t cost    = s_job.cost_ms;
+    const BbReportKind kind = s_jobp->kind;
+    const bool     current = (s_jobp->gen == s_gen);
+    const int      code    = s_jobp->code;
+    const uint32_t cost    = s_jobp->cost_ms;
     char cmd[40];
-    strncpy(cmd, s_job.cmd, sizeof(cmd) - 1);
+    strncpy(cmd, s_jobp->cmd, sizeof(cmd) - 1);
     cmd[sizeof(cmd) - 1] = '\0';
-    const int write_spool_id = s_job.write_spool_id;
-    s_job.slot = BBR_IDLE;
+    const int write_spool_id = s_jobp->write_spool_id;
+    s_jobp->slot = BBR_IDLE;
 
     if (!current) {
       // For a server no longer in use: nothing in it applies here.
@@ -330,16 +343,16 @@ void bambuddyDeviceTick() {
   }
 
   // --- heartbeat ----------------------------------------------
-  if (s_job.slot == BBR_IDLE && millis() - s_last_hb_ms >= s_hb_gap_ms) {
+  if (s_jobp->slot == BBR_IDLE && millis() - s_last_hb_ms >= s_hb_gap_ms) {
     s_last_hb_ms = millis();
-    s_job.kind = BBR_HEARTBEAT;
-    s_job.gen  = s_gen;
-    snprintf(s_job.base, sizeof(s_job.base), "%s", base);
-    snprintf(s_job.key, sizeof(s_job.key), "%s", key ? key : "");
-    snprintf(s_job.ip, sizeof(s_job.ip), "%s", wifiManagerLocalIP().toString().c_str());
-    snprintf(s_job.fw, sizeof(s_job.fw), "%s", firmwareForBamBuddy());
-    s_job.scale_ok = (!g_scale_fitted || scale_ready);
-    s_job.uptime_s = millis() / 1000;
+    s_jobp->kind = BBR_HEARTBEAT;
+    s_jobp->gen  = s_gen;
+    snprintf(s_jobp->base, sizeof(s_jobp->base), "%s", base);
+    snprintf(s_jobp->key, sizeof(s_jobp->key), "%s", key ? key : "");
+    snprintf(s_jobp->ip, sizeof(s_jobp->ip), "%s", wifiManagerLocalIP().toString().c_str());
+    snprintf(s_jobp->fw, sizeof(s_jobp->fw), "%s", firmwareForBamBuddy());
+    s_jobp->scale_ok = (!g_scale_fitted || scale_ready);
+    s_jobp->uptime_s = millis() / 1000;
     submitJob();
   }
 
@@ -363,19 +376,19 @@ void bambuddyDeviceTick() {
     if (scale_weight_g < s_win_min) s_win_min = scale_weight_g;
     if (scale_weight_g > s_win_max) s_win_max = scale_weight_g;
 
-    if (s_job.slot == BBR_IDLE && millis() - s_last_weight_ms >= s_weight_gap_ms) {
+    if (s_jobp->slot == BBR_IDLE && millis() - s_last_weight_ms >= s_weight_gap_ms) {
       if (fabsf(scale_weight_g - s_last_weight_g) >= BB_WEIGHT_MIN_DELTA_G) {
         // Settled means the readings of the past second stayed inside the
         // same window the automatic weighing waits for. Reporting it lets
         // the web interface distinguish a spool being placed from one that
         // is lying still.
-        s_job.kind   = BBR_WEIGHT;
-        s_job.gen    = s_gen;
-        snprintf(s_job.base, sizeof(s_job.base), "%s", base);
-        snprintf(s_job.key, sizeof(s_job.key), "%s", key ? key : "");
-        s_job.grams  = scale_weight_g;
-        s_job.stable = (s_win_max - s_win_min) < AUTO_WEIGHT_THRESH_G;
-        s_job.raw    = scaleHardwareReadRaw();
+        s_jobp->kind   = BBR_WEIGHT;
+        s_jobp->gen    = s_gen;
+        snprintf(s_jobp->base, sizeof(s_jobp->base), "%s", base);
+        snprintf(s_jobp->key, sizeof(s_jobp->key), "%s", key ? key : "");
+        s_jobp->grams  = scale_weight_g;
+        s_jobp->stable = (s_win_max - s_win_min) < AUTO_WEIGHT_THRESH_G;
+        s_jobp->raw    = scaleHardwareReadRaw();
         s_last_weight_g = scale_weight_g;
         submitJob();
       }
