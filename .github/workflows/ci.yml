@@ -38,6 +38,10 @@ jobs:
         run: python3 test/test_recheck_pace.py
       - name: Test spool link
         run: python3 test/test_spool_link.py
+      - name: Test spool link store
+        run: python3 test/test_spool_link_store.py
+      - name: Test Brother rolls
+        run: python3 test/test_label_rolls.py
       - name: Test server refusal
         run: python3 test/test_server_refusal.py
       - name: Test weight write rules

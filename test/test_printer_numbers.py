@@ -1,6 +1,6 @@
 """The printer numbers of v0.8.7-beta.6 (Spec 5.3 U3/AC, V74): the number a scale stores for its Bluetooth printer (printer_model) and the lists the pages build from the models.
 
-The original gives its NIIMBOT D110 the number 10, which was our Brother's. Our Brother never sat in printer_model - it has keys of its own (printer_link, printer_host, px_brother) - so its number lives only in the running firmware and moves to 100; the fork's own printers count from 100, well away from the original's next numbers, and the TYPONOS PM240 is 101. A stored number that is no Bluetooth printer (the Brother's, or one the scale does not know) is taken as the factory model, never as the Brother over Bluetooth.
+The original gives its NIIMBOT D110 the number 10, which was our Brother's. Our Brother never sat in printer_model - it has keys of its own (printer_link, printer_host, px_brother) - so its number lives only in the running firmware and moves to 100; the fork's own printers count from 100, well away from the original's next numbers, and the TYPONOS PM240 is 101. A stored number that is no Bluetooth printer (the Brother's, or one the scale does not know) is taken as the factory model, never as the Brother over Bluetooth. The QL-700 behind a forwarder (v0.8.7-beta.7, V75) is 102, the second model of the WLAN list.
 
 Compiles the header for the numbers; reads the source for where they are used."""
 import subprocess
@@ -23,6 +23,7 @@ static_assert(LP_MODEL_M120 == 6 && LP_MODEL_M200 == 7 && LP_MODEL_M221 == 8 && 
 static_assert(LP_MODEL_NIIMBOT_D110 == 10, "the D110 keeps the original's number");
 static_assert(LP_MODEL_BROTHER_QL820 == 100, "the Brother, only in memory, the fork's own from 100");
 static_assert(LP_MODEL_PM240 == 101, "the TYPONOS PM240, the fork's own");
+static_assert(LP_MODEL_BROTHER_QL700 == 102, "the Brother QL-700 behind a forwarder, the fork's own (V75)");
 static_assert(LP_PROTO_TSPL != LP_PROTO_PHOMEMO_M220 && LP_PROTO_TSPL != LP_PROTO_PHOMEMO_M110 &&
               LP_PROTO_TSPL != LP_PROTO_NIIMBOT && LP_PROTO_TSPL != LP_PROTO_BROTHER_QL,
               "TSPL is a protocol of its own");
@@ -58,10 +59,12 @@ need("LP_MODEL_BROTHER_QL820" not in bt_list,
      f"src/{LP}: the Brother is in the Bluetooth list")
 start = code.find("LABEL_PRINTER_MODELS_WLAN[]")
 wlan_list = code[start:code.find("};", start)] if start >= 0 else ""
-need(ks.squeeze(wlan_list).endswith("{LP_MODEL_BROTHER_QL820"),
-     f"src/{LP}: the WLAN list is not the Brother alone")
+need(ks.squeeze(wlan_list).endswith("{LP_MODEL_BROTHER_QL820,LP_MODEL_BROTHER_QL700"),
+     f"src/{LP}: the WLAN list is not the two Brothers, the QL-810W/820NWB first")
+need("LP_MODEL_BROTHER_QL700" not in bt_list, f"src/{LP}: the QL-700 is in the Bluetooth list")
 profile = ks.body_of(LP, "labelPrinterProfile")
-for model in ("LP_MODEL_NIIMBOT_D110", "LP_MODEL_PM240", "LP_MODEL_BROTHER_QL820"):
+for model in ("LP_MODEL_NIIMBOT_D110", "LP_MODEL_PM240", "LP_MODEL_BROTHER_QL820",
+              "LP_MODEL_BROTHER_QL700"):
     need(f"case {model}:" in profile, f"src/{LP}: labelPrinterProfile() lacks {model}")
 pm240 = ks.squeeze(ks.source_of(LP).code_str)
 start = pm240.find("PROFILE_PM240={")
@@ -70,6 +73,12 @@ need('"TYPONOS","PM240"' in row, f"src/{LP}: the PM240 profile does not say TYPO
 need(",400,true,true,203," in row,
      f"src/{LP}: the PM240 profile is not experimental and direct thermal")
 need(row.endswith("LP_PROTO_TSPL"), f"src/{LP}: the PM240 profile is not on LP_PROTO_TSPL")
+# The QL-700: Brother's protocol, experimental (nobody of us has one, Spec V75).
+start = pm240.find("PROFILE_BROTHER_QL700={")
+row = pm240[start:pm240.find("};", start)] if start >= 0 else ""
+need('"Brother","QL-700' in row, f"src/{LP}: no Brother QL-700 profile")
+need(",720,720,true,true," in row, f"src/{LP}: the QL-700 profile is not experimental and thermal")
+need(row.endswith("LP_PROTO_BROTHER_QL"), f"src/{LP}: the QL-700 profile is not on LP_PROTO_BROTHER_QL")
 
 # 2. What printer_model holds is a Bluetooth printer or the factory model: the
 #    normalising of the Bluetooth config refuses the Brother's protocol.
