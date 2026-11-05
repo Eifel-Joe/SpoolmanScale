@@ -3,6 +3,7 @@
 #include <Arduino.h>
 
 #include "services/loop_task.h"
+#include "ui/busy_badge.h"
 
 static HttpProgressFn s_progress = nullptr;
 
@@ -24,6 +25,8 @@ void httpStallBegin(const char* what) {
     s_stall_started = millis();
     s_stall_what    = nullptr;
     s_stall_calls   = 0;
+    // The loop is about to wait on the network: say so on screen first (a06).
+    busyBadgeShow();
   }
   if (what) {
     if (!s_stall_what) s_stall_what = what;
@@ -39,6 +42,7 @@ void httpStallEnd() {
   // Only the outermost bracket adds anything: the inner ones are already
   // inside the span it is measuring.
   if (s_stall_depth != 0) return;
+  busyBadgeHide();
   const uint32_t span_ms = millis() - s_stall_started;
   s_stall_total_ms += span_ms;
   if (s_worst.spans < UINT16_MAX) s_worst.spans++;
