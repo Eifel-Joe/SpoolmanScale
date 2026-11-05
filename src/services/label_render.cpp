@@ -930,9 +930,14 @@ bool labelRenderEdit(const LabelPrinterConfig& printer, const LabelLayout& layou
   if (labelPrinterIsTape(printer.model)) return false;
   const LabelLayout narrowed = labelLayoutForMedia(layout, printer.media_width_mm,
                                                    printer.media_length_mm);
+  // The lines this roll takes, with the code or without as it will print:
+  // rows made for a larger roll keep their first lines (review, finding 1).
+  LabelLayout counted = narrowed;
+  if (!edit.code || !edit.qr[0]) counted.fields &= ~(1u << LF_QR);
+  const int capacity = labelFactCapacity(counted, printer.media_width_mm, printer.media_length_mm);
   SpoolLabelData d = spool;
   LabelFactList f;
-  const LabelLayout l = labelEditApply(edit, narrowed, &d, &f);
+  const LabelLayout l = labelEditApply(edit, narrowed, capacity, &d, &f);
   const LabelContent c{ &d, f.line_ptrs, f.n, false, labelLayoutHasCode(l) ? edit.qr : nullptr,
                         edit.free ? "free" : "edited", f.facts };
   return renderLabel(printer, l, c, out);

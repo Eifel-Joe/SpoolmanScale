@@ -77,6 +77,9 @@ static bool s_typed = false;
 static bool s_kb_leave = false;
 static bool s_print = false;
 static bool s_back = false;
+// Where the rows stood when one was tapped: a switch or a typed row rebuilds
+// the screen, and the list stays where it was (review, finding 9).
+static lv_coord_t s_scroll = 0;
 
 // The switches of the template, in the order of the label page in the
 // browser (web/pages/page_label.cpp FIELD_ROWS), with its captions.
@@ -174,6 +177,8 @@ static void renderPreview() {
 
 static void rowTapped(lv_event_t* e) {
   s_tap = (int)(intptr_t)lv_event_get_user_data(e);
+  lv_obj_t* list = lv_obj_get_parent(lv_event_get_target(e));
+  if (list) s_scroll = lv_obj_get_scroll_y(list);
   logSDf("BTN: Label edit -> row %d", s_tap);
 }
 
@@ -246,17 +251,37 @@ static void editRows(lv_obj_t* list, const LabelEdit& e) {
          RowNote{ LV_SYMBOL_REFRESH, false });
 }
 
+// Whether a label of the kind on show can have a code at all: a filament
+// label only where the filament has a page (BamBuddy keeps none, a server
+// that names its spools' own links may have none), as the browser's label
+// page decides it (page_label.cpp stateJson()).
+static bool codePossible() {
+  if (s_st->kind != LABEL_KIND_FILAMENT) return true;
+  char qr[LABEL_QR_LEN];
+  labelQrForFilament(s_st->spool, qr, sizeof(qr));
+  return qr[0] != '\0';
+}
+
+// The line budget of the template on the loaded roll, counted as the browser
+// counts it: without the code where the label cannot have one.
+static int templateBudget(const LabelLayout& l) {
+  const LabelPrinterConfig c = labelPrinterLoadConfig();
+  LabelLayout counted = l;
+  if (!codePossible()) counted.fields &= ~(1u << LF_QR);
+  return labelFactCapacity(counted, c.media_width_mm, c.media_length_mm);
+}
+
 // The template's switches with the browser's line budget, and its free line.
 static void templateRows(lv_obj_t* list) {
-  const LabelPrinterConfig c = labelPrinterLoadConfig();
   const LabelLayout l = labelLayoutLoad(s_st->kind);
-  const int cap = labelFactCapacity(l, c.media_width_mm, c.media_length_mm);
+  const int cap = templateBudget(l);
+  const bool code = codePossible();
   const uint32_t kind_fields = labelKindFields(s_st->kind);
   for (int i = 0; i < FIELD_COUNT; i++) {
     const LabelField f = FIELDS[i].field;
     if (!((kind_fields >> f) & 1u)) continue;
     const bool on = labelLayoutHas(l, f);
-    const bool locked = (f == LF_QR && !labelPresetHasQr(l.preset)) ||
+    const bool locked = (f == LF_QR && (!labelPresetHasQr(l.preset) || !code)) ||
                         !labelLayoutMayTurnOn(l, f, cap);
     addRow(list, LE_ROW_FIELD + i, nullptr, T(FIELDS[i].caption),
            RowNote{ T(on ? STR_ON : STR_OFF), locked });
@@ -355,6 +380,8 @@ static void build() {
   lv_obj_clear_flag(list, LV_OBJ_FLAG_SCROLL_ELASTIC);
   if (s_st->mode == EM_TEMPLATE) templateRows(list);
   else editRows(list, s_st->mode == EM_FREE ? *s_free : s_st->edit);
+  lv_obj_update_layout(list);
+  lv_obj_scroll_to_y(list, s_scroll, LV_ANIM_OFF);
   renderPreview();
   lv_obj_clear_flag(s_scr, LV_OBJ_FLAG_HIDDEN);
   logLvMem("labeledit/post", (int)lv_obj_get_child_cnt(list));
@@ -367,11 +394,13 @@ static void closeKeyboard() {
   releaseScreen(&s_kb_scr);
 }
 
-// The text a row holds now, and the room for it in bytes.
+// The text a row holds now, and how many characters it may have: what
+// prints of it (review, finding 4) - a line LABEL_LINE_LEN bytes, the free
+// line of the template 40 characters as in the browser, a code its 127.
 static const char* typingText(size_t* room) {
-  *room = LABEL_EDIT_TEXT;
-  if (s_typing == LE_ROW_CODE_TEXT) { *room = LABEL_QR_LEN; return s_free ? s_free->qr : ""; }
-  if (s_typing == LE_ROW_FREE_TEXT) { *room = LABEL_FREE_TEXT_BYTES; return labelLayoutFreeText(); }
+  *room = LABEL_LINE_LEN - 1;
+  if (s_typing == LE_ROW_CODE_TEXT) { *room = LABEL_QR_LEN - 1; return s_free ? s_free->qr : ""; }
+  if (s_typing == LE_ROW_FREE_TEXT) { *room = LABEL_FREE_TEXT_CHARS; return labelLayoutFreeText(); }
   const LabelEdit* e = s_st->mode == EM_FREE ? s_free : &s_st->edit;
   return e && s_typing >= 0 && s_typing < e->n ? e->row[s_typing].text : "";
 }
@@ -390,7 +419,7 @@ static void buildKeyboard(int row, const char* title) {
   // past it is cut on a character boundary when it is taken (labelEditCut()).
   s_ta = lv_textarea_create(s_kb_scr);
   lv_textarea_set_one_line(s_ta, true);
-  lv_textarea_set_max_length(s_ta, room - 1);
+  lv_textarea_set_max_length(s_ta, room);
   lv_textarea_set_text(s_ta, now);
   lv_obj_set_size(s_ta, 456, 44);
   lv_obj_set_pos(s_ta, 12, LE_TOP + 4);
@@ -448,9 +477,12 @@ void labelEditClose() {
   s_typed = s_kb_leave = s_print = s_back = false;
 }
 
-// A spool's label as the template and the roll draw it: its rows (f14).
+// A spool's label as the template and the roll draw it: its rows (f14). The
+// dates and temperatures first, as a print asks for them (spoolRaster()),
+// so their lines are among the rows (review, finding 3).
 static bool fillFromSpool() {
   if (!labelSpoolLast(&s_st->spool)) return false;
+  labelSpoolFetchDates(&s_st->spool);
   const LabelPrinterConfig c = labelPrinterLoadConfig();
   LabelLayout l = labelLayoutForMedia(labelLayoutLoad(s_st->kind), c.media_width_mm,
                                       c.media_length_mm);
@@ -475,6 +507,14 @@ static void fillFree() {
   const LabelLayout l = labelLayoutForMedia(labelEditFreeLayout(labelLayoutLoad(LABEL_KIND_SPOOL)),
                                             c.media_width_mm, c.media_length_mm);
   labelEditFree(s_free, l, labelFactCapacity(l, c.media_width_mm, c.media_length_mm));
+  s_free->roll_w = (uint8_t)c.media_width_mm;
+  s_free->roll_l = (uint8_t)c.media_length_mm;
+}
+
+// Back where the screen was asked for: the print sheet, or the printer screen.
+static void backTo(EditMode mode) {
+  if (mode == EM_FREE) show_printer_pending = true;
+  else show_print_sheet_pending = true;
 }
 
 static void openParked() {
@@ -493,16 +533,20 @@ static void openParked() {
   if (!s_st || (mode == EM_FREE && !s_free)) {
     logSD("Label edit: no PSRAM, not opened");
     freeState();
+    backTo(mode);   // not left on the main screen (review, finding 5)
     return;
   }
   s_st->mode = mode;
   s_st->kind = s_want_kind;
+  s_scroll = 0;
   if (mode == EM_FREE) {
-    if (!s_free->n) fillFree();   // kept from the last time until a restart
+    // Kept from the last time until a restart, for the roll it was made for.
+    if (!s_free->n || s_free->roll_w != c.media_width_mm || s_free->roll_l != c.media_length_mm)
+      fillFree();
   } else if (!labelSpoolLast(&s_st->spool) || (mode == EM_SPOOL && !fillFromSpool())) {
     logSD("Label edit: no spool, not opened");
     freeState();
-    show_print_sheet_pending = true;
+    backTo(mode);
     return;
   }
   logSDf("SHOW: Label edit, %s", mode == EM_FREE ? "free label"
@@ -512,11 +556,10 @@ static void openParked() {
 
 // A template switch: on or off within the line budget, saved at once.
 static void flipField(int i) {
-  const LabelPrinterConfig c = labelPrinterLoadConfig();
   LabelLayout l = labelLayoutLoad(s_st->kind);
   const LabelField f = FIELDS[i].field;
-  const int cap = labelFactCapacity(l, c.media_width_mm, c.media_length_mm);
-  if (f == LF_QR && !labelPresetHasQr(l.preset)) return;
+  const int cap = templateBudget(l);
+  if (f == LF_QR && (!labelPresetHasQr(l.preset) || !codePossible())) return;
   if (!labelLayoutMayTurnOn(l, f, cap)) {
     logSDf("Label edit: field %d stays off, %d of %d lines on", (int)f, labelLayoutFactCount(l), cap);
     return;
@@ -596,7 +639,6 @@ void labelEditTick() {
   if (s_back) {
     const EditMode mode = s_st->mode;
     labelEditClose();
-    if (mode == EM_FREE) show_printer_pending = true;
-    else show_print_sheet_pending = true;
+    backTo(mode);
   }
 }

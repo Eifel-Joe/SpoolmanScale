@@ -14,6 +14,9 @@ static bool s_no_psram = false;
 static portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;
 
 // The slots, made on first use; nullptr without PSRAM (said once in the log).
+// The allocation runs outside the lock (no malloc with interrupts off); the
+// slots are taken under it, and a second task's block that came too late is
+// given back (review, finding 6).
 static bool made() {
   if (s_links.slot || s_no_psram) return s_links.slot != nullptr;
   void* p = heap_caps_calloc(SPOOL_LINK_SLOTS, sizeof(SpoolLinkSlot), MALLOC_CAP_SPIRAM);
@@ -22,7 +25,11 @@ static bool made() {
     logSD("Label: no PSRAM for spool links, codes are built from the id");
     return false;
   }
-  s_links.slot = static_cast<SpoolLinkSlot*>(p);
+  portENTER_CRITICAL(&s_mux);
+  const bool mine = s_links.slot == nullptr;
+  if (mine) s_links.slot = static_cast<SpoolLinkSlot*>(p);
+  portEXIT_CRITICAL(&s_mux);
+  if (!mine) heap_caps_free(p);
   return true;
 }
 

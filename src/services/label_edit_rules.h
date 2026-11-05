@@ -45,6 +45,8 @@ struct LabelEdit {
   bool    code;          // the code goes on the label
   bool    code_allowed;  // the arrangement and the roll draw one at all
   char    qr[LABEL_QR_LEN];
+  // The roll a free label's rows were made for: another roll, other rows.
+  uint8_t roll_w, roll_l;
 };
 
 // `in` into `out` (n bytes), cut on a character boundary: a cut never
@@ -145,11 +147,13 @@ inline void labelEditFree(LabelEdit* e, const LabelLayout& l, int capacity) {
 }
 
 // Row i typed as `text`: from now on it prints as one line, without its
-// caption; an empty text leaves the row off the label. False for no row i.
+// caption; an empty text leaves the row off the label. Cut where it prints:
+// a header block and a fact's value hold LABEL_LINE_LEN bytes. False for no
+// row i.
 inline bool labelEditSet(LabelEdit* e, int i, const char* text) {
   if (!e || i < 0 || i >= e->n) return false;
   LabelEditRow& r = e->row[i];
-  labelEditCut(text, r.text, sizeof(r.text));
+  labelEditCut(text, r.text, LABEL_LINE_LEN);
   r.edited = true;
   return true;
 }
@@ -165,10 +169,12 @@ inline bool labelEditSetCode(LabelEdit* e, const char* text) {
 // The label `e` stands for: `d` takes the header rows (a spool's label keeps
 // the rest of its data, a free one starts from nothing), `f` the fact rows
 // that have a text - an untouched row with its caption and value as before,
-// a typed one as one line without a caption. Returns the layout to draw it
-// with: `l` without the code where it is off or empty.
-inline LabelLayout labelEditApply(const LabelEdit& e, const LabelLayout& l, SpoolLabelData* d,
-                                  LabelFactList* f) {
+// a typed one as one line without a caption - and no more of them than the
+// roll takes (`capacity`, labelFactCapacity()): rows made for a larger roll
+// keep their first lines. Returns the layout to draw it with: `l` without
+// the code where it is off or empty.
+inline LabelLayout labelEditApply(const LabelEdit& e, const LabelLayout& l, int capacity,
+                                  SpoolLabelData* d, LabelFactList* f) {
   static const char* const NO_CAPTION = "";
   LabelLayout out = l;
   if (!d || !f) return out;
@@ -184,7 +190,7 @@ inline LabelLayout labelEditApply(const LabelEdit& e, const LabelLayout& l, Spoo
       labelEditCut(r.text, field, LABEL_LINE_LEN);
       continue;
     }
-    if (!r.text[0] || f->n >= LABEL_MAX_FACTS) continue;
+    if (!r.text[0] || f->n >= LABEL_MAX_FACTS || f->n >= capacity) continue;
     const int k = f->n++;
     const bool as_was = !r.edited && !e.free;
     labelEditCut(as_was ? r.value : r.text, f->values[k], sizeof(f->values[k]));
