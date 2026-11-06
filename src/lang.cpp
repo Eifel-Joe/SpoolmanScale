@@ -2737,6 +2737,45 @@ const char* const STRINGS[][3] = {
   { "Die Verbindung zum Drucker ist nach dem Etikett abgebrochen. Ist das Etikett vollständig?",
     "The connection to the printer broke after the label. Is the label complete?",
     "La connexion à l'imprimante a été coupée après l'étiquette. Est-elle complète ?" },  // STR_PRN_NET_BROKEN_MSG
+  { "Andere Rolle im Drucker",
+    "Different roll in the printer",
+    "Autre rouleau dans l'imprimante" },  // STR_PRN_NET_ROLL_TITLE
+  { "Nichts gesendet: Die Rolle im Drucker passt nicht zur Einstellung.",
+    "Nothing sent: the roll in the printer does not match the setting.",
+    "Rien envoyé : le rouleau ne correspond pas au réglage." },  // STR_PRN_NET_ROLL_MSG
+  { "Nichts gesendet: Auf diese Rolle kann die Waage nicht drucken.",
+    "Nothing sent: the scale cannot print on this roll.",
+    "Rien envoyé : la balance ne sait pas imprimer sur ce rouleau." },  // STR_PRN_NET_ROLL_UNKNOWN_MSG
+  { "Im Drucker: %s\nEingestellt: %s",
+    "In the printer: %s\nSet: %s",
+    "Dans l'imprimante : %s\nRéglé : %s" },  // STR_PRN_NET_ROLL_DETAIL
+  { "Umstellen auf",
+    "Switch to",
+    "Passer à" },  // STR_PRN_NET_ROLL_SWITCH
+  { "Keine Rolle im Drucker",
+    "No roll in the printer",
+    "Pas de rouleau" },  // STR_PRN_NET_NO_ROLL_TITLE
+  { "Nichts gesendet. Rolle einlegen und noch einmal drucken.",
+    "Nothing sent. Load a roll and print again.",
+    "Rien envoyé. Chargez un rouleau et réimprimez." },  // STR_PRN_NET_NO_ROLL_MSG
+  { "Deckel offen",
+    "Cover open",
+    "Capot ouvert" },  // STR_PRN_NET_COVER_TITLE
+  { "Nichts gesendet. Deckel schließen und noch einmal drucken.",
+    "Nothing sent. Close the cover and print again.",
+    "Rien envoyé. Fermez le capot et réimprimez." },  // STR_PRN_NET_COVER_MSG
+  { "Rolle zu Ende",
+    "Roll used up",
+    "Rouleau terminé" },  // STR_PRN_NET_ROLL_END_TITLE
+  { "Nichts gesendet. Neue Rolle einlegen und noch einmal drucken.",
+    "Nothing sent. Load a new roll and print again.",
+    "Rien envoyé. Chargez un rouleau et réimprimez." },  // STR_PRN_NET_ROLL_END_MSG
+  { "Drucker meldet einen Fehler",
+    "The printer reports an error",
+    "Erreur de l'imprimante" },  // STR_PRN_NET_PRN_ERROR_TITLE
+  { "Nichts gesendet. Am Drucker nachsehen.",
+    "Nothing sent. Check the printer.",
+    "Rien envoyé. Vérifiez l'imprimante." },  // STR_PRN_NET_PRN_ERROR_MSG
   { "Nicht gedruckt",
     "Not printed",
     "Non imprimé" },  // STR_PRN_FAIL_TITLE

@@ -12,6 +12,7 @@
 #include "services/phomemo_m_series.h"
 #include "services/prefs_store.h"
 #include "services/label_printer_reach.h"
+#include "services/label_printer_roll.h"
 #include "services/tspl_printer.h"
 
 // The NVS keys. 15 characters at most, and never renamed: they sit in the
@@ -803,7 +804,16 @@ static LabelPrintResult printBrother(const LabelPrinterConfig& c, const LabelRas
   const BrotherQlLabel* label = brotherLabel(c.media_width_mm, c.media_length_mm);
   if (!label) return LP_MEDIA_MISMATCH;
   // The QL-700 behind its forwarder takes other start bytes (BQM_QL700).
-  return fromBrother(brotherQlPrint(c.address, *label, brotherModelOf(c.model), image, progress));
+  const BrotherQlModel model = brotherModelOf(c.model);
+  // Which roll the printer holds, before a byte goes out (Spec 5.3 L1, V78):
+  // on another roll, none, an open cover or an error it would not print the
+  // label anyway, and the scale says why instead of "sent". The QL-700 has
+  // no SNMP and is not asked; no answer prints as before.
+  if (model == BQM_QL800) {
+    const LabelPrintResult roll = labelPrinterRollCheck(c.address, *label);
+    if (roll != LP_OK) return roll;
+  }
+  return fromBrother(brotherQlPrint(c.address, *label, model, image, progress));
 }
 #endif  // SSC_DOC_BUILD
 
@@ -859,6 +869,13 @@ int labelPrintResultString(LabelPrintResult r) {
     case LP_PRINTER_OFF:        return STR_PRN_ERR_LINK_OFF;
     case LP_NET_REPLY:          return STR_PRN_NET_REPLY_MSG;
     case LP_NET_BROKEN:         return STR_PRN_NET_BROKEN_MSG;
+    // The roll check before a Brother's label (V78): nothing was sent.
+    case LP_NET_ROLL_OTHER: return STR_PRN_NET_ROLL_MSG;
+    case LP_NET_ROLL_UNKNOWN: return STR_PRN_NET_ROLL_UNKNOWN_MSG;
+    case LP_NET_NO_ROLL: return STR_PRN_NET_NO_ROLL_MSG;
+    case LP_NET_COVER: return STR_PRN_NET_COVER_MSG;
+    case LP_NET_ROLL_END: return STR_PRN_NET_ROLL_END_MSG;
+    case LP_NET_PRN_ERROR: return STR_PRN_NET_PRN_ERROR_MSG;
     default:                    return STR_PRN_ERR_WRITE;
   }
 }

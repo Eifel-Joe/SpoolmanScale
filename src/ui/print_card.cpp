@@ -7,6 +7,7 @@
 #include "hardware/sd_logger.h"
 #include "lang.h"
 #include "services/ble_service.h"
+#include "services/label_printer_roll.h"
 #include "services/text_util.h"
 #include "ui/theme.h"
 #include "ui_common.h"
@@ -187,9 +188,9 @@ void printCardTick() {
   lv_refr_now(NULL);
 }
 
-// The answer to a label the server would not draw: the same spool with the
-// scale's own layout, on the left where the house cards put the yes.
-static void addOwnLayoutButton() {
+// A second answer on the left, where the house cards put the yes, in the
+// house green; the card closes and the loop does what it asks.
+static lv_obj_t* addLeftButton(lv_event_cb_t clicked) {
   lv_obj_t* btn = lv_btn_create(s_box);
   lv_obj_set_size(btn, UI_POPUP_BTN_W, UI_POPUP_BTN_H);
   lv_obj_set_pos(btn, UI_CARD_ROW_X, UI_CARD_ROW_Y);
@@ -200,14 +201,41 @@ static void addOwnLayoutButton() {
   lv_obj_set_style_border_width(btn, 0, 0);
   lv_obj_set_style_pad_all(btn, 0, 0);
   lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_add_event_cb(btn, [](lv_event_t*) {
+  lv_obj_add_event_cb(btn, clicked, LV_EVENT_CLICKED, NULL);
+  return btn;
+}
+
+// The answer to a label the server would not draw: the same spool with the
+// scale's own layout.
+static void addOwnLayoutButton() {
+  lv_obj_t* btn = addLeftButton([](lv_event_t*) {
     print_own_layout_pending = true;
     s_close_req = true;
-  }, LV_EVENT_CLICKED, NULL);
+  });
   lv_obj_t* l = lv_label_create(btn);
   lv_label_set_text(l, T(STR_PRN_OWN_LAYOUT));
   lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_OK_TEXT), 0);
   lv_obj_set_style_text_font(l, UI_FONT_TITLE, 0);
+  lv_obj_center(l);
+}
+
+// The answer to another roll in the Brother, one the scale has (Spec 5.3 L1,
+// V78; Joerg 06.11.2026: switch the scale over, or change the roll, then
+// print again): "Switch to" and the roll on a line of its own,
+// which the 170 px take where one line would not ("62 mm continuous"). It
+// only switches; the next print is the user's.
+static void addRollSwitchButton(const char* roll) {
+  lv_obj_t* btn = addLeftButton([](lv_event_t*) {
+    printer_roll_switch_pending = true;
+    s_close_req = true;
+  });
+  char text[64];
+  snprintf(text, sizeof(text), "%s\n%s", T(STR_PRN_NET_ROLL_SWITCH), roll);
+  lv_obj_t* l = lv_label_create(btn);
+  lv_label_set_text(l, text);
+  lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_set_style_text_color(l, lv_color_hex(UI_COL_OK_TEXT), 0);
+  lv_obj_set_style_text_font(l, UI_FONT_BODY, 0);
   lv_obj_center(l);
 }
 
@@ -243,7 +271,12 @@ void printCardResult(LabelPrintResult result, const char* detail, bool offer_own
                   : net_sent ? STR_PRN_NET_SENT_TITLE
                   : result == LP_NET_REPLY ? STR_PRN_NET_REPLY_TITLE
                   : result == LP_NET_BROKEN ? STR_PRN_NET_BROKEN_TITLE
-                  : unconfirmed ? STR_PRN_UNCONF_TITLE : STR_PRN_FAIL_TITLE;
+                  : unconfirmed ? STR_PRN_UNCONF_TITLE
+                  // What the Brother said before its label (V78): the roll,
+                  // the cover, an error - each its own title.
+                  : labelPrintTitleOfText(labelPrintResultString(result)) >= 0
+                      ? labelPrintTitleOfText(labelPrintResultString(result))
+                      : STR_PRN_FAIL_TITLE;
   // A label that went onto thermal paper gets the one thing to know about
   // it: the dryer blackens it (Nikolai, 30.09.2026). "The printer confirmed"
   // said nothing the title had not.
@@ -277,9 +310,14 @@ void printCardResult(LabelPrintResult result, const char* detail, bool offer_own
   lv_obj_set_style_text_color(s_text, lv_color_hex(UI_COL_INK_2), 0);
   lv_obj_align(s_text, LV_ALIGN_TOP_MID, 0, UI_CARD_TEXT_Y);
 
+  // Another roll in the Brother, one the scale has: offer to switch to it.
+  char roll[24];
+  const bool offer_roll = !offer_own_layout && result == LP_NET_ROLL_OTHER &&
+                          labelPrinterSeenRollName(roll, sizeof(roll));
   if (offer_own_layout) addOwnLayoutButton();
+  if (offer_roll) addRollSwitchButton(roll);
   lv_obj_t* btn = lv_btn_create(s_box);
-  if (offer_own_layout) {
+  if (offer_own_layout || offer_roll) {
     lv_obj_set_size(btn, UI_POPUP_BTN_W, UI_POPUP_BTN_H);
     lv_obj_set_pos(btn, UI_POPUP_W - UI_POPUP_BTN_W - UI_CARD_ROW_X, UI_CARD_ROW_Y);
   } else {

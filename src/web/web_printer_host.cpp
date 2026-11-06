@@ -2,6 +2,7 @@
 
 #include "hardware/sd_logger.h"
 #include "services/brother_ql_rules.h"
+#include "services/label_printer_roll.h"
 #include "web/web_access.h"
 #include "web/web_printer_cards.h"
 // Last on purpose: T() is a macro, see the pages.
@@ -82,8 +83,22 @@ void webPrinterHostRoutes(WebServer& srv) {
 }
 
 // The print card says "Sent to the printer" over the hint; the line has
-// room for both, the scale's row only for the title.
+// room for both, the scale's row only for the title. A label held back for
+// another roll in the Brother names both rolls, as the card does under its
+// sentence, on one line here (Spec 5.3 L1, V78).
 String webPrinterResultLine(int result) {
+  if (result == STR_PRN_NET_ROLL_MSG || result == STR_PRN_NET_ROLL_UNKNOWN_MSG) {
+    String s = T(result);
+    char rolls[96];
+    if (labelPrinterRollDetail(rolls, sizeof(rolls))) {
+      String r = rolls;
+      r.replace("\n", ". ");
+      s += ' ';
+      s += r;
+      s += '.';
+    }
+    return s;
+  }
   if (result != STR_PRN_NET_SENT_MSG) return String(T(result));
   String s = T(STR_PRN_NET_SENT_TITLE);
   s += F(". ");

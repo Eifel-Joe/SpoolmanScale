@@ -14,6 +14,7 @@
 #include "services/brother_ql.h"
 #include "services/label_layout.h"
 #include "services/label_printer.h"
+#include "services/label_printer_roll.h"
 #include "services/label_edit_rules.h"
 #include "services/label_render.h"
 #include "ui/choice_grid.h"
@@ -57,6 +58,18 @@ static void keepVerdict(KeptResult& kept, LabelPrintResult result, LabelPrinterL
   if (result == LP_NET_SENT) s_brother_kept = &kept;
 }
 
+// The answer on the card. Another roll in the Brother, or one the scale
+// cannot print on, names both rolls under the sentence (Spec 5.3 L1, V78):
+// "the roll does not match" alone would leave the user to find out which.
+static void showPrintResult(LabelPrintResult result) {
+  char rolls[96];
+  if ((result == LP_NET_ROLL_OTHER || result == LP_NET_ROLL_UNKNOWN) &&
+      labelPrinterRollDetail(rolls, sizeof(rolls)))
+    printCardResult(result, rolls);
+  else
+    printCardResult(result);
+}
+
 // A label that needs no spool, the test label or the calibration page, under
 // the print card; the verdict is kept for the browser's last-print line.
 static void printFixedLabel(bool (*render)(const LabelPrinterConfig&, LabelRaster*),
@@ -76,7 +89,7 @@ static void printFixedLabel(bool (*render)(const LabelPrinterConfig&, LabelRaste
   }
   logSDf("Printer: %s result=%d", what, (int)result);
   keepVerdict(s_last_test, result, link);
-  printCardResult(result);
+  showPrintResult(result);
 }
 int printerLastTestResult() { return keptForLink(s_last_test); }
 int printerLastLabelResult() { return keptForLink(s_last_label); }
@@ -131,7 +144,7 @@ static LabelPrintResult printSpoolLabel(SpoolLabelData spool, bool own_layout = 
     s_own_layout_spool = spool;
     printCardResult(result, labelServerLastReason(), true);
   } else {
-    printCardResult(result);
+    showPrintResult(result);
   }
   return result;
 }
@@ -162,7 +175,7 @@ LabelPrintResult printerPrintEdit(const LabelEdit& edit, const SpoolLabelData& s
   logSDf("Printer: %s label%s result=%d", edit.free ? "free" : "edited",
          edit.free ? "" : (kind == LABEL_KIND_FILAMENT ? " (filament)" : " (spool)"), (int)result);
   keepVerdict(s_last_label, result, link);
-  printCardResult(result);
+  showPrintResult(result);
   return result;
 }
 
@@ -536,6 +549,13 @@ void handlePrinterDeferredActions() {
   if (print_own_layout_pending) {
     print_own_layout_pending = false;
     printSpoolLabel(s_own_layout_spool, true);
+  }
+  // The card's "switch to" the roll in the Brother (V78): the size the list
+  // would set; the printer screen, if open, names the new roll.
+  if (printer_roll_switch_pending) {
+    printer_roll_switch_pending = false;
+    if (!labelPrinterSwitchToSeenRoll()) showInfoPopup(STR_PRN_TITLE, STR_ERR_SAVE, INFO_WARN);
+    rebuild();
   }
   labelSpoolTick();
   labelServerTick();

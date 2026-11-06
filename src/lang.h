@@ -1274,6 +1274,19 @@ enum StringID {
   STR_PRN_NET_REPLY_MSG,      // above the bytes it sent
   STR_PRN_NET_BROKEN_TITLE,   // the line to it broke while it was held
   STR_PRN_NET_BROKEN_MSG,
+  STR_PRN_NET_ROLL_TITLE,       // the roll in the Brother is not the one set (V78)
+  STR_PRN_NET_ROLL_MSG,
+  STR_PRN_NET_ROLL_UNKNOWN_MSG, // a roll the scale has no layout for
+  STR_PRN_NET_ROLL_DETAIL,      // the roll in the printer, the roll set
+  STR_PRN_NET_ROLL_SWITCH,      // button, the roll's name on a second line
+  STR_PRN_NET_NO_ROLL_TITLE,
+  STR_PRN_NET_NO_ROLL_MSG,
+  STR_PRN_NET_COVER_TITLE,
+  STR_PRN_NET_COVER_MSG,
+  STR_PRN_NET_ROLL_END_TITLE,
+  STR_PRN_NET_ROLL_END_MSG,
+  STR_PRN_NET_PRN_ERROR_TITLE,
+  STR_PRN_NET_PRN_ERROR_MSG,
   STR_PRN_FAIL_TITLE,
   // Below the device list while it hides the nameless ones
   STR_BT_FILTER_NOTE,

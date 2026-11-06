@@ -5,6 +5,7 @@
 
 #include "services/ble_service.h"
 #include "services/brother_ql_rules.h"
+#include "services/brother_ql_status.h"
 #include "services/label_raster.h"
 
 // ============================================================
@@ -87,6 +88,16 @@ struct BrotherQlReply {
 // Hands out what the printer said during the hold, once; false when it has
 // said nothing new. Asked right after brotherQlTick().
 bool brotherQlTakeReply(BrotherQlReply* out);
+
+// Which roll the printer holds, asked before a label (Spec 5.3 L1, V78): the
+// GET of Brother's status block over SNMP (brother_ql_status.h), two tries
+// of BROTHER_QL_STATUS_WAIT_MS. True and `out` filled when the printer at
+// `host` answered; false for no network, no valid address, no answer or
+// none that is the block - the label then goes out as before. Blocking, at
+// most 1 s, from appLoop() only; a QL-810W/820NWB, never the QL-700 behind
+// its forwarder (it has no SNMP). The answer is in the log. In
+// services/brother_ql_snmp.cpp.
+bool brotherQlAskStatus(const char* host, BrotherQlStatus* out);
 
 // Where a run stands, for the print card; idle outside a run. The same two
 // calls the Bluetooth session has, so the card does not care which it asks.

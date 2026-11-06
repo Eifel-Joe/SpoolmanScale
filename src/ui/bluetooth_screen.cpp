@@ -10,6 +10,7 @@
 #include "lang.h"
 #include "services/ble_service.h"
 #include "services/label_printer.h"
+#include "services/label_printer_roll.h"
 #include "ui/ble_devices_screen.h"
 #include "ui/reboot_popup.h"
 #include "ui/header_status.h"
@@ -151,7 +152,10 @@ static void showTestVerdict(int last) {
   s_shown_test = last;
   if (!s_test_sub) return;
   int sub = STR_PRN_TEST_SUB;
-  if (last == STR_PRN_NET_SENT_MSG) sub = STR_PRN_NET_SENT_TITLE;
+  // A Brother's "sent", and what it said before its label (V78), by their
+  // titles: the sentences run longer than the row.
+  const int title = last >= 0 ? labelPrintTitleOfText(last) : -1;
+  if (title >= 0) sub = title;
   else if (last >= 0) sub = last;
   if (last >= 0) {
     // One line, cut with dots: a verdict can run longer than the row. The

@@ -156,6 +156,14 @@ enum LabelPrintResult : uint8_t {
   // never the answer of a print, the screen raises them on their own.
   LP_NET_REPLY,         // the printer sent bytes; they are shown
   LP_NET_BROKEN,        // the printer broke the line
+  // What a Brother said before a label, asked which roll it holds (Spec
+  // 5.3 L1, V78, services/label_printer_roll.h): nothing was sent.
+  LP_NET_ROLL_OTHER,    // another roll than the one set, one the scale has
+  LP_NET_ROLL_UNKNOWN,  // a roll the scale has no layout for
+  LP_NET_NO_ROLL,
+  LP_NET_COVER,         // the cover is open
+  LP_NET_ROLL_END,      // the roll is used up or cannot be fed
+  LP_NET_PRN_ERROR,     // another error; the bits are in the log
 };
 
 const LabelPrinterProfile& labelPrinterProfile(LabelPrinterModel model);

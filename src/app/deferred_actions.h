@@ -206,6 +206,9 @@ extern bool label_dates_pending;
 // The print card's answer to a label the server would not draw: print the
 // same spool with the scale's own layout.
 extern bool print_own_layout_pending;
+// The print card's answer to another roll in the Brother (Spec 5.3 L1,
+// V78): set the scale to the roll in the printer.
+extern bool printer_roll_switch_pending;
 // A weight did not arrive; holds its WeightWriteProblem until the loop can tell
 // the user. Set where the answer comes in, which is no place to build a popup.
 extern uint8_t weight_write_problem_pending;

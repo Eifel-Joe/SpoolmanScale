@@ -251,6 +251,19 @@ STR_PRN_NET_REPLY_TITLE	20	360	NEVER	src/ui/print_card.cpp result title
 STR_PRN_NET_REPLY_MSG	16	360	NEVER	src/ui/print_card.cpp result text, one line, the printer's bytes on the two under it
 STR_PRN_NET_BROKEN_TITLE	20	360	NEVER	src/ui/print_card.cpp result title
 STR_PRN_NET_BROKEN_MSG	16	360	WRAP:3	src/ui/print_card.cpp result text
+STR_PRN_NET_ROLL_TITLE	20	360	NEVER	src/ui/print_card.cpp result title (V78)
+STR_PRN_NET_NO_ROLL_TITLE	20	360	NEVER	src/ui/print_card.cpp result title (V78)
+STR_PRN_NET_COVER_TITLE	20	360	NEVER	src/ui/print_card.cpp result title (V78)
+STR_PRN_NET_ROLL_END_TITLE	20	360	NEVER	src/ui/print_card.cpp result title (V78)
+STR_PRN_NET_PRN_ERROR_TITLE	20	360	NEVER	src/ui/print_card.cpp result title (V78)
+STR_PRN_NET_ROLL_MSG	16	360	WRAP:2	src/ui/print_card.cpp result text, the two rolls on the two lines under it (V78)
+STR_PRN_NET_ROLL_UNKNOWN_MSG	16	360	WRAP:2	src/ui/print_card.cpp result text, the two rolls on the two lines under it (V78)
+STR_PRN_NET_ROLL_DETAIL	16	360	NEVER	src/ui/print_card.cpp the two rolls under the text, one line each (V78)
+STR_PRN_NET_NO_ROLL_MSG	16	360	WRAP:3	src/ui/print_card.cpp result text (V78)
+STR_PRN_NET_COVER_MSG	16	360	WRAP:3	src/ui/print_card.cpp result text (V78)
+STR_PRN_NET_ROLL_END_MSG	16	360	WRAP:3	src/ui/print_card.cpp result text (V78)
+STR_PRN_NET_PRN_ERROR_MSG	16	360	WRAP:3	src/ui/print_card.cpp result text (V78)
+STR_PRN_NET_ROLL_SWITCH	16	154	NEVER	src/ui/print_card.cpp 170 px button, -16 air, the roll's name on a line of its own under it (V78)
 STR_PRN_ERR_NOT_NIIMBOT	16	360	WRAP:3	src/ui/print_card.cpp result text
 STR_PRN_ERR_COVER	16	360	WRAP:3	src/ui/print_card.cpp result text
 STR_PRN_ERR_NO_PAPER	16	360	WRAP:3	src/ui/print_card.cpp result text
@@ -391,6 +404,11 @@ STR_PRN_HOST_NONE	12	320	NEVER	src/ui/printer_screen.cpp makeListBtn sub, text_w
 STR_PRN_DEVICE	16	320	NEVER	src/ui/printer_screen.cpp the Brother's device row title, text_w 320
 STR_PRN_DEVICE	18	424	NEVER	src/ui/info_popup.cpp:225 title of that row's help popup
 STR_PRN_NET_SENT_TITLE	12	320	NEVER	src/ui/bluetooth_screen.cpp test print row sub, text_w 320
+STR_PRN_NET_ROLL_TITLE	12	320	NEVER	src/ui/bluetooth_screen.cpp test print row sub, text_w 320 (V78)
+STR_PRN_NET_NO_ROLL_TITLE	12	320	NEVER	src/ui/bluetooth_screen.cpp test print row sub, text_w 320 (V78)
+STR_PRN_NET_COVER_TITLE	12	320	NEVER	src/ui/bluetooth_screen.cpp test print row sub, text_w 320 (V78)
+STR_PRN_NET_ROLL_END_TITLE	12	320	NEVER	src/ui/bluetooth_screen.cpp test print row sub, text_w 320 (V78)
+STR_PRN_NET_PRN_ERROR_TITLE	12	320	NEVER	src/ui/bluetooth_screen.cpp test print row sub, text_w 320 (V78)
 STR_PRN_TAG_RECOMMENDED	12	136	NEVER	src/ui/choice_grid.cpp card tag, 3 columns, text_w 136
 STR_PRN_TAG_EXPERIMENTAL	12	136	NEVER	src/ui/choice_grid.cpp card tag, 3 columns, text_w 136
 STR_PRN_MEDIA_NO_LAYOUT	12	136	NEVER	src/ui/choice_grid.cpp card tag, 3 columns, text_w 136
