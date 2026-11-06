@@ -189,7 +189,7 @@ assert callers == ["src/ui/more_info_screen.cpp"], callers
 # Only where the scale has Klipper printers: without klipperAvailable() the
 # list of printers is empty and nothing is left out.
 loc = code((root / "src" / "services" / "klipper_location.cpp").read_text(encoding="utf-8"))
-hide = body(loc, "bool klipperPickerHide(")
+hide = body(loc, "void klipperPickerHide(")
 assert "klipperAvailable()" in hide, "the printers are left out in every backend"
 assert hide.index("klipperAvailable()") < hide.index("klipperStoreAt("), \
     "the store is read before the backend is asked"
