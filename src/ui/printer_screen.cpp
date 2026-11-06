@@ -551,11 +551,13 @@ void handlePrinterDeferredActions() {
     printSpoolLabel(s_own_layout_spool, true);
   }
   // The card's "switch to" the roll in the Brother (V78): the size the list
-  // would set; the printer screen, if open, names the new roll.
+  // would set; the printer screen, if open, names the new roll, and a print
+  // sheet still open (a print from the browser was refused) draws it anew.
   if (printer_roll_switch_pending) {
     printer_roll_switch_pending = false;
     if (!labelPrinterSwitchToSeenRoll()) showInfoPopup(STR_PRN_TITLE, STR_ERR_SAVE, INFO_WARN);
     rebuild();
+    if (printSheetOpen()) print_sheet_refresh_pending = true;
   }
   labelSpoolTick();
   labelServerTick();

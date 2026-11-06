@@ -88,9 +88,11 @@ bool brotherQlAskStatus(const char* host, BrotherQlStatus* out) {
       struct sockaddr_in from;
       socklen_t from_len = sizeof(from);
       const int r = recvfrom(fd, ans, sizeof(ans), 0, (struct sockaddr*)&from, &from_len);
-      if (r <= 0) break;
-      // Only the printer's own datagrams count.
-      if (from.sin_addr.s_addr != to.sin_addr.s_addr) continue;
+      if (r < 0) break;
+      // Only the printer's own datagrams, from its SNMP port, count; an
+      // empty one or a stranger's leaves the wait running.
+      if (r == 0 || from.sin_addr.s_addr != to.sin_addr.s_addr || from.sin_port != to.sin_port)
+        continue;
       if (brotherQlStatusParse(ans, (size_t)r, id, out)) {
         got = true;
         break;

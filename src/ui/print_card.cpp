@@ -267,16 +267,15 @@ void printCardResult(LabelPrintResult result, const char* detail, bool offer_own
   const bool unconfirmed = (result == LP_SENT_UNCONFIRMED) || net_sent || net_reply;
   const char* symbol = ok ? LV_SYMBOL_OK : LV_SYMBOL_WARNING;
   const uint32_t tone = ok ? UI_COL_GOOD : (unconfirmed ? UI_COL_WARN : UI_COL_BAD);
+  // What the Brother said before its label (V78): the roll, the cover, an
+  // error - each its own title.
+  const int net_title = ok ? -1 : labelPrintTitleOfText(labelPrintResultString(result));
   const int title = ok ? STR_PRN_DONE_TITLE
                   : net_sent ? STR_PRN_NET_SENT_TITLE
                   : result == LP_NET_REPLY ? STR_PRN_NET_REPLY_TITLE
                   : result == LP_NET_BROKEN ? STR_PRN_NET_BROKEN_TITLE
                   : unconfirmed ? STR_PRN_UNCONF_TITLE
-                  // What the Brother said before its label (V78): the roll,
-                  // the cover, an error - each its own title.
-                  : labelPrintTitleOfText(labelPrintResultString(result)) >= 0
-                      ? labelPrintTitleOfText(labelPrintResultString(result))
-                      : STR_PRN_FAIL_TITLE;
+                  : net_title >= 0 ? net_title : (int)STR_PRN_FAIL_TITLE;
   // A label that went onto thermal paper gets the one thing to know about
   // it: the dryer blackens it (Nikolai, 30.09.2026). "The printer confirmed"
   // said nothing the title had not.
