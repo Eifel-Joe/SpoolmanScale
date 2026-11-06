@@ -10,6 +10,7 @@
 #include "hardware/sd_logger.h"
 #include "lang.h"
 #include "services/backend_api.h"
+#include "services/klipper_hide_rules.h"
 #include "services/klipper_location_rules.h"
 #include "services/klipper_printers.h"
 #include "services/klipper_store.h"
@@ -292,4 +293,59 @@ bool klipperLocationAssigned(int spool_id, int displaced_id, const char* printer
     giveBack(base, displaced_id, printer_name, ans != PA_NO_FIELD, w);
   }
   return placed;
+}
+
+// ------------------------------------------------------------
+//  The location picker (V79)
+// ------------------------------------------------------------
+
+namespace {
+
+// The names for the picker, apart from LocWork: the picker is open while no
+// assignment runs, but the two must not share a buffer that one of them
+// rewrites. 64 x 24 bytes and the pointers, about 2 kB in PSRAM, kept.
+struct HideNames {
+  char names[KL_PRINTERS_MAX][KL_NAME_MAX];
+  const char* name_of[KL_PRINTERS_MAX];
+};
+HideNames* s_hide = nullptr;
+
+}  // namespace
+
+// Root: the picker listed every location the backend knows, and a spool put
+//   into a Klipper printer carries the printer's name as its location (V48),
+//   so the printers stood among the shelves (Punkteliste n160).
+// Fix: the picker asks klipperLocationHidden() with the names read here; the
+//   location on the spool and in the backend stays as it is.
+// NOT-TO-DO: filtering in backendGetLocationsJson(): it is the backend's list,
+//   and leaving the printers out there would hide them from anything that
+//   asks later. Nor only while klipperLocSwitch() is on: spools from before
+//   carry the name with the switch off as well (V79, E2).
+// See test_klipper_hide_rules.py.
+void klipperPickerHide(KlipperHide* out) {
+  if (!out) return;
+  *out = KlipperHide{{nullptr, 0}, false};
+  if (!klipperAvailable()) return;
+  const int count = klipperStoreCount();
+  if (count <= 0) return;
+  if (!s_hide) {
+    void* p = heap_caps_malloc(sizeof(HideNames), MALLOC_CAP_SPIRAM);
+    if (!p) {
+      logSD("LOC: no memory for the Klipper names, printers not left out");
+      return;
+    }
+    s_hide = static_cast<HideNames*>(p);
+  }
+  int n = 0;
+  bool mmu = false;
+  for (int i = 0; i < count && n < KL_PRINTERS_MAX; i++) {
+    KlipperPrinterCfg cfg;
+    if (!klipperStoreAt(i, &cfg)) continue;
+    memcpy(s_hide->names[n], cfg.name, KL_NAME_MAX);
+    s_hide->names[n][KL_NAME_MAX - 1] = '\0';
+    s_hide->name_of[n] = s_hide->names[n];
+    if (cfg.last.layout == KL_LAYOUT_MMU) mmu = true;
+    n++;
+  }
+  *out = KlipperHide{{s_hide->name_of, n}, mmu};
 }

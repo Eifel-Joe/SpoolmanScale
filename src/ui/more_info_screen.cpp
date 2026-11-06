@@ -13,6 +13,8 @@
 #include "bambu/bambu_tag.h"
 #include "hardware/sd_logger.h"
 #include "services/list_limits.h"
+#include "services/klipper_hide_rules.h"
+#include "services/klipper_location.h"
 #include "services/location_state.h"
 #include "services/spool_types.h"
 #include "services/spoolman_actions.h"
@@ -679,7 +681,26 @@ void fetchAndFillLocationList() {
 
   JsonArray locs = doc.as<JsonArray>();
   logSDf("LOC: locs.size()=%d", (int)locs.size());
-  if (locs.size() == 0) {
+  // Root: the list held every location the backend knows, the names of the
+  //   Klipper printers among them (V48 writes them onto the spools), and the
+  //   limit below counted them like shelves (Punkteliste n160).
+  // Fix: klipperLocationRow() leaves them out before the limit is asked; a
+  //   list of nothing but printers is an empty list.
+  // NOT-TO-DO: leaving them out in backendGetLocationsJson(): that is the
+  //   backend's list, and the location on the spool stays the printer's name.
+  // See test_klipper_hide_rules.py.
+  KlipperHide hide;
+  klipperPickerHide(&hide);
+  int loc_hidden = 0;
+  bool any_shown = false;
+  for (JsonVariant v : locs) {
+    if (klipperLocationHidden(v.as<const char*>(), hide)) loc_hidden++;
+    else any_shown = true;
+  }
+  if (loc_hidden > 0) {
+    logSDf("LOC: %d location(s) left out as Klipper printers", loc_hidden);
+  }
+  if (locs.size() == 0 || !any_shown) {
     char buf[48]; backendText(T(STR_LOCATION_NO_LOCATIONS), buf, sizeof(buf));
     lv_label_set_text(loc_status_obj, buf);
     return;
@@ -721,7 +742,10 @@ void fetchAndFillLocationList() {
   int loc_shown = 0;
   bool loc_limit_hit = false;
   for (JsonVariant v : locs) {
-    if (loc_shown >= location_list_limit) { loc_limit_hit = true; break; }
+    const KlipperLocRow step = klipperLocationRow(v.as<const char*>(), hide, loc_shown,
+                                                  location_list_limit);
+    if (step == KLR_HIDE) continue;
+    if (step == KLR_CUT) { loc_limit_hit = true; break; }
     // The whole name: it is what the tap below writes back, and a cut one
     // would be a different location on the server. The label shortens it
     // for the eye only.

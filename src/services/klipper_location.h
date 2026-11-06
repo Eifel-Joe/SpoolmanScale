@@ -34,3 +34,13 @@
 // Each failure is one "KLIPPER:" line in the log and nothing else: the
 // assignment has succeeded already.
 bool klipperLocationAssigned(int spool_id, int displaced_id, const char* printer_name);
+
+struct KlipperHide;   // klipper_hide_rules.h
+
+// What the location picker leaves out (V79): the names of the stored printers
+// and whether one of them was found to be Happy Hare by its last connection
+// test. Empty where the scale has no Klipper printers (klipperAvailable()
+// false, or none stored), and when the block for the names cannot be had;
+// then nothing is left out. The names live in one block in PSRAM, taken on
+// the first call and kept, and stay valid until the next call.
+void klipperPickerHide(KlipperHide* out);
