@@ -6,7 +6,8 @@
 
 namespace {
 
-bool isBlank(char c) { return c == ' ' || c == '\t'; }
+// As the Klipper page trims a typed name (klipper_store_rules.cpp).
+bool isBlank(char c) { return c == ' ' || c == '\t' || c == '\r' || c == '\n'; }
 
 // Happy Hare's location of a gate, the blanks at both ends already gone:
 // "<host> @ MMU Gate:<digits>", exactly as mmu_server.py writes it.

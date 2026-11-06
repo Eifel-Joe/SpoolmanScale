@@ -57,6 +57,7 @@ int main() {
   CHECK(klipperLocationHidden(" Hulk", PAGE));
   CHECK(klipperLocationHidden("Hulk ", PAGE));
   CHECK(klipperLocationHidden("\tHulk  ", PAGE));
+  CHECK(klipperLocationHidden("Hulk\r\n", PAGE));      // as the page trims a typed name
 
   WHAT("a shelf stays, also one with a printer's name in it");
   CHECK(!klipperLocationHidden("Regal", PAGE));
@@ -80,6 +81,7 @@ int main() {
   CHECK(klipperLocationHidden("voron @ MMU Gate:3", HH_ONLY));
   CHECK(klipperLocationHidden("mainsailos.local @ MMU Gate:11", HH_ONLY));
   CHECK(klipperLocationHidden(" voron @ MMU Gate:3 ", HH_ONLY));
+  CHECK(klipperLocationHidden("x @ MMU Gate:3", HH_ONLY));          // one character of host is enough
   CHECK(!klipperLocationHidden("voron @ MMU Gate:3", PAGE));
   CHECK(!klipperLocationHidden("voron @ MMU Gate:3", NONE));
   CHECK(!klipperLocationHidden(" @ MMU Gate:3", HH_ONLY));      // no host in front
@@ -100,6 +102,18 @@ int main() {
   CHECK_INT(klipperLocationRow("Hulk", PAGE, 5, 5), KLR_HIDE);  // past the limit: no cut for a printer
   CHECK_INT(klipperLocationRow("Hulk", NONE, 5, 5), KLR_CUT);
   CHECK_INT(klipperLocationRow(nullptr, PAGE, 0, 5), KLR_SHOW);   // the picker shows it as "-"
+  CHECK_INT(klipperLocationRow("Regal", PAGE, 0, 0), KLR_CUT);
+  CHECK_INT(klipperLocationRow("Hulk", PAGE, 0, 0), KLR_HIDE);
+
+  WHAT("a location longer than any name stays");
+  {
+    static char longer[400];
+    memset(longer, 'a', sizeof(longer) - 1);
+    longer[sizeof(longer) - 1] = '\0';
+    CHECK(!klipperLocationHidden(longer, PAGE));
+    memcpy(longer, "Hulk", 4);
+    CHECK(!klipperLocationHidden(longer, PAGE));
+  }
 
   WHAT("a pass: printers use up no room and never cut");
   {
@@ -161,7 +175,7 @@ def code(text):
 
 
 screen = code((root / "src" / "ui" / "more_info_screen.cpp").read_text(encoding="utf-8"))
-fill = body(screen, "void fetchAndFillLocationList()")
+fill = body(screen, "void fetchAndFillLocationList() {")
 
 # The picker asks the rule for every location, and the rule decides before the
 # limit: the old line that broke off at the limit for any location is gone.
@@ -189,7 +203,7 @@ assert callers == ["src/ui/more_info_screen.cpp"], callers
 # Only where the scale has Klipper printers: without klipperAvailable() the
 # list of printers is empty and nothing is left out.
 loc = code((root / "src" / "services" / "klipper_location.cpp").read_text(encoding="utf-8"))
-hide = body(loc, "void klipperPickerHide(")
+hide = body(loc, "void klipperPickerHide(KlipperHide* out) {")
 assert "klipperAvailable()" in hide, "the printers are left out in every backend"
 assert hide.index("klipperAvailable()") < hide.index("klipperStoreAt("), \
     "the store is read before the backend is asked"

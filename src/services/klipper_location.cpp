@@ -331,7 +331,7 @@ void klipperPickerHide(KlipperHide* out) {
   if (!s_hide) {
     void* p = heap_caps_malloc(sizeof(HideNames), MALLOC_CAP_SPIRAM);
     if (!p) {
-      logSD("LOC: no memory for the Klipper names, printers not left out");
+      logSD("KLIPPER: no memory for the names the location picker leaves out, none left out");
       return;
     }
     s_hide = static_cast<HideNames*>(p);
