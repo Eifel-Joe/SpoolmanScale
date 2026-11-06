@@ -44,10 +44,15 @@ int main() {
   assert(sq.preset == LABEL_PRESET_STANDARD);
   assert(sq.fields == (1u << LF_QR));
   assert(!labelLayoutOption(sq, LO_PORTRAIT) && labelLayoutOption(sq, LO_MATERIAL_PLAIN));
-  // Continuous tape: the template's fields and arrangement, always flat.
+  // Continuous tape: the template as it is, upright too: upright the label
+  // turns, its height the tape's width, its length what it needs (Spec V77,
+  // Joerg 06.11.2026: "Der Drucker kann auch 90 Grad gedreht drucken").
   const LabelLayout en = labelLayoutForMedia(t, 62, 0);
-  assert(en.preset == t.preset && en.fields == t.fields && !labelLayoutOption(en, LO_PORTRAIT));
-  assert(labelLayoutOption(en, LO_MATERIAL_PLAIN));
+  assert(en.preset == t.preset && en.fields == t.fields && en.options == t.options);
+  assert(labelLayoutOption(en, LO_PORTRAIT) && labelLayoutOption(en, LO_MATERIAL_PLAIN));
+  // Every fact a template can tick has its line in the list: flat, continuous
+  // tape takes all of them (V77, before eight).
+  assert(__builtin_popcount(labelFactFields(LABEL_PRESET_COMPACT)) == LABEL_LAYOUT_MAX_FACTS);
   // Every other roll takes the template as it is.
   static const uint16_t rolls[][2] = {{62, 29}, {40, 30}, {50, 30}, {12, 40}};
   for (const auto& wl : rolls) {
@@ -79,12 +84,23 @@ LP = "services/label_printer.cpp"
 RENDER = "services/label_render.cpp"
 
 # 1. The fact counts go by the roll's shape: the square has none, continuous
-#    tape takes every line a label can have (LABEL_MAX_FACTS).
+#    tape flat takes every line a label can have (LABEL_MAX_FACTS); upright
+#    as many as its width holds as a height: 62 mm like the 62 x 29 upright,
+#    38 mm like the 40 x 30 flat (Spec V77).
 cap = ks.squeeze(ks.body_of(LAYOUT, "labelFactCapacity"))
 need("labelRollShape(" in cap, f"src/{LAYOUT}: labelFactCapacity() does not go by labelRollShape()")
 need("LRS_SMALL" in cap and "return0" in cap, f"src/{LAYOUT}: the square is given fact lines")
 need("LRS_ENDLESS" in cap and "LABEL_LAYOUT_MAX_FACTS" in cap,
      f"src/{LAYOUT}: continuous tape gets a fixed line budget")
+need("CAP_UPRIGHT_62" in cap and "CAP_FLAT_40" in cap and cap.count("upright") >= 2,
+     f"src/{LAYOUT}: continuous tape upright gets the flat budget")
+# The lists of up to LABEL_MAX_FACTS lines are too large for a task's stack:
+# the renderer and the edit screen keep them in PSRAM.
+for f, fn in ((RENDER, "labelRenderSpool"), (RENDER, "labelRenderFilament"),
+              (RENDER, "labelRenderEdit"), ("ui/label_edit_screen.cpp", "fillFromSpool")):
+    body = ks.squeeze(ks.body_of(f, fn))
+    need("LabelFactListf;" not in body and "LabelFactListl;" not in body,
+         f"src/{f}: {fn}() keeps a fact list on the stack")
 
 # 2. The renderer narrows every label of the scale's own to the roll: spool,
 #    filament and the test print; the square's test print has no sentence.
@@ -93,6 +109,22 @@ for fn in ("labelRenderSpool", "labelRenderFilament", "labelRenderTest"):
          f"src/{RENDER}: {fn}() does not narrow the template to the roll")
 need("labelMediaSmall(" in ks.squeeze(ks.body_of(RENDER, "labelRenderTest")),
      f"src/{RENDER}: labelRenderTest() keeps its sentence on the square")
+# The test print and the calibration label name the roll as the lists do:
+# "62 mm Endlos", not "62x0" (acceptance of v0.8.7-beta.7, round 5).
+need("labelMediaShort(" in ks.squeeze(ks.body_of(RENDER, "labelRenderTest")),
+     f"src/{RENDER}: labelRenderTest() names continuous tape 62x0")
+need("labelMediaShort(" in ks.squeeze(ks.body_of("services/label_calibration.cpp",
+                                                   "labelRenderCalibration")),
+     "src/services/label_calibration.cpp: labelRenderCalibration() names continuous tape 62x0")
+# Upright on continuous tape the label turns: the tape's width is its height,
+# its length is searched for (uprightLength()), not the longest there may be.
+need("turned=!endless" not in ks.squeeze(ks.body_of(RENDER, "renderLabel")),
+     f"src/{RENDER}: renderLabel() never turns a label on continuous tape")
+need("uprightLength(" in ks.squeeze(ks.body_of(RENDER, "renderLabel")),
+     f"src/{RENDER}: renderLabel() gives an upright continuous label no length of its own")
+# The print sheet hides the orientation row on the square only.
+need("labelMediaEndless(" not in ks.squeeze(ks.body_of("ui/print_sheet.cpp", "refresh")),
+     "src/ui/print_sheet.cpp: refresh() hides the orientation row on continuous tape")
 # Continuous tape: drawn on the longest label there may be, top-aligned,
 # and cut after the last line that has ink (endlessLines()).
 rl = ks.squeeze(ks.body_of(RENDER, "renderLabel"))
