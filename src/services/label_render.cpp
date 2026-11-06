@@ -27,15 +27,9 @@ using namespace labeldraw;
 // fonts at that resolution. A finer head prints the same millimetres: every
 // length goes through dots() and every font through sized() (label_draw.h).
 #define LR_BASE_DPI      203    // the head these lengths and fonts are for
-#define LR_MARGIN_PX       8    // 1 mm: the stock is never cut exactly
 // The 23 x 23 square (Spec V75): a die-cut label with its own white edge, and
 // its 20 x 17 mm need every dot for the code (f08, Ziopase c96098d7).
 #define LR_MARGIN_SMALL_PX 4
-// Continuous tape (Joerg 05.11.2026): drawn on the longest label there may
-// be and cut after its last line of ink; the calibration page, which has no
-// content of its own to measure, takes 24 mm.
-#define LR_ENDLESS_CALIB_LINES 284
-#define LR_GAP_PX          4    // between the blocks
 #define LR_COLUMN_GAP_PX  12    // between two columns of facts
 // The blocks grow with the roll. 40 x 30 is the base; from LR_TALL_PX in
 // both directions the band, the fonts and the fact lines take the larger sizes.
@@ -57,20 +51,6 @@ using namespace labeldraw;
 #define LR_QR_GOOD_PX     96    // under this, smaller fact lines buy code size
 #define LR_FACT_STYLES_MAX 11   // the most styles a head's list may have
 #define LR_FACTS_LOG_LEN  24    // "two lines of 40 px" and its end, with room
-// The calibration page's ruler, in dots from the top of the label.
-#define LC_NUM_Y          12    // the numbers' row, and the top of their ticks
-#define LC_NUM_EVERY       4    // a number every 4 mm
-#define LC_NUM_GAP         2    // from a tick to its number
-#define LC_NUM_W          28    // "-12" in 16 px: the rest of the 4 mm to the next
-#define LC_NUM_EXTRA       3    // numbers past where the edge can be, each side
-#define LC_BASE_Y         44    // the ruler's line; the ticks stand on it
-#define LC_BASE_PX         2
-#define LC_TICK_PX         2
-#define LC_TICK_MM         6    // every millimetre
-#define LC_TICK_2MM       12    // every second one
-#define LC_BOX_GAP        12    // from the ruler to the frame
-#define LC_FRAME_PX        3
-#define LC_TEXT_GAP       14    // from the frame's top to the first line
 
 void labelRasterFree(LabelRaster* image) {
   if (!image) return;
@@ -117,8 +97,9 @@ struct LabelArea {
 static lv_coord_t columnWidth(const LabelArea& a) { return (a.w - dots(LR_COLUMN_GAP_PX)) / 2; }
 
 // Where the body put the code and how it set the facts, for the log:
-// "small lines", "28 px lines", "two lines of 36 px".
-struct LabelBody { lv_coord_t qr; bool beside; char facts[LR_FACTS_LOG_LEN]; };
+// "small lines", "28 px lines", "two lines of 36 px"; and whether every fact
+// line stands whole (the length search of uprightLength() asks).
+struct LabelBody { lv_coord_t qr; bool beside; char facts[LR_FACTS_LOG_LEN]; bool whole; };
 
 // The name as the area sets it on two lines: one line would cut it even in
 // the wrap font, and it breaks into two that fit. False: one line.
@@ -550,12 +531,26 @@ static void drawLarger(lv_obj_t* canvas, const LabelArea& a, const LabelContent&
   }
 }
 
+// Whether the small lines stand whole: each within the width next to the
+// code, all of them within the height.
+static bool oneLineWhole(const LabelArea& a, const LabelContent& c, const BodyPlan& p) {
+  if (c.wrap) return true;
+  const lv_coord_t w = (p.beside && p.code) ? a.w - p.code - dots(LR_GAP_PX) : a.w;
+  for (int i = 0; i < c.n; i++)
+    if (!fitsLine(c.lines[i], p.font, w)) return false;
+  const lv_coord_t text = c.n * p.line;
+  const lv_coord_t need = p.beside ? LV_MAX(text, p.code)
+                                   : text + (p.code ? p.code + gapOverCode(a, c.n) : 0);
+  return need <= a.bottom - a.y;
+}
+
 static LabelBody drawBody(lv_obj_t* canvas, const LabelArea& a, bool tall,
                           const LabelContent& c) {
   const BodyPlan one = planOneLine(a, tall, c);
   FactsPlan larger;
   LabelBody body{};
   body.beside = one.beside;
+  body.whole = true;   // a larger style is only chosen with its lines whole
   if (planLarger(a, tall, c, one, &larger)) {
     drawLarger(canvas, a, c, larger, one.beside);
     body.qr = larger.code;
@@ -568,6 +563,7 @@ static LabelBody drawBody(lv_obj_t* canvas, const LabelArea& a, bool tall,
   }
   drawOneLine(canvas, a, c, one);
   body.qr = one.code ? one.qr : (lv_coord_t)0;
+  body.whole = oneLineWhole(a, c, one);
   snprintf(body.facts, sizeof(body.facts), "small lines");
   return body;
 }
@@ -652,14 +648,90 @@ static const lv_font_t* nameWrapFont(const LabelArea& a, bool tall, const LabelC
   return nullptr;
 }
 
+// How a label sits on its canvas, decided before anything is drawn.
+struct LabelShape {
+  bool endless;   // continuous tape
+  bool turned;    // upright: the canvas is the label as it reads
+  bool wide;      // the label at least LR_TALL_PX across the head
+  uint16_t ch;    // the canvas's height in dots
+};
+
+// What laying a label out gave: the body, the big code beside or over the
+// text (0: none), and where the header ended.
+struct LaidOut { LabelBody body; lv_coord_t side_qr; lv_coord_t head_y; };
+
+// The blocks into `area`: the big code, the header, the facts and the code.
+// With no canvas it only measures.
+static LaidOut layOut(lv_obj_t* canvas, LabelArea area, const LabelContent& c,
+                      const LabelLayout& layout, const LabelShape& s) {
+  LaidOut o{};
+  LabelContent body = c;
+  // The narrow continuous tape flat has the code under the lines in every
+  // arrangement: beside them the 38 mm leave it too little width. Upright
+  // the label is as long as it needs, and the code goes beside.
+  if (layout.preset == LABEL_PRESET_BIG_QR && (!s.endless || s.wide || s.turned)) {
+    o.side_qr = s.turned && !s.endless ? drawTopQr(canvas, &area, c) : drawSideQr(canvas, &area, c);
+    if (o.side_qr) body.qr = nullptr;
+  }
+  // The larger sizes need room both ways: a 30 x 40 is tall but narrow, and
+  // there the header blocks would eat what the code needs. On continuous tape
+  // flat only the width says it: its length follows the content; upright the
+  // tape's width is the height and says it as a roll's length does.
+  const bool tall = ((s.endless && !s.turned) || s.ch >= dots(LR_TALL_PX)) &&
+                    area.w + 2 * area.x >= dots(LR_TALL_PX);
+  area.wrap_font = nameWrapFont(area, tall, body, layout);
+  area.y = drawHead(canvas, area, tall, *c.d, layout);
+  o.head_y = area.y;
+  o.body = drawBody(canvas, area, tall, body);
+  return o;
+}
+
+// Whether a try prints as well as the label on the longest length: the
+// header in the same sizes, the facts in the same style and whole, no code
+// smaller.
+static bool asGoodAs(const LaidOut& t, const LaidOut& best) {
+  return t.head_y == best.head_y && t.side_qr >= best.side_qr && t.body.qr >= best.body.qr &&
+         (t.body.whole || !best.body.whole) && strcmp(t.body.facts, best.body.facts) == 0;
+}
+
+// The length of an upright label on continuous tape (Spec V77, Joerg
+// 06.11.2026): its height is the tape's width, its length the least at which
+// it prints as it would on the longest label there may be. Measured, nothing
+// drawn.
+// Root: flat, a continuous label is drawn on the longest length and cut after
+//   its last line of ink (endlessLines()). Upright the length runs across the
+//   reading: the header is centred on it and the code stands at its right
+//   end, so a cut after the ink would keep the whole length.
+// Fix: the length searched by halving between Brother's shortest and longest
+//   label, each try laid out without a canvas (layOut()) and held against the
+//   longest (asGoodAs()). Ten tries; a try encodes the code a few times.
+// NOT-TO-DO: adding up the header's and the facts' text widths here: the
+//   fonts, a name on two lines and the code's room are layOut()'s to decide,
+//   and a second account of them would drift from it.
+static uint16_t uprightLength(LabelArea a, const LabelContent& c, const LabelLayout& layout,
+                              const LabelShape& s) {
+  const lv_coord_t M = a.x;
+  a.w = BROTHER_QL_MAX_LINES - 2 * M;
+  const LaidOut best = layOut(nullptr, a, c, layout, s);
+  uint16_t lo = BROTHER_QL_MIN_LINES, hi = BROTHER_QL_MAX_LINES;
+  while (lo < hi) {
+    const uint16_t mid = (uint16_t)((lo + hi) / 2);
+    a.w = mid - 2 * M;
+    if (asGoodAs(layOut(nullptr, a, c, layout, s), best)) hi = mid;
+    else lo = (uint16_t)(mid + 1);
+  }
+  return hi;
+}
+
 // Every label the scale prints, laid out as `layout` says.
 static bool renderLabel(const LabelPrinterConfig& printer, const LabelLayout& layout,
                         const LabelContent& c, LabelRaster* out) {
   if (!out || !c.d) return false;
   *out = LabelRaster{};
   const uint16_t content_w = labelPrinterContentWidth(printer.model, printer.media_width_mm);
-  // Continuous tape has no length of its own: the longest there may be,
-  // cut to the content after drawing (label_draw.h endlessLines()).
+  // Continuous tape has no length of its own: flat the longest there may be,
+  // cut to the content after drawing (label_draw.h endlessLines()); upright
+  // the one uprightLength() finds.
   const bool endless = labelPrinterMediaContinuous(printer.model, printer.media_width_mm,
                                                    printer.media_length_mm);
   uint16_t h = endless ? BROTHER_QL_MAX_LINES
@@ -669,13 +741,25 @@ static bool renderLabel(const LabelPrinterConfig& printer, const LabelLayout& la
   if (!row_w || !h || content_w > row_w) return false;
   setDpi(labelPrinterProfile(printer.model).dpi);
 
-  // Continuous tape always flat: the lines across the tape (labelLayoutForMedia()).
-  const bool turned = !endless && labelLayoutOption(layout, LO_PORTRAIT);
+  // Upright, continuous tape too (Spec V77): the canvas is the label as it
+  // reads, the roll's length across (the square is flat, labelLayoutForMedia()).
+  const bool turned = labelLayoutOption(layout, LO_PORTRAIT);
   setTurned(turned);
-  // The canvas is the label as it reads: upright, the roll's length across.
+  const LabelShape shape{ endless, turned, content_w >= dots(LR_TALL_PX),
+                          turned ? content_w : h };
+  const bool small = labelMediaSmall(printer.media_width_mm, printer.media_length_mm);
+  const lv_coord_t M = dots(small ? LR_MARGIN_SMALL_PX : LR_MARGIN_PX);
+  const uint8_t preset = layout.preset;
+  const lv_coord_t qr_max = labelPrinterDotsForMm(printer.model,
+      preset == LABEL_PRESET_MATERIAL_BIG ? LR_QR_SMALL_MM : LR_QR_MAX_MM);
+  // Flat on continuous tape the blocks start at the top of the longest label;
+  // upright they stand in the middle of the tape's width, as on any roll.
+  LabelArea area{ M, M, 0, (lv_coord_t)(shape.ch - M), qr_max, preset != LABEL_PRESET_STANDARD,
+                  nullptr, !c.qr || !c.qr[0], nullptr, small, endless && !turned };
+  if (endless && turned) h = uprightLength(area, c, layout, shape);
   const uint16_t cw = turned ? h : content_w;
-  const uint16_t ch = turned ? content_w : h;
-  const size_t buf_bytes = LV_CANVAS_BUF_SIZE_TRUE_COLOR(cw, ch);
+  area.w = (lv_coord_t)(cw - 2 * M);
+  const size_t buf_bytes = LV_CANVAS_BUF_SIZE_TRUE_COLOR(cw, shape.ch);
   void* buf = heap_caps_malloc(buf_bytes, MALLOC_CAP_SPIRAM);
   if (!buf) { logSD("Label: no PSRAM for the canvas"); return false; }
 
@@ -684,38 +768,15 @@ static bool renderLabel(const LabelPrinterConfig& printer, const LabelLayout& la
   // both. lv_scr_load() is never called.
   lv_obj_t* parent = lv_obj_create(NULL);
   lv_obj_t* canvas = lv_canvas_create(parent);
-  lv_canvas_set_buffer(canvas, buf, cw, ch, LV_IMG_CF_TRUE_COLOR);
+  lv_canvas_set_buffer(canvas, buf, cw, shape.ch, LV_IMG_CF_TRUE_COLOR);
   lv_canvas_fill_bg(canvas, lv_color_white(), LV_OPA_COVER);
 
-  const bool small = labelMediaSmall(printer.media_width_mm, printer.media_length_mm);
-  const lv_coord_t M = dots(small ? LR_MARGIN_SMALL_PX : LR_MARGIN_PX);
-  const uint8_t preset = layout.preset;
-  const bool standard = preset == LABEL_PRESET_STANDARD;
-  const lv_coord_t qr_max = labelPrinterDotsForMm(printer.model,
-      preset == LABEL_PRESET_MATERIAL_BIG ? LR_QR_SMALL_MM : LR_QR_MAX_MM);
-  LabelArea area{ M, M, (lv_coord_t)(cw - 2 * M), (lv_coord_t)(ch - M), qr_max, !standard,
-                  nullptr, !c.qr || !c.qr[0], nullptr, small, endless };
-  LabelContent body = c;
-  lv_coord_t side_qr = 0;
-  // The narrow continuous tape has the code under the lines in every
-  // arrangement: beside them the 38 mm leave it too little width.
-  const bool wide = content_w >= dots(LR_TALL_PX);
-  if (preset == LABEL_PRESET_BIG_QR && (!endless || wide)) {
-    side_qr = turned ? drawTopQr(canvas, &area, c) : drawSideQr(canvas, &area, c);
-    if (side_qr) body.qr = nullptr;
-  }
-  // The larger sizes need room both ways: a 30 x 40 is tall but narrow, and
-  // there the header blocks would eat what the code needs.
-  // On continuous tape only the width says it: its length follows the content.
-  const bool tall = (endless || ch >= dots(LR_TALL_PX)) && area.w + 2 * M >= dots(LR_TALL_PX);
-  area.wrap_font = nameWrapFont(area, tall, body, layout);
-  area.y = drawHead(canvas, area, tall, *c.d, layout);
-  const LabelBody placed = drawBody(canvas, area, tall, body);
-  if (endless) h = endlessLines(canvas, cw, ch, M);
+  const LaidOut placed = layOut(canvas, area, c, layout, shape);
+  if (endless && !turned) h = endlessLines(canvas, cw, shape.ch, M);
   // The square carries the code alone (Spec V76): a label with none, such as
   // a filament's without a page to open, or one whose code does not fit,
   // would come out blank. Refused instead; the label page says why.
-  if (small && !placed.qr) {
+  if (small && !placed.body.qr) {
     logSDf("Label: %s has no code for the 23 x 23 square, nothing to print", c.what);
     lv_obj_del(parent);
     heap_caps_free(buf);
@@ -728,9 +789,10 @@ static bool renderLabel(const LabelPrinterConfig& printer, const LabelLayout& la
   heap_caps_free(buf);
   logSDf("Label: %s %ux%u at dot %u of a %u dot row, qr=%d %s, facts in %s, %s", c.what,
          (unsigned)content_w, (unsigned)h, (unsigned)x0, (unsigned)row_w,
-         side_qr ? (int)side_qr : (int)placed.qr,
-         side_qr ? (turned ? "top" : "side") : placed.beside ? "beside" : "below",
-         placed.facts, ok ? "ok" : "failed");
+         placed.side_qr ? (int)placed.side_qr : (int)placed.body.qr,
+         placed.side_qr ? (turned && !endless ? "top" : "side")
+                        : placed.body.beside ? "beside" : "below",
+         placed.body.facts, ok ? "ok" : "failed");
   return ok;
 }
 
@@ -744,14 +806,15 @@ bool labelRenderTest(const LabelPrinterConfig& printer, LabelRaster* out) {
   // The build, as short as it can be said: "beta.79" of a pre-release, the
   // whole version of a release.
   const char* dash = strrchr(FW_VERSION, '-');
-  snprintf(d.name, sizeof(d.name), "%s  %ux%u  %s", labelPrinterProfile(printer.model).name,
-           (unsigned)printer.media_width_mm, (unsigned)printer.media_length_mm,
+  char stock[LABEL_LINE_LEN];
+  labelMediaShort(printer.model, printer.media_width_mm, printer.media_length_mm, stock,
+                  sizeof(stock));
+  snprintf(d.name, sizeof(d.name), "%s  %s  %s", labelPrinterProfile(printer.model).name, stock,
            dash ? dash + 1 : FW_VERSION);
   // The tape has no room for the sentence and the code: the three lines say
   // what it is, the size and the build in the name, the printer left out.
   if (labelPrinterIsTape(printer.model)) {
-    snprintf(d.name, sizeof(d.name), "%ux%u  %s", (unsigned)printer.media_width_mm,
-             (unsigned)printer.media_length_mm, dash ? dash + 1 : FW_VERSION);
+    snprintf(d.name, sizeof(d.name), "%s  %s", stock, dash ? dash + 1 : FW_VERSION);
     return labelRenderTape(printer, d, false, "test", out);
   }
   const char* lines[] = { T(STR_LBL_TEST_DONATE) };
@@ -764,140 +827,6 @@ bool labelRenderTest(const LabelPrinterConfig& printer, LabelRaster* out) {
   return renderLabel(printer,
                      labelLayoutForMedia(labelLayoutDefault(), printer.media_width_mm,
                                          printer.media_length_mm), c, out);
-}
-
-// The dot of millimetre v on the calibration ruler, counted from the label's
-// first dot at `centre`, negative to the left.
-static lv_coord_t rulerDot(LabelPrinterModel model, lv_coord_t centre, int v) {
-  const lv_coord_t d = labelPrinterDotsForMm(model, (uint16_t)(v < 0 ? -v : v));
-  return v < 0 ? centre - d : centre + d;
-}
-
-bool labelRenderCalibration(const LabelPrinterConfig& printer, LabelRaster* out) {
-  if (!out) return false;
-  // A tape printer's head is as wide as the tape: there is no offset to
-  // read off, and the test label shows where the print sits.
-  if (labelPrinterIsTape(printer.model)) return labelRenderTest(printer, out);
-  *out = LabelRaster{};
-  const uint16_t content_w = labelPrinterContentWidth(printer.model, printer.media_width_mm);
-  // Continuous tape: the ruler and the frame on a label of fixed length.
-  const uint16_t h = labelPrinterMediaContinuous(printer.model, printer.media_width_mm,
-                                                 printer.media_length_mm)
-      ? LR_ENDLESS_CALIB_LINES
-      : labelPrinterContentHeight(printer.model, printer.media_width_mm, printer.media_length_mm);
-  const uint16_t row_w = labelPrinterRasterWidth(printer.model, printer.media_width_mm);
-  if (!row_w || !h || content_w > row_w) return false;
-  setDpi(labelPrinterProfile(printer.model).dpi);
-  setTurned(false);
-
-  // The whole row, not just the label: the ruler has to run under the roll
-  // wherever it sits.
-  const size_t buf_bytes = LV_CANVAS_BUF_SIZE_TRUE_COLOR(row_w, h);
-  void* buf = heap_caps_malloc(buf_bytes, MALLOC_CAP_SPIRAM);
-  if (!buf) { logSD("Label: no PSRAM for the canvas"); return false; }
-  lv_obj_t* parent = lv_obj_create(NULL);
-  lv_obj_t* canvas = lv_canvas_create(parent);
-  lv_canvas_set_buffer(canvas, buf, row_w, h, LV_IMG_CF_TRUE_COLOR);
-  lv_canvas_fill_bg(canvas, lv_color_white(), LV_OPA_COVER);
-  const lv_color_t black = lv_color_black();
-
-  // The label's first dot at offset 0: the middle of the slack on a
-  // Bluetooth printer, the roll's own place on a Brother (Spec V75; the two
-  // agree for DK-11209, dot 12).
-  const lv_coord_t x = labelPrinterContentX(printer);
-  const int16_t offset = labelPrinterOffset(printer);
-  const lv_coord_t centre = x - offset;
-
-  // The ruler across the row, in millimetres of offset, read like any
-  // ruler: a tick every millimetre, a longer one every second, and every
-  // fourth a number right of a tick that reaches up to it. So the number
-  // at the label's left edge is still whole: that is the offset. Numbers
-  // where the left edge can be and three more each side, in case a roll sits
-  // further out than the head suggests (Nikolai, 30.09.2026); past that the
-  // row has ticks alone, and "+48" would not fit the 4 mm anyway.
-  int16_t lo_n, hi;
-  labelPrinterOffsetRange(printer, &lo_n, &hi);
-  const lv_coord_t per_mm = labelPrinterDotsForMm(printer.model, 1);
-  const lv_coord_t extra = LC_NUM_EXTRA * LC_NUM_EVERY * per_mm;
-  const lv_font_t* num_font = &lv_font_montserrat_ext_16;
-  const lv_coord_t num_y = dots(LC_NUM_Y);
-  const lv_coord_t base_y = dots(LC_BASE_Y);
-  const lv_coord_t tick_w = dots(LC_TICK_PX);
-  fillRect(canvas, 0, base_y, row_w, dots(LC_BASE_PX), black);
-  // Each tick at its own millimetre's dot rather than per_mm on from the
-  // last: at 300 dpi a millimetre is 11.81 dots, and steps of 12 would drift
-  // a millimetre across the head.
-  for (int v = -(int)((centre + per_mm - 1) / per_mm); ; v++) {
-    const lv_coord_t d = rulerDot(printer.model, centre, v);
-    if (d >= row_w) break;
-    if (d < 0) continue;
-    if (v % LC_NUM_EVERY || d - centre > hi + extra || d - centre < lo_n - extra) {
-      const lv_coord_t len = dots(v % 2 ? LC_TICK_MM : LC_TICK_2MM);
-      fillRect(canvas, d, base_y - len, tick_w, len, black);
-      continue;
-    }
-    fillRect(canvas, d, num_y, tick_w, base_y - num_y, black);
-    // No plus sign, as on any ruler: "+20" did not fit the 4 mm in 16 px.
-    char num[8];
-    snprintf(num, sizeof(num), "%d", v);
-    drawLine(canvas, d + tick_w + dots(LC_NUM_GAP), num_y, dots(LC_NUM_W), num_font, black,
-             LV_TEXT_ALIGN_LEFT, num);
-  }
-
-  // The frame, under the ruler and 1 mm inside where the scale takes the
-  // label to be: with the offset right, the same white shows left and right.
-  const lv_coord_t M = dots(LR_MARGIN_PX);
-  const lv_coord_t F = dots(LC_FRAME_PX);
-  const lv_coord_t box_y = base_y + dots(LC_BASE_PX) + dots(LC_BOX_GAP);
-  const lv_coord_t box_h = h - M - box_y;
-  if (box_h > 2 * F) {
-    fillRect(canvas, x + M, box_y, content_w - 2 * M, F, black);
-    fillRect(canvas, x + M, h - M - F, content_w - 2 * M, F, black);
-    fillRect(canvas, x + M, box_y, F, box_h, black);
-    fillRect(canvas, x + content_w - M - F, box_y, F, box_h, black);
-  }
-
-  // What to read off, and what was set when this was printed: the photo of
-  // a calibration page says both.
-  const lv_coord_t gap = dots(LR_GAP_PX);
-  const lv_coord_t tx = x + M + F + gap;
-  const lv_coord_t tw = content_w - 2 * (M + F + gap);
-  const lv_coord_t ty = box_y + F + dots(LC_TEXT_GAP);
-  const lv_font_t* big = &lv_font_montserrat_ext_16;
-  const lv_font_t* small = &lv_font_montserrat_ext_14;
-  const int off_mm = (offset + (offset < 0 ? -per_mm / 2 : per_mm / 2)) / per_mm;
-  // Each line only where it fits, so a flatter label keeps ruler and frame.
-  const lv_coord_t bottom = h - M - F;
-  lv_coord_t ly = ty;
-  // Where the label fills the row there is no offset to read off, and the
-  // line would ask for one (the M110S, issue #55).
-  if (lo_n != hi && ly + lineHeight(big) < bottom) {
-    drawLine(canvas, tx, ly, tw, big, black, LV_TEXT_ALIGN_CENTER, T(STR_LBL_CAL_EDGE));
-    ly += lineHeight(big) + gap;
-  }
-  if (ly + lineHeight(small) < bottom) {
-    drawLine(canvas, tx, ly, tw, small, black, LV_TEXT_ALIGN_CENTER, "SpoolmanScale");
-    ly += lineHeight(small) + gap;
-  }
-  if (ly + lineHeight(small) < bottom) {
-    const char* dash = strrchr(FW_VERSION, '-');
-    char info[LABEL_LINE_LEN];
-    snprintf(info, sizeof(info), "%s  %ux%u  %s %s%d mm  %s",
-             labelPrinterProfile(printer.model).name, (unsigned)printer.media_width_mm,
-             (unsigned)printer.media_length_mm, T(STR_W_P_CAL_OFFSET), off_mm > 0 ? "+" : "",
-             off_mm, dash ? dash + 1 : FW_VERSION);
-    drawLine(canvas, tx, ly, tw, small, black, LV_TEXT_ALIGN_CENTER, info);
-  }
-
-  const bool ok = packCanvas(canvas, row_w, h, row_w, 0, out);
-  // The label's width, for the check against the loaded stock; the rest of
-  // the row carries the ruler on purpose.
-  out->content_width = content_w;
-  lv_obj_del(parent);
-  heap_caps_free(buf);
-  logSDf("Label: calibration %ux%u, label at dot %u, offset %d, %s", (unsigned)row_w,
-         (unsigned)h, (unsigned)x, (int)offset, ok ? "ok" : "failed");
-  return ok;
 }
 
 void labelQrForSpool(int spool_id, char* out, size_t n) {
@@ -929,6 +858,14 @@ void labelQrForFilament(const SpoolLabelData& spool, char* out, size_t n) {
   else                    snprintf(out, n, "%s/filament/show/%d", base, filament_id);
 }
 
+// A fact list in PSRAM, null when there is none: at LABEL_MAX_FACTS lines it
+// is too large for the stack of the task that draws (label_facts.h, V77).
+static LabelFactList* factList() {
+  LabelFactList* l = (LabelFactList*)heap_caps_calloc(1, sizeof(LabelFactList), MALLOC_CAP_SPIRAM);
+  if (!l) logSD("Label: no PSRAM for the fact lines");
+  return l;
+}
+
 bool labelRenderFilament(const LabelPrinterConfig& printer, const LabelLayout& layout,
                          const SpoolLabelData& spool, LabelRaster* out) {
   // The tape's own arrangement, without the spool's number: see label_tape.h.
@@ -941,11 +878,14 @@ bool labelRenderFilament(const LabelPrinterConfig& printer, const LabelLayout& l
   LabelLayout l = labelLayoutForMedia(layout, printer.media_width_mm, printer.media_length_mm);
   if (!qr[0]) l.fields &= ~(1u << LF_QR);
   const int capacity = labelFactCapacity(l, printer.media_width_mm, printer.media_length_mm);
-  LabelFactList f;
-  labelFilamentFacts(l, spool, capacity, &f);
-  const LabelContent c{ &spool, f.line_ptrs, f.n, false,
-                        labelLayoutHasCode(l) ? qr : nullptr, "filament", f.facts };
-  return renderLabel(printer, l, c, out);
+  LabelFactList* f = factList();
+  if (!f) return false;
+  labelFilamentFacts(l, spool, capacity, f);
+  const LabelContent c{ &spool, f->line_ptrs, f->n, false,
+                        labelLayoutHasCode(l) ? qr : nullptr, "filament", f->facts };
+  const bool ok = renderLabel(printer, l, c, out);
+  heap_caps_free(f);
+  return ok;
 }
 
 bool labelRenderSpool(const LabelPrinterConfig& printer, const LabelLayout& saved,
@@ -962,11 +902,14 @@ bool labelRenderSpool(const LabelPrinterConfig& printer, const LabelLayout& save
     logSDf("Label: spool #%d carries its own link, the QR code uses it", spool.id);
   else labelQrForSpool(spool.id, qr, sizeof(qr));
   const int capacity = labelFactCapacity(layout, printer.media_width_mm, printer.media_length_mm);
-  LabelFactList l;
-  labelSpoolFacts(layout, spool, capacity, &l);
-  const LabelContent c{ &spool, l.line_ptrs, l.n, false,
-                        labelLayoutHasCode(layout) ? qr : nullptr, "spool", l.facts };
-  return renderLabel(printer, layout, c, out);
+  LabelFactList* l = factList();
+  if (!l) return false;
+  labelSpoolFacts(layout, spool, capacity, l);
+  const LabelContent c{ &spool, l->line_ptrs, l->n, false,
+                        labelLayoutHasCode(layout) ? qr : nullptr, "spool", l->facts };
+  const bool ok = renderLabel(printer, layout, c, out);
+  heap_caps_free(l);
+  return ok;
 }
 
 bool labelRenderEdit(const LabelPrinterConfig& printer, const LabelLayout& layout,
@@ -981,9 +924,12 @@ bool labelRenderEdit(const LabelPrinterConfig& printer, const LabelLayout& layou
   if (!edit.code || !edit.qr[0]) counted.fields &= ~(1u << LF_QR);
   const int capacity = labelFactCapacity(counted, printer.media_width_mm, printer.media_length_mm);
   SpoolLabelData d = spool;
-  LabelFactList f;
-  const LabelLayout l = labelEditApply(edit, narrowed, capacity, &d, &f);
-  const LabelContent c{ &d, f.line_ptrs, f.n, false, labelLayoutHasCode(l) ? edit.qr : nullptr,
-                        edit.free ? "free" : "edited", f.facts };
-  return renderLabel(printer, l, c, out);
+  LabelFactList* f = factList();
+  if (!f) return false;
+  const LabelLayout l = labelEditApply(edit, narrowed, capacity, &d, f);
+  const LabelContent c{ &d, f->line_ptrs, f->n, false, labelLayoutHasCode(l) ? edit.qr : nullptr,
+                        edit.free ? "free" : "edited", f->facts };
+  const bool ok = renderLabel(printer, l, c, out);
+  heap_caps_free(f);
+  return ok;
 }

@@ -136,7 +136,7 @@ need("top" in ks.squeeze(ks.body_of(RENDER, "drawLarger")),
 # The square carries the code alone (V76): centred on it, and a label with no
 # code (a filament without a page) is refused, never printed blank
 # (acceptance of v0.8.7-beta.7, round 2).
-need("small&&!placed.qr" in rl, f"src/{RENDER}: renderLabel() prints the square blank without a code")
+need("small&&!placed.body.qr" in rl, f"src/{RENDER}: renderLabel() prints the square blank without a code")
 need("a.small&&rows==0?" in ks.squeeze(ks.body_of(RENDER, "drawOneLine")),
      f"src/{RENDER}: drawOneLine() leaves the square's code at the top")
 # The print sheet's paper is sized to what it shows: switching between the

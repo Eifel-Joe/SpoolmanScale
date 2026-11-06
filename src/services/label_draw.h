@@ -35,6 +35,11 @@ LV_FONT_DECLARE(lv_font_montserrat_ext_20);
 LV_FONT_DECLARE(lv_font_montserrat_ext_16);
 LV_FONT_DECLARE(lv_font_montserrat_ext_14);
 
+// Lengths in dots at 203 dpi that the label renderer and the calibration
+// label share (dots() makes them the head's).
+#define LR_MARGIN_PX       8    // 1 mm: the stock is never cut exactly
+#define LR_GAP_PX          4    // between the blocks
+
 namespace labeldraw {
 
 // The head's resolution for what is drawn next: 203 or 300.

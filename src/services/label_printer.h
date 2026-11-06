@@ -264,6 +264,11 @@ bool labelPrinterMediaContinuous(LabelPrinterModel model, uint16_t width_mm, uin
 // "62 mm Endlos" (Joerg 05.11.2026). Cut to `n`.
 void labelMediaName(LabelPrinterModel model, uint16_t width_mm, uint16_t length_mm,
                     char* out, size_t n);
+// The roll as a test print or a calibration label names it, short: "62x29",
+// and continuous tape as the lists do, "62 mm Endlos" (acceptance of
+// v0.8.7-beta.7, round 5: "62x0" read as a size nobody has). Cut to `n`.
+void labelMediaShort(LabelPrinterModel model, uint16_t width_mm, uint16_t length_mm,
+                     char* out, size_t n);
 // The length the lists draw a stock's outline at: its own, and for
 // continuous tape (length 0) a piece of it.
 #define LABEL_MEDIA_ENDLESS_SHAPE_MM 40

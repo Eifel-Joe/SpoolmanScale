@@ -296,6 +296,15 @@ void labelMediaName(LabelPrinterModel model, uint16_t width_mm, uint16_t length_
     snprintf(out, n, T(STR_PRN_MEDIA_FMT), (unsigned)width_mm, (unsigned)length_mm);
 }
 
+void labelMediaShort(LabelPrinterModel model, uint16_t width_mm, uint16_t length_mm,
+                     char* out, size_t n) {
+  if (!out || !n) return;
+  if (labelPrinterMediaContinuous(model, width_mm, length_mm))
+    labelMediaName(model, width_mm, length_mm, out, n);
+  else
+    snprintf(out, n, "%ux%u", (unsigned)width_mm, (unsigned)length_mm);
+}
+
 // What is stored is taken as it is, except for two things that would leave
 // the printer unusable: no Bluetooth model becomes the M220, and a label size
 // the model cannot take becomes the picked one where it fits, else the

@@ -249,6 +249,7 @@ lv_coord_t paragraphHeight(const char* text, const lv_font_t* font, lv_coord_t w
 
 void drawParagraph(lv_obj_t* canvas, lv_coord_t x, lv_coord_t y, lv_coord_t w,
                           const lv_font_t* font, const char* text) {
+  if (!canvas) return;   // measuring only, as the other primitives
   const lv_coord_t bold = boldFor(font);
   lv_draw_label_dsc_t dsc;
   lv_draw_label_dsc_init(&dsc);

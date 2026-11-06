@@ -12,10 +12,11 @@
 //  renderer decides how large they come out.
 // ============================================================
 
-// The most any row of the capacity table asks for (label_layout.cpp): eight
-// on the Brother's 62 x 29 upright, compact, the maker among them. Two lists
-// live on the loop's stack while a label is drawn, 120 bytes a line each.
-#define LABEL_MAX_FACTS 8
+// Every fact a template can tick (label_layout.h LABEL_LAYOUT_MAX_FACTS):
+// continuous tape flat takes them all (Spec V77). At 124 bytes a line a list
+// is too large for a task's stack: the renderer and the edit screen keep
+// theirs in PSRAM.
+#define LABEL_MAX_FACTS 14
 static_assert(LABEL_MAX_FACTS == LABEL_LAYOUT_MAX_FACTS, "the line budget and the list agree");
 
 // One fact as its caption and its value; either may be missing (the maker

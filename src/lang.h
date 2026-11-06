@@ -2232,7 +2232,7 @@ enum StringID {
   STR_LE_RESET,                // a spool's label back as the template
   STR_LE_CLEAR,                // a free label emptied
   STR_LE_TEMPLATE_HINT,        // under the template preview
-  STR_W_L_ENDLESS_HINT,        // the label page: continuous tape grows with its lines, always flat
+  STR_W_L_ENDLESS_HINT,        // the label page: continuous tape grows with its lines, flat or upright
 
   STR_COUNT
 };

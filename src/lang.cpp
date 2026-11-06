@@ -4911,9 +4911,9 @@ const char* const STRINGS[][3] = {
     "Tout effacer" },  // STR_LE_CLEAR
   { "Gilt für alle Etiketten dieser Art, auch im Browser.", "Applies to every label of this kind, in the browser too.",
     "Pour toutes ces étiquettes, navigateur inclus." },  // STR_LE_TEMPLATE_HINT
-  { "Auf Endlosband wird das Etikett so lang, wie die angehakten Zeilen und der Code es brauchen, und immer quer gedruckt; „Hochkant“ gilt hier nicht.",
-    "On continuous tape the label is as long as the ticked lines and the code need, and always printed in landscape; “Portrait” does not apply here.",
-    "Sur le ruban continu, l'étiquette est aussi longue que les lignes cochées et le code l'exigent, et toujours imprimée en paysage ; « Portrait » ne s'applique pas ici." },  // STR_W_L_ENDLESS_HINT
+  { "Auf Endlosband wird das Etikett so lang, wie die angehakten Zeilen und der Code es brauchen: quer laufen die Zeilen über das Band, hochkant längs, so hoch, wie das Band breit ist.",
+    "On continuous tape the label is as long as the ticked lines and the code need: in landscape the lines run across the tape, in portrait along it, as high as the tape is wide.",
+    "Sur le ruban continu, l'étiquette est aussi longue que les lignes cochées et le code l'exigent : en paysage les lignes traversent le ruban, en portrait elles le longent, aussi haute que le ruban est large." },  // STR_W_L_ENDLESS_HINT
 };
 
 StringID tagWriteResultString(uint8_t code) {

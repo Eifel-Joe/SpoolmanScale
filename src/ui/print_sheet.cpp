@@ -204,13 +204,13 @@ static void refresh() {
   // FilaMan's preset has its own layout, and so has a tape printer: the rows
   // that change ours step aside.
   showLayoutRows(!server && !labelPrinterIsTape(c.model));
-  // The square and continuous tape print flat whatever the template says,
-  // the square in the standard arrangement too (labelLayoutForMedia()): no
-  // row that would change nothing.
-  const bool square = labelMediaSmall(c.media_width_mm, c.media_length_mm);
-  if (square || labelMediaEndless(c.media_width_mm, c.media_length_mm))
+  // The square prints flat in the standard arrangement whatever the template
+  // says (labelLayoutForMedia()): no row that would change nothing. Continuous
+  // tape turns upright (Spec V77) and keeps the row.
+  if (labelMediaSmall(c.media_width_mm, c.media_length_mm)) {
     lv_obj_add_flag(s_row_turn, LV_OBJ_FLAG_HIDDEN);
-  if (square) lv_obj_add_flag(s_row_preset, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(s_row_preset, LV_OBJ_FLAG_HIDDEN);
+  }
   if (server) lv_obj_clear_flag(s_row_server, LV_OBJ_FLAG_HIDDEN);
   else lv_obj_add_flag(s_row_server, LV_OBJ_FLAG_HIDDEN);
   lv_label_set_text(s_sub_preset, T(presetCaption(l.preset)));

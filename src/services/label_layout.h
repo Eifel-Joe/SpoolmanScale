@@ -105,14 +105,16 @@ inline bool labelLayoutHasCode(const LabelLayout& layout) {
 // 300 dpi. The renderer stops there, and the browser lets no more be on.
 int labelFactCapacity(const LabelLayout& layout, uint16_t width_mm, uint16_t length_mm);
 
-// The most fact lines a label has: what one list on the stack holds
+// The most fact lines a label has: every fact a template can tick, the
+// maker among them in the compact arrangement (labelFactFields()), which
+// continuous tape flat takes all of (Spec V77). What one list holds
 // (services/label_facts.h LABEL_MAX_FACTS, held equal there).
-#define LABEL_LAYOUT_MAX_FACTS 8
+#define LABEL_LAYOUT_MAX_FACTS 14
 
 // The shapes the fact counts are kept for (labelFactCapacity()). The Brother's
-// rolls of v0.8.7-beta.7 (Spec V75, changed on Joerg's word 05.11.2026):
-// continuous tape (length 0) has no budget of its own, the label grows with
-// its lines; the 23 x 23 square (and anything under 30 mm both ways) carries
+// rolls of v0.8.7-beta.7 (Spec V75, changed on Joerg's word 05.11.2026, V77
+// 06.11.2026): continuous tape (length 0) flat has no budget of its own, the
+// label grows with its lines, upright it has its width's; the 23 x 23 square (and anything under 30 mm both ways) carries
 // the code alone. A Bluetooth stock kept from earlier betas (75 x 50, 75 x 30)
 // keeps the rows it had.
 enum LabelRollShape : uint8_t { LRS_40, LRS_50, LRS_62, LRS_ENDLESS, LRS_SMALL };
@@ -137,9 +139,10 @@ inline LabelRollShape labelRollShape(uint16_t width_mm, uint16_t length_mm) {
 
 // The template as a roll of this size carries it: the square takes the code
 // alone, in the standard arrangement, flat (Joerg 05.11.2026: "nur fuer
-// QR-Code geeignet"); continuous tape takes it flat, the lines across the
-// tape ("Hochkant" does not apply there); every other roll takes it as it
-// is. Pure: the saved template is untouched.
+// QR-Code geeignet"); every other roll takes it as it is, continuous tape
+// upright too: there the label turns, its height the tape's width and its
+// length what it needs (Spec V77, Joerg 06.11.2026: the printer prints a
+// label turned as well). Pure: the saved template is untouched.
 inline LabelLayout labelLayoutForMedia(const LabelLayout& layout, uint16_t width_mm,
                                        uint16_t length_mm) {
   LabelLayout l = layout;
@@ -148,7 +151,7 @@ inline LabelLayout labelLayoutForMedia(const LabelLayout& layout, uint16_t width
     l.fields &= 1u << LF_QR;
     l.preset = LABEL_PRESET_STANDARD;
   }
-  if (shape == LRS_SMALL || shape == LRS_ENDLESS) l.options &= ~(1u << LO_PORTRAIT);
+  if (shape == LRS_SMALL) l.options &= ~(1u << LO_PORTRAIT);
   return l;
 }
 // The fields that become a fact line in this arrangement, as a mask: what

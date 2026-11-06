@@ -75,9 +75,12 @@ LabelLayout labelLayoutSanitized(const LabelLayout& in) {
 // too little for a spool's address - a layout question, not a count. They
 // are for that shape only: a Bluetooth stock kept from earlier betas, such
 // as 75 x 50, is wide as well and keeps the rows it had.
-// Continuous tape and the square have no rows here: the one takes every line
-// a label can have and grows with them, the other carries the code alone
-// (labelRollShape(), Joerg 05.11.2026).
+// The square has no row here: it carries the code alone (labelRollShape(),
+// Joerg 05.11.2026). Continuous tape flat takes every line a label can have
+// and grows with them; upright its width is the label's height, which
+// counts as these rows do: 62 mm as the 29 x 62 upright, whose height it
+// is, 38 mm as the 40 x 30 flat, which is lower still (Spec V77; checked on
+// the previews of the acceptance).
 enum CapacityRow {
   CAP_FLAT_40, CAP_FLAT_50, CAP_UPRIGHT_40, CAP_UPRIGHT_50, CAP_FLAT_62, CAP_UPRIGHT_62, CAP_ROWS
 };
@@ -105,12 +108,13 @@ static const uint8_t FACT_CAPACITY_NO_CODE[CAP_ROWS][LABEL_PRESET_COUNT] = {
 int labelFactCapacity(const LabelLayout& layout, uint16_t width_mm, uint16_t length_mm) {
   const uint8_t preset = layout.preset < LABEL_PRESET_COUNT ? layout.preset : LABEL_PRESET_STANDARD;
   const LabelRollShape shape = labelRollShape(width_mm, length_mm);
-  // The square carries the code alone, no fact line; continuous tape every
-  // line a label can have, it grows with them (Joerg 05.11.2026).
+  // The square carries the code alone, no fact line; continuous tape flat
+  // every line a label can have, it grows with them (Joerg 05.11.2026, V77).
   if (shape == LRS_SMALL) return 0;
-  if (shape == LRS_ENDLESS) return LABEL_LAYOUT_MAX_FACTS;
   const bool upright = labelLayoutOption(layout, LO_PORTRAIT);
-  const CapacityRow row = shape == LRS_62 ? (upright ? CAP_UPRIGHT_62 : CAP_FLAT_62)
+  if (shape == LRS_ENDLESS && !upright) return LABEL_LAYOUT_MAX_FACTS;
+  const CapacityRow row = shape == LRS_ENDLESS ? (width_mm >= 62 ? CAP_UPRIGHT_62 : CAP_FLAT_40)
+                        : shape == LRS_62 ? (upright ? CAP_UPRIGHT_62 : CAP_FLAT_62)
                         : shape == LRS_50 ? (upright ? CAP_UPRIGHT_50 : CAP_FLAT_50)
                         : (upright ? CAP_UPRIGHT_40 : CAP_FLAT_40);
   return labelLayoutHasCode(layout) ? FACT_CAPACITY[row][preset]

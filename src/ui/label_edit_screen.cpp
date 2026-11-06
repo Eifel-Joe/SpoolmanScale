@@ -55,6 +55,7 @@ struct EditState {
   LabelKind kind;
   SpoolLabelData spool;
   LabelEdit edit;
+  LabelFactList facts;   // too large for the loop's stack (label_facts.h)
 };
 static EditState* s_st = nullptr;
 static LabelEdit* s_free = nullptr;
@@ -494,10 +495,10 @@ static bool fillFromSpool() {
     labelQrForSpool(s_st->spool.id, qr, sizeof(qr));
   }
   const int cap = labelFactCapacity(l, c.media_width_mm, c.media_length_mm);
-  LabelFactList f;
-  if (s_st->kind == LABEL_KIND_FILAMENT) labelFilamentFacts(l, s_st->spool, cap, &f);
-  else labelSpoolFacts(l, s_st->spool, cap, &f);
-  labelEditFromLabel(&s_st->edit, s_st->spool, l, f, qr);
+  LabelFactList* f = &s_st->facts;
+  if (s_st->kind == LABEL_KIND_FILAMENT) labelFilamentFacts(l, s_st->spool, cap, f);
+  else labelSpoolFacts(l, s_st->spool, cap, f);
+  labelEditFromLabel(&s_st->edit, s_st->spool, l, *f, qr);
   return true;
 }
 
