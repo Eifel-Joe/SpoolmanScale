@@ -1,4 +1,4 @@
-"""Compile the production battery rules of the 7B (services/battery_rules.cpp, Spec 5.3 AB, V60) and check them against what was measured on the board on 03.11.2026 (meta repo docs/recherche/2026-11-03-beta20/messung.md): the conversion of the CH32V003's ADC reading, how a ten-second window of readings tells no battery, charging and running on the battery apart, that the supply only changes after two windows that agree, that the level shown in per cent never rises on the battery and never falls while charging, the table while charging from the charge measured the same day and the rule that calls a cell full (Spec V65, Punkteliste n67), that each warning comes once per discharge, when an update is refused, and where the display sits in the header line."""
+"""Compile the production battery rules of the 7B (services/battery_rules.cpp, Spec 5.3 AB, V60) and check them against what was measured on the board on 03.11.2026 (meta repo docs/recherche/2026-11-03-beta20/messung.md): the conversion of the CH32V003's ADC reading, how a ten-second window of readings tells no battery, charging and running on the battery apart, that the supply only changes after two windows that agree, that the level shown in per cent never rises on the battery and never falls while charging, the table while charging from the charge measured the same day and the rule that calls a cell full (Spec V65, Punkteliste n67), that each warning comes once per discharge, when an update is refused (also until the supply is known, at most 60 s; Spec 5.3 AD, V81), and where the display sits in the header line."""
 import subprocess
 import tempfile
 from pathlib import Path
@@ -248,13 +248,25 @@ int main() {
   }
   assert(w.supply == BATTERY && low && crit);
 
-  // The update: free without a battery, before the supply is known, while
-  // charging and from 50 % on; refused on the battery below 50 % and below
-  // the warning voltage, also while charging.
+  // The update: free without a battery, while charging and from 50 % on;
+  // refused on the battery below 50 % and below the warning voltage, also
+  // while charging. Until the supply is known it is refused too (Spec 5.3
+  // AD, V81): the first two windows after the start, about 20 s, would
+  // otherwise let an update through on an empty cell. At most
+  // SUPPLY_WAIT_MAX_MS after the readings began (E2 a): a board whose
+  // expander never gives a supply must still take the update that mends it.
+  static_assert(SUPPLY_WAIT_MAX_MS == 60000, "refused until known, at most 60 s");
+  const uint32_t LATE = 3600000;                              // an hour after the start
   State u;
-  assert(!updateBlocked(u));                                  // not known yet
-  feedN(u, win(1, 2), 2);
-  assert(u.supply == NONE && !updateBlocked(u) && toneOf(u) == TONE_HIDDEN);
+  assert(updateBlock(u, 0) == BLOCK_SUPPLY);                  // not known yet
+  assert(updateBlock(u, 20000) == BLOCK_SUPPLY);
+  assert(updateBlock(u, SUPPLY_WAIT_MAX_MS - 1) == BLOCK_SUPPLY);
+  assert(updateBlock(u, SUPPLY_WAIT_MAX_MS) == BLOCK_NONE);    // never known: as before
+  assert(updateBlock(u, LATE) == BLOCK_NONE);
+  feedN(u, win(1, 2), 1);                                     // one window: still unknown
+  assert(u.supply == UNKNOWN && updateBlock(u, 10000) == BLOCK_SUPPLY);
+  feedN(u, win(1, 2), 1);
+  assert(u.supply == NONE && updateBlock(u, 20000) == BLOCK_NONE && toneOf(u) == TONE_HIDDEN);
   // The voltages either side of 50 % come from the table itself, so that a
   // table measured anew does not break the rule's test.
   uint32_t below50 = 0, from50 = 0;
@@ -266,16 +278,16 @@ int main() {
   assert(below50 > 0 && from50 > 0);
   State v;
   feedN(v, win(rawOf(below50 - 30), 26), 2);   // 30 mV inside: a raw count is 9.7 mV
-  assert(v.supply == BATTERY && v.shown < UPDATE_MIN_PCT && updateBlocked(v));
+  assert(v.supply == BATTERY && v.shown < UPDATE_MIN_PCT && updateBlock(v, 20000) == BLOCK_BATTERY);
   State x;
   feedN(x, win(rawOf(from50 + 30), 26), 2);
-  assert(x.supply == BATTERY && x.shown >= UPDATE_MIN_PCT && !updateBlocked(x));
+  assert(x.supply == BATTERY && x.shown >= UPDATE_MIN_PCT && updateBlock(x, 20000) == BLOCK_NONE);
   State y;
   feedN(y, win(rawOf(below50 - 30), 9), 2);
-  assert(y.supply == CHARGING && !updateBlocked(y));
+  assert(y.supply == CHARGING && updateBlock(y, 20000) == BLOCK_NONE);
   State z;
   feedN(z, win(rawOf(CRITICAL_MV - 100), 9), 2);
-  assert(z.supply == CHARGING && z.mv <= CRITICAL_MV && updateBlocked(z));
+  assert(z.supply == CHARGING && z.mv <= CRITICAL_MV && updateBlock(z, LATE) == BLOCK_BATTERY);
 
   // The header line, 480 wide: the version ends at left_end, the first chip
   // begins at right_start. Centred on the screen where it fits, otherwise
