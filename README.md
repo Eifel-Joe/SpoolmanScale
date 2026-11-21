@@ -117,7 +117,7 @@ The parts are the WT32-SC01 Plus's (PN532, NAU7802 and load cell, see the hardwa
   |---|---|
   | CAN transceiver | about 5 mA, always on |
   | RS485 transceiver | up to 3.3 mA |
-  | Power LED on the NFC module | about 1 to 1.5 mA |
+  | Power LED on the NFC module | about 1 to 1.5 mA; dark when the 7B switches the reader off by its reset wire |
   | SD card | its standby current; take it out when you do not need the log |
 
 Pin table, flashing and everything else that is different: **[Waveshare 7 and 7B](https://eifel-joe.github.io/SpoolmanScale-Docs/build/waveshare/)** in this fork's documentation, or [Other Boards in BUILDING.md](BUILDING.md#other-boards). The wiring guides of the original's documentation describe the WT32-SC01 Plus only.
