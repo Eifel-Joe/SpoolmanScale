@@ -55,7 +55,7 @@ static bool gh_web_flash_pending = false;
 static bool s_web_install_gave_up = false;
 // The last upload was refused for the battery (Spec 5.3 T, V60): the reply
 // says so instead of the general failure.
-static bool s_upload_battery = false;
+static bat::Block s_upload_block = bat::BLOCK_NONE;
 static char gh_web_flash_tag[40] = "";
 // Its checksum, taken with the tag when the install is asked for: by the time
 // the loop runs it, a daily check answered meanwhile may have cleared the
@@ -145,10 +145,10 @@ void otaWebGithubTick() {
   gh_web_flash_pending = false;
   // Asked again at the start: /api/ota/install refused already, but the
   // battery may have dropped while the install waited (Spec 5.3 T, V60).
-  if (batteryUpdateBlocked()) {
+  if (batteryUpdateBlock() != bat::BLOCK_NONE) {
     s_web_install_gave_up = true;
-    logSDf("OTA: install of %s from the web UI refused, battery %d %%", gh_web_flash_tag,
-           (int)batteryState().shown);
+    logSDf("OTA: install of %s from the web UI refused, battery %d %%, supply %s", gh_web_flash_tag,
+           (int)batteryState().shown, batterySupplyName());
     otaBrowserShowUploadFailed();
     return;
   }
@@ -345,11 +345,13 @@ static String body() {
   h += F(",toobig:");     h += jsStr(T(STR_W_FW_TOOBIG));
   h += F(",ghbig:");      h += jsStr(T(STR_GH_OTA_TOO_BIG));
   h += F(",battery:");    h += jsStr(T(STR_W_FW_BATTERY));
+  h += F(",supply:");     h += jsStr(T(STR_W_FW_SUPPLY));
   h += F("};"
          "function ghSay(t,bad){var m=document.getElementById('ghmsg');"
          "m.className=bad?'msg bad':'msg';m.textContent=t;}"
          "function ghErr(d){return d.error==='nowifi'?G.nowifi:"
          "d.error==='battery'?G.battery:"
+         "d.error==='supply'?G.supply:"
          "d.error==='lowmem'?G.lowmem:"
          "(d.error==='busy'?G.busy:G.fail+(d.error?': '+d.error:''));}"
          "function fmtDate(s){if(!s)return G.unknown;"
@@ -415,7 +417,8 @@ static String body() {
          "s.textContent=mb(ev.loaded)+' / '+mb(ev.total)+' - '+p+' %';if(p>=100)sent=true;};"
          "x.onload=function(){if(x.status===200&&x.responseText.indexOf('&#10003;')>=0)fwBack();"
          "else{document.getElementById('rbox').style.display='none';"
-         "fwSay(x.responseText.indexOf('fw-bat')>=0?G.battery:G.upfail);}};"
+         "fwSay(x.responseText.indexOf('fw-sup')>=0?G.supply:"
+         "x.responseText.indexOf('fw-bat')>=0?G.battery:G.upfail);}};"
          // A drop after the last byte is the restart overtaking the reply.
          "x.onerror=function(){if(sent)fwBack();"
          "else{document.getElementById('rbox').style.display='none';fwSay(G.upfail);}};"
@@ -765,11 +768,15 @@ static void routesTail(WebServer &srv) {
       srv.send(200, "application/json", "{\"ok\":false,\"error\":\"toobig\"}");
       return;
     }
-    // On the battery below 50 % or the warning voltage (Spec 5.3 T, V60).
-    if (batteryUpdateBlocked()) {
-      logSDf("OTA: install from the web UI refused, battery %d %%", (int)batteryState().shown);
-      srv.send(200, "application/json",
-               String("{\"ok\":false,\"error\":\"battery\",\"pct\":") + (int)batteryState().shown + "}");
+    // On the battery below 50 % or the warning voltage (Spec 5.3 T, V60),
+    // and until the supply is known after the start (Spec 5.3 AD).
+    const bat::Block block = batteryUpdateBlock();
+    if (block != bat::BLOCK_NONE) {
+      logSDf("OTA: install from the web UI refused, battery %d %%, supply %s", (int)batteryState().shown,
+             batterySupplyName());
+      srv.send(200, "application/json", String("{\"ok\":false,\"error\":") +
+               (block == bat::BLOCK_SUPPLY ? "\"supply\"" : "\"battery\"") + ",\"pct\":" +
+               (int)batteryState().shown + "}");
       return;
     }
     strncpy(gh_web_flash_tag, gh_latest_version, sizeof(gh_web_flash_tag) - 1);
@@ -805,12 +812,14 @@ static void routesTail(WebServer &srv) {
         msg += F("</h1><p>");
         msg += T(STR_W_FW_RESTARTING);
         msg += F("</p></body></html>");
-      } else if (s_upload_battery) {
-        // fw-bat tells the page's script which failure this was.
-        msg += F("<h1 class='fw-bad fw-bat'>&#10007; ");
+      } else if (s_upload_block != bat::BLOCK_NONE) {
+        // fw-bat and fw-sup tell the page's script which failure this was.
+        const bool supply = s_upload_block == bat::BLOCK_SUPPLY;
+        if (supply) msg += F("<h1 class='fw-bad fw-sup'>&#10007; ");
+        else        msg += F("<h1 class='fw-bad fw-bat'>&#10007; ");
         msg += T(STR_W_FW_FAIL);
         msg += F("</h1><p>");
-        msg += T(STR_W_FW_BATTERY);
+        msg += T(supply ? STR_W_FW_SUPPLY : STR_W_FW_BATTERY);
         msg += F("</p><a href='/'>&#8592; ");
         msg += T(STR_W_BACK_STATUS);
         msg += F("</a></body></html>");
@@ -849,7 +858,7 @@ static void routesTail(WebServer &srv) {
       HTTPUpload& upload = srv.upload();
       if (upload.status == UPLOAD_FILE_START) {
         s_upload_ok = false;
-        s_upload_battery = false;
+        s_upload_block = bat::BLOCK_NONE;
         failed  = false;
         refused = !webAllowed(srv, GATE_MAINT);
         if (refused) {
@@ -867,12 +876,13 @@ static void routesTail(WebServer &srv) {
           return;
         }
         // On the battery below 50 % or the warning voltage (Spec 5.3 T,
-        // V60), before a byte is written; read and dropped like the rest.
-        s_upload_battery = batteryUpdateBlocked();
-        if (s_upload_battery) {
+        // V60), and until the supply is known after the start (Spec 5.3 AD),
+        // before a byte is written; read and dropped like the rest.
+        s_upload_block = batteryUpdateBlock();
+        if (s_upload_block != bat::BLOCK_NONE) {
           refused = true;
-          logSDf("OTA: upload refused before the first byte, battery %d %%",
-                 (int)batteryState().shown);
+          logSDf("OTA: upload refused before the first byte, battery %d %%, supply %s",
+                 (int)batteryState().shown, batterySupplyName());
           return;
         }
         Serial.printf("OTA start: %s\n", upload.filename.c_str());

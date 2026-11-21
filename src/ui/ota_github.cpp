@@ -386,9 +386,17 @@ void doGithubOtaFlash(const char* version) {
     return;
   }
   // On the battery below 50 %, or below the warning voltage (Spec 5.3 T,
-  // V60): refused before the download, like a version too large for the
-  // slot. A board that cannot measure never refuses.
-  if (batteryUpdateBlocked()) {
+  // V60), and until the supply is known after the start (Spec 5.3 AD):
+  // refused before the download, like a version too large for the slot. A
+  // board that cannot measure never refuses.
+  const bat::Block block = batteryUpdateBlock();
+  if (block == bat::BLOCK_SUPPLY) {
+    s_flash_wait_since = 0;
+    ghShowStatus(GH_LOOK_WARN, T(STR_GH_OTA_SUPPLY));
+    logSDf("OTA: install of %s refused, the supply is not known yet", tag);
+    return;
+  }
+  if (block != bat::BLOCK_NONE) {
     s_flash_wait_since = 0;
     char low[96];
     snprintf(low, sizeof(low), T(STR_GH_OTA_BATTERY), (int)batteryState().shown);

@@ -53,7 +53,7 @@ if len(readers) == 1:
 service = code("services/battery.cpp")
 expect("services/battery.cpp: feeds the rules (bat::feed)", "bat::feed(" in service)
 expect("services/battery.cpp: measures only where BOARD_BATTERY_SENSE", "#if BOARD_BATTERY_SENSE" in text("services/battery.cpp"))
-expect("services/battery.cpp: asks bat::updateBlocked()", "bat::updateBlocked(" in service)
+expect("services/battery.cpp: asks the rules (bat::updateBlock)", "bat::updateBlock(" in service)
 expect("app/app_loop.cpp: calls batteryTick()", "batteryTick(" in code("app/app_loop.cpp"))
 
 # 4. Every way that writes a firmware asks first (Spec 5.3 T, V60): the
@@ -71,13 +71,13 @@ for path in sorted(src.rglob("*.cpp")):
         if re.search(r"\bgithubFlashTag\s*\(|\bUpdate\.begin\s*\(", line):
             starts.append(rel)
             before = "\n".join(lines[max(0, i - 60):i])
-            expect(f"src/{rel}:{i + 1}: a firmware write starts without batteryUpdateBlocked() before it",
-                   "batteryUpdateBlocked(" in before)
+            expect(f"src/{rel}:{i + 1}: a firmware write starts without batteryUpdateBlock() before it",
+                   re.search(r"batteryUpdateBlock(ed)?\(", before) is not None)
 expect("the three ways to write a firmware are found (ota_github, page_firmware twice)",
        starts.count("ui/ota_github.cpp") >= 1 and starts.count("web/pages/page_firmware.cpp") >= 2, str(starts))
 firmware_page = code("web/pages/page_firmware.cpp")
 expect("web/pages/page_firmware.cpp: /api/ota/install refuses with the error \"battery\"",
-       "batteryUpdateBlocked(" in firmware_page and '\\"battery\\"' in text("web/pages/page_firmware.cpp"))
+       "batteryUpdateBlock(" in firmware_page and '\\"battery\\"' in text("web/pages/page_firmware.cpp"))
 
 # 5. The header line: a label of its own, built only where the board
 #    measures, placed by the rules' headerSlot(), in the header's font 12,

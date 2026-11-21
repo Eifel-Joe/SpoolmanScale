@@ -1,6 +1,7 @@
 #include "hardware/panel.h"
 
 #include "boards/board.h"
+#include "app/sleep_power.h"
 #include "hardware/display.h"
 #include "hardware/sd_logger.h"
 
@@ -469,5 +470,8 @@ void panelPrepareDeepSleep() {
     logSD("Deep sleep: touch wake not armed");
     return;
   }
+  // Kept through the sleep: a wake by this line asks the touch chip before
+  // the scale starts (app/sleep_power.h).
+  sleepPowerArmed((uint8_t)wake_level);
   esp_sleep_enable_ext0_wakeup(pin, wake_level);
 }

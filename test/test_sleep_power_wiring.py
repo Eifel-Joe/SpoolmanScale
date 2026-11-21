@@ -107,10 +107,13 @@ if release:
         expect(f"app/sleep_power.cpp: releaseHolds() lets go of {pin}",
                re.search(rf"gpio_hold_dis\(\s*\(gpio_num_t\)\s*{re.escape(pin)}\s*\)", release) is not None)
 expect("app/sleep_power.cpp: the touch chip's status register 0x814E is read", "0x81" in sp and "0x4E" in sp)
-expect("app/sleep_power.cpp: the expander is taken up with the byte it held through the sleep",
-       re.search(r"io_ch32v003::begin\(\s*Wire\s*,\s*s_rtc\.expander\s*\)", sp) is not None)
-expect("boards/waveshare_s3_lcd7b/io_ch32v003.h: outputs() gives the byte last written",
-       re.search(r"uint8_t\s+outputs\s*\(\s*\)", text("boards/waveshare_s3_lcd7b/io_ch32v003.h")) is not None)
+# The expander kept its pins through the sleep. The way back to sleep does
+# not take it up at all: begin() writes its pins, boardEarlyInit() does that
+# on a real start.
+early_path = body(sp, "static void sleepOnWithoutTouch()")
+expect("app/sleep_power.cpp: sleepOnWithoutTouch() is there", early_path is not None)
+if early_path:
+    expect("app/sleep_power.cpp: the way back to sleep leaves the expander alone", "io_ch32v003" not in early_path)
 panel = code("boards/waveshare_s3_lcd7b/panel.cpp")
 prep = body(panel, "void panelPrepareDeepSleep()")
 expect("boards/waveshare_s3_lcd7b/panel.cpp: panelPrepareDeepSleep() is there", prep is not None)

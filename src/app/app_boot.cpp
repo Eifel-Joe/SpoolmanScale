@@ -9,6 +9,7 @@
 #include "app/app_state.h"
 #include "app/screenshot.h"
 #include "app/setup_flow.h"
+#include "app/sleep_power.h"
 #include "hardware/display.h"
 #include "hardware/display_power.h"
 #include "hardware/i2c_scan.h"
@@ -141,6 +142,10 @@ void wifiConnect() {
 //  SETUP
 // ============================================================
 void appSetup() {
+  // Before everything: a wake by the touch line without a touch goes back to
+  // sleep here, before boardEarlyInit() resets the touch chip; every other
+  // start lets go of the lines held through the sleep (Spec 5.3 AD).
+  sleepPowerEarly();
   Serial.begin(115200);
 #if ESP_ARDUINO_VERSION_MAJOR >= 3
   // With the cable in a computer that does not read the port, core 3 waits
@@ -173,6 +178,7 @@ void appSetup() {
   // Note: cleanOldLogs() is deferred until after NTP sync (in wifiConnect)
   initSD();
   batteryStartReport();
+  sleepPowerReport();
 
   // Which backend is active, plus FilaMan credentials. Runs after initSD()
   // so the line lands in the log, and well before the first backend_api call

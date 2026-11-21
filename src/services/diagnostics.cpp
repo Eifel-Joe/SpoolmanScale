@@ -4,6 +4,7 @@
 #include <math.h>
 
 #include "app/app_state.h"
+#include "app/sleep_power.h"
 #include "app_config.h"
 #include "hardware/i2c_scan.h"
 #include "hardware/nfc.h"
@@ -77,7 +78,9 @@ void diagnosticsTick() {
   // Probed live rather than read from the boot scan, so a connector that is
   // pushed back in takes effect without a restart. 0x2A is already answered by
   // the scale watchdog every 5 s, so only the reader costs a transaction here.
-  pn532_on_bus = i2cPresent(I2C_EXT, I2C_ADDR_PN532);
+  // A reader the battery rule switched off (app/sleep_power.h) does not
+  // answer, and is not missing: asked, the command way would even wake it.
+  pn532_on_bus = sleepPowerReaderParked() || i2cPresent(I2C_EXT, I2C_ADDR_PN532);
   // A device built without a load cell has no NAU7802 to miss, so its silence
   // is the configuration rather than a finding. Asked as "is one missing" and
   // not as "is one there": the reader's own verdicts below have to go on

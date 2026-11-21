@@ -2910,6 +2910,10 @@ const char* const STRINGS[][3] = {
     "Batterie %d %% : mise à jour dès 50 %% ou en charge" },  // STR_GH_OTA_BATTERY
   { "Der Akku ist zu schwach für ein Update. Ab 50 % Ladestand oder während er lädt (Netzteil an der Buchse UART).", "The battery is too low for an update. From 50 % charge, or while it charges (power supply at the UART socket).",
     "La batterie est trop faible pour une mise à jour. À partir de 50 %, ou pendant la charge (alimentation sur la prise UART)." },  // STR_W_FW_BATTERY
+  { "Versorgung wird noch geprüft: Update in einigen Sekunden", "Checking the power supply: update in a few seconds",
+    "Alimentation en test : mise à jour sous peu" },  // STR_GH_OTA_SUPPLY
+  { "Die Waage prüft nach dem Start noch ihre Stromversorgung. Bitte in einigen Sekunden erneut versuchen.", "After its start the scale is still checking its power supply. Please try again in a few seconds.",
+    "Après son démarrage, la balance vérifie encore son alimentation. Veuillez réessayer dans quelques secondes." },  // STR_W_FW_SUPPLY
   { "Akku schwach", "Battery low",
     "Batterie faible" },  // STR_BAT_LOW_TITLE
   { "Noch etwa 20 %. Bitte bald das Netzteil an die Buchse UART stecken, dort lädt der Akku.", "About 20 % left. Please plug the power supply into the UART socket soon, that is where the battery charges.",

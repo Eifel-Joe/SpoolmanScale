@@ -10,6 +10,10 @@ bool nfcHardwareBegin(TwoWire* wire, int8_t reset_pin, int8_t irq_pin,
                       uint32_t* firmware_version = nullptr);
 bool nfcHardwarePing();
 bool nfcHardwareReinit(uint32_t* firmware_version = nullptr);
+// Puts the PN532 into power down (PowerDown 0x16, woken by its I2C address
+// only), for a reader without a working reset wire on the 7B (Spec 5.3 AD).
+// nfcHardwareReinit() wakes it again. False without an answer.
+bool nfcHardwarePowerDown();
 // What a uid buffer handed to nfcReadPassiveTarget() has to hold. ISO 14443-3A
 // knows three sizes - 4, 7 and 10 bytes - and the library copies whatever the
 // chip reports without looking at the buffer. Every buffer used to be 7 or 8:

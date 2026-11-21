@@ -104,6 +104,26 @@ static bool rawCommand(uint8_t* cmd, uint8_t cmd_len, uint8_t resp_len) {
          rx[7] == (uint8_t)(cmd[0] + 1);
 }
 
+// PowerDown with WakeUpEnable 0x80: only the PN532's own I2C address wakes
+// it, not a tag in the field (UM0701-02 7.2.11). An ACK frame from the host
+// first aborts a search for a tag that may still be running (6.2.2,
+// "Abort"); without it the command would be written over that search. The
+// chip goes down about 1 ms after its response. The next frame to its address
+// wakes it, held by clock stretching until its oscillator runs (6.3.3.3).
+// Response: 00 00 FF 03 FD D5 17 st DCS 00.
+bool nfcHardwarePowerDown() {
+  if (!nfc || !nfc_wire) return false;
+  static const uint8_t ACK[6] = { 0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00 };
+  nfc_wire->beginTransmission((uint8_t)PN532_I2C_ADDRESS);
+  nfc_wire->write(ACK, sizeof(ACK));
+  nfc_wire->endTransmission();
+  delay(5);
+  uint8_t cmd[2] = { 0x16, 0x80 };
+  const bool ok = rawCommand(cmd, 2, 10);
+  delay(3);
+  return ok;
+}
+
 bool nfcInRelease() {
   // InRelease, Tg 0 = every target. Response: 00 00 FF 03 FD D5 53 st DCS 00.
   uint8_t cmd[2] = { 0x52, 0x00 };

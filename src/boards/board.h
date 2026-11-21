@@ -34,6 +34,10 @@
 //                            batteryReadRaw() in its folder then, the
 //                            display in the header and the update lock
 //                            (services/battery.h); 0 everywhere else
+//    BOARD_SLEEP_CUTS        1 when the board switches more than the
+//                            backlight off before the deep sleep and parks
+//                            the reader on the battery (app/sleep_power.h);
+//                            not set, it is 0
 //    BOARD_NATIVE_W          only on a board whose panel has more pixels than
 //    BOARD_NATIVE_H          the UI: the panel's real size. A screen written
 //                            for it can then have every one of them, see

@@ -14,6 +14,12 @@ bool scaleHardwareBegin(TwoWire* wire, void (*calibration_wait_cb)() = nullptr);
 bool scaleHardwarePresent();
 
 bool scaleHardwareAvailable();
+
+// Powers the NAU7802 down before the deep sleep of the 7B (Spec 5.3 AD):
+// PU_CTRL with PUD and PUA cleared, the other bits kept
+// (sleeppwr::nauPowerDown()). The library's begin() powers it up again at the
+// next start. False when the chip did not answer.
+bool scaleHardwarePowerDown();
 int32_t scaleHardwareReadRaw();
 
 // The name of the converter, for the web page that shows the raw count. The

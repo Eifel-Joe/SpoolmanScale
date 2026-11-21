@@ -12,6 +12,7 @@
 #include <esp_heap_caps.h>
 
 #include "app/app_state.h"
+#include "app/sleep_power.h"
 #include "hardware/sd_logger.h"
 #include "services/backend.h"
 #include "services/backend_api.h"
@@ -837,6 +838,9 @@ static void routes(WebServer &srv) {
 
   srv.on("/api/tag", HTTP_GET, [&srv]() {
     if (!webRequire(srv, GATE_MAINT, T(STR_W_NAV_TAGS))) return;
+    // The page asks while it is open and waits for a tag: on the battery the
+    // reader stays on meanwhile, also without a weight (Spec 5.3 AD).
+    sleepPowerReaderWanted();
     // Reader state comes from the loop task; touching the reader here would
     // race the main NFC poll.
     char info[TAG_INFO_JSON_MAX];

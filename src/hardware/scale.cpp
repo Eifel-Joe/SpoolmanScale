@@ -4,6 +4,7 @@
 
 #include "app_config.h"
 #include "app/doc_build.h"
+#include "services/sleep_power_rules.h"
 
 // The calibration the loop converts with (app/app_state.h), for the simulated
 // weight of the acceptance and documentation builds.
@@ -55,6 +56,20 @@ bool scaleHardwareBegin(TwoWire* wire, void (*calibration_wait_cb)()) {
   }
   Serial.println("NAU7802 calibration timed out");
   return false;
+}
+
+bool scaleHardwarePowerDown() {
+  static constexpr uint8_t PU_CTRL = 0x00;
+  if (!nau_wire) return false;
+  nau_wire->beginTransmission(I2C_ADDR_NAU7802);
+  nau_wire->write(PU_CTRL);
+  if (nau_wire->endTransmission(false) != 0) return false;
+  if (nau_wire->requestFrom((uint8_t)I2C_ADDR_NAU7802, (uint8_t)1) != 1) return false;
+  const uint8_t pu = (uint8_t)nau_wire->read();
+  nau_wire->beginTransmission(I2C_ADDR_NAU7802);
+  nau_wire->write(PU_CTRL);
+  nau_wire->write(sleeppwr::nauPowerDown(pu));
+  return nau_wire->endTransmission() == 0;
 }
 
 bool scaleHardwarePresent() {

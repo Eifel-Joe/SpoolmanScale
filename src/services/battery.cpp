@@ -72,7 +72,17 @@ static bool readOne(uint16_t& raw) {
   return batteryReadRaw(raw);
 }
 
+// When the readings began, for the update lock until the supply is known.
+// Not the boot: a start on an empty cell may have waited dark before (Spec
+// V66), and the lock counts from the first reading.
+static bool     s_reading   = false;
+static uint32_t s_first_ms  = 0;
+
 void batteryTick(uint32_t now_ms) {
+  if (!s_reading) {
+    s_reading  = true;
+    s_first_ms = now_ms;
+  }
   if (now_ms - s_last_read < bat::READ_MS) return;
   s_last_read = now_ms;
   uint16_t raw = 0;
@@ -107,7 +117,12 @@ void batteryTick(uint32_t now_ms) {
 }
 
 bool batteryUpdateBlocked() {
-  return bat::updateBlocked(s_state);
+  return batteryUpdateBlock() != bat::BLOCK_NONE;
+}
+
+bat::Block batteryUpdateBlock() {
+  const uint32_t since = s_reading ? (uint32_t)millis() - s_first_ms : 0;
+  return bat::updateBlock(s_state, since);
 }
 
 // ---- the start on an empty battery (Spec V66) -------------------------
@@ -214,5 +229,6 @@ void batteryStartCheck() {}
 void batteryStartReport() {}
 void batteryTick(uint32_t) {}
 bool batteryUpdateBlocked() { return false; }
+bat::Block batteryUpdateBlock() { return bat::BLOCK_NONE; }
 
 #endif

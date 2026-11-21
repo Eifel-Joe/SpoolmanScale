@@ -41,6 +41,10 @@ void batteryLastWindow(uint32_t& mv, uint16_t& span);
 // below the warning voltage. Every way that writes a firmware asks it before
 // the first byte.
 bool batteryUpdateBlocked();
+// The same with the reason (Spec 5.3 AD): BLOCK_SUPPLY until the supply is
+// known after the start, at most bat::SUPPLY_WAIT_MAX_MS; BLOCK_BATTERY as
+// batteryUpdateBlocked() says it. BLOCK_NONE on a board that cannot measure.
+bat::Block batteryUpdateBlock();
 
 #if defined(SSC_ACCEPTANCE)
 // The acceptance firmware's simulated battery (Spec 5.3 AA, V60): readings

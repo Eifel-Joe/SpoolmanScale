@@ -44,6 +44,11 @@
 // R18 20 k / R19 10 k). Spec 5.3 AB, V60.
 #define BOARD_BATTERY_SENSE  1
 
+// Saving power (Spec 5.3 AD): the reader, the weighing and the SD card off
+// before the deep sleep, the reader parked on the battery with nothing on the
+// scale. The display's converter stays on (V82). app/sleep_power.h.
+#define BOARD_SLEEP_CUTS  1
+
 // The board's own I2C bus and the expander, before the SD card (whose chip
 // select is an expander pin) and the display (whose power, reset and
 // backlight are).

@@ -24,6 +24,7 @@
 #include "app/perf_monitor.h"
 #include "app/render_bench.h"
 #include "app/screenshot.h"
+#include "app/sleep_power.h"
 #include "hardware/lvgl_mem.h"
 #include "services/partition_layout.h"
 #include "ui/partition_popup.h"
@@ -268,6 +269,21 @@ static bool aw_adopted_seen = false;   // a real load has been on the pad since
 // sends it. NOT-TO-DO: no taking the parts off the thresholds or off
 // sm_remaining instead: the value written and the AMS note would still
 // carry them.
+// Whether the scale waits for a tag to be put on the reader: the write
+// question and the second-tag question on the screen, a write parked for the
+// next tag. On the battery the reader stays on then without a weight (Spec
+// 5.3 AD, E1 a): a loose tag or a spool in the hand would not be read
+// otherwise. The tag page in the browser and a scan request from FilaMan say
+// so through sleepPowerReaderWanted().
+//
+// A tag that counts as present keeps it on too: only the poll notices it
+// leave, and a present tag holds off the deep sleep (handlePowerManagement()).
+// Parked with a loose tag on it, the scale would never sleep again.
+static bool waitingForTag() {
+  return tag_present || isTagWritePopupOpen() || isSecondTagPopupOpen() ||
+         strcmp(tagWriteState(), "pending") == 0;
+}
+
 static void autoWeightSettled(float gross) {
   const float parts = spoolExtrasNow();
   const AutoSendVerdict v = autoSendVerdict(gross, parts, (float)sm_spool_weight, sm_remaining);
@@ -1168,6 +1184,9 @@ void appLoop() {
     // Runs here rather than in the button's own callback: the probe holds a
     // line low and talks to the reader over I2C, and that bus belongs to this
     // task.
+    // A reader the battery rule switched off is switched on first; the
+    // probe has to talk to it.
+    sleepPowerReaderWake();
     const bool works = nfcResetSelfTest();
     showInfoPopup(works ? STR_NFCRST_OK_TITLE  : STR_NFCRST_FAIL_TITLE,
                   works ? STR_NFCRST_OK_TEXT   : STR_NFCRST_FAIL_TEXT,
@@ -2025,7 +2044,7 @@ void appLoop() {
   {
     static unsigned long last_nfc_recover_ms = 0;
     static uint8_t nfc_recover_tries = 0;
-    if (!nfc_ok && millis() - last_nfc_recover_ms >= 5000) {
+    if (!nfc_ok && !sleepPowerReaderParked() && millis() - last_nfc_recover_ms >= 5000) {
       last_nfc_recover_ms = millis();
       if (!i2cPresent(I2C_EXT, I2C_ADDR_PN532)) {
         // Off the bus entirely. Nothing to re-initialise, and the counter is
@@ -2069,7 +2088,11 @@ void appLoop() {
   //      Blank (0x00) → show spool list + link
   //      Unknown      → ignore
   // ============================================================
-  if (nfc_ok) {
+  // On the battery the reader is on only while something lies on the scale
+  // or a tag is waited for (Spec 5.3 AD, app/sleep_power.h). Off, it is
+  // neither polled nor revived.
+  sleepPowerReaderTick(scale_weight_g, waitingForTag());
+  if (nfc_ok && !sleepPowerReaderParked()) {
     // The poll finds the same tag several times a second. This says so once,
     // so the log reads as "a tag was put on" rather than as a scan trace.
     static char logged_uid[26] = "";

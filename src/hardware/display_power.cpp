@@ -1,5 +1,6 @@
 #include "display_power.h"
 #include "app/app_state.h"
+#include "app/sleep_power.h"
 
 #include <Arduino.h>
 #include <esp_sleep.h>
@@ -89,6 +90,10 @@ void handlePowerManagement() {
     Serial.println("Deep sleep...");
     logSD("Deep sleep: entering");
     displayPrepareDeepSleep();
+    // The reader, the weighing and the SD card off (Spec 5.3 AD; only the
+    // 7B, elsewhere empty). It logs its own line and deselects the card last:
+    // nothing may log after it.
+    sleepPowerBeforeSleep();
     delay(100);
     esp_deep_sleep_start();
   }

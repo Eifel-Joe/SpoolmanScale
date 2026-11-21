@@ -11,6 +11,7 @@
 #include "hardware/sd_logger.h"
 #include "app/app_state.h"
 #include "app/doc_build.h"
+#include "app/sleep_power.h"
 #include "bambu/bambu_catalog.h"
 #include "bambu/bambu_scan.h"
 #include "bambu/bambu_tag.h"
@@ -108,7 +109,13 @@ bool tagCachedHasRecord() {
          cached_info.fmt[0] && strcmp(cached_info.fmt, "blank") != 0 &&
          strcmp(cached_info.fmt, "unknown") != 0;
 }
-void tagScanRequest() { scan_pending = true; scan_since = millis(); }
+void tagScanRequest() {
+  scan_pending = true;
+  scan_since = millis();
+  // On the battery the reader may be off with nothing on the scale (Spec
+  // 5.3 AD): on for the request.
+  sleepPowerReaderWanted();
+}
 
 const TagWriteReport* tagWriteReportData() { return &report; }
 
