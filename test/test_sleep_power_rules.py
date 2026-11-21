@@ -38,7 +38,8 @@ int main() {
   // it working, otherwise by the sleep command.
   assert(contains(line, STEP_READER_LINE) && !contains(line, STEP_READER_COMMAND));
   assert(contains(cmd, STEP_READER_COMMAND) && !contains(cmd, STEP_READER_LINE));
-  for (const Cuts* c : {&line, &cmd}) {
+  const Cuts* both[] = {&line, &cmd};
+  for (const Cuts* c : both) {
     assert(c->n == 5);
     // Reader, weighing, log line, RS485 high, SD deselected: in this order.
     assert(indexOf(*c, STEP_READER_LINE) == 0 || indexOf(*c, STEP_READER_COMMAND) == 0);
