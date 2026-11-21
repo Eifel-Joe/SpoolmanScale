@@ -1,6 +1,7 @@
 #include "nfc_reset.h"
 
 #include <Arduino.h>
+#include <esp_attr.h>
 
 #include "hardware/nfc.h"
 #include "hardware/pins.h"
@@ -30,8 +31,35 @@ static bool     s_never    = false;
 static uint32_t s_boots    = 0;
 static uint32_t s_due_at   = 0;
 
+#if defined(SSC_ACCEPTANCE)
+// Kept through the restart that follows the request: RTC memory that no
+// reset initialises, so the magic tells a request from whatever it held.
+struct ResetSim {
+  uint32_t magic;
+};
+static constexpr uint32_t RESET_SIM_MAGIC = 0x4E464C4EUL;   // "NFLN"
+static RTC_NOINIT_ATTR ResetSim s_reset_sim;
+
+void nfcResetSimForStart() { s_reset_sim.magic = RESET_SIM_MAGIC; }
+
+// Whether this start is the one asked for; the request is used up by asking.
+static bool simUnverifiedThisStart() {
+  if (s_reset_sim.magic != RESET_SIM_MAGIC) return false;
+  s_reset_sim.magic = 0;
+  return true;
+}
+#else
+static bool simUnverifiedThisStart() { return false; }
+#endif
+
 void nfcResetLoad() {
   s_verified = prefsGetBool(KEY_VERIFIED, false);
+  // Only this start's view: the stored probe is not written.
+  if (simUnverifiedThisStart()) {
+    logSDf("Acceptance build: reset wire treated as not verified for this start (stored: %s)",
+           s_verified ? "verified" : "not verified");
+    s_verified = false;
+  }
   s_recovery = prefsGetBool(KEY_RECOVERY, false);
   s_never    = prefsGetBool(KEY_NEVER,    false);
   s_boots    = prefsGetUInt(KEY_BOOTS,   0) + 1;

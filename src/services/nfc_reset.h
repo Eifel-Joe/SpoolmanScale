@@ -28,6 +28,14 @@ int8_t nfcResetPinForBoot();
 
 bool nfcResetVerified();
 
+#if defined(SSC_ACCEPTANCE)
+// The acceptance firmware's switch (Spec 5.3 AA, a route in web/web_doc.cpp): the
+// next start treats the reset wire as not verified, once, as on a scale
+// without the wire, so that the PN532's sleep command and its wake by I2C
+// can be checked on a board that has it. The stored probe stays as it is.
+void nfcResetSimForStart();
+#endif
+
 // Drives the candidate line open drain for a few milliseconds and asks the
 // reader whether it noticed, then puts it back. Open drain only sinks, so on
 // unmodified hardware it cannot fight the module's output - which is the whole

@@ -10,6 +10,7 @@
 #include "hardware/sd_logger.h"
 #include "services/battery.h"
 #include "services/filament_db.h"
+#include "services/nfc_reset.h"
 #include "services/sim_answer_rules.h"
 #include "services/sim_tag_rules.h"
 #include "services/tag_family.h"
@@ -48,6 +49,9 @@
 //                                           the next print on the Bluetooth
 //                                           printer and the next scan answer
 //                                           so, without the radio (v0.8.7-beta.6)
+//   POST /api/sim/nfc-line                  the next start treats the reader's
+//                                           reset wire as not verified, once
+//                                           (v0.8.7-beta.10)
 // This file is the only place in src/ that spells them: the release run looks
 // for these two texts in every file it attaches, and a hit means a switch got
 // into a release (test_build_variants.py keeps the texts out of every other file).
@@ -334,6 +338,16 @@ void docRoutes(WebServer& srv) {
     srv.send(200, "application/json", String("{\"sim\":\"") + supply + "\",\"mv\":" + mv + "}");
   });
 #endif
+
+  // A scale without the reader's reset wire, for the next start (Spec 5.3
+  // AA, E3 a): the reader then goes to sleep by its command and wakes by
+  // I2C, the way most scales do. Once; the stored probe stays.
+  srv.on("/api/sim/nfc-line", HTTP_POST, [&srv]() {
+    if (!webRequire(srv, GATE_MAINT, T(STR_W_NAV_LOGS))) return;
+    nfcResetSimForStart();
+    logSD("Acceptance build: the next start treats the reset wire as not verified");
+    srv.send(200, "application/json", "{\"sim\":\"nfc-line\",\"next_start\":true}");
+  });
 }
 
 #endif  // SSC_ACCEPTANCE

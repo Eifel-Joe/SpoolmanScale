@@ -198,6 +198,38 @@ for sid in ("STR_GH_OTA_SUPPLY", "STR_W_FW_SUPPLY"):
     expect(f"lang.h: {sid}", re.search(rf"\b{sid}\b", lang_h) is not None)
     expect(f"lang.cpp: a row for {sid}", re.search(rf"//\s*{sid}\b", lang_cpp) is not None)
 
+# 6a. The acceptance firmware's switch for a scale without the reset wire
+#     (Spec 5.3 AA, E3 a): POST /api/sim/nfc-line, behind the maintenance
+#     gate, logged; the next start treats the wire as not verified, once,
+#     and the stored probe stays as it is.
+doc_text = text("web/web_doc.cpp")
+m = re.search(r'srv\.on\("/api/sim/nfc-line", HTTP_POST, \[&srv\]\(\) \{(.*?)\n  \}\);', doc_text, re.S)
+expect("web/web_doc.cpp: POST /api/sim/nfc-line is there", m is not None)
+if m:
+    route = m.group(1)
+    expect("web/web_doc.cpp: /api/sim/nfc-line is behind the maintenance gate", "GATE_MAINT" in route)
+    expect("web/web_doc.cpp: /api/sim/nfc-line sets the next start (nfcResetSimForStart)", "nfcResetSimForStart(" in route)
+    expect("web/web_doc.cpp: /api/sim/nfc-line writes a log line", "logSD" in route)
+expect("web/web_doc.cpp: the list of routes at the top names /api/sim/nfc-line",
+       "/api/sim/nfc-line" in doc_text[:doc_text.find("// This file is the only place")])
+holders = [p.relative_to(src).as_posix() for p in src.rglob("*.cpp") if "/api/sim/nfc-line" in p.read_text(encoding="utf-8")]
+expect("/api/sim/nfc-line is spelled only in web/web_doc.cpp", holders == ["web/web_doc.cpp"], str(holders))
+reset_text = text("services/nfc_reset.cpp")
+m = re.search(r"#if defined\(SSC_ACCEPTANCE\)(.*?)#endif", reset_text, re.S)
+expect("services/nfc_reset.cpp: the switch lives under SSC_ACCEPTANCE", m is not None and "nfcResetSimForStart" in m.group(1))
+if m:
+    expect("services/nfc_reset.cpp: the switch survives the restart (RTC_NOINIT_ATTR) and carries a magic",
+           "RTC_NOINIT_ATTR" in m.group(1) and "magic" in m.group(1))
+load = body(cc.Source(reset_text).code, "void nfcResetLoad()")
+expect("services/nfc_reset.cpp: nfcResetLoad() is there", load is not None)
+if load:
+    expect("services/nfc_reset.cpp: nfcResetLoad() asks the switch for this start", "simUnverifiedThisStart(" in load)
+    expect("services/nfc_reset.cpp: nfcResetLoad() does not write the stored probe",
+           "KEY_VERIFIED" not in load.split("prefsGetBool(KEY_VERIFIED", 1)[-1])
+expect("services/nfc_reset.h: nfcResetSimForStart() is declared under SSC_ACCEPTANCE",
+       re.search(r"#if defined\(SSC_ACCEPTANCE\)\s*\n(?://[^\n]*\n)*void nfcResetSimForStart\(\);", text("services/nfc_reset.h"))
+       is not None)
+
 # 6. Nothing of the diagnosis firmware.
 for p in src.rglob("*"):
     if p.is_file() and p.suffix in (".cpp", ".h"):
