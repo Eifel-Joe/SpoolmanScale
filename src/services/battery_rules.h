@@ -179,6 +179,21 @@ uint8_t feed(State& s, const Window& w);
 // before the supply is known.
 bool updateBlocked(const State& s);
 
+// Until the supply is known an update is refused as well (Spec 5.3 AD,
+// V81): it takes CONFIRM windows, about 20 s after the readings began, and
+// before that an update went through on an empty cell. At most
+// SUPPLY_WAIT_MAX_MS (E2 a): an expander that never gives a usable reading
+// would otherwise refuse every update, also the one that mends it; after
+// that it is free as before.
+constexpr uint32_t SUPPLY_WAIT_MAX_MS = 60000;
+enum Block : uint8_t {
+  BLOCK_NONE = 0,
+  BLOCK_SUPPLY,    // the supply is not known yet: try again in a few seconds
+  BLOCK_BATTERY,   // the battery is below UPDATE_MIN_PCT or CRITICAL_MV
+};
+// ms_reading: milliseconds since the first reading of the battery.
+Block updateBlock(const State& s, uint32_t ms_reading);
+
 // The colour of the display (Jorg, 03.11.2026, Spec V62): green from
 // GOOD_PCT, yellow from LOW_PCT to under GOOD_PCT, red below LOW_PCT and
 // below CRITICAL_MV; the bolt green while charging.

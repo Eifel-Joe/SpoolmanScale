@@ -208,6 +208,11 @@ bool updateBlocked(const State& s) {
   return cell && s.hist_n > 0 && s.mv <= CRITICAL_MV;
 }
 
+Block updateBlock(const State& s, uint32_t ms_reading) {
+  if (s.supply == UNKNOWN) return ms_reading < SUPPLY_WAIT_MAX_MS ? BLOCK_SUPPLY : BLOCK_NONE;
+  return updateBlocked(s) ? BLOCK_BATTERY : BLOCK_NONE;
+}
+
 Tone toneOf(const State& s) {
   if (s.supply == CHARGING) return TONE_CHARGING;
   if (s.supply != BATTERY || s.shown < 0) return TONE_HIDDEN;
