@@ -1,5 +1,9 @@
 #pragma once
 
+// SSC_ACCEPTANCE: the documentation build sets only SSC_DOC_BUILD, and
+// app_config.h derives the other from it.
+#include "app_config.h"
+
 #include <stdint.h>
 
 // ============================================================

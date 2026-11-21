@@ -152,6 +152,9 @@ static void finish(const char *st, const char *msg, uint8_t code) {
 }
 
 bool tagWriteRequest(int spool_id, TagFormat fmt, bool link) {
+  // On the battery the reader may be off with nothing on the scale (Spec
+  // 5.3 AD): on for the write.
+  sleepPowerReaderWanted();
   if (pending) return false;
   if (fmt != TAG_FMT_ERASE && spool_id <= 0) return false;
   pending_id   = spool_id;
@@ -174,6 +177,9 @@ bool tagWriteRequest(int spool_id, TagFormat fmt, bool link) {
 }
 
 bool tagWriteRequestErase(const char* uid_expected) {
+  // On the battery the reader may be off with nothing on the scale (Spec
+  // 5.3 AD): on for the write.
+  sleepPowerReaderWanted();
   if (!tagWriteRequest(0, TAG_FMT_ERASE, false)) return false;
   snprintf(pending_uid, sizeof(pending_uid), "%s", uid_expected ? uid_expected : "");
   return true;
@@ -1509,6 +1515,9 @@ void tagWriteTick() {
   refreshCache();
   scanTick();
   if (!pending) return;
+  // Parked by the battery rule (Spec 5.3 AD): the request came in this pass,
+  // before the rule saw it. The write waits a pass until the reader is on.
+  if (sleepPowerReaderParked()) return;
   pending = false;
 
   if (mifareFormatFor(pending_fmt)) {

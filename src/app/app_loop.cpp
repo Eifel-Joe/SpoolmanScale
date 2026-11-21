@@ -251,6 +251,22 @@ static bool weightSaysSpoolStayed() {
 static bool aw_adopted      = false;
 static bool aw_adopted_seen = false;   // a real load has been on the pad since
 
+// Whether the scale waits for a tag to be put on the reader: the write
+// question and the second-tag question on the screen, a write parked for the
+// next tag, a link or write from FilaMan waiting for its tag. On the battery
+// the reader stays on then without a weight (Spec 5.3 AD, E1 a): a loose tag
+// or a spool in the hand would not be read otherwise. The tag page in the
+// browser and a scan request from FilaMan say so through
+// sleepPowerReaderWanted().
+//
+// A tag that counts as present keeps it on too: only the poll notices it
+// leave, and a present tag holds off the deep sleep (handlePowerManagement()).
+// Parked with a loose tag on it, the scale would never sleep again.
+static bool waitingForTag() {
+  return tag_present || isTagWritePopupOpen() || isSecondTagPopupOpen() || remoteLinkPendingActive() ||
+         strcmp(tagWriteState(), "pending") == 0;
+}
+
 // The spool has lain still long enough. What happens to the reading depends
 // on how it compares with what the backend holds (Nikolai, 26.10.2026):
 // heavier by more than AUTO_WEIGHT_RISE_G is held back and the button asks,
@@ -269,21 +285,6 @@ static bool aw_adopted_seen = false;   // a real load has been on the pad since
 // sends it. NOT-TO-DO: no taking the parts off the thresholds or off
 // sm_remaining instead: the value written and the AMS note would still
 // carry them.
-// Whether the scale waits for a tag to be put on the reader: the write
-// question and the second-tag question on the screen, a write parked for the
-// next tag. On the battery the reader stays on then without a weight (Spec
-// 5.3 AD, E1 a): a loose tag or a spool in the hand would not be read
-// otherwise. The tag page in the browser and a scan request from FilaMan say
-// so through sleepPowerReaderWanted().
-//
-// A tag that counts as present keeps it on too: only the poll notices it
-// leave, and a present tag holds off the deep sleep (handlePowerManagement()).
-// Parked with a loose tag on it, the scale would never sleep again.
-static bool waitingForTag() {
-  return tag_present || isTagWritePopupOpen() || isSecondTagPopupOpen() ||
-         strcmp(tagWriteState(), "pending") == 0;
-}
-
 static void autoWeightSettled(float gross) {
   const float parts = spoolExtrasNow();
   const AutoSendVerdict v = autoSendVerdict(gross, parts, (float)sm_spool_weight, sm_remaining);

@@ -173,8 +173,37 @@ expect("services/diagnostics.cpp: a reader that is off counts as on the bus",
 tick = body(loop, "static bool waitingForTag()")
 expect("app/app_loop.cpp: waitingForTag() is there", tick is not None)
 if tick:
-    for needle in ("isTagWritePopupOpen()", "isSecondTagPopupOpen()", "tagWriteState()"):
+    for needle in ("isTagWritePopupOpen()", "isSecondTagPopupOpen()", "remoteLinkPendingActive()", "tag_present"):
         expect(f"app/app_loop.cpp: waitingForTag() asks {needle}", needle in tick)
+# A write parked for the next tag: its request keeps the reader on, and the
+# write waits for a parked reader instead of failing at once (the request is
+# taken in the same pass, before the reader rule runs).
+tw = code("services/tag_write.cpp")
+for fn in ("bool tagWriteRequest(", "bool tagWriteRequestErase("):
+    expect(f"services/tag_write.cpp: {fn}) keeps the reader on (sleepPowerReaderWanted)",
+           "sleepPowerReaderWanted(" in (body(tw, fn) or ""))
+wtick = body(tw, "void tagWriteTick()")
+expect("services/tag_write.cpp: tagWriteTick() leaves a write pending while the reader is parked",
+       wtick is not None and re.search(r"if\s*\(\s*sleepPowerReaderParked\(\)\s*\)\s*return\s*;", wtick) is not None)
+# Something may have woken a reader asleep by its command (any frame to its
+# address, an I2C scan): the deep sleep sends the command again whatever the
+# rule thinks, and a reader that refused it is not asked every 10 s.
+cmd_case = re.search(r"case sleeppwr::STEP_READER_COMMAND:(.*?)break;", sp, re.S)
+expect("app/sleep_power.cpp: the deep sleep sends the sleep command without asking s_parked",
+       cmd_case is not None and "nfcHardwarePowerDown(" in cmd_case.group(1) and "s_parked" not in cmd_case.group(1))
+park = body(sp, "static void readerPark()")
+expect("app/sleep_power.cpp: readerPark() is there", park is not None)
+if park:
+    expect("app/sleep_power.cpp: a refused sleep command is not tried again until the next start", "s_cmd_refused" in park)
+unpark = body(sp, "static void readerUnpark(")
+expect("app/sleep_power.cpp: switching the reader on updates the header (updateHeaderStatus)",
+       unpark is not None and "updateHeaderStatus()" in unpark)
+# The documentation firmware sets only SSC_DOC_BUILD; app_config.h derives
+# SSC_ACCEPTANCE from it, so every file that asks for SSC_ACCEPTANCE has to
+# see app_config.h first.
+expect("services/nfc_reset.h: includes app_config.h before it asks for SSC_ACCEPTANCE",
+       text("services/nfc_reset.h").find('#include "app_config.h"') >= 0 and
+       text("services/nfc_reset.h").find('#include "app_config.h"') < text("services/nfc_reset.h").find("#if defined(SSC_ACCEPTANCE)"))
 expect("services/tag_write.cpp: a scan request keeps the reader on (sleepPowerReaderWanted)",
        "sleepPowerReaderWanted(" in (body(code("services/tag_write.cpp"), "void tagScanRequest()") or ""))
 expect("web/pages/page_tags.cpp: the tag page's poll keeps the reader on (sleepPowerReaderWanted)",

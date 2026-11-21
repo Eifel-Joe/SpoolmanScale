@@ -18,9 +18,11 @@
 #include "services/nfc_reset.h"
 #include "services/sleep_power_rules.h"
 #include "services/user_options.h"
+#include "ui/header_status.h"
 
-// What has to outlive the deep sleep. RTC memory survives the sleep but not a
-// power-up, where it holds whatever it held: the magic tells the two apart.
+// What has to outlive the deep sleep. RTC_DATA_ATTR survives the sleep and
+// is loaded afresh at every other start; the magic says the fields were set
+// by this firmware.
 struct SleepRtc {
   uint32_t magic;
   uint8_t  armed;         // the touch line was armed for the last sleep
@@ -135,6 +137,10 @@ static sleeppwr::Gate s_gate;
 static bool     s_parked    = false;
 static bool     s_by_line   = false;   // parked by the reset line, not the command
 static bool     s_wanted    = false;
+// A reader that did not take the sleep command (some PN532 clones): not
+// asked again until the next start, or it would be every 10 s with a log
+// line each time.
+static bool     s_cmd_refused = false;
 static uint32_t s_wanted_at = 0;
 // How long a scan request or the tag page in the browser keeps the reader on:
 // as long as a scan request waits for its tag (SCAN_WAIT_MS in
@@ -151,14 +157,15 @@ static void readerPark() {
     logSD("NFC: reader off by its reset line (battery, nothing on the scale)");
     return;
   }
-  if (nfcHardwarePowerDown()) {
+  if (!s_cmd_refused && nfcHardwarePowerDown()) {
     s_parked = true;
     logSD("NFC: reader off by its sleep command (battery, nothing on the scale)");
-  } else {
-    // It did not take the command: left on, the rule sees it as on.
-    s_gate.on = true;
-    logSD("NFC: reader did not take the sleep command, stays on");
+    return;
   }
+  // It did not take the command: left on, the rule sees it as on.
+  s_gate.on = true;
+  if (!s_cmd_refused) logSD("NFC: reader did not take the sleep command, stays on until the next start");
+  s_cmd_refused = true;
 }
 
 static void readerUnpark(const char* why) {
@@ -172,6 +179,7 @@ static void readerUnpark(const char* why) {
   if (!ok) ok = nfcHardwareReinit(&ver);
   nfc_ok = ok;
   logSDf("NFC: reader on (%s)%s", why, ok ? "" : ", but it does not answer");
+  if (!ok) updateHeaderStatus();
 }
 
 void sleepPowerReaderTick(float weight_g, bool waiting_for_tag) {
@@ -214,8 +222,12 @@ void sleepPowerBeforeSleep() {
         note('R');
         break;
       case sleeppwr::STEP_READER_COMMAND:
-        // Already asleep by the same command when the rule parked it.
-        note(s_parked ? 'N' : !nfc_ok ? '-' : nfcHardwarePowerDown() ? 'N' : 'x');
+        // Sent also when the rule parked it: any frame to its address wakes
+        // it (an I2C scan, for one), so asleep is not certain. The leading
+        // ACK frame wakes one that is asleep; a second try covers the frame
+        // it may have missed while waking.
+        if (!nfc_ok) note('-');
+        else note(nfcHardwarePowerDown() || nfcHardwarePowerDown() ? 'N' : 'x');
         break;
       case sleeppwr::STEP_SCALE:
         note(!g_scale_fitted || !scl_ok ? '-' : scaleHardwarePowerDown() ? 'S' : 'x');
